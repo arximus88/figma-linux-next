@@ -50,6 +50,7 @@ declare namespace Types {
 
   type View = "TopPanel" | "Settings" | "ThemeCreator";
   type SettingsView = "General" | "Themes";
+  type FrameStyle = "windows" | "gnome" | "macos";
 
   interface FeatureFlags {
     desktop_beta_use_agent_for_fonts?: boolean;
@@ -88,6 +89,7 @@ declare namespace Types {
       fontDirs: string[];
       recentlyClosedTabs: SavedTab[];
       commandSwitches: CommandSwitch[];
+      frameStyle: FrameStyle;
       windowsState: {
         [key: string]: WindowState;
       };

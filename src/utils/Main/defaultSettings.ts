@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     windowsState: {},
     lastOpenedTabs: {},
     featureFlags: {},
+    frameStyle: "gnome" as Types.FrameStyle,
     savedExtensions: [],
     themeDropdownOpen: true,
     creatorsThemesDropdownOpen: false,

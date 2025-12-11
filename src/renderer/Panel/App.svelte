@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { ipcRenderer } from "electron";
   import { themeApp } from "../Common/Store/Themes";
   import { initCommonIpc } from "../Common/Ipc";
   import { getColorPallet } from "Utils/Render/themes";
+  import { getFrameStyleVars } from "Utils/Render/frameStyles";
   import { initIpc } from "./ipc";
   import { panelZoom } from "./store";
   import { Left, Right, Tabs } from "./Components";
@@ -10,6 +12,15 @@
   initIpc();
 
   let pallet: string[] = [];
+  let frameStyle: Types.FrameStyle = "gnome";
+  let frameStyleVars: string = "";
+
+  // Get frame style from settings
+  const settings: Types.SettingsInterface = ipcRenderer.sendSync("getSettings");
+  if (settings?.app?.frameStyle) {
+    frameStyle = settings.app.frameStyle;
+  }
+  frameStyleVars = getFrameStyleVars(frameStyle);
 
   themeApp.subscribe((theme) => {
     if (!theme) {
@@ -17,9 +28,15 @@
     }
     pallet = getColorPallet(theme);
   });
+
+  // Listen for frame style changes
+  ipcRenderer.on("frameStyleChanged", (_, newStyle: Types.FrameStyle) => {
+    frameStyle = newStyle;
+    frameStyleVars = getFrameStyleVars(newStyle);
+  });
 </script>
 
-<div id="panel" style={`zoom: ${$panelZoom}; ${pallet.join("; ")}`}>
+<div id="panel" style={`zoom: ${$panelZoom}; ${pallet.join("; ")}; ${frameStyleVars}`}>
   <Left />
   <Tabs />
   <Right />
@@ -28,8 +45,9 @@
 <style>
   #panel {
     display: flex;
-    height: 40px;
-    background-color: var(--bg-header);
+    height: var(--panel-height, 40px);
+    background-color: var(--panel-bg, var(--bg-header));
+    border-bottom: var(--panel-border-bottom, none);
   }
 
   :global(html),

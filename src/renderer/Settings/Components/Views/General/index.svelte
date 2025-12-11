@@ -7,9 +7,12 @@
   import { TOPPANELHEIGHT } from "Const";
   import { Folder } from "Common/Icons";
   import { settings, modalBounds } from "../../../store";
+  import { getAvailableFrameStyles } from "Utils/Render/frameStyles";
 
   import DirectoryListItem from "./DirectoryListItem.svelte";
   import SwitchListItem from "./SwitchListItem.svelte";
+
+  const frameStyles = getAvailableFrameStyles();
 
   export let zIndex: number;
 
@@ -92,6 +95,15 @@
     ipcRenderer.invoke("updatePanelScale", $settings.ui.scalePanel);
     $settings.app.panelHeight = Math.floor(TOPPANELHEIGHT * $settings.ui.scalePanel);
   }
+
+  function onFrameStyleChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const newStyle = target.value as Types.FrameStyle;
+    $settings.app.frameStyle = newStyle;
+
+    // Notify panel to update frame style
+    ipcRenderer.send("frameStyleChanged", newStyle);
+  }
 </script>
 
 <div style={`z-index: ${zIndex}; height: ${bodyHeight}px;`}>
@@ -129,6 +141,18 @@
         text="Use old Previewer in ThemeCreator"
       />
       <CheckBox bind:checked={$settings.app.disableThemes} text="Disable themes" />
+
+      <Flex height="16px" />
+      <Label>Window Frame Style</Label>
+      <select
+        class="frame-style-select"
+        bind:value={$settings.app.frameStyle}
+        on:change={onFrameStyleChange}
+      >
+        {#each frameStyles as style}
+          <option value={style.value}>{style.label}</option>
+        {/each}
+      </select>
     </Flex>
     <Flex width="120px" />
     <Flex der="column" width="-webkit-fill-available">
@@ -187,5 +211,36 @@
     user-select: none;
     overflow-y: auto;
     overflow-x: hidden;
+  }
+
+  .frame-style-select {
+    width: 100%;
+    padding: 8px 12px;
+    margin-top: 8px;
+    background-color: var(--bg-item);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: "Inter", sans-serif;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .frame-style-select:hover {
+    background-color: var(--bg-item-hover);
+    border-color: var(--border-hover);
+  }
+
+  .frame-style-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-transparent);
+  }
+
+  .frame-style-select option {
+    background-color: var(--bg-panel);
+    color: var(--text);
+    padding: 8px;
   }
 </style>
