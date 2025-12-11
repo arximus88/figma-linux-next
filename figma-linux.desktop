@@ -1,0 +1,25 @@
+[Desktop Entry]
+Name=Figma
+GenericName=Interface Design Tool
+Comment=Collaborative interface design tool with native Linux optimizations
+Exec=figma-linux %U
+Terminal=false
+Type=Application
+Icon=figma-linux
+StartupWMClass=figma-linux
+Categories=Graphics;Design;VectorGraphics;
+MimeType=x-scheme-handler/figma;application/x-figma;
+Keywords=design;figma;ui;ux;interface;prototype;vector;
+StartupNotify=true
+Actions=NewFile;NewFigJam;
+
+# Native Wayland support hint
+X-GNOME-UsesNotifications=true
+
+[Desktop Action NewFile]
+Name=New Design File
+Exec=figma-linux --new-file=design
+
+[Desktop Action NewFigJam]
+Name=New FigJam Board
+Exec=figma-linux --new-file=figjam
