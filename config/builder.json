@@ -1,5 +1,5 @@
 {
-  "appId": "figma-linux",
+  "appId": "com.figma.FigmaLinux",
   "productName": "figma-linux",
   "extraMetadata": "main/main.js",
   "icon": "resources/icons",
@@ -32,13 +32,38 @@
       ]
     }
   ],
+  "deb": {
+    "depends": [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libdrm2",
+      "libgbm1"
+    ]
+  },
   "rpm": {
+    "depends": [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libXtst",
+      "xdg-utils"
+    ],
     "fpm": [
       "--rpm-rpmbuild-define=_build_id_links none"
     ]
   },
   "pacman": {
-    "depends": []
+    "depends": [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libxtst",
+      "xdg-utils"
+    ]
   },
   "appImage": {
     "category": "Graphics",
@@ -60,19 +85,24 @@
     ],
     "target": [
       {
-        "target": "deb"
+        "target": "deb",
+        "arch": ["x64", "arm64"]
       },
       {
-        "target": "zip"
+        "target": "rpm",
+        "arch": ["x64", "arm64"]
       },
       {
-        "target": "rpm"
+        "target": "pacman",
+        "arch": ["x64"]
       },
       {
-        "target": "pacman"
+        "target": "AppImage",
+        "arch": ["x64", "arm64"]
       },
       {
-        "target": "appimage"
+        "target": "zip",
+        "arch": ["x64", "arm64"]
       }
     ]
   }

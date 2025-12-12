@@ -107,14 +107,16 @@ export default class App {
   private applySwitches() {
     // Chromium flags for better performance and GPU support
     // Full flags reference: https://peter.sh/experiments/chromium-command-line-switches/
+
+    // Apply default performance optimizations for Linux
+    this.applyDefaultOptimizations();
+
     const switches = storage.settings.app.commandSwitches;
 
-    if (!switches.length) {
-      return;
-    }
-
-    for (const item of switches) {
-      app.commandLine.appendSwitch(item.switch, item.value);
+    if (switches && switches.length) {
+      for (const item of switches) {
+        app.commandLine.appendSwitch(item.switch, item.value);
+      }
     }
 
     const colorSpace = storage.settings.app.enableColorSpaceSrgb;
@@ -124,6 +126,39 @@ export default class App {
     } else {
       app.commandLine.appendSwitch("disable-color-correct-rendering");
     }
+  }
+
+  private applyDefaultOptimizations() {
+    // GPU Acceleration - critical for Figma's WebGL rendering
+    app.commandLine.appendSwitch("ignore-gpu-blocklist");
+    app.commandLine.appendSwitch("enable-gpu-rasterization");
+    app.commandLine.appendSwitch("enable-zero-copy");
+
+    // Enable modern rendering features
+    app.commandLine.appendSwitch("enable-features",
+      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer");
+
+    // WebGL optimizations for Figma's canvas engine
+    app.commandLine.appendSwitch("enable-webgl");
+    app.commandLine.appendSwitch("enable-webgl2-compute-context");
+    app.commandLine.appendSwitch("enable-accelerated-2d-canvas");
+
+    // Disable smooth scrolling to let Figma handle it
+    app.commandLine.appendSwitch("disable-smooth-scrolling");
+
+    // Performance optimizations
+    app.commandLine.appendSwitch("enable-native-gpu-memory-buffers");
+    app.commandLine.appendSwitch("disable-background-timer-throttling");
+    app.commandLine.appendSwitch("disable-renderer-backgrounding");
+
+    // Wayland support detection and enablement
+    if (process.env.XDG_SESSION_TYPE === 'wayland' || process.env.WAYLAND_DISPLAY) {
+      logger.info("Wayland session detected - enabling native Wayland support");
+      app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+      app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations,UseOzonePlatform");
+    }
+
+    logger.info("Applied default performance optimizations for Linux");
   }
   private setAuthedUsers(_: IpcMainEvent, userIds: string[]) {
     if (!Array.isArray(storage.settings.authedUserIDs)) {

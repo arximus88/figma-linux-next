@@ -37,5 +37,13 @@
   .panel-right {
     display: flex;
     align-items: stretch;
+    gap: var(--window-control-spacing, 0px);
+    padding-right: 4px;
+  }
+
+  .panel-right :global(button) {
+    width: var(--window-control-size, 40px);
+    height: var(--window-control-size, 40px);
+    border-radius: var(--window-control-radius, 0px);
   }
 </style>
