@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     creatorsThemesDropdownOpen: false,
     useOldPreviewer: false,
     dontShowTutorialCreator: false,
+    frameStyle: "gnome",
   },
   theme: {
     currentTheme: "0",

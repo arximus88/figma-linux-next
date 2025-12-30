@@ -74,7 +74,7 @@ const svelteFrontendPlugins = [
     output: "bundle.css",
   }),
   resolve({
-    browser: false,
+    browser: true,
     dedupe: ["svelte"],
   }),
   commonjs(),

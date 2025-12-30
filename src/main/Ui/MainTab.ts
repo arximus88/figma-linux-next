@@ -28,7 +28,6 @@ import {
 } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
-import { electron } from 'process';
 
 export default class MainTab {
   private _userId: string;
@@ -107,7 +106,9 @@ export default class MainTab {
     app.emit("reloadCurrentTheme");
   }
   public loadTheme(theme: Themes.Theme) {
-    this.view.webContents.send("loadCurrentTheme", theme);
+    if (this.view?.webContents && !this.view.webContents.isDestroyed()) {
+      this.view.webContents.send("loadCurrentTheme", theme);
+    }
   }
 
   private onMainTabWillNavigate(event: Event<any>, url: string) {
@@ -131,7 +132,6 @@ export default class MainTab {
         event.preventDefault();
         return;
       }
-
 
       const from = parse(currentUrl);
       const to = parse(url);
@@ -175,7 +175,7 @@ export default class MainTab {
       return;
     }
     if (isFigmaBoardLink(url) || isFigmaDesignLink(url)) {
-      window.destroy()
+      window.destroy();
       app.emit("openUrlInNewTab", url);
       return;
     }
@@ -186,7 +186,12 @@ export default class MainTab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url) || isFigmaBoardLink(url) || isFigmaDesignLink(url)) {
+    if (
+      isPrototypeUrl(url) ||
+      isValidProjectLink(url) ||
+      isFigmaBoardLink(url) ||
+      isFigmaDesignLink(url)
+    ) {
       app.emit("openUrlInNewTab", url);
       return { action: "deny" };
     } else {

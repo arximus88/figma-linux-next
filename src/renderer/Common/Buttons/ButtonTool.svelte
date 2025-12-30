@@ -33,6 +33,8 @@
 </script>
 
 <div
+  role="button"
+  tabindex="0"
   on:mouseup|capture={clickHandler}
   on:mouseenter={(e) => dispatch("mouseenter", e)}
   on:mouseleave={(e) => dispatch("mouseleave", e)}

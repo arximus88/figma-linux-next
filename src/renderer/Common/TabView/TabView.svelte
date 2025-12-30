@@ -23,6 +23,8 @@
 </script>
 
 <div
+  role="tablist"
+  tabindex="0"
   on:mousedown|capture
   on:mouseup|capture
   style={`

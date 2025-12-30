@@ -47,6 +47,8 @@
 </script>
 
 <div
+  role="button"
+  tabindex="0"
   on:mouseup|capture={clickHandler}
   class={`
     ${isActive ? "button__active " : ""}

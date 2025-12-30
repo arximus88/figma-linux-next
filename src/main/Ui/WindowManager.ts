@@ -59,15 +59,15 @@ export default class WindowManager {
     });
     const window = new Window(windowState);
 
+    this.lastFocusedwindowId = window.id;
+    this.windows.set(window.id, window);
+
     if (windowState.x === -1 || windowState.y === -1) {
       window.win.center();
       const bounds = window.win.getBounds();
       windowState.x = bounds.x;
       windowState.y = bounds.y;
     }
-
-    this.lastFocusedwindowId = window.id;
-    this.windows.set(window.id, window);
 
     window.focus();
     window.setMenu(menu);

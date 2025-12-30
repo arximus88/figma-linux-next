@@ -77,7 +77,9 @@ export default class CommunityTab {
     app.emit("reloadCurrentTheme");
   }
   public loadTheme(theme: Themes.Theme) {
-    this.view.webContents.send("loadCurrentTheme", theme);
+    if (this.view?.webContents && !this.view.webContents.isDestroyed()) {
+      this.view.webContents.send("loadCurrentTheme", theme);
+    }
   }
 
   private onCommunityTabWillNavigate(event: Event, url: string) {

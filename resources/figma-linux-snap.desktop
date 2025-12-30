@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=Figma Linux
+Name=Figma Linux Test
 Comment=Unofficial desktop application for linux
-Exec=figma-linux %U
+Exec=figma-linux-test %U
 Terminal=false
 Type=Application
 Icon=${SNAP}/meta/gui/icon.png
-StartupWMClass=figma-linux
+StartupWMClass=figma-linux-test
 Categories=Graphics;
 MimeType=application/figma;x-scheme-handler/figma;

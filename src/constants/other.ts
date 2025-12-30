@@ -24,8 +24,8 @@ export const TEST_THEME_ID = "test-creator-theme";
 export const MANIFEST_FILE_NAME = "manifest.json";
 export const CHROME_GPU = "chrome://gpu";
 
-export const CONFIGDIR = `${process.env.HOME}/.config/figma-linux`;
-export const RESOURCESDIR = `${process.env.HOME}/.config/figma-linux/resources`;
+export const CONFIGDIR = `${process.env.HOME}/.config/figma-linux-test`;
+export const RESOURCESDIR = `${process.env.HOME}/.config/figma-linux-test/resources`;
 export const REGEXP_APP_AUTH_GRANT = /^\/{0,2}app_auth\/[^/]+\/grant/;
 
 export const FIGMA_SESSION_COOKIE_NAME = "figma.session";

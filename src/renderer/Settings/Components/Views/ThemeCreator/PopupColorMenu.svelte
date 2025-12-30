@@ -60,7 +60,7 @@
 </script>
 
 <Popup bind:isOpen bind:cornerX bind:x bind:y bradius="3px">
-  <div slot="popupButton" />
+  <div slot="popupButton"></div>
 
   <ListBox bind:items slot="popupBody" border="0" padding="0" bradius="0" {onItemClick} />
 </Popup>

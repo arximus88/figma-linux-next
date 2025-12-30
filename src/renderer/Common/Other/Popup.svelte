@@ -66,7 +66,7 @@
     top: ${y}px;
   `}
   bind:this={corner}
-/>
+></corner>
 <div use:clickInside bind:this={button}>
   <slot name="popupButton" />
 </div>

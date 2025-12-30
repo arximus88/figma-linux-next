@@ -38,5 +38,6 @@
   .panel-left {
     display: flex;
     align-items: stretch;
+    -webkit-app-region: no-drag;
   }
 </style>

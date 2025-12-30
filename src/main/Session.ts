@@ -36,7 +36,8 @@ export default class Session {
           return cookie.name === Const.FIGMA_SESSION_COOKIE_NAME;
         });
 
-        logger.info("[wm] already signed in?", this._hasFigmaSession);
+        // Check if cookie exists (does not guarantee active session)
+        logger.info("[wm] check for figma_session cookie:", this._hasFigmaSession);
       })
       .catch((error: Error) =>
         logger.warn("[wm] failed to get cookies during handleAppReady:", Const.HOMEPAGE, error),

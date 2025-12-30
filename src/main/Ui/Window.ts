@@ -358,7 +358,19 @@ export default class Window {
     }
   }
   private loadCurrentTheme(theme: Themes.Theme) {
-    this.window.webContents.send("loadCurrentTheme", theme);
+    if (
+      this.window &&
+      !this.window.isDestroyed() &&
+      this.window.webContents &&
+      !this.window.webContents.isDestroyed()
+    ) {
+      this.window.webContents.send("loadCurrentTheme", theme);
+    }
+  }
+  public loadTheme(theme: Themes.Theme) {
+    if (this.window?.webContents && !this.window.webContents.isDestroyed()) {
+      this.window.webContents.send("loadCurrentTheme", theme);
+    }
   }
   public setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const tabId = event.sender.id;

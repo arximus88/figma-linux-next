@@ -44,8 +44,8 @@
   let currentItem = items[0];
   let currentId = currentItem.id;
 
-  function onTabItemClick(item: Types.SetingsTabItem) {
-    currentItem = item;
+  function onTabItemClick(item: Types.TabItem) {
+    currentItem = item as Types.SetingsTabItem;
   }
   function onSetTabViewIndex(event: CustomEvent<SvelteEvents.SetSettingsTabViewIndex>) {
     currentItem = items[event.detail.index];

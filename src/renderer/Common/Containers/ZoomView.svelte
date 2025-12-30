@@ -98,7 +98,9 @@
   });
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <zoomArea
+  role="application"
   bind:this={area}
   on:mousedown={mouseDownHandler}
   on:mouseup={mouseUpHandler}
@@ -124,7 +126,7 @@
         width: ${maskBounds.width}px;
         height: ${maskBounds.height}px;
       `}
-    />
+    ></maskZoomArea>
   </div>
   <zoomAreaToolBarWrap>
     <zoomAreaToolBar>

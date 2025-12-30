@@ -57,6 +57,12 @@
     "../utils/Main/fs.ts",
     "../utils/Common/*",
     "../utils/Render/*",
-    "**/*"
+    "**/*",
+    "../../node_modules/.svelte2tsx-language-server-files/**/*",
+    "../../node_modules/svelte/svelte-html.d.ts"
+  ],
+  "exclude": [
+    "../../node_modules",
+    "../../dist"
   ]
 }

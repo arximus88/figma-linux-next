@@ -10,7 +10,7 @@
 
   let item: HTMLDivElement;
 
-  function wheelHandler(e: MouseWheelInputEvent) {
+  function wheelHandler(e: WheelEvent) {
     if (e.deltaY > 0) {
       item.scrollLeft += 50;
     } else {
@@ -72,7 +72,7 @@
   });
 </script>
 
-<div class="panel-tabs" bind:this={item} on:mousewheel={wheelHandler} on:dblclick={dblclickHandler}>
+<div role="tablist" tabindex="0" class="panel-tabs" bind:this={item} on:wheel={wheelHandler} on:dblclick={dblclickHandler}>
   <List
     bind:items={$tabs}
     {currentTabId}

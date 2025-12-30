@@ -39,6 +39,7 @@
     align-items: stretch;
     gap: var(--window-control-spacing, 0px);
     padding-right: 4px;
+    -webkit-app-region: no-drag;
   }
 
   .panel-right :global(button) {

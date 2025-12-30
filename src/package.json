@@ -1,11 +1,11 @@
 {
-  "name": "figma-linux",
-  "version": "0.11.4",
-  "description": "Figma is the first interface design tool based in the browser, making it easier for teams to create software. Join as in Telegram: https://t.me/figma_linux",
+  "name": "figma-linux-test",
+  "version": "0.12.0",
+  "description": "Figma is the first interface design tool based in the browser, making it easier for teams to create software.",
   "main": "main/main.js",
-  "repository": "git@github.com:ChugunovRoman/figma-linux.git",
-  "homepage": "https://github.com/ChugunovRoman/figma-linux",
-  "author": "ChugunovRoman <Zebs-BMK@yandex.ru>",
+  "repository": "none",
+  "homepage": "none",
+  "author": "People",
   "license": "MIT",
   "dependencies": {
     "adm-zip": "^0.5.10",

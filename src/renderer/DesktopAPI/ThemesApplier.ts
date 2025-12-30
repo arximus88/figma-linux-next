@@ -204,7 +204,8 @@ export class ThemesApplier {
 
     this.setThemeVariables();
 
-    for (const cssRule of figmaCoreStylesheet) {
+    for (const rule of figmaCoreStylesheet) {
+      const cssRule = rule as CSSStyleRule;
       if (cssRule.selectorText != undefined && this.isRuleIgnored(cssRule.selectorText) === false) {
         if (
           (cssRule.style != undefined && cssRule.style.color != "") ||

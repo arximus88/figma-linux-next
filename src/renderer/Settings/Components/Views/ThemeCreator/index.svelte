@@ -153,7 +153,7 @@
                 `}
               title="Figma recent files"
               src="https://www.figma.com/files/recent"
-            />
+            ></webview>
             <webview
               bind:this={webviews[1]}
               preload={`file://${resolve(
@@ -168,7 +168,7 @@
                 `}
               title="Figma recent files"
               src="https://www.figma.com/files/recent"
-            />
+            ></webview>
             <webview
               bind:this={webviews[2]}
               preload={`file://${resolve(
@@ -183,7 +183,7 @@
                 `}
               title="Figma recent files"
               src="https://www.figma.com/files/recent"
-            />
+            ></webview>
             <webview
               bind:this={webviews[3]}
               preload={`file://${resolve(
@@ -198,7 +198,7 @@
                 `}
               title="Figma recent files"
               src="https://www.figma.com/files/recent"
-            />
+            ></webview>
           </iframeView>
           <Tutorial slot="layout_1" />
         </ZoomView>

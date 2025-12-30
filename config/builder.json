@@ -1,6 +1,6 @@
 {
-  "appId": "com.figma.FigmaLinux",
-  "productName": "figma-linux",
+  "appId": "com.figma.FigmaLinuxTest",
+  "productName": "figma-linux-test",
   "extraMetadata": "main/main.js",
   "icon": "resources/icons",
   "extraFiles": [
@@ -13,9 +13,10 @@
   ],
   "directories": {
     "app": "dist/",
-    "buildResources": "build/installers",
+    "buildResources": "resources",
     "output": "build/installers"
   },
+  "executableName": "figma-linux-test",
   "fileAssociations": [
     {
       "ext": "fig",
@@ -66,8 +67,7 @@
     ]
   },
   "appImage": {
-    "category": "Graphics",
-    "desktop": "resources/figma-linux-appimage.desktop"
+    "category": "Graphics"
   },
   "linux": {
     "description": "Unofficial desktop application for linux",

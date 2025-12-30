@@ -17,6 +17,8 @@
 </script>
 
 <span
+  role="tab"
+  tabindex="0"
   on:mousedown|capture
   on:mouseup|capture
   class={isActive ? "active" : ""}

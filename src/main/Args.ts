@@ -3,14 +3,14 @@ const { version } = require("./../package.json");
 
 export interface AppArgs {
   figmaUrl: string;
-  newFileType?: 'design' | 'figjam';
+  newFileType?: "design" | "figjam";
 }
 
 export default (): AppArgs => {
   const argv = process.argv;
 
   let figmaUrl = "";
-  let newFileType: 'design' | 'figjam' | undefined;
+  let newFileType: "design" | "figjam" | undefined;
 
   if (argv.indexOf("-v") != -1 || argv.indexOf("--version") != -1) {
     console.log(typeof version === "string" ? version : "0.12.0");
@@ -18,10 +18,10 @@ export default (): AppArgs => {
   }
 
   // Check for new file actions from desktop entry
-  const newFileArg = argv.find(arg => arg.startsWith('--new-file='));
+  const newFileArg = argv.find((arg) => arg.startsWith("--new-file="));
   if (newFileArg) {
-    const fileType = newFileArg.split('=')[1];
-    if (fileType === 'design' || fileType === 'figjam') {
+    const fileType = newFileArg.split("=")[1];
+    if (fileType === "design" || fileType === "figjam") {
       newFileType = fileType;
       figmaUrl = `https://www.figma.com/file/new?editor_type=${fileType}`;
     }
@@ -34,12 +34,12 @@ export default (): AppArgs => {
 
   if (argv.indexOf("-h") != -1 || argv.indexOf("--help") != -1) {
     const help = `
-Figma-Linux v${version}
+Figma-Linux-Test v${version}
 
 Optimized Figma desktop application for Linux with native Wayland support and GPU acceleration.
 
 Usage:
-    figma-linux [options] [URL]
+    figma-linux-test [options] [URL]
 
 Arguments:
     URL                     Open a specific Figma URL or file (figma:// or https://figma.com/...)
@@ -50,14 +50,10 @@ Options:
     --new-file=TYPE        Create a new file (TYPE: design or figjam)
 
 Examples:
-    figma-linux                                    # Launch application
-    figma-linux --new-file=design                  # Create new design file
-    figma-linux figma://file/abc123                # Open specific file
-    figma-linux https://www.figma.com/file/xyz     # Open from URL
-
-Environment Variables:
-    ELECTRON_OZONE_PLATFORM_HINT    Force display backend (wayland or x11)
-    ELECTRON_ENABLE_LOGGING         Enable verbose logging
+    figma-linux-test                                    # Launch application
+    figma-linux-test --new-file=design                  # Create new design file
+    figma-linux-test figma://file/abc123                # Open specific file
+    figma-linux-test https://www.figma.com/file/xyz     # Open from URL
 
 For more information, visit: https://github.com/Figma-Linux/figma-linux
     `;

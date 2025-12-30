@@ -85,7 +85,7 @@
         {/each}
         {#if $creatorsThemes.length < 6}
           {#each Array(6 - $creatorsThemes.length) as _, i (i)}
-            <themeFake />
+            <themeFake></themeFake>
           {/each}
         {/if}
       {/if}
@@ -109,7 +109,7 @@
         {/each}
         {#if $themes.length < 6}
           {#each Array(6 - $themes.length) as _, i (i)}
-            <themeFake />
+            <themeFake></themeFake>
           {/each}
         {/if}
       {/if}

@@ -54,7 +54,7 @@
       {currentTabId === item.id ? 'panel-tab__active' : ''}"
       animate:flip={{ duration: flipDurationMs }}
     >
-      <div class="text" on:mouseup={(e) => onClickTitle(e, item.id)}>
+      <div role="button" tabindex="0" class="text" on:mouseup={(e) => onClickTitle(e, item.id)}>
         <span>
           {item.title}
         </span>

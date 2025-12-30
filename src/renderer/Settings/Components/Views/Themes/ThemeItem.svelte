@@ -28,11 +28,13 @@
 
 <div>
   <div
+    role="button"
+    tabindex="0"
     class="themeview_item_tumbl"
     on:mouseup={() => dispatch("applyTheme", { themeId: theme.id })}
     style={getColorPallet(theme).join(";")}
   >
-    <div class="themeview_item_tumbl_top" />
+    <div class="themeview_item_tumbl_top"></div>
     <div class="themeview_item_tumbl_toolpanel">
       <div>
         <Burger color="var(--text)" />
@@ -47,11 +49,11 @@
     </div>
     <div class="themeview_item_tumbl_body">
       <div class="themeview_item_tumbl_body_left">
-        <div class="themeview_item_tumbl_body_left_text1" />
-        <div class="themeview_item_tumbl_body_left_text2" />
+        <div class="themeview_item_tumbl_body_left_text1"></div>
+        <div class="themeview_item_tumbl_body_left_text2"></div>
       </div>
-      <div class="themeview_item_tumbl_body_center" />
-      <div class="themeview_item_tumbl_body_right" />
+      <div class="themeview_item_tumbl_body_center"></div>
+      <div class="themeview_item_tumbl_body_right"></div>
     </div>
   </div>
   <Flex
