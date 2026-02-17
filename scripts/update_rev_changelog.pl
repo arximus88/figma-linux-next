@@ -20,7 +20,7 @@ system("echo \"figma-linux (${version}-${rev}ubuntu0) devel; urgency=medium\" >>
 system("echo \"\" >> /tmp/tmp_changelog");
 system("echo \"  * Bump revision number for ${version} version\" >> /tmp/tmp_changelog");
 system("echo \"\" >> /tmp/tmp_changelog");
-system("echo \" -- Chugunov Roman <Zebs-BMK\@yandex.ru>  \$(date -R)\" >> /tmp/tmp_changelog");
+system("echo \" -- Figma Linux Community <figma-linux\@community.dev>  \$(date -R)\" >> /tmp/tmp_changelog");
 system("echo \"\" >> /tmp/tmp_changelog");
 
 system("echo \"\$(cat /tmp/tmp_changelog ./scripts/debian/changelog)\" > ./scripts/debian/changelog");

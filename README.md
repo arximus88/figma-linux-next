@@ -1,114 +1,40 @@
-# <img src="https://raw.githubusercontent.com/ChugunovRoman/figma-linux/master/resources/icons/128x128.png" width="32"> Figma electron app (unofficial)
+# <img src="resources/icons/128x128.png" width="32"> Figma Linux (unofficial)
 
+Figma-linux is an unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux.
 
-Figma-linux is an unofficial [Electron](http://electron.atom.io)-based  [Figma](https://figma.com) desktop app for Linux.
-
-<p>
-	<img src="https://raw.githubusercontent.com/ChugunovRoman/figma-linux/master/images/screenshot1.jpg">
-</p>
-
-<p>
-	<img src="https://img.shields.io/github/downloads/ChugunovRoman/figma-linux/total.svg" />
-    <a href="https://github.com/ChugunovRoman/figma-linux/releases/latest">
-        <img src="https://img.shields.io/github/release/ChugunovRoman/figma-linux.svg?label=latest%20release">
-	</a>
-	<img src="https://img.shields.io/github/last-commit/ChugunovRoman/figma-linux.svg">
-    <a href="https://github.com/ChugunovRoman/figma-linux/issues">
-        <img src="https://img.shields.io/github/issues/ChugunovRoman/figma-linux.svg">
-	</a>
-    <a href="https://github.com/ChugunovRoman/figma-linux/issues?q=is%3Aissue+is%3Aclosed">
-        <img src="https://img.shields.io/github/issues-closed/ChugunovRoman/figma-linux.svg">
-	</a>
-	<img src="https://img.shields.io/github/languages/code-size/ChugunovRoman/figma-linux.svg">
-	<img src="https://img.shields.io/github/repo-size/ChugunovRoman/figma-linux.svg">
-    <a href="https://github.com/ChugunovRoman/figma-linux/stargazers">
-		<img src="https://img.shields.io/github/stars/ChugunovRoman/figma-linux.svg?style=social&label=Stars">
-	</a>
-</p>
-
-<!-- [![Codacy Badge](https://api.codacy.com/project/badge/Grade/d80ff1e7c3fe4da28e2e50a28d4ead7c)](https://www.codacy.com/manual/ChugunovRoman/figma-linux?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ChugunovRoman/figma-linux&amp;utm_campaign=Badge_Grade) -->
-[![Snap](https://snapcraft.io/figma-linux/badge.svg)](https://snapcraft.io/figma-linux)
+Features:
+- **Native Wayland support** — first-class support for modern Linux compositors
+- **GPU acceleration** — optimized for WebGL/WebAssembly workloads
+- **System integration** — protocol handlers, desktop actions, system fonts
+- **Window frame styles** — GNOME/Adwaita, Windows 11, macOS chrome
+- **Extension system** — hot-reloadable plugins
 
 ## Installation
-### Universal
-You can install Figma-linux from Snap [here.](https://snapcraft.io/figma-linux)
 
-Alternatively, type
+### Arch-based distros
+
 ```bash
-sudo snap install figma-linux
-```
-in your terminal.
-
-To use local fonts when using the snapd version create a symbolic link:
-
-```
-sudo ln -s $HOME/.local/share/fonts $HOME/snap/figma-linux/current/.local/share/
+yay -S figma-linux-bin
 ```
 
-There is also an AppImage available.
-Get it on our [Releases](https://github.com/Figma-Linux/figma-linux/releases) page, then make it executable and install using these terminal commands:
+### Debian-based distros
+
+```bash
+sudo apt install libgconf-2-4
+sudo dpkg -i figma-linux_*_amd64.deb
+```
+
+### AppImage
+
 ```bash
 chmod +x figma-linux-*.AppImage
 sudo ./figma-linux-*.AppImage -i
 ```
-This is not a portable AppImage - it will install figma-linux on your system, after which you can run it from terminal or from your app list.
-For more info, execute
-```bash
-./figma-linux-*.AppImage -h
-```
 
-### Debian-based Distros
-Firstly, install `libgconf-2-4`:
-```bash
-sudo apt install libgconf-2-4
-```
-Download the .deb package from the [Releases](https://github.com/Figma-Linux/figma-linux/releases) page, and install it with `dpkg` or your favorite .deb installer.
-```bash
-sudo dpkg -i figma-linux_*_amd64.deb
-```
-
-### Ubuntu
-
-On Ubuntu, you can use our PPA:
-```bash
-sudo add-apt-repository ppa:chrdevs/figma && sudo apt update && sudo apt install figma-linux -y
-```
-
-If you receive a `NO_PUBKEY` error while running `apt update`, then you must add the key manualy:
-```bash
-sudo apt-key adv --recv-key --keyserver keyserver.ubuntu.com 70F3445E637983CC
-```
-
-#### Alternative Ubuntu install
-
-Download the .deb package from the [Releases](https://github.com/Figma-Linux/figma-linux/releases) page, and install it with `apt`.
-```bash
-sudo apt install figma-linux_*_amd64.deb
-```
-
-### Arch-based distros
-
-Figma-linux is available on the [AUR](https://aur.archlinux.org/packages/figma-linux/).
-You can use an AUR helper like `yay` to install it:
-```bash
-yay -S figma-linux-bin
-```
-Other AUR packages:
- - [figma-linux](https://aur.archlinux.org/packages/figma-linux) - the package install binary version from release tag
- - [figma-linux-bin](https://aur.archlinux.org/packages/figma-linux-bin) - the package install binary version from release tag
- - [figma-linux-git](https://aur.archlinux.org/packages/figma-linux-git) - the package build the app from Github from latest release tag
- - [figma-linux-dev-git](https://aur.archlinux.org/packages/figma-linux-dev-git) - the package build the app from Github from latest commit on the dev branch
-### RPM-based distros
-Download the .rpm package from our [Releases](https://github.com/Figma-Linux/figma-linux/releases/latest) page, then install it:
+### Snap
 
 ```bash
-sudo dnf install figma-linux-*.x86_64.rpm
-```
-
-### Nixos
-On Nixos, you may add `figma-linux` in the `environment.systemPackages` list of your `/etc/nixos/configuration.nix` and run:
-```bash
-sudo nixos-rebuild switch
+sudo snap install figma-linux
 ```
 
 ## Building from source
@@ -118,45 +44,31 @@ sudo nixos-rebuild switch
 git clone https://github.com/Figma-Linux/figma-linux
 cd figma-linux
 ```
-2. Install prerequisites from npm:
+
+2. Install dependencies:
 ```bash
-npm i
+bun install
 ```
-To run Figma-linux from npm in dev mode execute this:
+
+3. Run in development mode:
 ```bash
-npm run dev
+bun run dev
 ```
-Aside from that, you can also run:
 
-- ```npm run dev``` to run the app in development mode
-- ```npm run build``` to built the app for production
-- ```npm run start``` to run the built version
-- ```npm run builder``` to package the app for distribution.
-- * The build targets are listed in ```./config/builder.json```. You can remove the ones you don't need or don't have dependencies for.
-- ```npm run pack``` to remove old packages from the installer directory, then pack the app.
-- * This depends on [AppImageTool](https://appimage.github.io/appimagetool/) being installed.
+Other commands:
+- `bun run build` — build for production
+- `bun run start` — run the built version
+- `bun run builder` — package for distribution
+- `bun run pack` — clean old packages and pack
 
+### Environment Variables
 
-Example of **.env** for local development:
 ```
 NODE_ENV=dev
 DEV_PANEL_PORT=3330
 DEV_SETTINGS_PORT=3331
 ```
 
+## License
 
-
-## Community
-
-Join us on [Telegram](https://t.me/+UuHqsKx-vLJyBq4b) or [Spectrum](https://spectrum.chat/figma-linux).
-
-
-## Become a Backer
-You can contribute to figma-linux development by supporting us on Paypal or Buy me a Coffee:
-
-<p>
-	<span class="badge-buymeacoffee"><a href="https://www.buymeacoffee.com/U5hnMuASy" title="Donate to this project using Buy Me A Coffee"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg" alt="Buy Me A Coffee donate button" /></a></span>
-	<span class="badge-paypal"><a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=4DNBUKPV6FBCY&source=url" title="Donate to this project using Paypal"><img src="https://img.shields.io/badge/paypal-donate-yellow.svg" alt="PayPal donate button" /></a></span>
-</p>
-
-Thanks to the supporters.
+MIT License — See [LICENSE](LICENSE) file.

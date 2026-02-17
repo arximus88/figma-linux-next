@@ -1,20 +1,44 @@
 <script lang="ts">
-  export let width = "auto";
-  export let height = "auto";
-  export let padding = "0";
-  export let margin = "0";
-  export let der: "row" | "column" = "row";
-  export let justifyContent = "auto";
-  export let overflow = "auto";
-  export let justifyItems = "auto";
-  export let alignItems = "auto";
-  export let border = "none";
-  export let tborder = "none";
-  export let rborder = "none";
-  export let bborder = "none";
-  export let lborder = "none";
-  export let bradius = "none";
-  export let bgColor = "transparent";
+  import type { Snippet } from "svelte";
+
+  let {
+    width = "auto",
+    height = "auto",
+    padding = "0",
+    margin = "0",
+    der = "row",
+    justifyContent = "auto",
+    overflow = "auto",
+    justifyItems = "auto",
+    alignItems = "auto",
+    border = "none",
+    tborder = "none",
+    rborder = "none",
+    bborder = "none",
+    lborder = "none",
+    bradius = "none",
+    bgColor = "transparent",
+    children = undefined
+  }: {
+    width?: string;
+    height?: string;
+    padding?: string;
+    margin?: string;
+    der?: string;
+    justifyContent?: string;
+    overflow?: string;
+    justifyItems?: string;
+    alignItems?: string;
+    border?: string;
+    tborder?: string;
+    rborder?: string;
+    bborder?: string;
+    lborder?: string;
+    bradius?: string;
+    bgColor?: string;
+    children?: any;
+  } = $props();
+
 </script>
 
 <div
@@ -37,7 +61,7 @@
     --bgColor: ${bgColor};
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

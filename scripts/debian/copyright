@@ -3,11 +3,11 @@ Upstream-Name: figma-linux
 Source: <url://example.com>
 
 Files: *
-Copyright: 2019 Chugunov Roman <Zebs-BMK@yandex.ru>
+Copyright: 2019 Figma Linux Community
 License: Apache-2.0
 
 Files: debian/*
-Copyright: 2019 Chugunov Roman <Zebs-BMK@yandex.ru>
+Copyright: 2019 Figma Linux Community
 License: Apache-2.0
 
 License: Apache-2.0

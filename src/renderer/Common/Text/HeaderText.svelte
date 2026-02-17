@@ -1,5 +1,5 @@
 <span>
-  <slot />
+  {@render children?.()}
 </span>
 
 <style>

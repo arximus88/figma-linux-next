@@ -10,7 +10,7 @@ figma-linux (0.11.4-1ubuntu0) devel; urgency=medium
   * Bump Electron from 29.1.6 to 30.0.8
   * Bump Electron from 27.2.2 to 29.1.6 ( [#367)](https://github.com/Figma-Linux/figma-linux/issues/367))
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 26 May 2024 21:53:24 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 26 May 2024 21:53:24 +0300
 
 figma-linux (0.11.4-1ubuntu0) devel; urgency=medium
 
@@ -24,7 +24,7 @@ figma-linux (0.11.4-1ubuntu0) devel; urgency=medium
   * Bump Electron from 29.1.6 to 30.0.8
   * Bump Electron from 27.2.2 to 29.1.6 ( [#367)](https://github.com/Figma-Linux/figma-linux/issues/367))
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 26 May 2024 21:51:48 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 26 May 2024 21:51:48 +0300
 
 figma-linux (0.11.4-1ubuntu0) devel; urgency=medium
 
@@ -38,7 +38,7 @@ figma-linux (0.11.4-1ubuntu0) devel; urgency=medium
   * Bump Electron from 29.1.6 to 30.0.8
   * Bump Electron from 27.2.2 to 29.1.6 ( [#367)](https://github.com/Figma-Linux/figma-linux/issues/367))
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 26 May 2024 20:56:50 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 26 May 2024 20:56:50 +0300
 
 figma-linux (0.11.3-1ubuntu0) devel; urgency=medium
 
@@ -56,7 +56,7 @@ figma-linux (0.11.3-1ubuntu0) devel; urgency=medium
   * Bump Electron from 27.0.4 to 27.2.0
   * set default values for dev ports
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Tue, 16 Jan 2024 01:44:08 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Tue, 16 Jan 2024 01:44:08 +0300
 
 figma-linux (0.11.2-1ubuntu0) devel; urgency=medium
 
@@ -68,7 +68,7 @@ figma-linux (0.11.2-1ubuntu0) devel; urgency=medium
   ## Other Changes:
   * update build ppa script
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 18 Nov 2023 22:03:04 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 18 Nov 2023 22:03:04 +0300
 
 figma-linux (0.11.1-1ubuntu0) devel; urgency=medium
 
@@ -85,21 +85,21 @@ figma-linux (0.11.1-1ubuntu0) devel; urgency=medium
   * update generate release notes
   * update ci
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 18 Nov 2023 00:12:45 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 18 Nov 2023 00:12:45 +0300
 
 figma-linux (0.11.1-1ubuntu0) devel; urgency=medium
 
   * Publish 0.11.1 version
 
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 18 Nov 2023 00:12:33 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 18 Nov 2023 00:12:33 +0300
 
 figma-linux (0.11.1-1ubuntu0) devel; urgency=medium
 
   * Publish 0.11.1 version
 
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 17 Nov 2023 21:38:49 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 17 Nov 2023 21:38:49 +0300
 
 figma-linux (0.11.0-1ubuntu0) devel; urgency=medium
 
@@ -303,7 +303,7 @@ figma-linux (0.11.0-1ubuntu0) devel; urgency=medium
   * cleaned up the code a bit
   * move the setFocusToMainTab handler to WindowsManager class
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 11 Nov 2023 16:39:36 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 11 Nov 2023 16:39:36 +0300
 
 figma-linux (0.10.1-1ubuntu0) devel; urgency=medium
 
@@ -321,7 +321,7 @@ figma-linux (0.10.1-1ubuntu0) devel; urgency=medium
   ## Other Changes:
   * remove unnecessary libm library
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 21 May 2022 00:49:50 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 21 May 2022 00:49:50 +0300
 
 figma-linux (0.10.0-1ubuntu0) devel; urgency=medium
 
@@ -338,7 +338,7 @@ figma-linux (0.10.0-1ubuntu0) devel; urgency=medium
   ## Other Changes:
   * remove unnecessary libm library
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 20 May 2022 22:49:44 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 20 May 2022 22:49:44 +0300
 
 figma-linux (0.9.6-1ubuntu0) devel; urgency=medium
 
@@ -352,7 +352,7 @@ figma-linux (0.9.6-1ubuntu0) devel; urgency=medium
   * replace scss on css
   * Remove the old libstdc++ library
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 19 Mar 2022 22:21:25 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 19 Mar 2022 22:21:25 +0300
 
 figma-linux (0.9.5-1ubuntu0) devel; urgency=medium
 
@@ -361,7 +361,7 @@ figma-linux (0.9.5-1ubuntu0) devel; urgency=medium
   ## Bug Fixes:
   * No visibility of top navbar editing icons & selected element. [#266](https://github.com/Figma-Linux/figma-linux/issues/266)
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Wed, 23 Feb 2022 22:48:50 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Wed, 23 Feb 2022 22:48:50 +0300
 
 figma-linux (0.9.4-1ubuntu0) devel; urgency=medium
 
@@ -371,7 +371,7 @@ figma-linux (0.9.4-1ubuntu0) devel; urgency=medium
   * Search field does not render correctly. [#263](https://github.com/Figma-Linux/figma-linux/issues/263)
   * apply theme rules. [#259](https://github.com/Figma-Linux/figma-linux/issues/259)
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 20 Feb 2022 15:43:39 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 20 Feb 2022 15:43:39 +0300
 
 figma-linux (0.9.3-1ubuntu0) devel; urgency=medium
 
@@ -385,7 +385,7 @@ figma-linux (0.9.3-1ubuntu0) devel; urgency=medium
   ## Other Changes:
   * Bump Electron.js version to 13.6.3
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 09 Dec 2021 12:40:23 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 09 Dec 2021 12:40:23 +0300
 
 figma-linux (0.9.2-1ubuntu0) devel; urgency=medium
 
@@ -394,7 +394,7 @@ figma-linux (0.9.2-1ubuntu0) devel; urgency=medium
   ## Bug Fixes:
   * request on get mic access. [#238](https://github.com/Figma-Linux/figma-linux/issues/238)
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 16 Oct 2021 21:05:22 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 16 Oct 2021 21:05:22 +0300
 
 figma-linux (0.9.1-1ubuntu0) devel; urgency=medium
 
@@ -403,7 +403,7 @@ figma-linux (0.9.1-1ubuntu0) devel; urgency=medium
   ## Bug Fixes:
   * update production dependencies
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 14 Oct 2021 12:07:53 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 14 Oct 2021 12:07:53 +0300
 
 figma-linux (0.9.0-1ubuntu0) devel; urgency=medium
 
@@ -423,7 +423,7 @@ figma-linux (0.9.0-1ubuntu0) devel; urgency=medium
   ## Other Changes:
   * Removed freetype2 library
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Wed, 13 Oct 2021 21:56:47 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Wed, 13 Oct 2021 21:56:47 +0300
 
 figma-linux (0.8.1-1ubuntu0) devel; urgency=medium
 
@@ -433,7 +433,7 @@ figma-linux (0.8.1-1ubuntu0) devel; urgency=medium
   * fix size of close icon
   * fix build app for ppa repository
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 24 Jul 2021 01:57:43 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 24 Jul 2021 01:57:43 +0300
 
 figma-linux (0.8.0-1ubuntu0) devel; urgency=medium
 
@@ -445,7 +445,7 @@ figma-linux (0.8.0-1ubuntu0) devel; urgency=medium
   ## Bug Fixes:
   * Fix creating of plugins
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 23 Jul 2021 20:22:37 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 23 Jul 2021 20:22:37 +0300
 
 figma-linux (0.7.4-1ubuntu0) devel; urgency=medium
 
@@ -463,7 +463,7 @@ figma-linux (0.7.4-1ubuntu0) devel; urgency=medium
   * add flatpak workflow
   * Update generate_release_notes.pl script
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 27 May 2021 09:05:32 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 27 May 2021 09:05:32 +0300
 
 figma-linux (0.7.3-1ubuntu0) devel; urgency=medium
 
@@ -506,7 +506,7 @@ figma-linux (0.7.3-1ubuntu0) devel; urgency=medium
   * other: update generate_release_notes.pl script
   * other: added script for bump figma linux version
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Mon, 10 May 2021 19:29:29 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Mon, 10 May 2021 19:29:29 +0300
 
 figma-linux (0.7.2-1ubuntu0) devel; urgency=medium
 
@@ -548,7 +548,7 @@ figma-linux (0.7.2-1ubuntu0) devel; urgency=medium
   * other: update generate_release_notes.pl script
   * other: added script for bump figma linux version
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Mon, 05 Apr 2021 16:33:44 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Mon, 05 Apr 2021 16:33:44 +0300
 
 figma-linux (0.7.1-1ubuntu0) devel; urgency=medium
 
@@ -557,7 +557,7 @@ figma-linux (0.7.1-1ubuntu0) devel; urgency=medium
   *  Fixed #154 - copy as PNG
   *  Fixed #155 - get local fonts
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Mon, 11 Jan 2021 23:19:06 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Mon, 11 Jan 2021 23:19:06 +0300
 
 figma-linux (0.7.0-1ubuntu0) devel; urgency=medium
 
@@ -582,7 +582,7 @@ figma-linux (0.7.0-1ubuntu0) devel; urgency=medium
   * Other changes
   *  Updated electron to 11.1.1
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 10 Jan 2021 20:27:36 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 10 Jan 2021 20:27:36 +0300
 
 figma-linux (0.6.4-1ubuntu0) devel; urgency=medium
 
@@ -590,7 +590,7 @@ figma-linux (0.6.4-1ubuntu0) devel; urgency=medium
   *
   *  Fixed #139 - Desktop App is out of date
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Wed, 25 Nov 2020 21:04:26 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Wed, 25 Nov 2020 21:04:26 +0300
 
 figma-linux (0.6.3-1ubuntu0) devel; urgency=medium
 
@@ -606,7 +606,7 @@ figma-linux (0.6.3-1ubuntu0) devel; urgency=medium
   *  Fixed #115 - Fix bug with zoom.
   *  improve application GPU performance (thx @devhammed)
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 06 Sep 2020 17:29:10 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 06 Sep 2020 17:29:10 +0300
 
 figma-linux (0.6.2-1ubuntu0) devel; urgency=medium
 
@@ -614,7 +614,7 @@ figma-linux (0.6.2-1ubuntu0) devel; urgency=medium
   *
   *  Fixed #88 - Figma Desktop App is out of date
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Wed, 05 Feb 2020 11:53:11 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Wed, 05 Feb 2020 11:53:11 +0300
 
 figma-linux (0.6.1-1ubuntu0) devel; urgency=medium
 
@@ -622,7 +622,7 @@ figma-linux (0.6.1-1ubuntu0) devel; urgency=medium
   *
   *  Fixed hiding of main menu
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Tue, 26 Nov 2019 17:27:34 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Tue, 26 Nov 2019 17:27:34 +0300
 
 figma-linux (0.6.0-1ubuntu0) devel; urgency=medium
 
@@ -637,7 +637,7 @@ figma-linux (0.6.0-1ubuntu0) devel; urgency=medium
   *  Updated electron-builder to 22.1.0
   *  Replaced C++ native module on Rust native module with the same logic
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Tue, 26 Nov 2019 16:42:50 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Tue, 26 Nov 2019 16:42:50 +0300
 
 figma-linux (0.5.7-1ubuntu0) devel; urgency=medium
 
@@ -646,7 +646,7 @@ figma-linux (0.5.7-1ubuntu0) devel; urgency=medium
   *  Fixed #64 - No access to removable media devices
   *  Fixed #63 - Triggering shortcuts
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 27 Oct 2019 19:49:48 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 27 Oct 2019 19:49:48 +0300
 
 figma-linux (0.5.6-1ubuntu0) devel; urgency=medium
 
@@ -655,7 +655,7 @@ figma-linux (0.5.6-1ubuntu0) devel; urgency=medium
   *  Fixed #59 - "You don't have permission to open this file"
   *  Fixed #61 - Sing Out doesn't work
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 13 Sep 2019 09:17:48 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 13 Sep 2019 09:17:48 +0300
 
 figma-linux (0.5.5-1ubuntu0) devel; urgency=medium
 
@@ -663,7 +663,7 @@ figma-linux (0.5.5-1ubuntu0) devel; urgency=medium
   *
   *  Fixed #52 - Using of figma plugins
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 05 Sep 2019 10:18:43 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 05 Sep 2019 10:18:43 +0300
 
 figma-linux (0.5.4-1ubuntu0) devel; urgency=medium
 
@@ -672,7 +672,7 @@ figma-linux (0.5.4-1ubuntu0) devel; urgency=medium
   *  Fixed #58 - Figma Desktop App is out of date
   *  Started work on figma plugins
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 22 Aug 2019 11:41:20 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 22 Aug 2019 11:41:20 +0300
 
 figma-linux (0.5.3-1ubuntu0) devel; urgency=medium
 
@@ -682,7 +682,7 @@ figma-linux (0.5.3-1ubuntu0) devel; urgency=medium
   *  Fixed #45 - Some items of menu did not work
   *  Fixed incorrect update of tab title
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 03 Aug 2019 22:51:22 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 03 Aug 2019 22:51:22 +0300
 
 figma-linux (0.5.2-1ubuntu0) devel; urgency=medium
 
@@ -690,7 +690,7 @@ figma-linux (0.5.2-1ubuntu0) devel; urgency=medium
   *
   * Fixed #47,#46
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 19 Jul 2019 09:20:08 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 19 Jul 2019 09:20:08 +0300
 
 figma-linux (0.5.1-1ubuntu3) devel; urgency=medium
 
@@ -698,7 +698,7 @@ figma-linux (0.5.1-1ubuntu3) devel; urgency=medium
   *
   * Fixed #41
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 23 May 2019 14:07:49 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Thu, 23 May 2019 14:07:49 +0300
 
 figma-linux (0.5.1-1ubuntu2) devel; urgency=medium
 
@@ -706,7 +706,7 @@ figma-linux (0.5.1-1ubuntu2) devel; urgency=medium
   *
   * Fixed #41
 
-  -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 23 May 2019 12:53:51 +0300
+  -- Figma Linux Community <figma-linux@community.dev>  Thu, 23 May 2019 12:53:51 +0300
 
 figma-linux (0.5.1-1ubuntu1) devel; urgency=medium
 
@@ -714,7 +714,7 @@ figma-linux (0.5.1-1ubuntu1) devel; urgency=medium
   *
   * Fixed #41
 
-  -- Chugunov Roman <Zebs-BMK@yandex.ru>  Thu, 23 May 2019 12:53:34 +0300
+  -- Figma Linux Community <figma-linux@community.dev>  Thu, 23 May 2019 12:53:34 +0300
 
 figma-linux (0.5.0-1ubuntu4) devel; urgency=medium
 
@@ -727,7 +727,7 @@ figma-linux (0.5.0-1ubuntu4) devel; urgency=medium
   * Updated the node native module close #35
   * Fixed #30
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 15 Feb 2019 12:12:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 15 Feb 2019 12:12:09 +0300
 
 figma-linux (0.5.0-1ubuntu3) devel; urgency=medium
 
@@ -740,7 +740,7 @@ figma-linux (0.5.0-1ubuntu3) devel; urgency=medium
   * Updated the node native module close #35
   * Fixed #30
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 15 Feb 2019 12:12:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 15 Feb 2019 12:12:09 +0300
 
 figma-linux (0.5.0-1ubuntu2) devel; urgency=medium
 
@@ -753,7 +753,7 @@ figma-linux (0.5.0-1ubuntu2) devel; urgency=medium
   * Updated the node native module close #35
   * Fixed #30
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 15 Feb 2019 12:12:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 15 Feb 2019 12:12:09 +0300
 
 figma-linux (0.5.0-1ubuntu1) devel; urgency=medium
 
@@ -766,7 +766,7 @@ figma-linux (0.5.0-1ubuntu1) devel; urgency=medium
   * Updated the node native module close #35
   * Fixed #30
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 15 Feb 2019 12:12:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 15 Feb 2019 12:12:09 +0300
 
 figma-linux (0.4.0-1ubuntu1) bionic; urgency=medium
 
@@ -775,34 +775,34 @@ figma-linux (0.4.0-1ubuntu1) bionic; urgency=medium
   * Added the restore last tabs feature
   * Added the disable main menu feature
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Fri, 15 Feb 2019 12:12:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Fri, 15 Feb 2019 12:12:09 +0300
 
 figma-linux (0.3.0-1ubuntu1) bionic; urgency=medium
 
   * Publish 0.3.0 version on Launchpad
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Mon, 04 Feb 2019 13:55:13 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Mon, 04 Feb 2019 13:55:13 +0300
 
 figma-linux (0.2.2-1ubuntu6) bionic; urgency=medium
 
   * Add postrm script for remove symlink /usr/local/bin/figma-linux
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Mon, 04 Feb 2019 12:51:09 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Mon, 04 Feb 2019 12:51:09 +0300
 
 figma-linux (0.2.2-1ubuntu5) bionic; urgency=medium
 
   * fix postinst.sh
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 03 Feb 2019 11:56:11 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 03 Feb 2019 11:56:11 +0300
 
 figma-linux (0.2.2-1ubuntu4) bionic; urgency=medium
 
   * fix postinst.sh
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sun, 03 Feb 2019 11:56:11 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sun, 03 Feb 2019 11:56:11 +0300
 
 figma-linux (0.2.2-1ubuntu3) bionic; urgency=medium
 
   * Initial release 0.2.2
 
- -- Chugunov Roman <Zebs-BMK@yandex.ru>  Sat, 19 Jan 2019 22:51:39 +0300
+ -- Figma Linux Community <figma-linux@community.dev>  Sat, 19 Jan 2019 22:51:39 +0300

@@ -1,9 +1,10 @@
 <script lang="ts">
-  export let spin = false;
+  let {spin = false, children} = $props();
+
 </script>
 
 <div class={spin ? "spin" : ""}>
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

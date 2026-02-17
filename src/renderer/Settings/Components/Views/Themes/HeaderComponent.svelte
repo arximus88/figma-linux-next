@@ -12,7 +12,7 @@
 
 <Flex>
   <Button
-    on:buttonClick={onThemeSync}
+    onButtonClick={onThemeSync}
     size={32}
     round={3}
     margin={"0 4px 0 0"}

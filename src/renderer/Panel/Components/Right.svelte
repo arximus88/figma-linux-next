@@ -19,16 +19,16 @@
 </script>
 
 <div class="panel-right">
-  <ButtonWindow isActive={$isMenuOpen} on:buttonClick={clickMenu}>
+  <ButtonWindow isActive={$isMenuOpen} onButtonClick={clickMenu}>
     <Corner size="14" />
   </ButtonWindow>
-  <ButtonWindow on:buttonClick={() => ipcRenderer.send("windowMinimize")}>
+  <ButtonWindow onButtonClick={() => ipcRenderer.send("windowMinimize")}>
     <Minimize size="16" />
   </ButtonWindow>
-  <ButtonWindow on:buttonClick={() => ipcRenderer.send("windowMaximize")}>
+  <ButtonWindow onButtonClick={() => ipcRenderer.send("windowMaximize")}>
     <Maximize size="16" />
   </ButtonWindow>
-  <ButtonWindow hoverBgColor={"var(--bg-window-close)"} on:buttonClick={closeHandler}>
+  <ButtonWindow hoverBgColor={"var(--bg-window-close)"} onButtonClick={closeHandler}>
     <Close size="16" />
   </ButtonWindow>
 </div>

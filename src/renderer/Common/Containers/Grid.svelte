@@ -1,19 +1,8 @@
 <script lang="ts">
-  export let gap = "";
+  let {gap = "", width = "auto", height = "auto", padding = "inherit", columns = "auto", rows = "auto", columnGap: _columnGap = "auto", rowGap: _rowGap = "auto", areas = "auto", children} = $props();
 
-  export let width = "auto";
-  export let height = "auto";
-  export let padding = "inherit";
-  export let columns = "auto";
-  export let rows = "auto";
-  export let columnGap = "auto";
-  export let rowGap = "auto";
-  export let areas = "auto";
-
-  if (gap) {
-    rowGap = gap;
-    columnGap = gap;
-  }
+  let rowGap = $derived(gap ? gap : _rowGap);
+  let columnGap = $derived(gap ? gap : _columnGap);
 </script>
 
 <div
@@ -28,7 +17,7 @@
     --grid-row-gap: ${rowGap};
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

@@ -72,7 +72,7 @@
   });
 </script>
 
-<div role="tablist" tabindex="0" class="panel-tabs" bind:this={item} on:wheel={wheelHandler} on:dblclick={dblclickHandler}>
+<div role="tablist" tabindex="0" class="panel-tabs" bind:this={item} onwheel={wheelHandler} ondblclick={dblclickHandler}>
   <List
     bind:items={$tabs}
     {currentTabId}

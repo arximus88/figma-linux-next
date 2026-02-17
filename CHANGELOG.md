@@ -174,7 +174,7 @@ For users upgrading from 0.11.x:
 
 ### Credits
 
-- Original project by ChugunovRoman
+- Based on the original Figma-Linux community project
 - Inspired by architectural analysis of Linux desktop performance
 - Community forks reviewed: peff1235/figma-linux, imnyang/figma-linux
 - Built with insights from Figma's WebAssembly rendering architecture

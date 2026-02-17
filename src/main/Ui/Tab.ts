@@ -47,10 +47,10 @@ export default class Tab {
   }
   public setAutosize(flag: boolean) {
     this.view.setAutoResize({
-      width: flag,
-      height: flag,
-      horizontal: flag,
-      vertical: flag,
+      width: false,
+      height: false,
+      horizontal: false,
+      vertical: false,
     });
   }
   public setBounds(bounds: Rectangle) {
@@ -71,7 +71,7 @@ export default class Tab {
     this.view = new BrowserView(options);
     this.id = this.view.webContents.id;
 
-    this.setAutosize(true);
+    this.setAutosize(false);
 
     app.emit("requestBoundsForTabView", this.windowId);
   }

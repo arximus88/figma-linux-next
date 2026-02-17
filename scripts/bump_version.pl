@@ -26,7 +26,7 @@ system("echo \"figma-linux (${version}-1ubuntu0) devel; urgency=medium\" >> /tmp
 system("echo \"\" >> /tmp/tmp_changelog");
 system("echo \"  * Publish ${version} version\" >> /tmp/tmp_changelog");
 system("echo \"${notes}\" >> /tmp/tmp_changelog");
-system("echo \" -- Chugunov Roman <Zebs-BMK\@yandex.ru>  \$(date -R)\" >> /tmp/tmp_changelog");
+system("echo \" -- Figma Linux Community <figma-linux\@community.dev>  \\$(date -R)\" >> /tmp/tmp_changelog");
 system("echo \"\" >> /tmp/tmp_changelog");
 
 system("sed -i \"s/^[*#]/  &/gm\" /tmp/tmp_changelog");

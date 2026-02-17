@@ -1,12 +1,8 @@
 <script lang="ts">
+  let {title, isEmpty = $bindable(false), open = $bindable(false), duration = 400, children} = $props();
   import { onMount } from "svelte";
   import { tweened } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
-
-  export let title: string;
-  export let isEmpty = false;
-  export let open = false;
-  export let duration = 400;
 
   let height = 0;
   let content: HTMLDivElement;
@@ -47,7 +43,7 @@
 
 <div>
   <label>
-    <input type="checkbox" bind:checked={open} on:change={onChange} on:focusin={onChange} />
+    <input type="checkbox" bind:checked={open} onchange={onChange} onfocusin={onChange} />
     <span>{title}</span>
   </label>
   <block
@@ -56,7 +52,7 @@
     `}
   >
     <blockContent bind:this={content}>
-      <slot />
+      {@render children?.()}
     </blockContent>
   </block>
 </div>

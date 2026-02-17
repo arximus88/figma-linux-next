@@ -1,21 +1,11 @@
 <script lang="ts">
-  export let width = "auto";
-  export let padding = "auto";
-  export let whiteSpace = "nowrap";
-  export let overflow = "auto";
-  export let textOverflow = "auto";
-  export let size = "auto";
-  export let color = "var(--text)";
-  export let disabledColor = "var(--text-disabled)";
+  let {width = "auto", padding = "auto", whiteSpace = "nowrap", overflow = "auto", textOverflow = "auto", size = "auto", color: colorProp = "var(--text)", disabledColor = "var(--text-disabled)", disabled = false, children, ...rest} = $props();
 
-  export let disabled: boolean | undefined = false;
-
-  if (typeof disabled === "boolean" && disabled) {
-    color = disabledColor;
-  }
+  let color = $derived((typeof disabled === "boolean" && disabled) ? disabledColor : colorProp);
 </script>
 
 <span
+  {...rest}
   style={`
     --size: ${size};
     --width: ${width};
@@ -26,7 +16,7 @@
     --textOverflow: ${textOverflow};
   `}
 >
-  <slot />
+  {@render children?.()}
 </span>
 
 <style>

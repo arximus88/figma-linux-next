@@ -1,5 +1,6 @@
 <script lang="ts">
-  export let padding = "0 0 20px 0";
+  let {padding = "0 0 20px 0", children} = $props();
+
 </script>
 
 <span
@@ -7,7 +8,7 @@
     --padding: ${padding}
   `}
 >
-  <slot />
+  {@render children?.()}
 </span>
 
 <style>

@@ -1,5 +1,6 @@
 <script lang="ts">
-  export let deg = 0;
+  let {deg = 0, children} = $props();
+
 </script>
 
 <div
@@ -7,7 +8,7 @@
     --deg: ${deg}deg;
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

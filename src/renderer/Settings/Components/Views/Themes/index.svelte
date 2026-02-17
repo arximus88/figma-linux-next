@@ -1,6 +1,6 @@
 <script lang="ts">
+  let { zIndex, onSetSettingsTabViewIndex } = $props();
   import { ipcRenderer } from "electron";
-  import { createEventDispatcher } from "svelte";
   import { themes, creatorsThemes, creatorTheme, settings, modalBounds } from "../../../store";
   import { DropDown, Flex, Grid } from "Common";
   import { themeApp } from "Common/Store/Themes";
@@ -8,12 +8,9 @@
 
   import ThemeItem from "./ThemeItem.svelte";
 
-  export let zIndex: number;
 
-  const dispatch = createEventDispatcher();
-
-  $: isCreatorThemesEmpty = $creatorsThemes.length === 0;
-  $: isThemesEmpty = $themes.length === 0;
+  let isCreatorThemesEmpty = $derived($creatorsThemes.length === 0);
+  let isThemesEmpty = $derived($themes.length === 0);
 
   function onApplyTheme(event: CustomEvent<SvelteEvents.ApplyTheme>) {
     const themeId = event.detail.themeId;
@@ -42,7 +39,7 @@
 
     creatorTheme.setEditTheme(theme);
 
-    dispatch("setSettingsTabViewIndex", { index: 2 });
+    onSetSettingsTabViewIndex?.({ index: 2 });
   }
   function onUseColorPalette(event: CustomEvent<SvelteEvents.ApplyTheme>) {
     const themeId = event.detail.themeId;
@@ -52,15 +49,15 @@
 
     creatorTheme.setPaletteTheme(theme);
 
-    dispatch("setSettingsTabViewIndex", { index: 2 });
+    onSetSettingsTabViewIndex?.({ index: 2 });
   }
 
-  let zoomViewHeight: number;
-  $: {
+  let zoomViewHeight: number = $state(0);
+  $effect(() => {
     if ($modalBounds) {
       zoomViewHeight = $modalBounds.height - 94;
     }
-  }
+  });
 </script>
 
 <div style={`z-index: ${zIndex}; height: ${zoomViewHeight}px;`}>
@@ -73,10 +70,10 @@
       {#if $creatorsThemes.length > 0}
         {#each $creatorsThemes as theme (theme.id)}
           <ThemeItem
-            on:deleteTheme={onDeleteTheme}
-            on:editTheme={onEditTheme}
-            on:useColorPalette={onUseColorPalette}
-            on:applyTheme={onApplyTheme}
+            onDeleteTheme={onDeleteTheme}
+            onEditTheme={onEditTheme}
+            onUseColorPalette={onUseColorPalette}
+            onApplyTheme={onApplyTheme}
             {theme}
             canDelete
             canEdit
@@ -101,8 +98,10 @@
       {#if $themes.length > 0}
         {#each $themes as theme (theme.id)}
           <ThemeItem
-            on:useColorPalette={onUseColorPalette}
-            on:applyTheme={onApplyTheme}
+            onUseColorPalette={onUseColorPalette}
+            onApplyTheme={onApplyTheme}
+            onDeleteTheme={onDeleteTheme}
+            onEditTheme={onEditTheme}
             {theme}
             bind:currentThemeId={$settings.theme.currentTheme}
           />

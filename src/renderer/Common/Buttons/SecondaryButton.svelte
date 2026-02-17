@@ -1,23 +1,27 @@
 <script lang="ts">
   import Button from "./Button.svelte";
 
-  export let padding = "0 7px";
-  export let width = "auto";
-  export let height = "36px";
-  export let normalFgColor = "var(--text)";
-  export let hoverFgColor = "var(--text-active)";
-  export let normalBgColor = "transparent";
-  export let activeBgColor = "transparent";
-  export let hoverBgColor = "transparent";
-  export let isActive = false;
-
-  export let normalBorder = "1px solid var(--text)";
-  export let activeBorder = "1px solid var(--text-active)";
-  export let hoverBorder = "1px solid var(--text-active)";
-
-  export let normalCursor = "pointer";
-  export let activeCursor = "pointer";
-  export let hoverCursor = "pointer";
+  let {
+    padding = "0 7px",
+    width = "auto",
+    height = "36px",
+    normalFgColor = "var(--text)",
+    hoverFgColor = "var(--text-active)",
+    normalBgColor = "transparent",
+    activeBgColor = "transparent",
+    hoverBgColor = "transparent",
+    activeFgColor = "var(--text-active)",
+    isActive = false,
+    normalBorder = "1px solid var(--text)",
+    activeBorder = "1px solid var(--text-active)",
+    hoverBorder = "1px solid var(--text-active)",
+    normalCursor = "pointer",
+    activeCursor = "pointer",
+    hoverCursor = "pointer",
+    disabled = false,
+    onButtonClick = undefined,
+    children = undefined
+  } = $props();
 </script>
 
 <Button
@@ -27,17 +31,18 @@
   {normalFgColor}
   {hoverFgColor}
   {normalBgColor}
-  {activeBgColor}
   {hoverBgColor}
-  {isActive}
+  {activeBgColor}
+  {activeFgColor}
   {normalBorder}
-  {activeBorder}
   {hoverBorder}
+  {activeBorder}
+  {disabled}
+  {isActive}
   {normalCursor}
   {activeCursor}
   {hoverCursor}
-  round={3}
-  on:buttonClick
+  {onButtonClick}
 >
-  <slot />
+  {@render children?.()}
 </Button>

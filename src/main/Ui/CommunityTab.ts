@@ -39,10 +39,10 @@ export default class CommunityTab {
   }
   public setAutosize(flag: boolean) {
     this.view.setAutoResize({
-      width: flag,
-      height: flag,
-      horizontal: flag,
-      vertical: flag,
+      width: false,
+      height: false,
+      horizontal: false,
+      vertical: false,
     });
   }
   public setBounds(bounds: Rectangle) {
@@ -63,7 +63,7 @@ export default class CommunityTab {
     this.view = new BrowserView(options);
     this.id = this.view.webContents.id;
 
-    this.setAutosize(true);
+    this.setAutosize(false);
 
     isDev && toggleDetachedDevTools(this.view.webContents);
 

@@ -1,7 +1,7 @@
 Source: figma-linux
 Section: graphics
 Priority: optional
-Maintainer: Chugunov Roman <Zebs-BMK@yandex.ru>
+Maintainer: Figma Linux Community <figma-linux@community.dev>
 Build-Depends: debhelper (>= 10), rsync, xdg-utils
 Standards-Version: 4.1.2
 Homepage: https://github.com/Figma-linux/figma-linux

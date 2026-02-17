@@ -1,14 +1,6 @@
 <script lang="ts">
-  export let value: number;
+  let { value = $bindable(), readonly = false, max = 0, min = 100, step = 1, width = "auto", thumbSize = "16px", trackSize = "2px", onchange = undefined } = $props();
 
-  export let readonly = false;
-  export let max = 0;
-  export let min = 100;
-  export let step = 1;
-
-  export let width = "auto";
-  export let thumbSize = "16px";
-  export let trackSize = "2px";
 </script>
 
 <input
@@ -23,7 +15,7 @@
   {max}
   {step}
   bind:value
-  on:change
+  {onchange}
 />
 
 <style>

@@ -1,48 +1,43 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from "svelte";
+  let { onCloseSettings } = $props();
+  import { onMount} from "svelte";
   import { HeaderModal, Button, CloseModal, FlexItem } from "Common";
   import { TabView, TabViewHeaderItem } from "Common/TabView";
   import { General } from "./Views/General";
   import { Themes, ThemesHeaderComponent } from "./Views/Themes";
-  import { ThemeCreator, ThemeCreatorHeaderComponent } from "./Views/ThemeCreator";
-  import { modalBounds } from "../store";
 
-  const dispatch = createEventDispatcher();
+  import { settings, modalBounds } from "../store";
 
-  const items: Types.SetingsTabItem[] = [
-    {
-      id: "general",
-      text: "General",
-      itemArgs: {
-        padding: "14px 10px",
+  let items: Types.SetingsTabItem[] = $derived.by(() => {
+    const list = [
+      {
+        id: "general",
+        text: "General",
+        itemArgs: {
+          padding: "14px 10px",
+        },
+        item: TabViewHeaderItem,
+        bodyComponent: General,
       },
-      item: TabViewHeaderItem,
-      bodyComponent: General,
-    },
-    {
-      id: "themes",
-      text: "Themes",
-      itemArgs: {
-        padding: "14px 10px",
-      },
-      item: TabViewHeaderItem,
-      bodyComponent: Themes,
-      headerComponent: ThemesHeaderComponent,
-    },
-    {
-      id: "themeCreator",
-      text: "Theme Creator",
-      itemArgs: {
-        padding: "14px 10px",
-      },
-      item: TabViewHeaderItem,
-      bodyComponent: ThemeCreator,
-      headerComponent: ThemeCreatorHeaderComponent,
-    },
-  ];
+    ];
 
-  let currentItem = items[0];
-  let currentId = currentItem.id;
+    if (!$settings.app.disableThemes) {
+      list.push({
+        id: "themes",
+        text: "Themes",
+        itemArgs: {
+          padding: "14px 10px",
+        },
+        item: TabViewHeaderItem,
+        bodyComponent: Themes,
+        headerComponent: ThemesHeaderComponent,
+      } as any);
+    }
+    return list;
+  });
+
+  let currentId = $state("general");
+  let currentItem = $derived(items.find((i) => i.id === currentId) || items[0]);
 
   function onTabItemClick(item: Types.TabItem) {
     currentItem = item as Types.SetingsTabItem;
@@ -68,11 +63,14 @@
     <FlexItem grow={1}>
       <TabView {items} bind:currentId initItemId={"general"} onItemClick={onTabItemClick} />
     </FlexItem>
-    <svelte:component this={currentItem.headerComponent} />
+    {@const HeaderComponent = currentItem?.headerComponent}
+    {#if HeaderComponent}
+      <HeaderComponent />
+    {/if}
     <Button
       size={32}
       round={3}
-      on:buttonClick={() => dispatch("closeSettings")}
+      onButtonClick={() => onCloseSettings?.()}
       hoverBgColor="var(--borders)"
     >
       <CloseModal color="var(--text)" />
@@ -80,10 +78,10 @@
   </HeaderModal>
   <settingsBody>
     {#each items as item (item.id)}
-      <svelte:component
-        this={item.bodyComponent}
+      {@const BodyComponent = item.bodyComponent}
+      <BodyComponent
         zIndex={item.id === currentItem.id ? 2 : 0}
-        on:setSettingsTabViewIndex={onSetTabViewIndex}
+        onsetSettingsTabViewIndex={onSetTabViewIndex}
       />
     {/each}
   </settingsBody>

@@ -1,10 +1,6 @@
 <script lang="ts">
-  export let text: string;
-  export let checked: boolean;
+  let { text, checked = $bindable(), checkSize = "14px", checkWidth = "30px", checkBorder = "1px" } = $props();
 
-  export let checkSize = "14px";
-  export let checkWidth = "30px";
-  export let checkBorder = "1px";
 </script>
 
 <div
@@ -15,7 +11,7 @@
   `}
 >
   <label>
-    <input on:change bind:checked type="checkbox" />
+    <input bind:checked type="checkbox" />
     <span>{text}</span>
   </label>
 </div>

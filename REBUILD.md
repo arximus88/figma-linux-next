@@ -199,16 +199,16 @@ yay -S figma-linux
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Build
-npm run build
+bun run build
 
 # Run (development)
-npm run dev
+bun run dev
 
 # Package for distribution
-npm run pack
+bun run pack
 ```
 
 ## Configuration
@@ -285,7 +285,7 @@ We explicitly **did not** pursue:
 
 ## Contributors
 
-Based on the original Figma-Linux by ChugunovRoman, with critical improvements inspired by architectural analysis and community forks (peff1235, imnyang).
+Based on the original Figma-Linux community project, with critical improvements inspired by architectural analysis and community forks.
 
 ## License
 

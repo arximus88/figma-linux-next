@@ -26,8 +26,8 @@
   }
 </script>
 
-<div role="presentation" on:mousedown|self={onCloseModalHandler} id="settings" style={pallet.join("; ")}>
-  <Body on:closeSettings={onCloseModalHandler} />
+<div role="presentation" onmousedown={onCloseModalHandler} id="settings" style={pallet.join("; ")}>
+  <Body onCloseSettings={onCloseModalHandler} />
 </div>
 
 <style>

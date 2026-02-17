@@ -41,10 +41,10 @@ modules:
         NPM_CONFIG_LOGLEVEL: info
     build-commands:
       # Install dependencies
-      - npm install --offline --legacy-peer-deps
+      - bun install
 
       # Build the application
-      - npm run build
+      - bun run build
 
       # Install to /app
       - |
@@ -113,7 +113,7 @@ modules:
           <url type="bugtracker">https://github.com/Figma-Linux/figma-linux/issues</url>
           <screenshots>
             <screenshot type="default">
-              <image>https://raw.githubusercontent.com/ChugunovRoman/figma-linux/master/images/screenshot1.jpg</image>
+              <image>https://raw.githubusercontent.com/Figma-Linux/figma-linux/master/images/screenshot1.jpg</image>
             </screenshot>
           </screenshots>
           <releases>
@@ -137,7 +137,7 @@ modules:
       - type: dir
         path: .
       - type: file
-        path: package-lock.json
+        path: bun.lockb
       # npm cache for offline build
       - generated-sources.json
 

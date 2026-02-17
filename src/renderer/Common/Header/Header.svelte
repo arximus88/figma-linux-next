@@ -1,5 +1,6 @@
 <script lang="ts">
-  export let bgColor = "var(--bg-header)";
+  let {bgColor = "var(--bg-header)", children} = $props();
+
 </script>
 
 <div
@@ -7,7 +8,7 @@
     --bg-color: ${bgColor};
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

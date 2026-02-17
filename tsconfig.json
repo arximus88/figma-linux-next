@@ -62,6 +62,7 @@
     "src/constants/**/*",
     "src/main/**/*",
     "src/types/**/*",
-    "src/utils/**/*"
+    "src/utils/**/*",
+    "src/renderer/**/*"
   ]
 }

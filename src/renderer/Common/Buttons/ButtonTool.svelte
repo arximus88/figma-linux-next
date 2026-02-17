@@ -1,33 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding = "auto", normalFgColor = "var(--fg-header)", hoverFgColor = "var(--fg-tab-hover)", normalBgColor = "var(--bg-header)", hoverBgColor = "var(--bg-tab-hover)", normalOpacity = 0.4, hoverOpacity = 1, disabled = false, onButtonClick = undefined, onMouseenter = undefined, onMouseleave = undefined, children = undefined} = $props();
 
-  const dispatch = createEventDispatcher();
-
-  export let round: number = 0;
-  export let size: number | undefined = undefined;
-  export let width = "auto";
-  export let height = "auto";
-
-  export let padding = "auto";
-  export let normalFgColor = "var(--fg-header)";
-  export let hoverFgColor = "var(--fg-tab-hover)";
-
-  export let normalBgColor = "var(--bg-header)";
-  export let hoverBgColor = "var(--bg-tab-hover)";
-
-  export let normalOpacity = 0.4;
-  export let hoverOpacity = 1;
-
-  export let disabled: boolean | undefined = false;
-
-  if (size) {
-    width = `${size}px`;
-    height = `${size}px`;
-  }
+  let width = $derived(size ? `${size}px` : _width);
+  let height = $derived(size ? `${size}px` : _height);
 
   function clickHandler(event: MouseEvent) {
     if (!disabled) {
-      dispatch("buttonClick");
+      onButtonClick?.();
     }
   }
 </script>
@@ -35,9 +14,9 @@
 <div
   role="button"
   tabindex="0"
-  on:mouseup|capture={clickHandler}
-  on:mouseenter={(e) => dispatch("mouseenter", e)}
-  on:mouseleave={(e) => dispatch("mouseleave", e)}
+  onmouseupcapture={clickHandler}
+  onmouseenter={(e) => onMouseenter?.(e)}
+  onmouseleave={(e) => onMouseleave?.(e)}
   style={`
     --padding: ${padding};
     --width: ${width};
@@ -53,7 +32,7 @@
     --hover-opacity: ${hoverOpacity};
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>
 
 <style>

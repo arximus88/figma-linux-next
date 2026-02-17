@@ -1,6 +1,6 @@
 <script lang="ts">
-  export let grow = 0;
-  export let flex = 0;
+  let {grow = 0, flex = 0, children = undefined} = $props();
+
 </script>
 
 <div
@@ -9,5 +9,5 @@
     flex-grow: ${grow};
   `}
 >
-  <slot />
+  {@render children?.()}
 </div>

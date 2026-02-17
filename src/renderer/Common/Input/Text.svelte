@@ -1,10 +1,6 @@
 <script lang="ts">
-  export let value: string;
-
-  export let width = "auto";
-  export let placeholder = "";
-  export let isValidValue = true;
-  export let validator = (value: string) => true;
+  import type { Snippet } from "svelte";
+  let {value = $bindable(), width = "auto", placeholder = "", isValidValue = $bindable(true), validator = (value: string) => true, children = undefined}: { value?: string, width?: string, placeholder?: string, isValidValue?: boolean, validator?: (v: string) => boolean, children?: Snippet } = $props();
 
   function onChangeHandler() {
     isValidValue = validator(value);
@@ -12,7 +8,7 @@
 </script>
 
 <div class={`${!isValidValue ? "input_error" : ""}`}>
-  <slot />
+  {@render children?.()}
   <input
     bind:value
     style={`
@@ -20,8 +16,8 @@
     `}
     type="text"
     {placeholder}
-    on:change={onChangeHandler}
-    on:focusout={onChangeHandler}
+    onchange={onChangeHandler}
+    onfocusout={onChangeHandler}
   />
 </div>
 

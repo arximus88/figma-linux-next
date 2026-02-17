@@ -1,22 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  let { size = undefined, value = $bindable(), key = "", width: _width = "auto", height: _height = "auto", onMouseClick = undefined, onchange = undefined } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  export let size: number | undefined = undefined;
-  export let value: string;
-
-  export let key = "";
-  export let width = "auto";
-  export let height = "auto";
-
-  if (size) {
-    width = `${size}px`;
-    height = `${size}px`;
-  }
+  let width = $derived(size ? `${size}px` : _width);
+  let height = $derived(size ? `${size}px` : _height);
 
   function onMouseDownHandler(event: MouseEvent) {
-    dispatch("mouseClick", { input: event.target, button: event.button, value, key });
+    onMouseClick?.({ input: event.target, button: event.button, value, key });
   }
 </script>
 
@@ -27,8 +16,8 @@
     --inputWidth: ${width};
     --inputHeight: ${height};
   `}
-  on:change
-  on:mousedown={onMouseDownHandler}
+  {onchange}
+  onmousedown={onMouseDownHandler}
 />
 
 <style>

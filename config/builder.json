@@ -74,7 +74,7 @@
     "icon": "resources/icons",
     "category": "Graphics",
     "packageCategory": "Graphics",
-    "maintainer": "Chugunov Roman <Zebs-BMK@yandex.ru>",
+    "maintainer": "Figma Linux Community",
     "artifactName": "${name}_${version}_${platform}_${arch}.${ext}",
     "fileAssociations": [
       {

@@ -93,7 +93,7 @@ function runElectron() {
   return {
     writeBundle() {
       if (server) return;
-      server = require("child_process").spawn("npm", ["run", "run:watch", "--", "--dev"], {
+      server = require("child_process").spawn("bun", ["run", "run:watch", "--", "--dev"], {
         stdio: ["ignore", "inherit", "inherit"],
         shell: true,
       });

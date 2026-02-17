@@ -12,19 +12,19 @@ Figma Linux is an unofficial Electron-based desktop application for Figma on Lin
 
 ```bash
 # Install dependencies
-npm i
+bun install
 
 # Development mode (builds main, watches renderer with hot reload)
-npm run dev
+bun run dev
 
 # Build for production
-npm run build
+bun run build
 
 # Run built production version
-npm run start
+bun run start
 
 # Run in watch mode (restarts on file changes)
-npm run run:watch
+bun run run:watch
 ```
 
 ### Build System
@@ -41,16 +41,16 @@ Build outputs to `dist/`:
 
 ```bash
 # Package for all configured formats (deb, rpm, pacman, AppImage, zip)
-npm run package
+bun run package
 
 # Build and create installers (includes AppImageTool dependency)
-npm run pack
+bun run pack
 
 # Install locally to /opt/figma-linux for testing
-npm run local:install
+bun run local:install
 
 # Build with electron-builder
-npm run builder
+bun run builder
 ```
 
 Build targets configured in `config/builder.json`:
@@ -64,19 +64,19 @@ Build targets configured in `config/builder.json`:
 
 ```bash
 # Run linting and formatting
-npm run lp
+bun run lp
 
 # ESLint (uses config/eslintrc.js)
-npm run lint
+bun run lint
 
 # Prettier formatting
-npm run prettier
+bun run prettier
 
 # Svelte type checking
-npm run check
+bun run check
 
 # Pre-commit hook (runs linting/formatting on staged files)
-npm run precommit
+bun run precommit
 ```
 
 ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line limit
@@ -369,8 +369,8 @@ When modifying the codebase:
 
 ```bash
 # Build and install locally
-npm run pack
-npm run local:install
+bun run pack
+bun run local:install
 
 # Run from /opt/figma-linux
 /opt/figma-linux/figma-linux

@@ -1,26 +1,25 @@
 <script lang="ts">
-  export let text: string;
-
-  export let round: number = 0;
-  export let width = "inherit";
-  export let height = "inherit";
-
-  export let padding = "inherit";
-  export let normalFgColor = "var(--text)";
-  export let normalBgColor = "transparent";
-  export let activeFgColor = "var(--text-active)";
-  export let activeBgColor = "transparent";
-  export let hoverFgColor = "var(--text-active)";
-  export let hoverBgColor = "transparent";
-
-  export let isActive = false;
+  let {
+    text,
+    round = 0,
+    width = "inherit",
+    height = "inherit",
+    padding = "inherit",
+    normalFgColor = "var(--text)",
+    normalBgColor = "transparent",
+    activeFgColor = "var(--text-active)",
+    activeBgColor = "transparent",
+    hoverFgColor = "var(--text-active)",
+    hoverBgColor = "transparent",
+    isActive = false,
+    onmouseup,
+  } = $props();
 </script>
 
 <span
   role="tab"
   tabindex="0"
-  on:mousedown|capture
-  on:mouseup|capture
+  {onmouseup}
   class={isActive ? "active" : ""}
   style={`
     --width: ${width};

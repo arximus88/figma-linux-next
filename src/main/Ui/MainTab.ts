@@ -74,10 +74,10 @@ export default class MainTab {
   }
   public setAutosize(flag: boolean) {
     this.view.setAutoResize({
-      width: flag,
-      height: flag,
-      horizontal: flag,
-      vertical: flag,
+      width: false,
+      height: false,
+      horizontal: false,
+      vertical: false,
     });
   }
   public setBounds(bounds: Rectangle) {
@@ -92,7 +92,7 @@ export default class MainTab {
     this.id = this.view.webContents.id;
 
     this.loadUrl(url);
-    this.setAutosize(true);
+    this.setAutosize(false);
 
     isDev && toggleDetachedDevTools(this.view.webContents);
 

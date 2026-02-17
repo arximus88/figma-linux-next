@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  let { canEdit = false, canDelete = false, currentThemeId = $bindable(), theme, onApplyTheme, onEditTheme, onUseColorPalette, onDeleteTheme } = $props();
   import { getColorPallet } from "Utils/Render";
 
   import { Text, Label, Flex, FlexItem, Rotate } from "Common";
@@ -15,15 +15,8 @@
     Delete,
   } from "Common/Icons";
 
-  export let canEdit = false;
-  export let canDelete = false;
-  export let currentThemeId: string;
-  export let theme: Themes.Theme;
+  let radio = $derived(currentThemeId === theme.id ? RadioChecked : RadioNormal);
 
-  let radio: ConstructorOfATypedSvelteComponent;
-  $: radio = currentThemeId === theme.id ? RadioChecked : RadioNormal;
-
-  const dispatch = createEventDispatcher();
 </script>
 
 <div>
@@ -31,7 +24,7 @@
     role="button"
     tabindex="0"
     class="themeview_item_tumbl"
-    on:mouseup={() => dispatch("applyTheme", { themeId: theme.id })}
+    onmouseup={() => onApplyTheme?.({ themeId: theme.id })}
     style={getColorPallet(theme).join(";")}
   >
     <div class="themeview_item_tumbl_top"></div>
@@ -74,7 +67,7 @@
         {#if canEdit}
           <ButtonTool
             normalBgColor="tarsparent"
-            on:buttonClick={() => dispatch("editTheme", { themeId: theme.id })}
+            onButtonClick={() => onEditTheme?.({ themeId: theme.id })}
           >
             <Pencil2 color="var(--text)" size="16" />
           </ButtonTool>
@@ -82,7 +75,7 @@
         <Flex width="10px" />
         <ButtonTool
           normalBgColor="tarsparent"
-          on:buttonClick={() => dispatch("useColorPalette", { themeId: theme.id })}
+          onButtonClick={() => onUseColorPalette?.({ themeId: theme.id })}
         >
           <Rotate deg={-90}>
             <Download color="var(--text)" size="16" />
@@ -91,15 +84,16 @@
         <Flex width="10px" />
         <ButtonTool
           normalBgColor="tarsparent"
-          on:buttonClick={() => dispatch("applyTheme", { themeId: theme.id })}
+          onButtonClick={() => onApplyTheme?.({ themeId: theme.id })}
         >
-          <svelte:component this={radio} color="var(--text)" />
+          {@const Radio = radio}
+          <Radio color="var(--text)" />
         </ButtonTool>
         {#if canDelete}
           <Flex width="20px" />
           <ButtonTool
             normalBgColor="tarsparent"
-            on:buttonClick={() => dispatch("deleteTheme", { themeId: theme.id })}
+            onButtonClick={() => onDeleteTheme?.({ themeId: theme.id })}
           >
             <Delete color="var(--text)" size="18" />
           </ButtonTool>

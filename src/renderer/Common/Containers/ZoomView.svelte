@@ -1,14 +1,7 @@
 <script lang="ts">
+  let { zoom = $bindable(), minZoom, maxZoom, width = "auto", height = "auto", isMaskActive = $bindable(true), maskBounds = $bindable({ width: 0, height: 0 }), children, toolBar, layout_1 } = $props();
   import type { MouseWheelInputEvent } from "electron";
   import { onMount, onDestroy } from "svelte";
-
-  export let zoom: number;
-  export let minZoom: number;
-  export let maxZoom: number;
-  export let width = "auto";
-  export let height = "auto";
-  export let isMaskActive = true;
-  export let maskBounds = { width: 0, height: 0 };
 
   let div: HTMLDivElement;
   let mask: HTMLDivElement;
@@ -102,11 +95,11 @@
 <zoomArea
   role="application"
   bind:this={area}
-  on:mousedown={mouseDownHandler}
-  on:mouseup={mouseUpHandler}
-  on:mousemove={mouseMoveHandler}
-  on:mouseleave={mouseLeaveHandler}
-  on:mousewheel={mouseWheelHandler}
+  onmousedown={mouseDownHandler}
+  onmouseup={mouseUpHandler}
+  onmousemove={mouseMoveHandler}
+  onmouseleave={mouseLeaveHandler}
+  onmousewheel={mouseWheelHandler}
   style={`
     width: ${width};
     height: ${height};
@@ -118,7 +111,7 @@
       zoom: ${zoom};
     `}
   >
-    <slot />
+    {@render children?.()}
     <maskZoomArea
       bind:this={mask}
       style={`
@@ -130,10 +123,10 @@
   </div>
   <zoomAreaToolBarWrap>
     <zoomAreaToolBar>
-      <slot name="toolBar" />
+      {@render toolBar?.()}
     </zoomAreaToolBar>
   </zoomAreaToolBarWrap>
-  <slot name="layout_1" />
+  {@render layout_1?.()}
 </zoomArea>
 
 <style>

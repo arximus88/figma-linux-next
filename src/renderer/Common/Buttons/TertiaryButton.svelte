@@ -1,22 +1,23 @@
 <script lang="ts">
   import Button from "./Button.svelte";
 
-  export let padding = "0 7px";
-  export let normalFgColor = "var(--text)";
-  export let activeFgColor = "var(--fg-toolbar-active)";
-
-  export let normalBgColor = "transparent";
-  export let activeBgColor = "var(--bg-toolbar-active)";
-  export let hoverBgColor = "transparent";
-  export let isActive = false;
-
-  export let normalBorder = "1px solid var(--text)";
-  export let activeBorder = "1px solid var(--bg-toolbar-active)";
-  export let hoverBorder = "1px solid var(--text)";
-
-  export let normalCursor = "pointer";
-  export let activeCursor = "pointer";
-  export let hoverCursor = "pointer";
+  let {
+    padding = "0 7px",
+    normalFgColor = "var(--text)",
+    activeFgColor = "var(--fg-toolbar-active)",
+    normalBgColor = "transparent",
+    activeBgColor = "var(--bg-toolbar-active)",
+    hoverBgColor = "transparent",
+    isActive = false,
+    normalBorder = "1px solid var(--text)",
+    activeBorder = "1px solid var(--bg-toolbar-active)",
+    hoverBorder = "1px solid var(--text)",
+    normalCursor = "pointer",
+    activeCursor = "pointer",
+    hoverCursor = "pointer",
+    onButtonClick,
+    children,
+  } = $props();
 </script>
 
 <Button
@@ -35,7 +36,8 @@
   {hoverCursor}
   round={3}
   height="36px"
-  on:buttonClick
+  {onButtonClick}
 >
-  <slot />
+  {@render children?.()}
 </Button>
+

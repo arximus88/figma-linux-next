@@ -22,10 +22,10 @@ export default class SettingsView {
     });
 
     this.view.setAutoResize({
-      width: true,
-      height: true,
-      horizontal: true,
-      vertical: true,
+      width: false,
+      height: false,
+      horizontal: false,
+      vertical: false,
     });
 
     this.view.webContents.loadURL(isDev ? settingsUrlDev : settingsUrlProd);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  let { zIndex } = $props();
   import { randomUUID } from "crypto";
   import { ipcRenderer } from "electron";
   import { InputRange, CheckBox, InputText, ListBox } from "Common/Input";
@@ -14,24 +15,20 @@
 
   const frameStyles = getAvailableFrameStyles();
 
-  export let zIndex: number;
-
-  let items: Types.TabItem[] = [];
-  $: items = $settings.app.fontDirs.map((dir) => ({
+  let items: Types.TabItem[] = $derived($settings.app.fontDirs.map((dir) => ({
     id: dir,
     text: dir,
     item: DirectoryListItem,
-  }));
+  })));
 
-  let switchItems: Types.TabItem[] = [];
-  $: switchItems = $settings.app.commandSwitches.map((item) => ({
+  let switchItems: Types.TabItem[] = $derived($settings.app.commandSwitches.map((item) => ({
     id: randomUUID(),
     text: item.switch,
     itemArgs: {
       item,
     },
     item: SwitchListItem,
-  }));
+  })));
 
   async function onChangeExportPath(event: CustomEvent) {
     const directory = await ipcRenderer.invoke("selectExportDirectory");
@@ -81,20 +78,20 @@
     $settings.app.commandSwitches = [];
   }
 
-  let bodyHeight: number;
-  $: {
+  let bodyHeight: number = $state(0);
+  $effect(() => {
     if ($modalBounds) {
       bodyHeight = $modalBounds.height - 94;
     }
-  }
+  });
 
-  $: {
+  $effect(() => {
     ipcRenderer.invoke("updateFigmaUiScale", $settings.ui.scaleFigmaUI);
-  }
-  $: {
+  });
+  $effect(() => {
     ipcRenderer.invoke("updatePanelScale", $settings.ui.scalePanel);
     $settings.app.panelHeight = Math.floor(TOPPANELHEIGHT * $settings.ui.scalePanel);
-  }
+  });
 
   function onFrameStyleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
@@ -136,18 +133,21 @@
       <CheckBox bind:checked={$settings.app.enableColorSpaceSrgb} text="Enable color space sRGB" />
       <CheckBox bind:checked={$settings.app.visibleNewProjectBtn} text="Show new project button" />
       <CheckBox bind:checked={$settings.app.useZenity} text="Use Zenity for Dialogs" />
+
+      <Flex height="16px" />
+      <Label>Custom theming (Experimental)</Label>
+      <CheckBox bind:checked={$settings.app.disableThemes} text="Disable themes" />
       <CheckBox
         bind:checked={$settings.app.useOldPreviewer}
         text="Use old Previewer in ThemeCreator"
       />
-      <CheckBox bind:checked={$settings.app.disableThemes} text="Disable themes" />
 
       <Flex height="16px" />
       <Label>Window Frame Style</Label>
       <select
         class="frame-style-select"
         bind:value={$settings.app.frameStyle}
-        on:change={onFrameStyleChange}
+        onchange={onFrameStyleChange}
       >
         {#each frameStyles as style}
           <option value={style.value}>{style.label}</option>
@@ -160,13 +160,13 @@
       <Flex>
         <FlexItem grow={1}>
           <InputText bind:value={$settings.app.exportDir}>
-            <ButtonTool normalBgColor="tarsparent" on:buttonClick={onChangeExportPath}>
+            <ButtonTool normalBgColor="tarsparent" onButtonClick={onChangeExportPath}>
               <Folder color="var(--text)" size="18" />
             </ButtonTool>
           </InputText>
         </FlexItem>
         <Flex width="20px" />
-        <SecondaryButton on:buttonClick={onChangeExportPath}>Change</SecondaryButton>
+        <SecondaryButton onButtonClick={onChangeExportPath}>Change</SecondaryButton>
       </Flex>
     </Flex>
   </Flex>
@@ -182,9 +182,9 @@
       <Flex height="10px" />
       <Flex>
         <FlexItem grow={1} />
-        <SecondaryButton on:buttonClick={onClearList}>Clear list</SecondaryButton>
+        <SecondaryButton onButtonClick={onClearList}>Clear list</SecondaryButton>
         <Flex width="10px" />
-        <SecondaryButton on:buttonClick={onAddDirectory}>Add directory</SecondaryButton>
+        <SecondaryButton onButtonClick={onAddDirectory}>Add directory</SecondaryButton>
       </Flex>
     </Flex>
     <Flex width="120px" />
@@ -194,9 +194,9 @@
       <Flex height="10px" />
       <Flex>
         <FlexItem grow={1} />
-        <SecondaryButton on:buttonClick={onClearSwicthList}>Clear list</SecondaryButton>
+        <SecondaryButton onButtonClick={onClearSwicthList}>Clear list</SecondaryButton>
         <Flex width="10px" />
-        <SecondaryButton on:buttonClick={onAddSwicth}>Add Switch</SecondaryButton>
+        <SecondaryButton onButtonClick={onAddSwicth}>Add Switch</SecondaryButton>
       </Flex>
     </Flex>
   </Flex>
