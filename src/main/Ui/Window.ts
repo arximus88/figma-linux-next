@@ -419,6 +419,11 @@ export default class Window {
   }
   public closeTab(tabId: number) {
     const tab = this.tabManager.getById(tabId);
+
+    if (!tab) {
+      return;
+    }
+
     const isNewFileTab = this.tabManager.isNewFileTab(tabId);
 
     this.window.contentView.removeChildView(tab.view);

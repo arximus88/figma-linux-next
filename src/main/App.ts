@@ -137,8 +137,12 @@ export default class App {
     // Enable modern rendering features
     app.commandLine.appendSwitch(
       "enable-features",
-      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer",
+      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer,Vulkan,UseSkiaRenderer",
     );
+
+    // User-requested high-performance GPU flags
+    app.commandLine.appendSwitch("enable-unsafe-webgpu");
+    app.commandLine.appendSwitch("use-vulkan");
 
     // WebGL optimizations for Figma's canvas engine
     app.commandLine.appendSwitch("enable-webgl");
