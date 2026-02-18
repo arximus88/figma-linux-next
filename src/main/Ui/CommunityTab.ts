@@ -1,11 +1,4 @@
-import {
-  app,
-  shell,
-  BrowserView,
-  BrowserViewConstructorOptions,
-  Rectangle,
-  HandlerDetails,
-} from "electron";
+import { app, shell, WebContentsView, Rectangle, HandlerDetails } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
 import {
@@ -22,7 +15,7 @@ import { logger } from "Main/Logger";
 export default class CommunityTab {
   public userId: string;
   public id: number;
-  public view: BrowserView;
+  public view: WebContentsView;
 
   constructor(private windowId: number) {
     this.userId = storage.settings.userId;
@@ -38,19 +31,21 @@ export default class CommunityTab {
     return this.view.webContents.getURL();
   }
   public setAutosize(flag: boolean) {
+    /*
     this.view.setAutoResize({
       width: false,
       height: false,
       horizontal: false,
       vertical: false,
     });
+    */
   }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
 
   private initTab() {
-    const options: BrowserViewConstructorOptions = {
+    this.view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         webgl: true,
@@ -58,9 +53,7 @@ export default class CommunityTab {
         zoomFactor: 1,
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
-    };
-
-    this.view = new BrowserView(options);
+    } as any);
     this.id = this.view.webContents.id;
 
     this.setAutosize(false);

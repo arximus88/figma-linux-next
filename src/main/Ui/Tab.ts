@@ -4,11 +4,11 @@ import {
   shell,
   Rectangle,
   WebContents,
-  BrowserView,
+  WebContentsView,
   BrowserWindow,
   HandlerDetails,
   DidCreateWindowDetails,
-  BrowserViewConstructorOptions,
+  WebContentsViewConstructorOptions,
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
@@ -31,7 +31,7 @@ export default class Tab {
   public fileKey?: string;
   public isUsingMicrophone?: boolean;
   public isInVoiceCall?: boolean;
-  public view: BrowserView;
+  public view: WebContentsView;
 
   constructor(private windowId: number) {
     this.initTab();
@@ -46,19 +46,32 @@ export default class Tab {
     return this.view.webContents.getURL();
   }
   public setAutosize(flag: boolean) {
+    // WebContentsView does not support setAutoResize
+    /*
     this.view.setAutoResize({
       width: false,
       height: false,
       horizontal: false,
       vertical: false,
     });
+    */
   }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
 
   private initTab() {
-    const options: BrowserViewConstructorOptions = {
+    // const options: WebContentsViewConstructorOptions = {
+    //   webPreferences: {
+    //     nodeIntegration: false,
+    //     webgl: true,
+    //     contextIsolation: false,
+    //     zoomFactor: 1,
+    //     preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
+    //   },
+    // };
+
+    this.view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         webgl: true,
@@ -66,12 +79,10 @@ export default class Tab {
         zoomFactor: 1,
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
-    };
-
-    this.view = new BrowserView(options);
+    } as any);
     this.id = this.view.webContents.id;
 
-    this.setAutosize(false);
+    // this.setAutosize(false);
 
     app.emit("requestBoundsForTabView", this.windowId);
   }
@@ -109,7 +120,6 @@ export default class Tab {
     const to = parse(newUrl);
 
     if (from.pathname === "/login") {
-      // TODO:
       // this.tabManager.reloadAll();
 
       event.preventDefault();

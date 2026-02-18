@@ -20,9 +20,11 @@
     pallet = getColorPallet(theme);
   });
 
-  function onCloseModalHandler(event: SvelteEvents.Empty) {
-    settings.trim();
-    ipcRenderer.send("closeSettingsView", $settings);
+  function onCloseModalHandler(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+        settings.trim();
+        ipcRenderer.send("closeSettingsView", $settings);
+    }
   }
 </script>
 

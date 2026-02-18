@@ -37,9 +37,6 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     frameStyle: "gnome" as Types.FrameStyle,
     savedExtensions: [],
     themeDropdownOpen: true,
-    creatorsThemesDropdownOpen: false,
-    useOldPreviewer: false,
-    dontShowTutorialCreator: false,
   },
   theme: {
     currentTheme: "0",

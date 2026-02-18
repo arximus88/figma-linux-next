@@ -47,14 +47,9 @@ declare namespace Electron {
     on(event: "openUrlInNewTab", listener: (url: string) => void): this;
     on(event: "openUrlFromCommunity", listener: (url: string) => void): this;
     on(event: "openSettingsView", listener: () => void): this;
-    on(event: "windowClose", listener: (windowId: number) => void): this;
-    on(event: "windowFocus", listener: (windowId: number) => void): this;
-    on(event: "syncThemesStart", listener: () => void): this;
-    on(event: "syncThemesEnd", listener: (themes: Themes.Theme[]) => void): this;
-    on(event: "loadCreatorTheme", listener: (themes: Themes.Theme) => void): this;
+
     on(event: "loadCurrentTheme", listener: (themes: Themes.Theme) => void): this;
-    on(event: "loadCreatorThemes", listener: (themes: Themes.Theme[]) => void): this;
-    on(event: "requestBoundsForTabView", listener: (windowId: number) => void): this;
+
     on(event: "relaunchApp", listener: () => void): this;
     on(event: "quitApp", listener: () => void): this;
     on(event: "reloadCurrentTheme", listener: () => void): this;
@@ -71,6 +66,12 @@ declare namespace Electron {
       event: "handleCallbackForTab",
       listener: (tabId: number, callbackID: number, args: any) => void,
     ): this;
+    on(event: "requestBoundsForTabView", listener: (windowId: number) => void): this;
+    on(event: "windowFocus", listener: (windowId: number) => void): this;
+    on(event: "windowClose", listener: (windowId: number) => void): this;
+    on(event: "syncThemesStart", listener: () => void): this;
+    on(event: "syncThemesEnd", listener: (themes: Themes.Theme[]) => void): this;
+
     on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
     on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "disableThemesChanged", listener: (enable: boolean) => void): this;
@@ -85,6 +86,12 @@ declare namespace Electron {
     emit(event: "reopenClosedTab", windowId: number): boolean;
     emit(event: "closeCurrentWindow", windowId: number): boolean;
     emit(event: "toggleWindowFullscreen", windowId: number): boolean;
+    emit(event: "requestBoundsForTabView", windowId: number): boolean;
+    emit(event: "windowFocus", windowId: number): boolean;
+    emit(event: "windowClose", windowId: number): boolean;
+    emit(event: "syncThemesStart"): boolean;
+    emit(event: "syncThemesEnd", themes: Themes.Theme[]): boolean;
+
     emit(event: "toggleCurrentWindowFullscreen", sender: Electron.WebContents): boolean;
     emit(event: "closeAllTab"): boolean;
     emit(event: "chromeGpu", windowId: number): boolean;
@@ -110,14 +117,8 @@ declare namespace Electron {
     emit(event: "openUrlInNewTab", url: string): boolean;
     emit(event: "openUrlFromCommunity", url: string): boolean;
     emit(event: "openSettingsView"): boolean;
-    emit(event: "windowClose", windowId: number): void;
-    emit(event: "windowFocus", windowId: number): void;
-    emit(event: "syncThemesStart"): void;
-    emit(event: "syncThemesEnd", themes: Themes.Theme[]): void;
-    emit(event: "loadCreatorTheme", themes: Themes.Theme): void;
     emit(event: "loadCurrentTheme", themes: Themes.Theme): void;
-    emit(event: "loadCreatorThemes", themes: Themes.Theme[]): void;
-    emit(event: "requestBoundsForTabView", windowId: number): void;
+
     emit(event: "relaunchApp"): void;
     emit(event: "quitApp"): void;
     emit(event: "reloadCurrentTheme"): void;
@@ -151,18 +152,7 @@ declare namespace Electron {
       channel: "closeSettingsView",
       listener: (event: IpcMainInvokeEvent, settings: Types.SettingsInterface) => void,
     ): this;
-    on(
-      channel: "themeCreatorExportTheme",
-      listener: (event: IpcMainInvokeEvent, theme: Themes.Theme) => void,
-    ): this;
-    on(
-      channel: "themeCreatorAddTheme",
-      listener: (event: IpcMainInvokeEvent, theme: Themes.Theme) => void,
-    ): this;
-    on(
-      channel: "themeCreatorRemoveTheme",
-      listener: (event: IpcMainInvokeEvent, themeId: string) => void,
-    ): this;
+
     on(channel: "enabled", listener: (event: IpcMainInvokeEvent, enabled: boolean) => void): this;
     on(
       channel: "updateFigmaUiScale",
@@ -242,10 +232,6 @@ declare namespace Electron {
       channel: "updateFullscreenMenuState",
       listener: (event: IpcMainInvokeEvent, state: Menu.State) => void,
     ): this;
-    on(
-      channel: "saveCreatorTheme",
-      listener: (event: IpcMainInvokeEvent, theme: Themes.Theme) => void,
-    ): this;
     on(channel: "syncThemes", listener: (event: IpcMainInvokeEvent) => void): this;
     on(
       channel: "setClipboardData",
@@ -264,7 +250,7 @@ declare namespace Electron {
       listener: (event: IpcMainInvokeEvent, tabs: Types.TabFront[]) => void,
     ): this;
     on(channel: "changeTheme", listener: (event: IpcMainEvent, theme: Themes.Theme) => void): this;
-    on(channel: "toggleThemeCreatorPreviewMask", listener: (event: IpcMainEvent) => void): this;
+
     on(
       channel: "getSettings",
       listener: (event: IpcMainEvent, settings: Types.SettingsInterface) => void,
@@ -377,7 +363,7 @@ declare namespace Electron {
       channel: "themesLoaded",
       listener: (event: IpcRendererEvent, themes: Themes.Theme[]) => void,
     ): this;
-    on(channel: "toggleThemeCreatorPreviewMask", listener: (event: IpcRendererEvent) => void): this;
+
     on(channel: "focusTab", listener: (event: IpcRendererEvent, tabId: number) => void): this;
     on(
       channel: "newFileBtnVisible",
@@ -392,18 +378,12 @@ declare namespace Electron {
       channel: "setIsInVoiceCall",
       listener: (event: IpcRendererEvent, data: { id: number; isInVoiceCall: boolean }) => void,
     ): this;
-    on(
-      channel: "loadCreatorTheme",
-      listener: (event: IpcRendererEvent, theme: Themes.Theme) => void,
-    ): this;
+
     on(
       channel: "loadCurrentTheme",
       listener: (event: IpcRendererEvent, theme: Themes.Theme) => void,
     ): this;
-    on(
-      channel: "loadCreatorThemes",
-      listener: (event: IpcRendererEvent, themes: Themes.Theme[]) => void,
-    ): this;
+
     on(channel: "syncThemesStart", listener: (event: IpcRendererEvent) => void): this;
     on(channel: "syncThemesEnd", listener: (event: IpcRendererEvent) => void): this;
     on(channel: "windowDidMaximized", listener: (event: IpcRendererEvent) => void): this;
@@ -421,10 +401,7 @@ declare namespace Electron {
       channel: "loadSettings",
       listener: (event: IpcRendererEvent, settings: Types.SettingsInterface) => void,
     ): this;
-    on(
-      channel: "getThemeCreatorPalette",
-      listener: (event: IpcRendererEvent, palette: Themes.Palette) => void,
-    ): this;
+
     on(
       channel: "changeZoomFactor",
       listener: (event: IpcRendererEvent, zoom: number) => void,
@@ -445,9 +422,7 @@ declare namespace Electron {
     send(channel: "setTabFocus", id: number): this;
     send(channel: "closeTab", id: number): this;
     send(channel: "closeSettingsView", settings: Types.SettingsInterface): this;
-    send(channel: "themeCreatorExportTheme", theme: Themes.Theme): this;
-    send(channel: "themeCreatorAddTheme", theme: Themes.Theme): this;
-    send(channel: "themeCreatorRemoveTheme", themeId: string): this;
+
     send(channel: "enabled", enabled: boolean): this;
     send(channel: "updateFigmaUiScale", scale: number): this;
     send(channel: "logDebug", ...args: any[]): this;
@@ -464,7 +439,7 @@ declare namespace Electron {
     send(channel: "appExit"): this;
     send(channel: "updateVisibleNewProjectBtn", visible: boolean): this;
     send(channel: "updateFullscreenMenuState", state: Menu.State): this;
-    send(channel: "saveCreatorTheme", theme: Themes.Theme): this;
+
     send(channel: "syncThemes"): this;
     send(channel: "setClipboardData", data: WebApi.SetClipboardData): this;
     send(channel: "set-use-zenity", value: boolean): this;
@@ -472,7 +447,7 @@ declare namespace Electron {
     send(channed: "windowDidRestored"): this;
     send(channed: "changeTheme", theme: Themes.Theme): this;
     send(channed: "windowClose", tabs: Types.TabFront[]): this;
-    send(channed: "toggleThemeCreatorPreviewMask"): this;
+
     send(channed: "setInitialOptions", data: WebApi.SetInitOptions): this;
     send(channed: "setUser", userId: string): this;
     send(channed: "toggleCurrentWindowFullscreen"): this;
@@ -516,7 +491,7 @@ declare namespace Electron {
   interface WebContents extends NodeJS.EventEmitter {
     send(channel: "renderView", view: Types.View): void;
     send(channel: "themesLoaded", themes: Themes.Theme[]): void;
-    send(channel: "toggleThemeCreatorPreviewMask"): void;
+
     send(channel: "updateVisibleNewProjectBtn", visible: boolean): void;
     send(channel: "setPanelScale", scale: number, height: number): void;
     send(channel: "updateUiScale", scale: number): void;
@@ -529,16 +504,16 @@ declare namespace Electron {
     send(channel: "tabWasClosed", tabId: number): this;
     send(channel: "setUsingMicrophone", data: { id: number; isUsingMicrophone: boolean }): this;
     send(channel: "setIsInVoiceCall", data: { id: number; isInVoiceCall: boolean }): this;
-    send(channel: "loadCreatorTheme", theme: Themes.Theme): this;
+
     send(channel: "loadCurrentTheme", theme: Themes.Theme): this;
-    send(channel: "loadCreatorThemes", themes: Themes.Theme[]): this;
+
     send(channel: "syncThemesStart", theme: Themes.Theme): this;
     send(channel: "syncThemesEnd", theme: Themes.Theme): this;
     send(channel: "isMainMenuOpen", isOpen: boolean): this;
     send(channel: "communityTabWasClose", isOpen: boolean): this;
     send(channel: "loading", tabId: number, loading: boolean): this;
     send(channel: "loadSettings", settings: Types.SettingsInterface): this;
-    send(channel: "getThemeCreatorPalette", palette: Themes.Palette): this;
+
     send(channel: "changeZoomFactor", zoom: number): this;
     send(channel: "handleSetFullScreen", fullscreen: boolean): this;
     send(channel: "openCommunity"): this;

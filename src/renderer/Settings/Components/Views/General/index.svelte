@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   let { zIndex } = $props();
   import { randomUUID } from "crypto";
   import { ipcRenderer } from "electron";
@@ -86,11 +87,23 @@
   });
 
   $effect(() => {
-    ipcRenderer.invoke("updateFigmaUiScale", $settings.ui.scaleFigmaUI);
+    const scale = $settings.ui.scaleFigmaUI;
+    if (scale) {
+      ipcRenderer.invoke("updateFigmaUiScale", scale);
+    }
   });
+
+  let previousScalePanel = $state($settings.ui.scalePanel);
+
   $effect(() => {
-    ipcRenderer.invoke("updatePanelScale", $settings.ui.scalePanel);
-    $settings.app.panelHeight = Math.floor(TOPPANELHEIGHT * $settings.ui.scalePanel);
+    const scale = $settings.ui.scalePanel;
+    if (scale !== previousScalePanel) {
+      previousScalePanel = scale;
+      ipcRenderer.invoke("updatePanelScale", scale);
+      untrack(() => {
+        $settings.app.panelHeight = Math.floor(TOPPANELHEIGHT * scale);
+      });
+    }
   });
 
   function onFrameStyleChange(event: Event) {
@@ -134,13 +147,8 @@
       <CheckBox bind:checked={$settings.app.visibleNewProjectBtn} text="Show new project button" />
       <CheckBox bind:checked={$settings.app.useZenity} text="Use Zenity for Dialogs" />
 
-      <Flex height="16px" />
-      <Label>Custom theming (Experimental)</Label>
-      <CheckBox bind:checked={$settings.app.disableThemes} text="Disable themes" />
-      <CheckBox
-        bind:checked={$settings.app.useOldPreviewer}
-        text="Use old Previewer in ThemeCreator"
-      />
+
+
 
       <Flex height="16px" />
       <Label>Window Frame Style</Label>

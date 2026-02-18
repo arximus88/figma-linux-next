@@ -30,8 +30,7 @@ export default class Window {
     this.settingsView = new SettingsView();
     this.state = state;
 
-    this.window.addBrowserView(this.tabManager.mainTab.view);
-    this.window.setTopBrowserView(this.tabManager.mainTab.view);
+    this.window.contentView.addChildView(this.tabManager.mainTab.view);
 
     this.registerEvents();
 
@@ -198,9 +197,6 @@ export default class Window {
 
     this.updatePanelScale(event, scale);
   }
-  public toggleThemeCreatorPreviewMask() {
-    this.settingsView.toggleThemeCreatorPreviewMask();
-  }
 
   public updatePanelScale(_: IpcMainEvent, scale: number) {
     const panelScale = +scale.toFixed(2);
@@ -227,7 +223,7 @@ export default class Window {
     const tabs = this.tabManager.getAll();
 
     for (const [_, tab] of tabs) {
-      this.window.removeBrowserView(tab.view);
+      this.window.contentView.removeChildView(tab.view);
     }
 
     this.tabManager.closeAll();
@@ -303,7 +299,7 @@ export default class Window {
     const bounds = this.window.getBounds();
     this.settingsView.updateProps(bounds);
 
-    this.window.addBrowserView(this.settingsView.view);
+    this.window.contentView.addChildView(this.settingsView.view);
 
     isDev && toggleDetachedDevTools(this.settingsView.view.webContents);
 
@@ -318,7 +314,7 @@ export default class Window {
 
     this.settingsView.closeDevTools();
 
-    this.window.removeBrowserView(this.settingsView.view);
+    this.window.contentView.removeChildView(this.settingsView.view);
 
     this.settingsView.postClose();
   }
@@ -357,21 +353,7 @@ export default class Window {
       this.win.maximize();
     }
   }
-  private loadCurrentTheme(theme: Themes.Theme) {
-    if (
-      this.window &&
-      !this.window.isDestroyed() &&
-      this.window.webContents &&
-      !this.window.webContents.isDestroyed()
-    ) {
-      this.window.webContents.send("loadCurrentTheme", theme);
-    }
-  }
-  public loadTheme(theme: Themes.Theme) {
-    if (this.window?.webContents && !this.window.webContents.isDestroyed()) {
-      this.window.webContents.send("loadCurrentTheme", theme);
-    }
-  }
+
   public setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const tabId = event.sender.id;
     const tab = this.tabManager.getById(tabId);
@@ -439,7 +421,7 @@ export default class Window {
     const tab = this.tabManager.getById(tabId);
     const isNewFileTab = this.tabManager.isNewFileTab(tabId);
 
-    this.window.removeBrowserView(tab.view);
+    this.window.contentView.removeChildView(tab.view);
 
     const nextTabId = this.tabManager.close(tabId);
 
@@ -481,12 +463,8 @@ export default class Window {
   public setFocusToMainTab() {
     const mainTab = this.tabManager.mainTab;
 
-    try {
-      this.window.setTopBrowserView(mainTab.view);
-    } catch (error) {
-      this.window.addBrowserView(mainTab.view);
-      this.window.setTopBrowserView(mainTab.view);
-    }
+    this.detachLastFocusedTab();
+    this.window.contentView.addChildView(mainTab.view);
     this.tabManager.focusMainTab();
     this.closeNewFileTab();
     this.window.webContents.send("focusTab", "mainTab");
@@ -497,12 +475,8 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
     const communityTab = this.tabManager.communityTab;
 
-    try {
-      this.window.setTopBrowserView(communityTab.view);
-    } catch (error) {
-      this.window.addBrowserView(communityTab.view);
-      this.window.setTopBrowserView(communityTab.view);
-    }
+    this.detachLastFocusedTab();
+    this.window.contentView.addChildView(communityTab.view);
     this.tabManager.focusCommunityTab();
     this.closeNewFileTab();
     this.tabManager.communityTab.setBounds(bounds);
@@ -533,12 +507,8 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
     const tab = this.tabManager.getById(tabId);
 
-    try {
-      this.window.setTopBrowserView(tab.view);
-    } catch (error) {
-      this.window.addBrowserView(tab.view);
-      this.window.setTopBrowserView(tab.view);
-    }
+    this.detachLastFocusedTab();
+    this.window.contentView.addChildView(tab.view);
 
     this.tabManager.focusTab(tabId);
     this.tabManager.setBounds(tabId, bounds);
@@ -566,7 +536,7 @@ export default class Window {
     this.addTab(url);
   }
   public closeCommunityTab() {
-    this.window.removeBrowserView(this.tabManager.communityTab.view);
+    this.window.contentView.removeChildView(this.tabManager.communityTab.view);
     this.tabManager.closeCommunityTab();
     this.setFocusToMainTab();
 
@@ -582,10 +552,10 @@ export default class Window {
       this.tabManager.addCommunityTab();
       this.tabManager.communityTab.userId = args.userId;
       this.tabManager.communityTab.loadUrl(url);
-      this.window.addBrowserView(this.tabManager.communityTab.view);
+      this.window.contentView.addChildView(this.tabManager.communityTab.view);
     }
 
-    this.window.setTopBrowserView(this.tabManager.communityTab.view);
+    this.window.contentView.addChildView(this.tabManager.communityTab.view);
     this.tabManager.communityTab.setBounds(bounds);
 
     this.window.webContents.send("openCommunity");
@@ -600,12 +570,6 @@ export default class Window {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
-  public changeTheme(_: IpcMainEvent, theme: Themes.Theme) {
-    this.loadCurrentTheme(theme);
-
-    storage.settings.theme.currentTheme = theme.id;
-  }
-
   public handleFrontReady() {
     this.window.webContents.send("loadSettings", storage.settings);
     this.showHandler(null);
@@ -616,10 +580,23 @@ export default class Window {
   }
 
   private registerEvents() {
-    app.on("loadCurrentTheme", this.loadCurrentTheme.bind(this));
-
     this.window.on("show", this.showHandler.bind(this));
     this.window.on("resize", this.updateTabsBounds.bind(this));
+  }
+
+  private detachLastFocusedTab() {
+    const lastFocusedId = this.tabManager.lastFocusedTab;
+    if (lastFocusedId) {
+      const lastTab = this.tabManager.getById(lastFocusedId);
+      if (lastTab && lastTab.view) {
+        // Ensure we don't try to remove a view that isn't attached or is destroyed
+        try {
+          this.window.contentView.removeChildView(lastTab.view);
+        } catch (e) {
+          // Ignore errors if child is not attached
+        }
+      }
+    }
     this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));

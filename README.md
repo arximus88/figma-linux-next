@@ -60,8 +60,16 @@ Other commands:
 - `bun run start` — run the built version
 - `bun run builder` — package for distribution
 - `bun run pack` — clean old packages and pack
+- `./scripts/build-arch.sh` — build for Arch Linux
+
+## Tech Stack
+- **Electron 39** (Chromium 132)
+- **Bun** (Package manager & runtime)
+- **Svelte 5** (UI framework)
+- **Fontkit** (Font parsing)
 
 ### Environment Variables
+
 
 ```
 NODE_ENV=dev

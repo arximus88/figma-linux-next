@@ -1,0 +1,125 @@
+:root {
+  --text: #333333;
+  --text-active: #050505;
+  --text-disabled: #b3b3b3;
+  --borders: #e2e2e2;
+  --bg-panel: #ffffff;
+  --bg-panel-hover: #daebf7;
+  --bg-toolbar: #2c2c2c;
+  --bg-toolbar-hover: #000000;
+  --bg-toolbar-active: #18a0fb;
+  --fg-toolbar: #ffffff;
+  --fg-toolbar-hover: #ffffff;
+  --fg-toolbar-active: #ffffff;
+  --fg-toolbar-disabled: #b3b3b3;
+  --fg-toolbar-filename: #ffffff;
+  --fg-toolbar-foldername: #aaaaaa;
+  --fg-toolbar-chevron: #ffffff;
+  --fg-toolbar-unsavedicon: #a1a1a1;
+  --fg-toolbar-login-button: #ffffff;
+  --fg-toolbar-login-button-border: #d3d3d3;
+  --fg-toolbar-login-button-active: #808080;
+  --bg-overlay: #222222;
+  --fg-overlay: #ffffff;
+  --bg-overlay-outline: #292828;
+  --bg-overlay-inner-outline: #000000;
+  --bg-tab: #222222;
+  --bg-tab-hover: #2c2c2c;
+  --bg-tab-active: #2c2c2c;
+  --fg-tab: #ffffff;
+  --fg-tab-hover: #ffffff;
+  --fg-tab-active: #ffffff;
+  --bg-header: #222222;
+  --fg-header: #ffffff;
+  --bg-header-control: #222222;
+  --bg-header-control-hover: #2c2c2c;
+  --bg-header-control-active: #2c2c2c;
+  --fg-header-control: #ffffff;
+  --fg-header-control-hover: #ffffff;
+  --fg-header-control-active: #ffffff;
+  --fg-component: #7b61ff;
+  --fg-component-disabled: #4e428a;
+  --fg-component-disabled-row-active: #bfbafc;
+  --bg-window-close: #e81123;
+  --bg-beta-label: #1bc47d;
+
+  /* Computed/Mapped Variables */
+  --color-bg-toolbar-secondary: var(--bg-header-control);
+  --color-bg-toolbar-tertiary: var(--bg-header-control);
+
+  --bg-primary-btn: var(--bg-toolbar-active);
+  --color-bg-brand: var(--bg-toolbar-active);
+  --color-border-toolbar-selected: var(--bg-toolbar-active);
+  --color-bg-toolbar-selected: var(--bg-toolbar-active);
+  --color-border-selected: var(--bg-toolbar-active);
+  --color-bg-menu-selected: var(--bg-toolbar-active);
+  --color-bg-menu-selected-hover: var(--bg-toolbar-active);
+  --color-bg-menu-selected-pressed: var(--bg-toolbar-active);
+
+  --color-icon-menu: var(--fg-overlay);
+  --fg-overlay-right: var(--fg-overlay);
+
+  --color-bg-toolbar-hover: var(--bg-toolbar-hover);
+
+  --color-text-toolbar-hover: var(--fg-tab-hover);
+
+  --color-icon-toolbar: var(--fg-toolbar);
+  --color-text-toolbar-secondary: var(--fg-toolbar);
+
+  --color-icon-toolbar-hover: var(--fg-toolbar-hover);
+
+  --fg-overlay-active: var(--fg-toolbar-active);
+  --color-text-menu-hover: var(--fg-toolbar-active);
+  --color-icon-toolbar-onselected: var(--fg-toolbar-active);
+  --color-text-onbrand: var(--fg-toolbar-active);
+  --color-icon-toolbar-tertiary: var(--fg-toolbar-active);
+  --color-icon-toolbar-hover: var(--fg-toolbar-active);
+
+  --fg-overlay-secondary: var(--text-disabled);
+  --fg-toolbar-placeholder: var(--text-disabled);
+  --color-icon-disabled: var(--text-disabled);
+
+  --fg-overlay-sep: var(--borders);
+  --color-border-toolbar: var(--borders);
+
+  --color-icon: var(--text);
+  --color-icon-brand: var(--text);
+  --color-icon-secondary: var(--text);
+  --color-icon-tertiary: var(--text);
+
+  --color-icon-hover: var(--text-active);
+  --color-text-secondary-hover: var(--text-active);
+  --color-text-hover: var(--text-active);
+  --color-icon-onselected: var(--text-active);
+
+  --color-bg-pressed: var(--bg-panel-hover);
+  --color-bg-tertiary: var(--bg-panel-hover);
+
+  --color-icon-component: var(--fg-component);
+  --color-text-component: var(--fg-component);
+
+  --color-icon-component-secondary: var(--fg-component-disabled);
+  --color-text-component-secondary: var(--fg-component-disabled);
+  --color-icon-component-tertiary: var(--fg-component-disabled);
+  --color-text-component-tertiary: var(--fg-component-disabled);
+
+  --color-bg-info: var(--bg-beta-label);
+
+  /* Static Defaults */
+  --color-bg: var(--bg-panel);
+  --color-bg-toolbar: var(--bg-toolbar);
+  --color-bg-selected: var(--bg-panel-hover);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text);
+  --color-border: var(--borders);
+  --color-border-menu: var(--borders);
+  --color-conditionalborder: var(--borders);
+  --color-border-tooltip: var(--borders);
+  --color-text-disabled: var(--text-disabled);
+  --color-bg-selected-secondary: var(--bg-panel);
+  --color-text-toolbar: var(--text);
+  --color-bg-hover: var(--bg-panel-hover);
+  --color-bg-secondary: var(--bg-panel-hover);
+  --color-bg-tooltip: var(--bg-overlay);
+  --ui2-button-color-bg-disabled: var(--borders);
+}

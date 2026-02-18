@@ -19,7 +19,12 @@ export default class Session {
 
   public handleAppReady = () => {
     session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
-      const whitelist = ["fullscreen", "pointerLock"];
+      const whitelist = [
+        "fullscreen",
+        "pointerLock",
+        "clipboard-read",
+        "clipboard-sanitized-write",
+      ];
       callback(whitelist.includes(permission));
     });
 
@@ -42,5 +47,30 @@ export default class Session {
       .catch((error: Error) =>
         logger.warn("[wm] failed to get cookies during handleAppReady:", Const.HOMEPAGE, error),
       );
+    session.defaultSession.on("will-download", (event, item, webContents) => {
+      const fileName = item.getFilename();
+      const url = item.getURL();
+
+      logger.info(`[Download] Starting download: ${fileName} from ${url}`);
+
+      item.on("updated", (event, state) => {
+        if (state === "interrupted") {
+          logger.warn(`[Download] Interrupted: ${fileName}`);
+        } else if (state === "progressing") {
+          if (item.isPaused()) {
+            logger.info(`[Download] Paused: ${fileName}`);
+          } else {
+            // logger.info(`[Download] Progress: ${item.getReceivedBytes()} / ${item.getTotalBytes()}`);
+          }
+        }
+      });
+      item.once("done", (event, state) => {
+        if (state === "completed") {
+          logger.info(`[Download] Completed: ${fileName}`);
+        } else {
+          logger.warn(`[Download] Failed: ${fileName} state: ${state}`);
+        }
+      });
+    });
   };
 }

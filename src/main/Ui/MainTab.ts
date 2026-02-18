@@ -2,8 +2,8 @@ import { parse } from "url";
 import {
   app,
   shell,
-  BrowserView,
-  BrowserViewConstructorOptions,
+  WebContentsView,
+  WebContentsViewConstructorOptions,
   Rectangle,
   BrowserWindow,
   DidCreateWindowDetails,
@@ -31,7 +31,7 @@ import { logger } from "Main/Logger";
 
 export default class MainTab {
   private _userId: string;
-  private options: BrowserViewConstructorOptions = {
+  private options: WebContentsViewConstructorOptions = {
     webPreferences: {
       nodeIntegration: false,
       webgl: true,
@@ -42,7 +42,7 @@ export default class MainTab {
   };
 
   public id: number;
-  public view: BrowserView;
+  public view: WebContentsView;
 
   constructor(private windowId: number) {
     this.initTab();
@@ -73,12 +73,14 @@ export default class MainTab {
     this.view.webContents.send("handleUrl", path);
   }
   public setAutosize(flag: boolean) {
+    /*
     this.view.setAutoResize({
       width: false,
       height: false,
       horizontal: false,
       vertical: false,
     });
+    */
   }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
@@ -88,7 +90,7 @@ export default class MainTab {
     this._userId = storage.settings.userId;
     const url = `${RECENT_FILES}/?fuid=${this._userId}`;
 
-    this.view = new BrowserView(this.options);
+    this.view = new WebContentsView(this.options as any);
     this.id = this.view.webContents.id;
 
     this.loadUrl(url);

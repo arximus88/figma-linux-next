@@ -10,7 +10,7 @@ declare namespace Types {
     isUsingMicrophone?: boolean;
     isInVoiceCall?: boolean;
     loading?: boolean;
-    view: import("electron").BrowserView;
+    view: import("electron").WebContentsView;
   }
 
   type TabIdType = number | "mainTab" | "communityTab";
@@ -29,7 +29,7 @@ declare namespace Types {
 
   interface TabData {
     micAccess: boolean;
-    view: import("electron").BrowserView;
+    view: import("electron").WebContentsView;
   }
 
   interface WindowInitOpts {
@@ -103,9 +103,6 @@ declare namespace Types {
       lastSavedPluginDir?: string;
       lastExportDir?: string;
       themeDropdownOpen: boolean;
-      creatorsThemesDropdownOpen: boolean;
-      useOldPreviewer: boolean;
-      dontShowTutorialCreator: boolean;
     };
     ui: {
       scalePanel: number;

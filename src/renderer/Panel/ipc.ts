@@ -1,5 +1,3 @@
-// What is ipcRenderer?
-
 import { ipcRenderer } from "electron";
 import { NEW_FILE_TAB_TITLE } from "Const";
 

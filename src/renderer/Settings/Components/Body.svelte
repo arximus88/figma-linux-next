@@ -4,7 +4,7 @@
   import { HeaderModal, Button, CloseModal, FlexItem } from "Common";
   import { TabView, TabViewHeaderItem } from "Common/TabView";
   import { General } from "./Views/General";
-  import { Themes, ThemesHeaderComponent } from "./Views/Themes";
+
 
   import { settings, modalBounds } from "../store";
 
@@ -21,18 +21,6 @@
       },
     ];
 
-    if (!$settings.app.disableThemes) {
-      list.push({
-        id: "themes",
-        text: "Themes",
-        itemArgs: {
-          padding: "14px 10px",
-        },
-        item: TabViewHeaderItem,
-        bodyComponent: Themes,
-        headerComponent: ThemesHeaderComponent,
-      } as any);
-    }
     return list;
   });
 
@@ -92,7 +80,7 @@
     width: 90vw;
     height: 80vh;
     overflow: hidden;
-    background: var(--bg-panel);
+    background: var(--bg-panel, #2c2c2c);
   }
   settingsBody {
     position: relative;

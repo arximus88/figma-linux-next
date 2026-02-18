@@ -127,17 +127,7 @@ module.exports = [
     external: commonExternal,
     plugins: [...commonPlugins, production && terser()],
   },
-  {
-    input: "src/renderer/DesktopAPI/themePreviewPreload.ts",
-    output: {
-      sourcemap: !production,
-      format: "cjs",
-      name: "app",
-      file: "dist/renderer/themePreviewPreload.js",
-    },
-    external: commonExternal,
-    plugins: [...commonPlugins, production && terser()],
-  },
+
   {
     input: "src/renderer/Settings/index.ts",
     output: {
@@ -193,10 +183,6 @@ module.exports = [
           },
           {
             src: "src/settings.html",
-            dest: "dist",
-          },
-          {
-            src: "src/themeCreator.html",
             dest: "dist",
           },
         ],

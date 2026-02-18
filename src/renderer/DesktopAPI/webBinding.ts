@@ -2,7 +2,7 @@ import type { IpcRendererEvent } from "electron";
 import * as E from "electron";
 
 import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render";
-import { themes } from "./ThemesApplier";
+
 import { isPrototypeUrl, isValidFigjamLink, isValidProjectLink } from "Utils/Common";
 
 interface IntiApiOptions {
@@ -12,7 +12,7 @@ interface IntiApiOptions {
 }
 
 const API_VERSION = 111;
-const APP_VERSION = '999.0.0';
+const APP_VERSION = "999.0.0";
 let webPort: MessagePort;
 const mainProcessCancelCallbacks: Map<number, () => void> = new Map();
 
@@ -238,41 +238,7 @@ const publicAPI: any = {
       args.target,
     );
   },
-  // TODO:
-  // async isTabOpen(args: any) {
-  //   console.log("isTabOpen, args: ", args);
-  //   //   {
-  //   //     "url": "https://www.figma.com/file/new?editor_type=design&localFileKey=LOCAL_e8ed2b31-ac61-435c-999c-84d85395e349&fuid=525661429846675544",
-  //   //     "newFileInfo": {
-  //   //         "folder_id": null,
-  //   //         "org_id": null,
-  //   //         "openNewFileIn": "new_tab",
-  //   //         "trackingInfo": {
-  //   //             "from": "desktop_new_tab_button",
-  //   //             "selectedView": {
-  //   //                 "view": "desktopNewTab"
-  //   //             }
-  //   //         },
-  //   //         "editorType": "design",
-  //   //         "localFileKey": "LOCAL_e8ed2b31-ac61-435c-999c-84d85395e349"
-  //   //     },
-  //   //     "editorType": "design",
-  //   //     "isFromNewTabPage": true
-  //   // }
-  //   // return { data: await n.sendAsync("isTabOpen", e.getString("url")) };
-  // },
-  // openFileFromNewTab(args: any) {
-  //   console.log("openFileFromNewTab, args: ", args);
-  //   // n.send(
-  //   //   "openFileFromNewTab",
-  //   //   e.getString("url"),
-  //   //   e.getString("editorType", "") || void 0,
-  //   //   e.getString("title", "") || void 0,
-  //   //   e.getBoolean("isBranch", !1),
-  //   //   e.getBoolean("isLibrary", !1),
-  //   //   e.getBoolean("isTeamTemplate", !1),
-  //   // );
-  // },
+
   async createFile(args: WebApi.CreateFile) {
     const result = await E.ipcRenderer.invoke("createFile", args);
 
@@ -499,15 +465,6 @@ const init = (fileBrowser: boolean): void => {
   E.webFrame.executeJavaScript(`(${initWebApi.toString()})(${JSON.stringify(initWebOptions)})`);
 
   document.addEventListener("keydown", keydownHandler);
-  document.addEventListener("DOMContentLoaded", () => {
-    E.ipcRenderer.invoke("themesIsDisabled").then((disabled) => {
-      if (!disabled) {
-        setTimeout(() => {
-          themes.init();
-        }, 10);
-      }
-    });
-  });
 };
 
 export default init;

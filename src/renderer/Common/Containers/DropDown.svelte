@@ -11,6 +11,10 @@
     easing: cubicOut,
   });
 
+  $effect(() => {
+    bodyHeight.set(height, { duration });
+  });
+
   function calcHeight() {
     if (!content) {
       return;

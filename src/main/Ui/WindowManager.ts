@@ -443,7 +443,7 @@ export default class WindowManager {
       await mkPath(path.dirname(outputPath));
 
       try {
-        await fs.promises.writeFile(outputPath, Buffer.from(file.buffer), { encoding: "binary" });
+        await fs.promises.writeFile(outputPath, Buffer.from(file.buffer));
       } catch (ex) {
         await dialogs.showMessageBox({
           type: "error",
@@ -559,11 +559,6 @@ export default class WindowManager {
 
     this.needUpdateMenu(window.id, tabId);
   }
-  private toggleThemeCreatorPreviewMask(path: string) {
-    const window = this.windows.get(this.lastFocusedwindowId);
-
-    window.toggleThemeCreatorPreviewMask();
-  }
 
   private setIsInVoiceCall(event: IpcMainEvent, isInVoiceCall: boolean) {
     const window = this.windows.get(this.lastFocusedwindowId);
@@ -599,11 +594,6 @@ export default class WindowManager {
     window.updateVisibleNewProjectBtn(event, visible);
   }
 
-  private changeTheme(event: IpcMainEvent, theme: Themes.Theme) {
-    for (const [_, window] of this.windows) {
-      window.changeTheme(event, theme);
-    }
-  }
   private handleFrontReady(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
@@ -670,13 +660,13 @@ export default class WindowManager {
     ipcMain.on("setFocusToCommunityTab", this.setFocusToCommunityTab.bind(this));
     ipcMain.on("setTabFocus", this.setTabFocus.bind(this));
     ipcMain.on("closeSettingsView", this.closeSettingsView.bind(this));
-    ipcMain.on("toggleThemeCreatorPreviewMask", this.toggleThemeCreatorPreviewMask.bind(this));
+
     ipcMain.on("setUsingMicrophone", this.setUsingMicrophone.bind(this));
     ipcMain.on("setIsInVoiceCall", this.setIsInVoiceCall.bind(this));
     ipcMain.on("closeAllTab", this.closeAllTab.bind(this));
     ipcMain.on("setTitle", this.setTabTitle.bind(this));
     ipcMain.on("openMainMenu", this.openMainMenuHandler.bind(this));
-    ipcMain.on("changeTheme", this.changeTheme.bind(this));
+
     ipcMain.on("openFile", this.openFile.bind(this));
     ipcMain.on("openCommunity", this.openCommunity.bind(this));
     ipcMain.on("updateVisibleNewProjectBtn", this.updateVisibleNewProjectBtn.bind(this));

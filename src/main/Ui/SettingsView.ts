@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserView, Rectangle, IpcMainEvent } from "electron";
+import { app, ipcMain, WebContentsView, Rectangle, IpcMainEvent } from "electron";
 import { storage } from "Main/Storage";
 import { isDev } from "Utils/Common";
 import { settingsUrlProd, settingsUrlDev, toggleDetachedDevTools } from "Utils/Main";
@@ -9,24 +9,26 @@ export default class SettingsView {
   private disableThemesChanged = false;
   private chromiumFlagsChanged = false;
 
-  public view: BrowserView;
+  public view: WebContentsView;
 
   constructor() {
-    this.view = new BrowserView({
+    this.view = new WebContentsView({
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
         experimentalFeatures: false,
         webviewTag: true,
       },
-    });
+    } as any);
 
+    /*
     this.view.setAutoResize({
       width: false,
       height: false,
       horizontal: false,
       vertical: false,
     });
+    */
 
     this.view.webContents.loadURL(isDev ? settingsUrlDev : settingsUrlProd);
 
@@ -96,10 +98,6 @@ export default class SettingsView {
     });
   }
 
-  public toggleThemeCreatorPreviewMask() {
-    this.view.webContents.send("toggleThemeCreatorPreviewMask");
-  }
-
   private enableColorSpaceSrgbChange(enabled: boolean) {
     const previousValue = storage.settings.app.enableColorSpaceSrgb;
 
@@ -128,9 +126,7 @@ export default class SettingsView {
   private loadCurrentTheme(theme: Themes.Theme) {
     this.view.webContents.send("loadCurrentTheme", theme);
   }
-  private loadCreatorThemes(themes: Themes.Theme[]) {
-    this.view.webContents.send("loadCreatorThemes", themes);
-  }
+
   private changeTheme(_: IpcMainEvent, theme: Themes.Theme) {
     this.loadCurrentTheme(theme);
 
@@ -154,6 +150,5 @@ export default class SettingsView {
     app.on("syncThemesStart", this.syncThemesStart.bind(this));
     app.on("syncThemesEnd", this.syncThemesEnd.bind(this));
     app.on("loadCurrentTheme", this.loadCurrentTheme.bind(this));
-    app.on("loadCreatorThemes", this.loadCreatorThemes.bind(this));
   }
 }

@@ -175,7 +175,7 @@ export default class TabManager {
           return this.tabs.get(id);
         } else if (this.mainTab.id === id) {
           return this.mainTab;
-        } else if (this.communityTab.id === id) {
+        } else if (this.communityTab && this.communityTab.id === id) {
           return this.communityTab;
         }
       }
@@ -293,20 +293,5 @@ export default class TabManager {
     return URL.parse(tabUri).pathname;
   }
 
-  private loadCurrentTheme(theme: Themes.Theme) {
-    this.mainTab.loadTheme(theme);
-    this.communityTab && this.communityTab.loadTheme(theme);
-    this.tabs.forEach((t) => t.view.webContents.send("loadCurrentTheme", theme));
-  }
-  private changeTheme(_: IpcMainEvent, theme: Themes.Theme) {
-    this.loadCurrentTheme(theme);
-
-    storage.settings.theme.currentTheme = theme.id;
-  }
-
-  private registerEvents() {
-    ipcMain.on("changeTheme", this.changeTheme.bind(this));
-
-    app.on("loadCurrentTheme", this.loadCurrentTheme.bind(this));
-  }
+  private registerEvents() {}
 }

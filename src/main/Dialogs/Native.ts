@@ -1,4 +1,4 @@
-import { MessageBoxOptions, OpenDialogOptions, dialog } from "electron";
+import { MessageBoxOptions, OpenDialogOptions, dialog, BrowserWindow } from "electron";
 
 export class NativeDialogs implements ProviderDialog {
   constructor() {}
@@ -78,7 +78,8 @@ export class NativeDialogs implements ProviderDialog {
   };
 
   public showSaveDialog = async (options: Dialogs.SaveOptions) => {
-    const result = await dialog.showSaveDialog(null, options);
+    const window = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showSaveDialog(window, options);
     return !result.canceled && result.filePath ? result.filePath : null;
   };
   public showSaveDialogSync = (options: Dialogs.SaveOptions) => {

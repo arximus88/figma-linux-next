@@ -35,9 +35,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     featureFlags: {},
     savedExtensions: [],
     themeDropdownOpen: true,
-    creatorsThemesDropdownOpen: false,
-    useOldPreviewer: false,
-    dontShowTutorialCreator: false,
+
     frameStyle: "gnome",
   },
   theme: {

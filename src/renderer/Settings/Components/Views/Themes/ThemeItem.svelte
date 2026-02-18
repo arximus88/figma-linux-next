@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { canEdit = false, canDelete = false, currentThemeId = $bindable(), theme, onApplyTheme, onEditTheme, onUseColorPalette, onDeleteTheme } = $props();
+  let { currentThemeId = $bindable(), theme, onApplyTheme, onUseColorPalette } = $props();
   import { getColorPallet } from "Utils/Render";
 
   import { Text, Label, Flex, FlexItem, Rotate } from "Common";
@@ -9,10 +9,8 @@
     Hand,
     Component,
     Download,
-    Pencil2,
     RadioNormal,
     RadioChecked,
-    Delete,
   } from "Common/Icons";
 
   let radio = $derived(currentThemeId === theme.id ? RadioChecked : RadioNormal);
@@ -64,14 +62,7 @@
     </FlexItem>
     <FlexItem grow={1}>
       <Flex alignItems="center" justifyContent="end" height="100%">
-        {#if canEdit}
-          <ButtonTool
-            normalBgColor="tarsparent"
-            onButtonClick={() => onEditTheme?.({ themeId: theme.id })}
-          >
-            <Pencil2 color="var(--text)" size="16" />
-          </ButtonTool>
-        {/if}
+
         <Flex width="10px" />
         <ButtonTool
           normalBgColor="tarsparent"
@@ -89,15 +80,7 @@
           {@const Radio = radio}
           <Radio color="var(--text)" />
         </ButtonTool>
-        {#if canDelete}
-          <Flex width="20px" />
-          <ButtonTool
-            normalBgColor="tarsparent"
-            onButtonClick={() => onDeleteTheme?.({ themeId: theme.id })}
-          >
-            <Delete color="var(--text)" size="18" />
-          </ButtonTool>
-        {/if}
+
       </Flex>
     </FlexItem>
   </Flex>

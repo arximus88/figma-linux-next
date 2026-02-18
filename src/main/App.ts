@@ -20,7 +20,7 @@ import Args from "./Args";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 import ExtensionManager from "./ExtensionManager";
-import ThemeManager from "./Ui/ThemeManager";
+
 import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
 import FontManager from "./Fonts";
@@ -31,7 +31,6 @@ export default class App {
     private extensionManager: ExtensionManager,
     private session: Session,
     private fontManager: FontManager,
-    private themeManager: ThemeManager,
   ) {
     const isSingleInstance = app.requestSingleInstanceLock();
 
@@ -101,8 +100,9 @@ export default class App {
       app.emit("closeAllTab");
     }
 
-    this.themeManager.loadThemes();
-    this.themeManager.loadCreatorTheme();
+    if (!this.session.hasFigmaSession) {
+      app.emit("closeAllTab");
+    }
   }
   private applySwitches() {
     // Chromium flags for better performance and GPU support
@@ -135,8 +135,10 @@ export default class App {
     app.commandLine.appendSwitch("enable-zero-copy");
 
     // Enable modern rendering features
-    app.commandLine.appendSwitch("enable-features",
-      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer");
+    app.commandLine.appendSwitch(
+      "enable-features",
+      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer",
+    );
 
     // WebGL optimizations for Figma's canvas engine
     app.commandLine.appendSwitch("enable-webgl");
@@ -152,7 +154,7 @@ export default class App {
     app.commandLine.appendSwitch("disable-renderer-backgrounding");
 
     // Wayland support detection and enablement
-    if (process.env.XDG_SESSION_TYPE === 'wayland' || process.env.WAYLAND_DISPLAY) {
+    if (process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY) {
       logger.info("Wayland session detected - enabling native Wayland support");
       app.commandLine.appendSwitch("ozone-platform-hint", "auto");
       app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations,UseOzonePlatform");

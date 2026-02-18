@@ -11,8 +11,8 @@ export function closeNewFileTab() {
   }
 }
 
-export function onClickHome(svelteEvent: { detail: MouseEvent }) {
-  const mouseButton = svelteEvent.detail.button;
+export function onClickHome(event: MouseEvent) {
+  const mouseButton = event.button;
 
   switch (mouseButton) {
     // left mouse button
@@ -33,8 +33,8 @@ export function onClickHome(svelteEvent: { detail: MouseEvent }) {
   }
 }
 
-export function onClickCommunity(svelteEvent: { detail: MouseEvent }) {
-  const mouseButton = svelteEvent.detail.button;
+export function onClickCommunity(event: MouseEvent) {
+  const mouseButton = event.button;
 
   switch (mouseButton) {
     // left mouse button
