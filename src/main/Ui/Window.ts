@@ -5,13 +5,8 @@ import SettingsView from "./SettingsView";
 import TabManager from "./TabManager";
 import { logger } from "../Logger";
 
-import {
-  HOMEPAGE,
-  WINDOW_DEFAULT_OPTIONS,
-  TOPPANELHEIGHT,
-  NEW_PROJECT_TAB_URL,
-  NEW_FILE_TAB_TITLE,
-} from "Const";
+import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
+import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { isDev, isCommunityUrl, isAppAuthRedeem, normalizeUrl, parseURL } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
@@ -30,7 +25,7 @@ export default class Window {
       ...state,
       webPreferences: {
         ...WINDOW_DEFAULT_OPTIONS.webPreferences,
-        ...state.webPreferences,
+        ...(state as any).webPreferences,
       },
     });
     this.tabManager = new TabManager(this.window.id);
@@ -38,6 +33,7 @@ export default class Window {
     this.state = state;
 
     this.window.contentView.addChildView(this.tabManager.mainTab.view);
+    this.updateTabsBounds();
 
     this.registerEvents();
 
@@ -144,12 +140,14 @@ export default class Window {
     }, 100);
   }
   public calcBoundsForTabView(): Rectangle {
-    const panelHeight = storage.settings.app.panelHeight;
+    const panelHeight = storage.settings.app.panelHeight || TOPPANELHEIGHT;
+    const contentBounds = this.window.getContentBounds();
+
     return {
       x: 0,
       y: panelHeight,
-      width: this.window.getContentBounds().width,
-      height: this.window.getContentBounds().height - panelHeight,
+      width: contentBounds.width || 1200,
+      height: (contentBounds.height || 900) - panelHeight,
     };
   }
 

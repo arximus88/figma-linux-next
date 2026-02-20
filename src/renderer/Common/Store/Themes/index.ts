@@ -1,1 +1,1 @@
-export * from "./themeApp";
+export { themeApp } from "./themeApp.svelte";

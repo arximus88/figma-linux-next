@@ -1,20 +1,6 @@
-import {
-  app,
-  net,
-  session,
-  clipboard,
-  nativeImage,
-  ipcMain,
-  Event,
-  IpcMainEvent,
-  IpcMainInvokeEvent,
-  protocol,
-  ProtocolRequest,
-  ProtocolResponse,
-} from "electron";
+import { app, net, Event, protocol } from "electron";
 
 import * as Const from "Const";
-import { request } from "Utils/Main";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
 import Args from "./Args";
 import { logger } from "./Logger";
@@ -25,7 +11,17 @@ import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
 import FontManager from "./Fonts";
 
+// Controllers
+import { ipcRegistry } from "./controllers/registry";
+import SettingsController from "./controllers/SettingsController";
+import FontController from "./controllers/FontController";
+import ClipboardController from "./controllers/ClipboardController";
+import AuthController from "./controllers/AuthController";
+import FileController from "./controllers/FileController";
+
 export default class App {
+  private authController: AuthController;
+
   constructor(
     private windowManager: WindowManager,
     private extensionManager: ExtensionManager,
@@ -46,7 +42,20 @@ export default class App {
       app.setAsDefaultProtocolClient(Const.PROTOCOL);
     }
 
-    this.registerEvents();
+    // Initialize controllers — registers all IPC handlers through the registry
+    new SettingsController(this.windowManager);
+    new FontController(this.fontManager);
+    new ClipboardController();
+    this.authController = new AuthController(this.windowManager);
+    new FileController(this.windowManager);
+
+    // WindowManager registers its own window/tab-specific IPC via registry
+    this.windowManager.registerIpcHandlers();
+
+    // Seal the registry — no more IPC registrations after this point
+    ipcRegistry.seal();
+
+    this.registerAppEvents();
   }
 
   private ready = (): void => {
@@ -59,7 +68,7 @@ export default class App {
       if (figmaUrl !== "") {
         this.windowManager.openUrl(figmaUrl);
       }
-    }, 1500);
+    }, Const.STARTUP_DELAY_MS);
 
     protocol.handle(Const.PROTOCOL, (req: GlobalRequest) => {
       logger.info("protocol.handle, req.url: ", req.url);
@@ -95,15 +104,13 @@ export default class App {
       this.windowManager.openUrl(projectLink);
     }
   }
-  private frontReady(_: IpcMainEvent) {
-    if (!this.session.hasFigmaSession) {
-      app.emit("closeAllTab");
-    }
 
+  private frontReady() {
     if (!this.session.hasFigmaSession) {
       app.emit("closeAllTab");
     }
   }
+
   private applySwitches() {
     // Chromium flags for better performance and GPU support
     // Full flags reference: https://peter.sh/experiments/chromium-command-line-switches/
@@ -134,15 +141,28 @@ export default class App {
     app.commandLine.appendSwitch("enable-gpu-rasterization");
     app.commandLine.appendSwitch("enable-zero-copy");
 
+    // Collect all features to enable
+    const features = [
+      "VaapiVideoDecoder",
+      "VaapiVideoEncoder",
+      "CanvasOopRasterization",
+      "WebRTCPipeWireCapturer",
+      "UseSkiaRenderer",
+    ];
+
+    // Wayland support detection and enablement
+    if (process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY) {
+      logger.info("Wayland session detected - enabling native Wayland support");
+      app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+      features.push("WaylandWindowDecorations", "UseOzonePlatform");
+    }
+
     // Enable modern rendering features
-    app.commandLine.appendSwitch(
-      "enable-features",
-      "VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRTCPipeWireCapturer,Vulkan,UseSkiaRenderer",
-    );
+    app.commandLine.appendSwitch("enable-features", features.join(","));
 
     // User-requested high-performance GPU flags
+    // SECURITY: enable-unsafe-webgpu bypasses WebGPU safety checks.
     app.commandLine.appendSwitch("enable-unsafe-webgpu");
-    app.commandLine.appendSwitch("use-vulkan");
 
     // WebGL optimizations for Figma's canvas engine
     app.commandLine.appendSwitch("enable-webgl");
@@ -157,85 +177,18 @@ export default class App {
     app.commandLine.appendSwitch("disable-background-timer-throttling");
     app.commandLine.appendSwitch("disable-renderer-backgrounding");
 
-    // Wayland support detection and enablement
-    if (process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY) {
-      logger.info("Wayland session detected - enabling native Wayland support");
-      app.commandLine.appendSwitch("ozone-platform-hint", "auto");
-      app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations,UseOzonePlatform");
-    }
-
     logger.info("Applied default performance optimizations for Linux");
   }
-  private setAuthedUsers(_: IpcMainEvent, userIds: string[]) {
-    if (!Array.isArray(storage.settings.authedUserIDs)) {
-      storage.settings.authedUserIDs = userIds;
-      storage.save();
-    }
 
-    storage.settings.authedUserIDs = [...new Set([...storage.settings.authedUserIDs, ...userIds])];
-  }
-  private setWorkspaceName(_: IpcMainEvent, name: string) {
-    logger.warn("The setWorkspaceName not implemented, workspaceName: ", name);
-  }
-  private setFigjamEnabled(_: IpcMainEvent, enabled: boolean) {
-    logger.warn("The setFigjamEnabled not implemented, enabled: ", enabled);
-  }
-  private setClipboardData(_: IpcMainEvent, data: WebApi.SetClipboardData) {
-    const format = data.format;
-    const buffer = Buffer.from(data.data);
-
-    if (["image/jpeg", "image/png"].indexOf(format) !== -1) {
-      clipboard.writeImage(nativeImage.createFromBuffer(buffer));
-    } else if (format === "image/svg+xml") {
-      clipboard.writeText(buffer.toString());
-    } else if (format === "application/pdf") {
-      clipboard.writeBuffer("Portable Document Format", buffer);
-    } else {
-      clipboard.writeBuffer(format, buffer);
-    }
-  }
-  private async getFonts(_: IpcMainInvokeEvent) {
-    const dirs = storage.settings.app.fontDirs;
-
-    return this.fontManager.getFonts(dirs);
-  }
-  private async getFontFile(_: IpcMainInvokeEvent, data: WebApi.GetFontFile) {
-    const file = await this.fontManager.getFontFile(data.path);
-
-    if (file && file.byteLength > 0) {
-      return file;
-    }
-
-    return null;
-  }
-  private async logout() {
-    await request({
-      url: Const.LOGOUT_PAGE,
-      useSessionCookies: true,
-    });
-
-    // TODO: remove only current user's id
-    storage.settings.authedUserIDs = [];
-
-    try {
-      await Promise.all([
-        session.defaultSession.clearStorageData(),
-        session.defaultSession.clearCache(),
-      ]);
-    } catch (error) {
-      logger.error(error);
-    }
-
-    this.windowManager.closeTabOnAllWindows();
-    this.windowManager.loadLoginPageAllWindows();
-  }
   private onWindowAllClosed() {
     app.quit();
   }
+
   private relaunchApp() {
     app.relaunch();
     app.quit();
   }
+
   private quitApp() {
     this.windowManager.saveState();
     storage.save();
@@ -243,21 +196,12 @@ export default class App {
     app.quit();
   }
 
-  private registerEvents = (): void => {
-    ipcMain.on("frontReady", this.frontReady.bind(this));
-    ipcMain.on("setAuthedUsers", this.setAuthedUsers.bind(this));
-    ipcMain.on("setWorkspaceName", this.setWorkspaceName.bind(this));
-    ipcMain.on("setFigjamEnabled", this.setFigjamEnabled.bind(this));
-    ipcMain.on("setClipboardData", this.setClipboardData.bind(this));
-
-    ipcMain.handle("getFonts", this.getFonts.bind(this));
-    ipcMain.handle("getFontFile", this.getFontFile.bind(this));
-
+  private registerAppEvents = (): void => {
     app.on("ready", this.ready.bind(this));
     app.on("second-instance", this.secondInstance.bind(this));
     app.on("window-all-closed", this.onWindowAllClosed.bind(this));
     app.on("relaunchApp", this.relaunchApp.bind(this));
-    app.on("signOut", this.logout.bind(this));
+    app.on("signOut", () => this.authController.logout());
     app.on("quitApp", this.quitApp.bind(this));
   };
 }

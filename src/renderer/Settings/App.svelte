@@ -1,6 +1,6 @@
 <script lang="ts">
   import { themeApp } from "../Common/Store/Themes";
-  import { initCommonIpc } from "../Common/Ipc";
+  import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc";
   import { settings } from "./store";
 

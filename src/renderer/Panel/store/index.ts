@@ -1,6 +1,6 @@
-export * from "./tabs";
-export * from "./current";
-export * from "./isMenuOpen";
-export * from "./panelZoom";
-export * from "./NewFileVisible";
-export * from "./communityTabVisible";
+export { tabs } from "./tabs.svelte";
+export { currentTab } from "./current.svelte";
+export { isMenuOpen } from "./isMenuOpen.svelte";
+export { panelZoom } from "./panelZoom.svelte";
+export { newFileVisible } from "./NewFileVisible.svelte";
+export { communityTabVisible } from "./communityTabVisible.svelte";

@@ -12,24 +12,24 @@
   <ButtonWindow
     padding="var(--left-btn-padding)"
     activeBgColor={"var(--bg-tab-hover)"}
-    isActive={$currentTab === "mainTab"}
+    isActive={currentTab.value === "mainTab"}
     onButtonClick={onClickHome}
   >
     <config.left.home.component size={config.left.home.size} />
   </ButtonWindow>
 
-  {#if $communityTabVisible}
+  {#if communityTabVisible.value}
     <ButtonWindow
       padding="var(--left-btn-padding)"
       activeBgColor={"var(--bg-tab-hover)"}
-      isActive={$currentTab === "communityTab"}
+      isActive={currentTab.value === "communityTab"}
       onButtonClick={onClickCommunity}
     >
       <config.left.community.component size={config.left.community.size} />
     </ButtonWindow>
   {/if}
 
-  {#if $newFileVisible}
+  {#if newFileVisible.value}
     <ButtonTool padding="var(--left-btn-padding)" onButtonClick={onClickNewProject}>
       <config.left.plus.component size={config.left.plus.size} />
     </ButtonTool>

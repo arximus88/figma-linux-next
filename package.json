@@ -1,6 +1,6 @@
 {
-  "name": "figma-linux-test",
-  "version": "0.12.0",
+  "name": "figma-linux",
+  "version": "0.13.0",
   "description": "Optimized Figma desktop application for Linux with native Wayland support, GPU acceleration, and system integration.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
@@ -9,7 +9,7 @@
   "license": "MIT",
   "scripts": {
     "start": "bun run build && bun run run",
-    "dev": "vite",
+    "dev": "NODE_ENV=dev vite",
     "run": "env -u ELECTRON_RUN_AS_NODE electron dist/main/main.js",
     "run:watch": "env -u ELECTRON_RUN_AS_NODE nodemon --watch dist/main --ext js,json --exec electron dist/main/main.js",
     "build": "bun run cln && vite build && cp src/package.json dist/ && cd dist && bun install --production --no-save",
@@ -21,14 +21,14 @@
     "check": "svelte-check",
     "lp": "bun run lint & bun run prettier",
     "lint": "eslint -c ./config/.eslintrc.js src/**/*.ts",
-    "prettier": "prettier src/{**/,*/**/,**/**/**/,**/**/**/**/,**/**/**/**/**/,**/**/**/**/**/**/}*.ts --write",
+    "prettier": "prettier \"src/**/*.ts\" --write",
     "precommit": "lint-staged",
     "cln": "rm -rf ./dist"
   },
   "lint-staged": {
     "*.{ts, tsx, js, jsx}": [
       "node_modules/.bin/eslint -c ./config/.eslintrc.js src/**/*.ts",
-      "node_modules/.bin/prettier src/{**/,*/**/,**/**/**/,**/**/**/**/,**/**/**/**/**/,**/**/**/**/**/**/}*.ts --write",
+      "node_modules/.bin/prettier \"src/**/*.ts\" --write",
       "git add"
     ]
   },

@@ -1,6 +1,6 @@
 <script lang="ts">
   let { zoom = $bindable(), minZoom, maxZoom, width = "auto", height = "auto", isMaskActive = $bindable(true), maskBounds = $bindable({ width: 0, height: 0 }), children, toolBar, layout_1 } = $props();
-  import type { MouseWheelInputEvent } from "electron";
+  // MouseWheelInputEvent is just a WheelEvent with Electron extras — use WheelEvent directly
   import { onMount, onDestroy } from "svelte";
 
   let div: HTMLDivElement;
@@ -71,7 +71,7 @@
     area.style.cursor = "default";
   }
 
-  function mouseWheelHandler(event: MouseWheelInputEvent) {
+  function mouseWheelHandler(event: WheelEvent) {
     (event as any).preventDefault();
 
     zoom += event.deltaY > 0 ? (zoom <= minZoom ? 0 : -0.05) : zoom >= maxZoom ? 0 : 0.05;

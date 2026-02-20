@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { initCommonIpc } from "../Common/Ipc";
+  import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { getFrameStyleVars } from "Utils/Render/frameStyles";
   import { themeApp } from "../Common/Store/Themes";
-  import { initIpc } from "./ipc";
+  import { initIpc } from "./ipc.svelte";
   import { panelZoom } from "./store";
   import Left from "./Components/Left.svelte";
   import Right from "./Components/Right.svelte";
@@ -41,7 +41,7 @@
 <div
   id="panel"
   data-frame-style={frameStyle}
-  style={`zoom: ${$panelZoom}; ${pallet.join("; ")}; ${frameStyleVars}`}
+  style={`zoom: ${panelZoom.value}; ${pallet.join("; ")}; ${frameStyleVars}`}
 >
   <Left {frameStyle} />
   <Tabs {frameStyle} />

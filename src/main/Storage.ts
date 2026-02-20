@@ -1,4 +1,5 @@
-import { app, ipcMain, IpcMainEvent, ipcRenderer } from "electron";
+import { app } from "electron";
+import type { IpcMainEvent } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -6,8 +7,8 @@ import { DEFAULT_SETTINGS, accessSync } from "Utils/Main";
 import { logger } from "./Logger";
 
 /**
- * This class has dual initialization: in main process and renderer process
- * For change the settings from renderer process the class use Ipc communication
+ * Main-process settings storage.
+ * IPC handlers are registered externally via IpcRegistry (see index.ts).
  */
 export class Storage {
   private filePath: string;
@@ -18,11 +19,9 @@ export class Storage {
   public initialize(): void {
     if (this.filePath) return;
 
-    const { app } = require("electron");
     this.filePath = path.join(app.getPath("userData"), "settings.json");
 
     this.load();
-    this.registerEvents();
   }
 
   private load = (): void => {
@@ -48,6 +47,14 @@ export class Storage {
       app: {
         ...DEFAULT_SETTINGS.app,
         ...this.settings.app,
+      },
+      ui: {
+        ...DEFAULT_SETTINGS.ui,
+        ...this.settings.ui,
+      },
+      theme: {
+        ...DEFAULT_SETTINGS.theme,
+        ...this.settings.theme,
       },
     };
 
@@ -81,14 +88,9 @@ export class Storage {
       ...data.featureFlags,
     };
   }
-  public getSettings(event: IpcMainEvent) {
-    event.returnValue = this.settings;
-  }
 
-  private registerEvents() {
-    const { ipcMain } = require("electron");
-    ipcMain.on("setFeatureFlags", this.setFeatureFlags.bind(this));
-    ipcMain.on("getSettings", this.getSettings.bind(this));
+  public getSettings() {
+    return this.settings;
   }
 }
 

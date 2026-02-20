@@ -67,7 +67,7 @@
 
   // Reactive currentTab → currentTabId via $effect (replaces .subscribe())
   $effect(() => {
-    const id = $currentTab;
+    const id = currentTab.value;
     if (typeof id === "number") {
       currentTabId = id;
     } else {
@@ -78,7 +78,7 @@
 
 <div role="tablist" tabindex="0" class="panel-tabs" bind:this={item} onwheel={wheelHandler} ondblclick={dblclickHandler}>
   <List
-    bind:items={$tabs}
+    items={tabs.value}
     {currentTabId}
     {config}
     {onClickTitle}

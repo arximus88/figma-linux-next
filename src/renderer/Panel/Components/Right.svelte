@@ -7,7 +7,7 @@
   const config = $derived(getFrameConfig(frameStyle));
 
   function clickMenu() {
-    if ($isMenuOpen) {
+    if (isMenuOpen.value) {
       return;
     }
 
@@ -16,13 +16,13 @@
   }
 
   function closeHandler() {
-    window.figmaApi.send("windowClose", $tabs);
+    window.figmaApi.send("windowClose", $state.snapshot(tabs.value));
   }
 </script>
 
 <div class="panel-right">
   {#if config.right.menu}
-    <ButtonWindow isActive={$isMenuOpen} onButtonClick={clickMenu}>
+    <ButtonWindow isActive={isMenuOpen.value} onButtonClick={clickMenu}>
       <config.right.menu.component size={config.right.menu.size} />
     </ButtonWindow>
   {/if}

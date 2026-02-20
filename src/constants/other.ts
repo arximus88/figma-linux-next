@@ -17,6 +17,8 @@ export const DOWNLOAD_ZIP_PATH = "/tmp/master.zip";
 export const TOPPANELHEIGHT = 40;
 export const MENU_WIDTH = 330;
 
+export const STARTUP_DELAY_MS = 1500;
+
 export const PROTOCOL = "figma";
 
 export const TEST_THEME_ID = "test-creator-theme";
@@ -24,8 +26,8 @@ export const TEST_THEME_ID = "test-creator-theme";
 export const MANIFEST_FILE_NAME = "manifest.json";
 export const CHROME_GPU = "chrome://gpu";
 
-export const CONFIGDIR = `${_env.HOME || ""}/.config/figma-linux-test`;
-export const RESOURCESDIR = `${_env.HOME || ""}/.config/figma-linux-test/resources`;
+export const CONFIGDIR = `${_env.HOME || ""}/.config/figma-linux`;
+export const RESOURCESDIR = `${_env.HOME || ""}/.config/figma-linux/resources`;
 export const REGEXP_APP_AUTH_GRANT = /^\/{0,2}app_auth\/[^/]+\/grant/;
 
 export const FIGMA_SESSION_COOKIE_NAME = "figma.session";

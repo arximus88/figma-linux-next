@@ -1,13 +1,13 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import electron from "vite-plugin-electron";
-import electronRenderer from "vite-plugin-electron-renderer";
-import viteCommonjs from "vite-plugin-commonjs";
 import path from "path";
 
 export default defineConfig({
   plugins: [
-    svelte({ configFile: "../svelte.config.js" }),
+    svelte({
+      configFile: "../svelte.config.js",
+    }),
     electron([
       {
         entry: "main/index.ts",
@@ -25,9 +25,26 @@ export default defineConfig({
           build: {
             outDir: "../dist/main",
             lib: {
-              entry: "main/index.ts",
+              entry: path.resolve(__dirname, "src/main/index.ts"),
               formats: ["cjs"],
-              fileName: () => "main.js",
+            },
+            rollupOptions: {
+              external: [
+                "electron",
+                "fs",
+                "path",
+                "child_process",
+                "fontkit",
+                "node:fs",
+                "electron-log",
+                "electron-log/main",
+                "adm-zip",
+                "crypto",
+                "url",
+              ],
+              output: {
+                entryFileNames: "main.js",
+              },
             },
           },
         },
@@ -48,6 +65,7 @@ export default defineConfig({
           build: {
             outDir: "../dist/renderer",
             rollupOptions: {
+              external: ["electron"],
               output: {
                 entryFileNames: "bridge.js",
               },
@@ -71,6 +89,7 @@ export default defineConfig({
           build: {
             outDir: "../dist/renderer",
             rollupOptions: {
+              external: ["electron"],
               output: {
                 entryFileNames: "loadContent.js",
               },
@@ -94,6 +113,7 @@ export default defineConfig({
           build: {
             outDir: "../dist/renderer",
             rollupOptions: {
+              external: ["electron"],
               output: {
                 entryFileNames: "loadMainContent.js",
               },
@@ -107,12 +127,14 @@ export default defineConfig({
   base: "./",
   build: {
     outDir: "../dist",
-    emptyOutDir: false, // Don't wipe 'dist' because Rollup main keeps things there too (for now)
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         app: path.resolve(__dirname, "src/index.html"),
         settings: path.resolve(__dirname, "src/settings.html"),
       },
+      // NOTE: No Node.js modules here! This builds for the browser (renderer with contextIsolation).
+      // Only the electron plugin entries (main, preloads) should have Node.js externals.
     },
   },
   resolve: {

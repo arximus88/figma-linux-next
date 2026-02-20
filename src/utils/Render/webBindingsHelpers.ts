@@ -1,12 +1,19 @@
+/**
+ * Helpers for webBinding.ts — runs in MainTab preload context.
+ * MainTab uses contextIsolation: false, so window.figmaApi does NOT exist.
+ * We use ipcRenderer directly here (available via the preload script).
+ */
+import { ipcRenderer } from "electron";
+
 export const sendMsgToMain = (msg: string, ...data: any[]) => {
-  window.figmaApi.send(msg, ...data);
+  ipcRenderer.send(msg, ...data);
 };
 
 export const registerCallbackWithMainProcess = (() => {
   let nextCallbackID = 0;
   const registeredCallbacks = new Map();
 
-  window.figmaApi.on("handleCallback", (callbackID: number, result: any) => {
+  ipcRenderer.on("handleCallback", (_event: any, callbackID: number, result: any) => {
     const registeredCallback = registeredCallbacks.get(callbackID);
     if (registeredCallback) {
       registeredCallback(result);
@@ -19,11 +26,10 @@ export const registerCallbackWithMainProcess = (() => {
     const callbackID = nextCallbackID++;
     registeredCallbacks.set(callbackID, callback);
 
-    window.figmaApi.send(`web-callback:${channel}`, callbackID, args);
+    ipcRenderer.send(`web-callback:${channel}`, callbackID, args);
 
     return () => {
-      // TODO: this message is not handled anywhere
-      window.figmaApi.send("web-cancel-callback", callbackID);
+      ipcRenderer.send("web-cancel-callback", callbackID);
       registeredCallbacks.delete(callbackID);
     };
   };
