@@ -25,7 +25,14 @@ export default class Window {
   private _userId: string;
 
   constructor(state: Types.WindowState) {
-    this.window = new BrowserWindow(WINDOW_DEFAULT_OPTIONS);
+    this.window = new BrowserWindow({
+      ...WINDOW_DEFAULT_OPTIONS,
+      ...state,
+      webPreferences: {
+        ...WINDOW_DEFAULT_OPTIONS.webPreferences,
+        ...state.webPreferences,
+      },
+    });
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
     this.state = state;

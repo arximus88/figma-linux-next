@@ -1,8 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
   let { zIndex } = $props();
-  import { randomUUID } from "crypto";
-  import { ipcRenderer } from "electron";
   import { InputRange, CheckBox, InputText, ListBox } from "Common/Input";
   import { Text, Label, Flex, FlexItem, Line } from "Common";
   import { ButtonTool, SecondaryButton } from "Common/Buttons";
@@ -23,7 +21,7 @@
   })));
 
   let switchItems: Types.TabItem[] = $derived($settings.app.commandSwitches.map((item) => ({
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     text: item.switch,
     itemArgs: {
       item,
@@ -32,7 +30,7 @@
   })));
 
   async function onChangeExportPath(event: CustomEvent) {
-    const directory = await ipcRenderer.invoke("selectExportDirectory");
+    const directory = await window.figmaApi.invoke("selectExportDirectory");
 
     if (!directory) {
       return;
@@ -57,7 +55,7 @@
     }, []);
   }
   async function onAddDirectory(event: CustomEvent) {
-    const directory = await ipcRenderer.invoke("selectExportDirectory");
+    const directory = await window.figmaApi.invoke("selectExportDirectory");
 
     if (!directory) {
       return;
@@ -89,7 +87,7 @@
   $effect(() => {
     const scale = $settings.ui.scaleFigmaUI;
     if (scale) {
-      ipcRenderer.invoke("updateFigmaUiScale", scale);
+      window.figmaApi.invoke("updateFigmaUiScale", scale);
     }
   });
 
@@ -99,7 +97,7 @@
     const scale = $settings.ui.scalePanel;
     if (scale !== previousScalePanel) {
       previousScalePanel = scale;
-      ipcRenderer.invoke("updatePanelScale", scale);
+      window.figmaApi.invoke("updatePanelScale", scale);
       untrack(() => {
         $settings.app.panelHeight = Math.floor(TOPPANELHEIGHT * scale);
       });
@@ -112,7 +110,7 @@
     $settings.app.frameStyle = newStyle;
 
     // Notify panel to update frame style
-    ipcRenderer.send("frameStyleChanged", newStyle);
+    window.figmaApi.send("setFrameStyle", newStyle);
   }
 </script>
 

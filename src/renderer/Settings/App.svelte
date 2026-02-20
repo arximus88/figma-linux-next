@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { ipcRenderer } from "electron";
   import { themeApp } from "../Common/Store/Themes";
-  import { getColorPallet } from "Utils/Render/themes";
   import { initCommonIpc } from "../Common/Ipc";
   import { initIpc } from "./ipc";
   import { settings } from "./store";
@@ -11,19 +9,12 @@
   initCommonIpc();
   initIpc();
 
-  let pallet: string[] = [];
-
-  themeApp.subscribe((theme) => {
-    if (!theme) {
-      return;
-    }
-    pallet = getColorPallet(theme);
-  });
+  let pallet = $state<string[]>([]);
 
   function onCloseModalHandler(event: MouseEvent) {
     if (event.target === event.currentTarget) {
         settings.trim();
-        ipcRenderer.send("closeSettingsView", $settings);
+        window.figmaApi.send("closeSettingsView", $settings);
     }
   }
 </script>

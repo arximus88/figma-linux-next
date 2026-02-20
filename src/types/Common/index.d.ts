@@ -50,7 +50,7 @@ declare namespace Types {
 
   type View = "TopPanel" | "Settings" | "ThemeCreator";
   type SettingsView = "General" | "Themes";
-  type FrameStyle = "windows" | "gnome" | "macos";
+  type FrameStyle = "windows" | "gnome" | "macos" | "kde";
 
   interface FeatureFlags {
     desktop_beta_use_agent_for_fonts?: boolean;

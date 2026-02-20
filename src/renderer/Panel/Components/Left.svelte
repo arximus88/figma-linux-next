@@ -1,35 +1,37 @@
 <script lang="ts">
-  import { Figma, Community, Plus } from "Icons";
+  let { frameStyle = "windows" as Types.FrameStyle } = $props();
   import { ButtonWindow, ButtonTool } from "Common/Buttons";
   import { newFileVisible, communityTabVisible, currentTab } from "../store";
   import { onClickHome, onClickNewProject, onClickCommunity } from "./utils";
+  import { getFrameConfig } from "Utils/Render/frameConfig";
+
+  const config = $derived(getFrameConfig(frameStyle));
 </script>
 
 <div class="panel-left">
   <ButtonWindow
-    padding={"0px 10px"}
-    hoverBgColor={"var(--bg-tab-hover)"}
+    padding="var(--left-btn-padding)"
     activeBgColor={"var(--bg-tab-hover)"}
     isActive={$currentTab === "mainTab"}
     onButtonClick={onClickHome}
   >
-    <Figma size="22" />
+    <config.left.home.component size={config.left.home.size} />
   </ButtonWindow>
 
   {#if $communityTabVisible}
     <ButtonWindow
-      padding={"0px 10px"}
-      hoverBgColor={"var(--bg-tab-hover)"}
+      padding="var(--left-btn-padding)"
       activeBgColor={"var(--bg-tab-hover)"}
       isActive={$currentTab === "communityTab"}
       onButtonClick={onClickCommunity}
     >
-      <Community size="20" />
+      <config.left.community.component size={config.left.community.size} />
     </ButtonWindow>
   {/if}
+
   {#if $newFileVisible}
-    <ButtonTool padding={"0px 8px"} onButtonClick={onClickNewProject}>
-      <Plus size="15" />
+    <ButtonTool padding="var(--left-btn-padding)" onButtonClick={onClickNewProject}>
+      <config.left.plus.component size={config.left.plus.size} />
     </ButtonTool>
   {/if}
 </div>
@@ -38,6 +40,10 @@
   .panel-left {
     display: flex;
     align-items: stretch;
+    gap: var(--left-gap, 0px);
     -webkit-app-region: no-drag;
+  }
+  .panel-left :global(div[role="button"]) {
+    border-radius: var(--window-control-radius, 0px);
   }
 </style>

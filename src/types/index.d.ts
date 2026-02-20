@@ -75,6 +75,7 @@ declare namespace Electron {
     on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
     on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "disableThemesChanged", listener: (enable: boolean) => void): this;
+    on(event: "frameStyleChanged", listener: (style: Types.FrameStyle) => void): this;
 
     emit(event: string, ...args: any[]): boolean;
     emit(event: "newFile", sender: Electron.WebContents): boolean;
@@ -198,6 +199,10 @@ declare namespace Electron {
     on(
       channel: "setFeatureFlags",
       listener: (event: IpcMainInvokeEvent, data: { featureFlags: Types.FeatureFlags }) => void,
+    ): this;
+    on(
+      channel: "setFrameStyle",
+      listener: (event: IpcMainInvokeEvent, style: Types.FrameStyle) => void,
     ): this;
     on(channel: "logDebug", listener: (event: IpcMainInvokeEvent, ...args: any[]) => void): this;
     on(channel: "logInfo", listener: (event: IpcMainInvokeEvent, ...args: any[]) => void): this;
@@ -441,6 +446,7 @@ declare namespace Electron {
     send(channel: "updateFullscreenMenuState", state: Menu.State): this;
 
     send(channel: "syncThemes"): this;
+    send(channel: "setFrameStyle", style: Types.FrameStyle): this;
     send(channel: "setClipboardData", data: WebApi.SetClipboardData): this;
     send(channel: "set-use-zenity", value: boolean): this;
     send(channel: "windowDidMaximized"): this;
@@ -513,6 +519,7 @@ declare namespace Electron {
     send(channel: "communityTabWasClose", isOpen: boolean): this;
     send(channel: "loading", tabId: number, loading: boolean): this;
     send(channel: "loadSettings", settings: Types.SettingsInterface): this;
+    send(channel: "frameStyleChanged", style: Types.FrameStyle): this;
 
     send(channel: "changeZoomFactor", zoom: number): this;
     send(channel: "handleSetFullScreen", fullscreen: boolean): this;

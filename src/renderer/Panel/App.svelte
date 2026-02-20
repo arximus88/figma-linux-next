@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { ipcRenderer } from "electron";
   import { initCommonIpc } from "../Common/Ipc";
-  import { getColorPallet } from "Utils/Render/themes";
   import { getFrameStyleVars } from "Utils/Render/frameStyles";
   import { themeApp } from "../Common/Store/Themes";
   import { initIpc } from "./ipc";
@@ -13,44 +11,41 @@
   initCommonIpc();
   initIpc();
 
-  let pallet: string[] = [];
-  let frameStyle: Types.FrameStyle = "gnome";
-  let frameStyleVars: string = "";
+  let pallet = $state<string[]>([]);
+  let frameStyle = $state<Types.FrameStyle>("gnome");
+  let frameStyleVars = $state(getFrameStyleVars("gnome"));
 
-  try {
-    const settings: Types.SettingsInterface = ipcRenderer.sendSync("getSettings");
+  // Async bootstrap — replaces sendSync("getSettings")
+  window.figmaApi.invoke("getSettings").then((settings: Types.SettingsInterface) => {
     if (settings?.app?.frameStyle) {
-      frameStyle = settings.app.frameStyle;
+      frameStyle = settings.app.frameStyle as Types.FrameStyle;
     }
-  } catch (e) {
-    console.error("App.svelte: failed to get settings sync:", e);
-  }
-
-  if (!frameStyle || !["windows", "gnome", "macos"].includes(frameStyle)) {
-    frameStyle = "gnome";
-  }
-  frameStyleVars = getFrameStyleVars(frameStyle);
-
-  themeApp.subscribe((theme) => {
-    if (!theme) {
-      return;
+    if (!frameStyle || !["windows", "gnome", "macos", "kde"].includes(frameStyle)) {
+      frameStyle = "gnome";
     }
-    pallet = getColorPallet(theme);
+    frameStyleVars = getFrameStyleVars(frameStyle);
+  }).catch((e: Error) => {
+    console.error("App.svelte: failed to get settings:", e);
   });
 
-  ipcRenderer.on("frameStyleChanged", (_, newStyle: Types.FrameStyle) => {
+
+  window.figmaApi.on("frameStyleChanged", (newStyle: Types.FrameStyle) => {
     frameStyle = newStyle;
-    if (!["windows", "gnome", "macos"].includes(frameStyle)) {
+    if (!["windows", "gnome", "macos", "kde"].includes(frameStyle)) {
       frameStyle = "gnome";
     }
     frameStyleVars = getFrameStyleVars(frameStyle);
   });
 </script>
 
-<div id="panel" style={`zoom: ${$panelZoom}; ${pallet.join("; ")}; ${frameStyleVars}`}>
-  <Left />
-  <Tabs />
-  <Right />
+<div
+  id="panel"
+  data-frame-style={frameStyle}
+  style={`zoom: ${$panelZoom}; ${pallet.join("; ")}; ${frameStyleVars}`}
+>
+  <Left {frameStyle} />
+  <Tabs {frameStyle} />
+  <Right {frameStyle} />
 </div>
 
 <style>
@@ -59,6 +54,9 @@
     height: var(--panel-height, 40px);
     background-color: var(--panel-bg, var(--bg-header));
     border-bottom: var(--panel-border-bottom, none);
+    padding: var(--panel-padding, 0);
+    gap: var(--panel-gap, 0px);
+    align-items: var(--panel-align-items, stretch);
     -webkit-app-region: drag;
     width: 100%;
     box-sizing: border-box;

@@ -19,6 +19,7 @@ import {
 } from "Utils/Main";
 import {
   isDev,
+  isFigmaRunUrl,
   isValidProjectLink,
   isPrototypeUrl,
   isAppAuthRedeem,
@@ -114,7 +115,7 @@ export default class MainTab {
   }
 
   private onMainTabWillNavigate(event: Event<any>, url: string) {
-    if (isValidProjectLink(url) || isPrototypeUrl(url)) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
 
       event.preventDefault();
@@ -172,12 +173,10 @@ export default class MainTab {
 
     if (/start_google_sso/.test(url)) return;
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url)) {
-      app.emit("openUrlInNewTab", url);
-      return;
-    }
-    if (isFigmaBoardLink(url) || isFigmaDesignLink(url)) {
-      window.destroy();
+    if (isFigmaRunUrl(url)) {
+      if (isFigmaBoardLink(url) || isFigmaDesignLink(url)) {
+        window.destroy();
+      }
       app.emit("openUrlInNewTab", url);
       return;
     }
@@ -188,12 +187,7 @@ export default class MainTab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
-    if (
-      isPrototypeUrl(url) ||
-      isValidProjectLink(url) ||
-      isFigmaBoardLink(url) ||
-      isFigmaDesignLink(url)
-    ) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
       return { action: "deny" };
     } else {

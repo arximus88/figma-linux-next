@@ -49,6 +49,7 @@
       "DesktopAPI": ["DesktopAPI"],
       "DesktopAPI/*": ["DesktopAPI/*"],
       "Const": ["src/constants"],
+      "Const/*": ["src/constants/*"],
       "Utils": ["src/utils"],
       "Utils/*": ["src/utils/*"],
       "Enums": ["src/types/enums.ts"],

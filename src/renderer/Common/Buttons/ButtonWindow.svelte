@@ -2,10 +2,10 @@
   import Button from "./Button.svelte";
 
   let {
-    padding = "0px 18px",
-    normalBgColor = "var(--bg-header-control)",
-    activeBgColor = "var(--bg-header-control-hover)",
-    hoverBgColor = "var(--bg-header-control-hover)",
+    padding = "0px",
+    normalBgColor = "transparent",
+    activeBgColor = "var(--window-control-active-bg, rgba(255, 255, 255, 0.15))",
+    hoverBgColor = "var(--window-control-hover-bg, rgba(255, 255, 255, 0.1))",
     isActive = false,
     onButtonClick,
     children,

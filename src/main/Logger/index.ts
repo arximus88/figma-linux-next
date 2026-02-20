@@ -1,5 +1,11 @@
-import { FileLogger } from "./FileLogger";
-import { StdoutLogger } from "./StdoutLogger";
+import log from "electron-log/main";
 import { AppLogger } from "./AppLogger";
 
-export const logger = new AppLogger([new FileLogger(), new StdoutLogger()]);
+// Configure electron-log
+log.initialize();
+log.transports.file.level = "debug";
+log.transports.console.level = "debug";
+log.transports.file.fileName = "figma-linux.log";
+
+// Initialize AppLogger with electron-log instance
+export const logger = new AppLogger(log);

@@ -13,7 +13,12 @@ export class Storage {
   private filePath: string;
   public settings: Types.SettingsInterface;
 
-  constructor() {
+  constructor() {}
+
+  public initialize(): void {
+    if (this.filePath) return;
+
+    const { app } = require("electron");
     this.filePath = path.join(app.getPath("userData"), "settings.json");
 
     this.load();
@@ -81,6 +86,7 @@ export class Storage {
   }
 
   private registerEvents() {
+    const { ipcMain } = require("electron");
     ipcMain.on("setFeatureFlags", this.setFeatureFlags.bind(this));
     ipcMain.on("getSettings", this.getSettings.bind(this));
   }

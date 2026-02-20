@@ -1,5 +1,5 @@
 <script lang="ts">
-  let {round = 0, size = undefined, width: _width = "inherit", height: _height = "inherit", padding: _padding = "inherit", margin = "inherit", normalFgColor = "var(--text)", activeFgColor = "var(--text-active)", hoverFgColor = "var(--text-active)", normalBgAlpha = "1", activeBgAlpha = "1", hoverBgAlpha = "1", normalBgColor = "transparent", hoverBgColor = "var(--bg-tab-hover)", activeBgColor = "var(--bg-tab-hover)", disabledBgColor = "var(--borders)", normalBorder = "none", activeBorder = "none", hoverBorder = "none", normalCursor = "default", activeCursor = "default", hoverCursor = "default", isActive = false, disabled = false, onButtonClick = undefined, children = undefined} = $props();
+  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding: _padding = "0", margin = "0", normalFgColor = "var(--text)", activeFgColor = "var(--text-active)", hoverFgColor = "var(--text-active)", normalBgAlpha = "1", activeBgAlpha = "1", hoverBgAlpha = "1", normalBgColor = "var(--normal-bg-color, transparent)", hoverBgColor = "var(--hover-bg-color, var(--bg-tab-hover))", activeBgColor = "var(--active-bg-color, var(--bg-tab-hover))", disabledBgColor = "var(--disabled-bg-color, var(--borders))", normalBorder = "var(--normal-border, none)", activeBorder = "var(--active-border, none)", hoverBorder = "var(--hover-border, none)", normalCursor = "default", activeCursor = "default", hoverCursor = "default", isActive = false, disabled = false, onButtonClick = undefined, children = undefined} = $props();
   
   let width = $derived(size ? `${size}px` : _width);
   let height = $derived(size ? `${size}px` : _height);
@@ -62,8 +62,8 @@
     border: var(--normal-border);
     cursor: var(--normal-cursor);
     border-radius: var(--border-radius);
-    width: var(--width);
-    height: var(--height);
+    width: var(--width, 100%);
+    height: var(--height, 100%);
     padding: var(--padding);
     margin: var(--margin);
     transition: all 0.08s ease;

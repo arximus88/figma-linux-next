@@ -1,24 +1,9 @@
-import type { BrowserWindowConstructorOptions } from "electron";
+import { bridgePreloadPathDev, bridgePreloadPathProd, isDev } from "Utils/Main";
 
-export const WINDOW_DEFAULT_OPTIONS: BrowserWindowConstructorOptions = {
-  width: 1200,
-  height: 900,
-  frame: false,
-  resizable: true,
-  webPreferences: {
-    sandbox: false,
-    zoomFactor: 1,
-    nodeIntegration: true,
-    nodeIntegrationInWorker: false,
-    webviewTag: false,
-    webSecurity: false,
-    webgl: true,
-    experimentalFeatures: true,
-    contextIsolation: false,
-  },
-};
-
-export const DEFAULT_WIN_OPTIONS: Types.WindowState = {
+export const WINDOW_DEFAULT_OPTIONS: Types.WindowState & {
+  frame: boolean;
+  webPreferences: Electron.WebPreferences;
+} = {
   x: -1,
   y: -1,
   width: 1200,
@@ -28,4 +13,10 @@ export const DEFAULT_WIN_OPTIONS: Types.WindowState = {
   hasOpenedCommunityTab: false,
   userId: "",
   tabs: [],
+  frame: false,
+  webPreferences: {
+    nodeIntegration: false,
+    contextIsolation: true,
+    preload: isDev ? bridgePreloadPathDev : bridgePreloadPathProd,
+  },
 };

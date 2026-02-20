@@ -7,7 +7,11 @@ import { ZenityDialogs } from "./Zenity";
 export class Provider {
   private provider: ProviderDialog;
 
-  constructor() {
+  constructor() {}
+
+  public initialize(): void {
+    if (this.provider) return;
+
     let provider: Dialogs.Providers = "Native";
 
     if (storage.settings.app.useZenity) {

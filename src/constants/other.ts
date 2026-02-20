@@ -1,6 +1,5 @@
-import { parse } from "url";
-
-export const LOGLEVEL = process.env.FIGMA_LOGLEVEL as string | undefined;
+const _env = typeof process !== "undefined" && process.env ? process.env : {};
+export const LOGLEVEL = _env.FIGMA_LOGLEVEL as string | undefined;
 
 export const HOMEPAGE = "https://www.figma.com";
 export const LOGOUT_PAGE = `${HOMEPAGE}/logout`;
@@ -8,7 +7,8 @@ export const LOGIN_PAGE = `${HOMEPAGE}/login`;
 export const RECENT_FILES = `${HOMEPAGE}/files/recent`;
 export const NEW_PROJECT_TAB_URL = `${HOMEPAGE}/desktop_new_tab`;
 export const COMMUNITY_TAB_URL = `${HOMEPAGE}/@figma_linux`;
-export const PARSED_HOMEPAGE = parse("https://www.figma.com");
+// export const PARSED_HOMEPAGE = parse("https://www.figma.com");
+export const PARSED_HOMEPAGE = new URL("https://www.figma.com");
 
 export const DOWNLOAD_ZIP_URI =
   "https://github.com/Figma-Linux/figma-linux-themes/archive/master.zip";
@@ -24,8 +24,8 @@ export const TEST_THEME_ID = "test-creator-theme";
 export const MANIFEST_FILE_NAME = "manifest.json";
 export const CHROME_GPU = "chrome://gpu";
 
-export const CONFIGDIR = `${process.env.HOME}/.config/figma-linux-test`;
-export const RESOURCESDIR = `${process.env.HOME}/.config/figma-linux-test/resources`;
+export const CONFIGDIR = `${_env.HOME || ""}/.config/figma-linux-test`;
+export const RESOURCESDIR = `${_env.HOME || ""}/.config/figma-linux-test/resources`;
 export const REGEXP_APP_AUTH_GRANT = /^\/{0,2}app_auth\/[^/]+\/grant/;
 
 export const FIGMA_SESSION_COOKIE_NAME = "figma.session";

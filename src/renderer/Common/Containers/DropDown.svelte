@@ -7,7 +7,6 @@
   let height = 0;
   let content: HTMLDivElement;
   const bodyHeight = tweened(0, {
-    duration,
     easing: cubicOut,
   });
 

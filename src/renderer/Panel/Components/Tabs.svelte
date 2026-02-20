@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { ipcRenderer } from "electron";
-  import type { MouseWheelInputEvent } from "electron";
+  let { frameStyle = "windows" as Types.FrameStyle } = $props();
   import { tabs, currentTab } from "../store";
   import { closeTab, tabFocus } from "./utils";
   import List from "./List.svelte";
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
+  import { getFrameConfig } from "Utils/Render/frameConfig";
 
-  let currentTabId: number | undefined;
+  const config = $derived(getFrameConfig(frameStyle));
+
+  let currentTabId = $state<number | undefined>();
 
   let item: HTMLDivElement;
 
@@ -18,7 +20,7 @@
     }
   }
   function dblclickHandler(e: MouseEvent) {
-    ipcRenderer.send("windowMaximize");
+    window.figmaApi.send("windowMaximize");
     e.preventDefault();
     e.stopImmediatePropagation();
     e.stopPropagation();
@@ -38,7 +40,7 @@
       }
       // right mouse button
       case 2: {
-        ipcRenderer.send("openTabMenu", id);
+        window.figmaApi.send("openTabMenu", id);
         break;
       }
     }
@@ -63,7 +65,9 @@
     );
   }
 
-  currentTab.subscribe((id) => {
+  // Reactive currentTab → currentTabId via $effect (replaces .subscribe())
+  $effect(() => {
+    const id = $currentTab;
     if (typeof id === "number") {
       currentTabId = id;
     } else {
@@ -76,6 +80,7 @@
   <List
     bind:items={$tabs}
     {currentTabId}
+    {config}
     {onClickTitle}
     {onClickClose}
     {onDndConsider}
@@ -87,13 +92,15 @@
   .panel-tabs {
     display: flex;
     flex-grow: 1;
-    align-items: stretch;
+    align-items: center;
     flex-flow: row;
     width: 100%;
+    gap: var(--tab-spacing, 0px);
     scrollbar-width: none;
     overflow-x: scroll;
     outline: none !important;
     color: var(--fg-tab) !important;
+    padding: var(--tab-padding, 0);
     -webkit-app-region: drag;
   }
   .panel-tabs:focus-visible {

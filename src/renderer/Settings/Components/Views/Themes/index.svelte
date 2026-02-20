@@ -1,6 +1,5 @@
 <script lang="ts">
   let { zIndex, onSetSettingsTabViewIndex } = $props();
-  import { ipcRenderer } from "electron";
   import { themes, settings, modalBounds } from "../../../store";
   import { DropDown, Flex, Grid } from "Common";
   import { themeApp } from "Common/Store/Themes";
@@ -15,7 +14,7 @@
       $themes.find((theme) => theme.id === themeId),
     );
 
-    ipcRenderer.send("changeTheme", theme);
+    window.figmaApi.send("changeTheme", theme);
     $settings.theme.currentTheme = themeId;
   }
 

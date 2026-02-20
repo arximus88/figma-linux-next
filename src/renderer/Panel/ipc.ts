@@ -1,4 +1,3 @@
-import { ipcRenderer } from "electron";
 import { NEW_FILE_TAB_TITLE } from "Const";
 
 import {
@@ -11,12 +10,12 @@ import {
 } from "./store";
 
 export function initIpc() {
-  ipcRenderer.send("frontReady");
+  window.figmaApi.send("frontReady");
 
-  ipcRenderer.on("closeAllTabs", () => {
+  window.figmaApi.on("closeAllTabs", () => {
     tabs.set([]);
   });
-  ipcRenderer.on("didTabAdd", (_, data) => {
+  window.figmaApi.on("didTabAdd", (data: any) => {
     tabs.addTab({
       id: data.id,
       url: data.url,
@@ -31,50 +30,50 @@ export function initIpc() {
 
     if (data.title === NEW_FILE_TAB_TITLE) {
       currentTab.set(data.id);
-      ipcRenderer.send("setTabFocus", data.id);
+      window.figmaApi.send("setTabFocus", data.id);
     }
   });
-  ipcRenderer.on("setTitle", (_, data) => {
+  window.figmaApi.on("setTitle", (data: any) => {
     if (data.title === "New Tab") {
       return;
     }
 
     tabs.updateTab({ id: data.id, title: data.title });
   });
-  ipcRenderer.on("tabWasClosed", (_, tabId) => {
+  window.figmaApi.on("tabWasClosed", (tabId: number) => {
     tabs.deleteTab(tabId);
   });
-  ipcRenderer.on("focusTab", (_, tabId) => {
+  window.figmaApi.on("focusTab", (tabId: any) => {
     currentTab.set(tabId);
   });
-  ipcRenderer.on("newFileBtnVisible", (_, visible) => {
+  window.figmaApi.on("newFileBtnVisible", (visible: boolean) => {
     newFileVisible.set(visible);
   });
-  ipcRenderer.on("setUsingMicrophone", (_, data) => {
+  window.figmaApi.on("setUsingMicrophone", (data: any) => {
     tabs.updateTab({ id: data.id, isUsingMicrophone: data.isUsingMicrophone });
   });
-  ipcRenderer.on("setIsInVoiceCall", (_, data) => {
+  window.figmaApi.on("setIsInVoiceCall", (data: any) => {
     tabs.updateTab({ id: data.id, isInVoiceCall: data.isInVoiceCall });
   });
 
-  ipcRenderer.on("isMainMenuOpen", (_, isOpen) => {
+  window.figmaApi.on("isMainMenuOpen", (isOpen: boolean) => {
     isMenuOpen.set(isOpen);
   });
-  ipcRenderer.on("setPanelScale", (_, scale: number) => {
+  window.figmaApi.on("setPanelScale", (scale: number) => {
     panelZoom.set(scale);
   });
-  ipcRenderer.on("loadSettings", (_, settings: Types.SettingsInterface) => {
+  window.figmaApi.on("loadSettings", (settings: Types.SettingsInterface) => {
     panelZoom.set(settings.ui.scalePanel);
   });
-  ipcRenderer.on("openCommunity", (_) => {
+  window.figmaApi.on("openCommunity", () => {
     communityTabVisible.set(true);
     currentTab.set("communityTab");
   });
-  ipcRenderer.on("communityTabWasClose", (_) => {
+  window.figmaApi.on("communityTabWasClose", () => {
     communityTabVisible.set(false);
     currentTab.set("mainTab");
   });
-  ipcRenderer.on("setLoading", (_, tabId, loading) => {
+  window.figmaApi.on("setLoading", (tabId: number, loading: boolean) => {
     tabs.updateTab({ id: tabId, loading });
   });
 }

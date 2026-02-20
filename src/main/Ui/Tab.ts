@@ -15,7 +15,7 @@ import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
 import {
   isDev,
   isFigmaUrl,
-  isValidProjectLink,
+  isFigmaRunUrl,
   isPrototypeUrl,
   isAppAuthRedeem,
   isFigmaDocLink,
@@ -141,7 +141,7 @@ export default class Tab {
 
     if (/start_google_sso/.test(url)) return;
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url)) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
       return;
     }
@@ -209,7 +209,7 @@ export default class Tab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url)) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
     } else {
       shell.openExternal(url);

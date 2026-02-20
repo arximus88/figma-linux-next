@@ -14,7 +14,13 @@ import Window from "./Window";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { dialogs } from "Main/Dialogs";
-import { CHROME_GPU, DEFAULT_WIN_OPTIONS, HOMEPAGE, NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
+import {
+  CHROME_GPU,
+  WINDOW_DEFAULT_OPTIONS,
+  HOMEPAGE,
+  NEW_FILE_TAB_TITLE,
+  RECENT_FILES,
+} from "Const";
 import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem, parseURL } from "Utils/Common";
 import { mkPath } from "Utils/Main";
 
@@ -44,13 +50,15 @@ export default class WindowManager {
 
   public openUrl(url: string): void {
     const window = this.windows.get(this.lastFocusedwindowId);
-    window.openUrl(url);
+    if (window) {
+      window.openUrl(url);
+    }
   }
 
   public newWindowFromMenu(windowId: number) {
     this.newWindow();
   }
-  public newWindow(windowState: Types.WindowState = DEFAULT_WIN_OPTIONS) {
+  public newWindow(windowState: Types.WindowState = WINDOW_DEFAULT_OPTIONS) {
     const menu = this.menuManager.getMenu({
       recentClosedTabsMenuData: this.closedTabsForMenu,
       actionCheckedState: {
@@ -112,8 +120,9 @@ export default class WindowManager {
   }
   public closeAllTab() {
     const window = this.windows.get(this.lastFocusedwindowId);
-
-    window.closeAllTab(null);
+    if (window) {
+      window.closeAllTab(null);
+    }
   }
   public loadLoginPageAllWindows() {
     for (const [_, window] of this.windows) {
@@ -144,7 +153,9 @@ export default class WindowManager {
   public focusLastWindow() {
     const window = this.windows.get(this.lastFocusedwindowId);
 
-    window.focus();
+    if (window) {
+      window.focus();
+    }
   }
   public saveState() {
     storage.settings.app.windowsState = {};

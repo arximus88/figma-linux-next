@@ -7,3 +7,4 @@ export * from "./url";
 export * from "./cookies";
 export * from "./devTools";
 export * from "./defaultSettings";
+export * from "Utils/Common";

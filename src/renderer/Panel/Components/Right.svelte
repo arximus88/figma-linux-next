@@ -1,48 +1,52 @@
 <script lang="ts">
-  import { ipcRenderer } from "electron";
-  import { Minimize, Maximize, Close, Corner } from "Icons";
+  let { frameStyle = "windows" as Types.FrameStyle } = $props();
   import { ButtonWindow } from "Common/Buttons";
   import { tabs, isMenuOpen } from "../store";
+  import { getFrameConfig } from "Utils/Render/frameConfig";
+
+  const config = $derived(getFrameConfig(frameStyle));
 
   function clickMenu() {
     if ($isMenuOpen) {
       return;
     }
 
-    ipcRenderer.send("openMainMenu");
+    window.figmaApi.send("openMainMenu");
     isMenuOpen.toggle();
   }
 
   function closeHandler() {
-    ipcRenderer.send("windowClose", $tabs);
+    window.figmaApi.send("windowClose", $tabs);
   }
 </script>
 
 <div class="panel-right">
-  <ButtonWindow isActive={$isMenuOpen} onButtonClick={clickMenu}>
-    <Corner size="14" />
+  {#if config.right.menu}
+    <ButtonWindow isActive={$isMenuOpen} onButtonClick={clickMenu}>
+      <config.right.menu.component size={config.right.menu.size} />
+    </ButtonWindow>
+  {/if}
+  <ButtonWindow onButtonClick={() => window.figmaApi.send("windowMinimize")}>
+    <config.right.minimize.component size={config.right.minimize.size} />
   </ButtonWindow>
-  <ButtonWindow onButtonClick={() => ipcRenderer.send("windowMinimize")}>
-    <Minimize size="16" />
+  <ButtonWindow onButtonClick={() => window.figmaApi.send("windowMaximize")}>
+    <config.right.maximize.component size={config.right.maximize.size} />
   </ButtonWindow>
-  <ButtonWindow onButtonClick={() => ipcRenderer.send("windowMaximize")}>
-    <Maximize size="16" />
-  </ButtonWindow>
-  <ButtonWindow hoverBgColor={"var(--bg-window-close)"} onButtonClick={closeHandler}>
-    <Close size="16" />
+  <ButtonWindow hoverBgColor={"var(--window-close-hover-bg, var(--bg-window-close))"} onButtonClick={closeHandler}>
+    <config.right.close.component size={config.right.close.size} />
   </ButtonWindow>
 </div>
 
 <style>
   .panel-right {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: var(--window-control-spacing, 0px);
-    padding-right: 4px;
+    padding-right: var(--window-control-padding-right, 0px);
     -webkit-app-region: no-drag;
   }
 
-  .panel-right :global(button) {
+  .panel-right :global(div[role="button"]) {
     width: var(--window-control-size, 40px);
     height: var(--window-control-size, 40px);
     border-radius: var(--window-control-radius, 0px);

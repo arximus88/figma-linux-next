@@ -1,4 +1,3 @@
-import { ipcRenderer } from "electron";
 import { NEW_FILE_TAB_TITLE } from "Const";
 import { currentTab, tabs, newFileVisible, communityTabVisible } from "../store";
 
@@ -7,7 +6,7 @@ export function closeNewFileTab() {
 
   if (tab) {
     tabs.deleteTab(tab.id);
-    ipcRenderer.send("closeTab", tab.id);
+    window.figmaApi.send("closeTab", tab.id);
   }
 }
 
@@ -17,7 +16,7 @@ export function onClickHome(event: MouseEvent) {
   switch (mouseButton) {
     // left mouse button
     case 0: {
-      ipcRenderer.send("setFocusToMainTab");
+      window.figmaApi.send("setFocusToMainTab");
       currentTab.set("mainTab");
       newFileVisible.set(true);
 
@@ -27,7 +26,7 @@ export function onClickHome(event: MouseEvent) {
     }
     // right mouse button
     case 2: {
-      ipcRenderer.send("openMainTabMenu");
+      window.figmaApi.send("openMainTabMenu");
       break;
     }
   }
@@ -39,7 +38,7 @@ export function onClickCommunity(event: MouseEvent) {
   switch (mouseButton) {
     // left mouse button
     case 0: {
-      ipcRenderer.send("setFocusToCommunityTab");
+      window.figmaApi.send("setFocusToCommunityTab");
       currentTab.set("communityTab");
       newFileVisible.set(true);
 
@@ -50,19 +49,19 @@ export function onClickCommunity(event: MouseEvent) {
     // wheel mouse button
     case 1: {
       communityTabVisible.set(false);
-      ipcRenderer.send("closeCommunityTab");
+      window.figmaApi.send("closeCommunityTab");
       break;
     }
     // right mouse button
     case 2: {
-      ipcRenderer.send("openCommunityTabMenu");
+      window.figmaApi.send("openCommunityTabMenu");
       break;
     }
   }
 }
 export function onClickNewProject() {
   console.log("onClickNewProject");
-  ipcRenderer.send("newProject");
+  window.figmaApi.send("newProject");
   newFileVisible.set(false);
 }
 
@@ -74,7 +73,7 @@ export function closeTab(id: number) {
   }
 
   tabs.deleteTab(id);
-  ipcRenderer.send("closeTab", id);
+  window.figmaApi.send("closeTab", id);
 }
 
 export function tabFocus(id: number) {
@@ -82,12 +81,12 @@ export function tabFocus(id: number) {
 
   if (tab.title !== NEW_FILE_TAB_TITLE) {
     currentTab.set(id);
-    ipcRenderer.send("setTabFocus", id);
+    window.figmaApi.send("setTabFocus", id);
 
     const newFileTab = tabs.getTabByTitle(NEW_FILE_TAB_TITLE);
     if (newFileTab) {
       tabs.deleteTab(newFileTab.id);
-      ipcRenderer.send("closeTab", newFileTab.id);
+      window.figmaApi.send("closeTab", newFileTab.id);
       newFileVisible.set(true);
     }
   }

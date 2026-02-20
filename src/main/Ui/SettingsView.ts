@@ -1,4 +1,5 @@
 import { app, ipcMain, WebContentsView, Rectangle, IpcMainEvent } from "electron";
+import { bridgePreloadPathDev, bridgePreloadPathProd } from "Utils/Main";
 import { storage } from "Main/Storage";
 import { isDev } from "Utils/Common";
 import { settingsUrlProd, settingsUrlDev, toggleDetachedDevTools } from "Utils/Main";
@@ -14,8 +15,9 @@ export default class SettingsView {
   constructor() {
     this.view = new WebContentsView({
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: isDev ? bridgePreloadPathDev : bridgePreloadPathProd,
         experimentalFeatures: false,
         webviewTag: true,
       },
