@@ -2,7 +2,7 @@
 # Optimized for Arch Linux and CachyOS with system-integrated Electron
 
 pkgname=figma-linux
-pkgver=0.12.0
+pkgver=0.13.0
 pkgrel=1
 pkgdesc="Unofficial Figma desktop app for Linux with native Wayland support and GPU acceleration"
 arch=('x86_64')

@@ -1,6 +1,6 @@
 # <img src="resources/icons/128x128.png" width="32"> Figma Linux (unofficial)
 
-Figma-linux is an unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux.
+Figma-linux-next is a fork of an unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux.
 
 Features:
 - **Native Wayland support** — first-class support for modern Linux compositors

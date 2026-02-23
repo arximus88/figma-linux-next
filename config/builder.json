@@ -1,7 +1,9 @@
 {
-  "appId": "com.figma.FigmaLinuxTest",
-  "productName": "figma-linux-test",
-  "extraMetadata": "main/main.js",
+  "appId": "com.figma.FigmaLinuxNext",
+  "productName": "figma-linux-next",
+  "extraMetadata": {
+    "main": "main/main.js"
+  },
   "icon": "resources/icons",
   "extraFiles": [
     {
@@ -16,7 +18,7 @@
     "buildResources": "resources",
     "output": "build/installers"
   },
-  "executableName": "figma-linux-test",
+  "executableName": "figma-linux-next",
   "fileAssociations": [
     {
       "ext": "fig",
