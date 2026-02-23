@@ -592,6 +592,13 @@ export default class Window {
   private registerEvents() {
     this.window.on("show", this.showHandler.bind(this));
     this.window.on("resize", this.updateTabsBounds.bind(this));
+    this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
+    this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
+    this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));
+    this.window.on("focus", () => app.emit("windowFocus", this.window.id));
+    this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
+    this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
+    this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 
   private detachLastFocusedTab() {
@@ -607,13 +614,5 @@ export default class Window {
         }
       }
     }
-    this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
-    this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
-    this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));
-    this.window.on("focus", () => app.emit("windowFocus", this.window.id));
-    this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
-    this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
-
-    this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 }

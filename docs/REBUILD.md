@@ -233,10 +233,10 @@ NODE_OPTIONS="--max-old-space-size=8192" figma-linux
 
 ```bash
 # Check GPU status
-figma-linux --enable-logging 2>&1 | grep -i "gpu"
+figma-linux-next --enable-logging 2>&1 | grep -i "gpu"
 
 # Force software rendering (debugging)
-figma-linux --disable-gpu
+figma-linux-next --disable-gpu
 ```
 
 ## Known Improvements Over Original

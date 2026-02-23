@@ -71,6 +71,11 @@ export default class TabManager {
     const array = [...this.tabs.entries()];
     let nextTabId: Types.TabIdType;
 
+    if (!tab) {
+      this.tabs.delete(tabId);
+      return this.hasOpenedCommunityTab ? "communityTab" : "mainTab";
+    }
+
     for (let i = 0; i < array.length; i++) {
       const tab = array[i];
       const next = array[i + 1];
@@ -86,7 +91,7 @@ export default class TabManager {
       nextTabId = tab[0];
     }
 
-    if (tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+    if (tab.view?.webContents && !tab.view.webContents.isDestroyed()) {
       tab.view.webContents.destroy();
     }
     if (tab.title === NEW_FILE_TAB_TITLE) {

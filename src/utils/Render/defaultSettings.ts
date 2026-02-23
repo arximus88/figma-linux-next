@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     disableThemes: true,
     panelHeight: 40,
     saveLastOpenedTabs: true,
-    exportDir: `${process.env.HOME}/Pictures/Figma`,
+    exportDir: "",
     commandSwitches: [
       { switch: "enable-gpu-rasterization" },
       // { switch: "enable-unsafe-webgpu" },
@@ -27,7 +27,6 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
       "/usr/local/share/fonts",
       "/run/host/fonts",
       "/run/host/user-fonts",
-      `${process.env.HOME}/.local/share/fonts`,
     ],
     recentlyClosedTabs: [],
     windowsState: {},

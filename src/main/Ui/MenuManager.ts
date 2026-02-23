@@ -34,7 +34,7 @@ export default class MenuManager {
           type: "normal",
           label: data.title,
           click: (_, window) => {
-            app.emit("restoreClosedTab", window.id, data.title, data.url);
+            app.emit("restoreClosedTab", window?.id, data.title, data.url);
           },
         })),
       });
@@ -184,7 +184,7 @@ export default class MenuManager {
         label: "Close",
         visible: true,
         click: (_, window) => {
-          app.emit("closeTab", window.id, tabId);
+          app.emit("closeTab", window?.id, tabId);
         },
       },
     ];
@@ -222,7 +222,7 @@ export default class MenuManager {
       enabled,
       visible,
       id,
-      click: (_, window) => app.emit(id, window.id),
+      click: (_, window) => app.emit(id, window?.id),
     };
 
     if (accelerator) {
@@ -281,7 +281,7 @@ export default class MenuManager {
         menuItem.submenu = this.parseFigmaMenu(item.submenu);
       } else {
         menuItem.click = (_, window) => {
-          app.emit("handlePluginMenuAction", window.id, item.menuAction);
+          app.emit("handlePluginMenuAction", window?.id, item.menuAction);
         };
       }
 

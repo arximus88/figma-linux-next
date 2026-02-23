@@ -1,7 +1,7 @@
 import type { IpcRendererEvent } from "electron";
 import * as E from "electron";
 
-import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render";
+import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render/webBindingsHelpers";
 
 import { isPrototypeUrl, isValidFigjamLink, isValidProjectLink } from "Utils/Common";
 
