@@ -1,4 +1,7 @@
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const panelUrlDev = `http://localhost:${process.env.DEV_PANEL_PORT ?? "5173/index.html"}`;
 export const settingsUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/settings.html"}`;

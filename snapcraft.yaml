@@ -1,15 +1,15 @@
-name: figma-linux
-version: '0.12.0'
+name: figma-linux-next
+version: '0.13.0'
 summary: Unofficial Figma desktop app for Linux
 description: |
-  Figma-Linux is an unofficial desktop application for Figma, the collaborative
-  interface design tool. This version includes native Wayland support, GPU
-  acceleration, and optimizations for modern Linux desktops.
+  figma-linux-next is a fork of the unofficial desktop application for Figma,
+  the collaborative interface design tool. This version includes native Wayland
+  support, GPU acceleration, and optimizations for modern Linux desktops.
 
   Features:
   - Native Wayland support with proper window decorations
   - GPU acceleration for WebGL/WebAssembly rendering
-  - Customizable window frame styles (Windows/GNOME/macOS)
+  - Customizable window frame styles (Windows/GNOME)
   - Deep linking support (figma:// protocol)
   - Local font access for design work
   - System tray integration
@@ -26,9 +26,9 @@ architectures:
   - build-on: arm64
 
 apps:
-  figma-linux:
-    command: figma-linux
-    desktop: usr/share/applications/figma-linux.desktop
+  figma-linux-next:
+    command: figma-linux-next
+    desktop: usr/share/applications/figma-linux-next.desktop
     extensions: [gnome]
     plugs:
       - home
@@ -52,45 +52,45 @@ apps:
       LIBGL_ALWAYS_SOFTWARE: '0'
 
 parts:
-  figma-linux:
+  figma-linux-next:
     plugin: nil
     source: .
     override-build: |
-      # Install Node.js dependencies
-      npm install
+      # Install dependencies
+      bun install
 
       # Build the application
-      npm run build
+      bun run build
 
       # Create directory structure
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux-next
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/bin
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/share/applications
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/share/icons
 
       # Copy application files
-      cp -r dist $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux/
-      cp -r resources $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux/
-      cp package.json $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux/
+      cp -r dist $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux-next/
+      cp -r resources $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux-next/
+      cp package.json $SNAPCRAFT_PART_INSTALL/usr/lib/figma-linux-next/
 
       # Copy desktop file
-      cp figma-linux.desktop $SNAPCRAFT_PART_INSTALL/usr/share/applications/
+      cp figma-linux-next.desktop $SNAPCRAFT_PART_INSTALL/usr/share/applications/
 
       # Copy icons
       for size in 16 24 32 48 64 128 256 512; do
         if [ -f resources/icons/${size}x${size}.png ]; then
           mkdir -p $SNAPCRAFT_PART_INSTALL/usr/share/icons/hicolor/${size}x${size}/apps
           cp resources/icons/${size}x${size}.png \
-            $SNAPCRAFT_PART_INSTALL/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux.png
+            $SNAPCRAFT_PART_INSTALL/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-next.png
         fi
       done
 
       # Create launcher script
-      cat > $SNAPCRAFT_PART_INSTALL/usr/bin/figma-linux << 'EOF'
+      cat > $SNAPCRAFT_PART_INSTALL/usr/bin/figma-linux-next << 'EOF'
       #!/bin/bash
-      exec electron $SNAP/usr/lib/figma-linux "$@"
+      exec electron $SNAP/usr/lib/figma-linux-next "$@"
       EOF
-      chmod +x $SNAPCRAFT_PART_INSTALL/usr/bin/figma-linux
+      chmod +x $SNAPCRAFT_PART_INSTALL/usr/bin/figma-linux-next
 
     build-packages:
       - nodejs
@@ -114,7 +114,7 @@ parts:
     plugin: nil
     override-build: |
       # Use Electron from npm
-      npm install --global electron@39.1.0
+      npm install --global electron@39.6.0
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/bin
       ln -sf $(which electron) $SNAPCRAFT_PART_INSTALL/usr/bin/electron
     build-packages:

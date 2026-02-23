@@ -167,4 +167,11 @@
   .panel-tab__active span {
     color: var(--fg-tab-hover);
   }
+  .panel-tab :global(div[role="button"]) {
+    background-color: var(--tab-close-bg, transparent);
+    border-radius: var(--tab-close-radius, 0px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 </style>

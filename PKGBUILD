@@ -1,33 +1,32 @@
 # Maintainer: Figma-Linux Contributors
 # Optimized for Arch Linux and CachyOS with system-integrated Electron
 
-pkgname=figma-linux
+pkgname=figma-linux-next
 pkgver=0.13.0
 pkgrel=1
 pkgdesc="Unofficial Figma desktop app for Linux with native Wayland support and GPU acceleration"
 arch=('x86_64')
-url="https://github.com/Figma-Linux/figma-linux"
+url="https://github.com/arximus88/figma-linux-next"
 license=('MIT')
 depends=(
   'electron'
   'hicolor-icon-theme'
 )
 makedepends=(
-  'npm'
+  'bun'
   'nodejs'
   'typescript'
-  'rollup'
 )
 optdepends=(
   'libappindicator-gtk3: for system tray icon support'
   'libnotify: for desktop notifications'
 )
-provides=('figma-linux')
-conflicts=('figma-linux-bin' 'figma-linux-git')
+provides=('figma-linux-next')
+conflicts=('figma-linux' 'figma-linux-bin' 'figma-linux-git')
 source=(
-  "figma-linux-$pkgver.tar.gz::https://github.com/Figma-Linux/figma-linux/archive/refs/tags/v$pkgver.tar.gz"
-  "figma-linux.desktop"
-  "figma-linux-launcher.sh"
+  "figma-linux-next-$pkgver.tar.gz::https://github.com/arximus88/figma-linux-next/archive/refs/tags/v$pkgver.tar.gz"
+  "figma-linux-next.desktop"
+  "figma-linux-next-launcher.sh"
 )
 sha256sums=(
   'SKIP'
@@ -43,14 +42,14 @@ prepare() {
   sed -i '/"electron":/d' package.json
 
   # Install dependencies (dev dependencies only, no electron)
-  npm install --ignore-scripts
+  bun install --ignore-scripts
 }
 
 build() {
   cd "$srcdir/$pkgname-$pkgver"
 
   # Build the application
-  npm run build
+  bun run build
 
   # Clean up source maps for production
   find dist -name "*.map" -delete
@@ -69,17 +68,17 @@ package() {
   cp package.json "$pkgdir/usr/lib/$pkgname/"
 
   # Install the optimized launcher script
-  install -Dm755 "$srcdir/figma-linux-launcher.sh" "$pkgdir/usr/bin/figma-linux"
+  install -Dm755 "$srcdir/figma-linux-next-launcher.sh" "$pkgdir/usr/bin/figma-linux-next"
 
   # Install desktop entry
-  install -Dm644 "$srcdir/figma-linux.desktop" \
-    "$pkgdir/usr/share/applications/figma-linux.desktop"
+  install -Dm644 "$srcdir/figma-linux-next.desktop" \
+    "$pkgdir/usr/share/applications/figma-linux-next.desktop"
 
   # Install icons
   for size in 16 24 32 48 64 128 256 512; do
     if [ -f "resources/icons/${size}x${size}.png" ]; then
       install -Dm644 "resources/icons/${size}x${size}.png" \
-        "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux.png"
+        "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-next.png"
     fi
   done
 

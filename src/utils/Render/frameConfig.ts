@@ -70,7 +70,7 @@ const GNOME_CONFIG: FrameConfig = {
     close: { component: GnomeClose, size: "24" },
   },
   tabs: {
-    closeIcon: { component: GnomeTabClose, size: "16" },
+    closeIcon: { component: GnomeTabClose, size: "24" },
     showDividers: true,
   },
 };

@@ -7,10 +7,10 @@ fi
 
 from="$1"
 
-docker build -t figma-linux-artefacts -f "./docker/Build_artefacts_$from" .
+docker build -t figma-linux-next-artefacts -f "./docker/Build_artefacts_$from" .
 
 rm -rf ./build/installers
 mkdir -p ./build/installers
 
 # copy artefacts from image
-docker cp $(docker create figma-linux-artefacts:latest)://usr/src/figma-linux/build/installers/. ./build/installers
+docker cp $(docker create figma-linux-next-artefacts:latest)://usr/src/figma-linux-next/build/installers/. ./build/installers

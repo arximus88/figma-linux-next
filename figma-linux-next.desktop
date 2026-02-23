@@ -1,12 +1,12 @@
 [Desktop Entry]
-Name=Figma
+Name=Figma Linux Next
 GenericName=Interface Design Tool
 Comment=Collaborative interface design tool with native Linux optimizations
-Exec=figma-linux %U
+Exec=figma-linux-next %U
 Terminal=false
 Type=Application
-Icon=figma-linux
-StartupWMClass=figma-linux
+Icon=figma-linux-next
+StartupWMClass=figma-linux-next
 Categories=Graphics;Design;VectorGraphics;
 MimeType=x-scheme-handler/figma;application/x-figma;
 Keywords=design;figma;ui;ux;interface;prototype;vector;
@@ -18,8 +18,8 @@ X-GNOME-UsesNotifications=true
 
 [Desktop Action NewFile]
 Name=New Design File
-Exec=figma-linux --new-file=design
+Exec=figma-linux-next --new-file=design
 
 [Desktop Action NewFigJam]
 Name=New FigJam Board
-Exec=figma-linux --new-file=figjam
+Exec=figma-linux-next --new-file=figjam

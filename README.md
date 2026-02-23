@@ -1,12 +1,12 @@
-# <img src="resources/icons/128x128.png" width="32"> Figma Linux (unofficial)
+# <img src="resources/icons/128x128.png" width="32"> Figma Linux Next (unofficial)
 
-Figma-linux-next is a fork of an unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux.
+Figma-linux-next is a fork of the unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux.
 
 Features:
 - **Native Wayland support** — first-class support for modern Linux compositors
 - **GPU acceleration** — optimized for WebGL/WebAssembly workloads
 - **System integration** — protocol handlers, desktop actions, system fonts
-- **Window frame styles** — GNOME/Adwaita, Windows 11, macOS chrome
+- **Window frame styles** — GNOME/Adwaita, Windows 11
 - **Extension system** — hot-reloadable plugins
 
 ## Installation
@@ -14,35 +14,29 @@ Features:
 ### Arch-based distros
 
 ```bash
-yay -S figma-linux-bin
+yay -S figma-linux-next
 ```
 
 ### Debian-based distros
 
 ```bash
-sudo apt install libgconf-2-4
-sudo dpkg -i figma-linux_*_amd64.deb
+sudo dpkg -i figma-linux-next_*_amd64.deb
+sudo apt-get install -f
 ```
 
 ### AppImage
 
 ```bash
-chmod +x figma-linux-*.AppImage
-sudo ./figma-linux-*.AppImage -i
-```
-
-### Snap
-
-```bash
-sudo snap install figma-linux
+chmod +x figma-linux-next-*.AppImage
+./figma-linux-next-*.AppImage
 ```
 
 ## Building from source
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Figma-Linux/figma-linux
-cd figma-linux
+git clone https://github.com/arximus88/figma-linux-next.git
+cd figma-linux-next
 ```
 
 2. Install dependencies:
@@ -60,16 +54,16 @@ Other commands:
 - `bun run start` — run the built version
 - `bun run builder` — package for distribution
 - `bun run pack` — clean old packages and pack
-- `./scripts/build-arch.sh` — build for Arch Linux
+- `bun run pack:pacman` — build pacman package
 
 ## Tech Stack
 - **Electron 39** (Chromium 132)
 - **Bun** (Package manager & runtime)
-- **Svelte 5** (UI framework)
+- **Svelte 5** (UI framework, runes)
+- **Vite 7** (Build system)
 - **Fontkit** (Font parsing)
 
 ### Environment Variables
-
 
 ```
 NODE_ENV=dev

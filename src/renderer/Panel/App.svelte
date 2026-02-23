@@ -57,6 +57,8 @@
     padding: var(--panel-padding, 0);
     gap: var(--panel-gap, 0px);
     align-items: var(--panel-align-items, stretch);
+    border-radius: var(--panel-border-radius, 0);
+    box-shadow: var(--panel-box-shadow, none);
     -webkit-app-region: drag;
     width: 100%;
     box-sizing: border-box;

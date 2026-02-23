@@ -39,11 +39,13 @@
 <style>
   .panel-left {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: var(--left-gap, 0px);
     -webkit-app-region: no-drag;
   }
   .panel-left :global(div[role="button"]) {
     border-radius: var(--window-control-radius, 0px);
+    width: var(--left-btn-size, auto);
+    height: var(--left-btn-size, auto);
   }
 </style>
