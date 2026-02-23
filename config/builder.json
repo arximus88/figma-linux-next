@@ -1,0 +1,109 @@
+{
+  "appId": "com.figma.FigmaLinuxTest",
+  "productName": "figma-linux-test",
+  "extraMetadata": "main/main.js",
+  "icon": "resources/icons",
+  "extraFiles": [
+    {
+      "from": "lib/"
+    }
+  ],
+  "files": [
+    "**/*"
+  ],
+  "directories": {
+    "app": "dist/",
+    "buildResources": "resources",
+    "output": "build/installers"
+  },
+  "executableName": "figma-linux-test",
+  "fileAssociations": [
+    {
+      "ext": "fig",
+      "name": "Figma File",
+      "role": "Editor"
+    }
+  ],
+  "protocols": [
+    {
+      "name": "figma",
+      "role": "Viewer",
+      "schemes": [
+        "figma"
+      ]
+    }
+  ],
+  "deb": {
+    "depends": [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libdrm2",
+      "libgbm1"
+    ]
+  },
+  "rpm": {
+    "depends": [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libXtst",
+      "xdg-utils"
+    ],
+    "fpm": [
+      "--rpm-rpmbuild-define=_build_id_links none"
+    ]
+  },
+  "pacman": {
+    "depends": [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libxtst",
+      "xdg-utils"
+    ]
+  },
+  "appImage": {
+    "category": "Graphics"
+  },
+  "linux": {
+    "description": "Unofficial desktop application for linux",
+    "icon": "resources/icons",
+    "category": "Graphics",
+    "packageCategory": "Graphics",
+    "maintainer": "Figma Linux Community",
+    "artifactName": "${name}_${version}_${platform}_${arch}.${ext}",
+    "fileAssociations": [
+      {
+        "ext": "fig",
+        "name": "Figma File",
+        "role": "Editor"
+      }
+    ],
+    "target": [
+      {
+        "target": "deb",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "rpm",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "pacman",
+        "arch": ["x64"]
+      },
+      {
+        "target": "AppImage",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
+      }
+    ]
+  }
+}
