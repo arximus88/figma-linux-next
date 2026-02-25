@@ -591,12 +591,16 @@ export default class WindowManager {
   private windowMinimize(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
-    window.windowMinimize(event);
+    if (window) {
+      window.windowMinimize(event);
+    }
   }
   private windowMaximize(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
-    window.windowMaximize(event);
+    if (window) {
+      window.windowMaximize(event);
+    }
   }
   private setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const window = this.getWindowByWebContentsId(event.sender.id);
