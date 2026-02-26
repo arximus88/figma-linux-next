@@ -196,7 +196,7 @@ export default class WindowManager {
     ipcRegistry.on("frontReady", this.handleFrontReady.bind(this), "WindowManager");
     ipcRegistry.on("windowClose", this.handlerWindowClose.bind(this), "WindowManager");
     ipcRegistry.on("windowMinimize", this.windowMinimize.bind(this), "WindowManager");
-    ipcRegistry.on("windowMaximize", this.windowMaimize.bind(this), "WindowManager");
+    ipcRegistry.on("windowMaximize", this.windowMaximize.bind(this), "WindowManager");
     ipcRegistry.on("setFocusToMainTab", this.setFocusToMainTab.bind(this), "WindowManager");
     ipcRegistry.on("newProject", this.newProject.bind(this), "WindowManager");
     ipcRegistry.on("closeTab", this.closeTab.bind(this), "WindowManager");
@@ -591,12 +591,16 @@ export default class WindowManager {
   private windowMinimize(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
-    window.windowMinimize(event);
+    if (window) {
+      window.windowMinimize(event);
+    }
   }
-  private windowMaimize(event: IpcMainEvent) {
+  private windowMaximize(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
-    window.windowMaimize(event);
+    if (window) {
+      window.windowMaximize(event);
+    }
   }
   private setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const window = this.getWindowByWebContentsId(event.sender.id);

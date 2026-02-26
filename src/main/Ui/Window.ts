@@ -372,7 +372,7 @@ export default class Window {
   public windowMinimize(event: IpcMainEvent) {
     this.window.minimize();
   }
-  public windowMaimize(event: IpcMainEvent) {
+  public windowMaximize(event: IpcMainEvent) {
     if (!this.window || this.window.isDestroyed()) {
       return;
     }
