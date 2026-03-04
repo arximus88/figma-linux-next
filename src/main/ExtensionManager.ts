@@ -1,6 +1,7 @@
 import { app, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 import * as fs from "fs";
+import * as os from "os";
 import { resolve, relative, extname, join, basename, parse } from "path";
 import * as cp from "child_process";
 import * as Chokidar from "chokidar";
@@ -590,7 +591,7 @@ export default class ExtensionManager {
         ? "Choose plugin directory location"
         : "Choose plugin name and directory location",
       defaultPath: resolve(
-        storage.settings.app.lastSavedPluginDir || app.getPath("home"),
+        storage.settings.app.lastSavedPluginDir || os.homedir(),
         data.dir.name || "",
       ),
     });
