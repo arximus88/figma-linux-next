@@ -1,6 +1,8 @@
 import type { BrowserWindowConstructorOptions } from "electron";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === "dev";
 
 const bridgePreloadPath = isDev
@@ -12,6 +14,7 @@ export const WINDOW_DEFAULT_OPTIONS: BrowserWindowConstructorOptions = {
   height: 900,
   frame: false,
   resizable: true,
+  roundedCorners: true,
   webPreferences: {
     sandbox: false,
     zoomFactor: 1,

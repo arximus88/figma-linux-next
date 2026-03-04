@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# Figma-Linux Build Script v0.12.0
+# figma-linux-next Build Script v0.13.0
 # Builds all package formats for supported architectures
 
-echo "🚀 Figma-Linux Multi-Format Build Script"
-echo "=========================================="
+echo "🚀 figma-linux-next Multi-Format Build Script"
+echo "=============================================="
 echo ""
 
 # Colors for output
@@ -29,13 +29,13 @@ echo ""
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-npm install --silent
+bun install
 echo -e "${GREEN}✓${NC} Dependencies installed"
 echo ""
 
 # Build application
 echo "🔨 Building application..."
-npm run build
+bun run build
 echo -e "${GREEN}✓${NC} Build complete"
 echo ""
 
@@ -46,7 +46,7 @@ build_package() {
 
     echo "📦 Building $format for $arch..."
 
-    if npm run package -- --linux $format --$arch 2>&1 | grep -q "error"; then
+    if bun run package -- --linux $format --$arch 2>&1 | grep -q "error"; then
         echo -e "${RED}✗${NC} Failed to build $format for $arch"
         return 1
     else

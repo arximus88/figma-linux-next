@@ -5,7 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0] - 2025-12-11
+## [0.13.0] - 2026-02-23
+
+### 🔧 Modernization & Renaming
+
+Project renamed from `figma-linux` to `figma-linux-next` and comprehensively modernized.
+
+### Added
+
+- **Vite Build System** — Replaced Rollup with Vite + `vite-plugin-electron` for faster builds and HMR
+- **Svelte 5 Runes** — `$state`, `$derived`, `$effect`, `$props()` throughout most components
+- **Fontkit Integration** — Variable Font and TrueType Collection support via fontkit library
+- **Typed Bridge API** — `window.figmaApi` preload bridge with `invoke`/`send`/`on` methods
+- **Async Bootstrap** — Settings fetched asynchronously, no more `sendSync` in renderer
+- **Frame Style Config System** — `frameConfig.ts` + `frameStyles.ts` for declarative frame rendering
+- **GNOME/Adwaita Icons** — Custom SVG icon set for GNOME frame style
+
+### Changed
+
+- **Package Manager**: `npm` → `bun` for all development and build commands
+- **Build Tooling**: Rollup configs → single `vite.config.ts`
+- **Project Name**: `figma-linux` → `figma-linux-next` across package.json, builder.json
+- **Electron**: `39.1.0` → `39.6.0`
+- **Svelte**: `5.x` with runes (from Svelte 4 store patterns)
+- **TypeScript**: `5.7.3` → `5.9.3`
+- **Vite**: Added `7.3.1`
+- **svelte-check**: `4.3.3` → `4.4.0`
+
+### Fixed
+
+- **Settings view crash** — Fixed `require is not defined` in renderer by bundling as IIFE
+- **Auth flow** — Deep link handling, cookie persistence, preload timing
+- **Panel rendering** — Clone error on tab close, file navigation behavior
+- **Build conflicts** — Synchronized package names and versions across all config files
+
+### Documentation
+
+- All docs updated to reflect v0.13.0, Vite, and figma-linux-next naming
+- `CLAUDE.md` updated with Vite build system references
+- `audit.md` refreshed with current project state
+
+---
+
 
 ### 🎉 Major Rebuild - Critical Issues Addressed
 

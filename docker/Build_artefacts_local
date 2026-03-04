@@ -7,7 +7,7 @@ ENV TMPDIR="/tmp"
 ARG USER_ID
 ARG GROUP_ID
 
-WORKDIR /usr/src/figma-linux
+WORKDIR /usr/src/figma-linux-next
 
 COPY ./config ./config
 COPY ./lib ./lib
@@ -28,6 +28,6 @@ RUN addgroup --gid $GROUP_ID user && \
   chmod a+x ./resources/AppRun
 USER user
 
-RUN npm i && \
-  npm run pack && \
+RUN bun install && \
+  bun run pack && \
   echo $(node -e "const package = require('./package.json'); console.log(package.version);") > ./build/installers/version

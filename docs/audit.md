@@ -1,46 +1,55 @@
-# Engineering Audit: figma-linux-next (2026 Edition)
+# Engineering Audit: figma-linux-next (v0.13.0)
 
 ## 1. Executive Summary
-The project is a high-performance Figma client for Linux. While it utilizes modern versions of Electron (v39) and Svelte (v5), the architecture is currently "Legacy-Hybrid." It suffers from synchronous IPC calls, Svelte 4 syntax in a Svelte 5 runtime, and a fragmented main process.
+The project is a high-performance Figma client for Linux. It uses Electron v39, Svelte 5, and Vite. The architecture has been substantially modernized from the original fork: build tooling migrated from Rollup to Vite, most components use Svelte 5 runes ($state/$derived/$effect), and IPC communication goes through a typed bridge. Remaining debt is concentrated in a few legacy store modules and frame style polish.
 
-## 2. Technical Debt & Critical Issues
+## 2. Current State
 
-### A. Electron & IPC (High Risk)
-- **Direct `ipcRenderer` Access:** Components import `electron` directly. This violates `contextIsolation` and security best practices.
-- **Synchronous Calls:** `ipcRenderer.sendSync('getSettings')` is used in the UI thread. This causes micro-stutters during startup and re-renders.
-- **Fragmentation:** No centralized IPC registry. Event handlers are bound manually in `App.ts`.
+### ✅ Completed
+- **Vite Migration** — Build system moved from Rollup to Vite (`vite.config.ts`)
+- **Svelte 5 Runes** — Most components use `$props()`, `$state`, `$derived`, `$effect`
+- **Typed Bridge** — Renderer communicates via `window.figmaApi` (preload bridge)
+- **Async Bootstrap** — `invoke("getSettings")` replaces `sendSync("getSettings")` in UI
+- **Fontkit** — Font handling migrated to fontkit library with Variable Font support
+- **Frame Styles** — Config-driven architecture (`frameConfig.ts` + `frameStyles.ts`)
 
-### B. Svelte 5 Implementation (Medium Risk)
-- **Runes Missing:** ZERO use of `$state`, `$derived`, or `$effect`. The app relies on Svelte 4 stores and legacy reactivity, which is less efficient in Svelte 5.
-- **Build Tooling:** Rollup is significantly slower than Vite for modern Svelte development. The current plugin chain is brittle.
+### ⚠️ Remaining Debt
 
-### C. Native Linux Integration
-- **Hardcoded Themes:** Manual pallet calculation (`getColorPallet`) instead of subscribing to system-wide dark mode/accent changes via DBus or xdg-portal.
-- **CSD vs SSD:** The "Gnome" style is a custom CSS implementation rather than true GTK-headerbar integration.
+#### A. Svelte 4 Store Remnants (Low Risk)
+- `src/renderer/Common/Store/TabView/index.ts` — uses `writable` from `svelte/store`
+- `src/renderer/Common/Store/Settings/index.ts` — same pattern
+- A few icon components still use `export let` instead of `$props()`
+
+#### B. Frame Style Polish (Medium Risk)
+- Gnome and Windows frame styles share some CSS variables with incomplete isolation
+- macOS and KDE configs are placeholders (`{...WINDOWS_CONFIG}`)
+- Header button padding inconsistencies in Gnome mode
+
+#### C. Build Infrastructure Naming (Medium Risk)
+- Docker files, PKGBUILD, snapcraft, .desktop still reference old `figma-linux` name
+- Some scripts still use `npm` instead of `bun`
 
 ---
 
-## 3. Targeted Refactoring Strategy (Agent Tasks)
+## 3. Targeted Refactoring Strategy
 
-### Phase 1: Controller-Based IPC (LobeChat Pattern)
-- [ ] **Task 1.1:** Implement `ControllerModule` and `IpcRegistry` in `src/main/controllers/`.
-- [ ] **Task 1.2:** Migrate all logic from `App.ts` and `WindowManager.ts` into specialized Controllers (e.g., `SettingsController`, `WindowController`).
-- [ ] **Task 1.3:** Create a robust Preload Script (`src/main/preload/bridge.ts`) that exposes a typed `window.figmaApi`.
+### Phase 1: Global Cleaning (Current)
+- [x] Migrate Rollup → Vite
+- [x] Adopt Svelte 5 runes in main components
+- [ ] Convert remaining Svelte 4 stores to rune-based patterns
+- [ ] Rename distribution artifacts to `figma-linux-next`
+- [ ] Polish Gnome frame style header UI
 
-### Phase 2: Svelte 5 "Rune-ification"
-- [ ] **Task 2.1:** Convert `src/renderer/Common/Store/` from Svelte Stores to Rune-based universal states (`.svelte.ts`).
-- [ ] **Task 2.2:** Refactor `App.svelte` and major components to use `$state` and `$effect`.
-- [ ] **Task 2.3:** (Optional but Recommended) Migrate from Rollup to **Vite** for the renderer build.
-
-### Phase 3: Performance & System Integration
-- [ ] **Task 3.1:** Eliminate all `sendSync` calls. Implement an asynchronous "bootstrap" data load.
-- [ ] **Task 3.2:** Implement native Linux accent color detection using `libadwaita` patterns (even in CSS).
-- [ ] **Task 3.3:** Optimize Figma Canvas rendering by fine-tuning the `ozone-platform-hint` and GPU memory buffers dynamically.
+### Phase 2: Deeper Modernization (Future)
+- [ ] Implement `ControllerModule` pattern for IPC
+- [ ] Native Linux accent color detection
+- [ ] Flatpak/Snap distribution pipeline
+- [ ] Offline mode with service worker caching
 
 ---
 
 ## 4. Verification Benchmarks
-1.  **Boot Time:** Cold start to Figma Canvas < 2s.
-2.  **Security:** `contextIsolation: true` and `nodeIntegration: false` must be enabled without breaking features.
-3.  **Reactivity:** Zero `.subscribe()` calls in Svelte components.
-4.  **IPC:** 100% of communication must go through the typed `bridge.ts`.
+1. **Boot Time:** Cold start to Figma Canvas < 2s.
+2. **Security:** `contextIsolation: true` and `nodeIntegration: false` enabled.
+3. **Reactivity:** Zero `.subscribe()` calls in Svelte components (stores only).
+4. **IPC:** All communication through typed `bridge.ts`.

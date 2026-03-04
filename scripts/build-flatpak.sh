@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# Figma-Linux Flatpak Build Script
+# figma-linux-next Flatpak Build Script
 
-echo "📦 Building Figma-Linux Flatpak package"
-echo "========================================"
+echo "📦 Building figma-linux-next Flatpak package"
+echo "============================================="
 echo ""
 
 # Check if flatpak-builder is installed
@@ -21,14 +21,14 @@ fi
 MANIFEST="com.figma.FigmaLinux.yml"
 BUILD_DIR="flatpak-build"
 REPO_DIR="flatpak-repo"
-BUNDLE="figma-linux.flatpak"
+BUNDLE="figma-linux-next.flatpak"
 
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
 rm -rf $BUILD_DIR $REPO_DIR $BUNDLE
 
 # Generate sources for offline build
-echo "📦 Generating npm sources for offline build..."
+echo "📦 Generating sources for offline build..."
 if command -v flatpak-node-generator &> /dev/null; then
     flatpak-node-generator npm package-lock.json -o generated-sources.json
 else
@@ -42,11 +42,11 @@ flatpak-builder --force-clean --repo=$REPO_DIR $BUILD_DIR $MANIFEST
 
 # Create bundle for distribution
 echo "📦 Creating bundle..."
-flatpak build-bundle $REPO_DIR $BUNDLE com.figma.FigmaLinux
+flatpak build-bundle $REPO_DIR $BUNDLE com.figma.FigmaLinuxNext
 
 # Test the build
 echo "🧪 Testing build..."
-flatpak-builder --run $BUILD_DIR $MANIFEST figma-linux --version || true
+flatpak-builder --run $BUILD_DIR $MANIFEST figma-linux-next --version || true
 
 echo ""
 echo "✅ Flatpak built successfully!"
@@ -57,7 +57,7 @@ echo "To install locally:"
 echo "  flatpak install $BUNDLE"
 echo ""
 echo "To run:"
-echo "  flatpak run com.figma.FigmaLinux"
+echo "  flatpak run com.figma.FigmaLinuxNext"
 echo ""
 echo "To submit to Flathub:"
 echo "  1. Fork https://github.com/flathub/flathub"

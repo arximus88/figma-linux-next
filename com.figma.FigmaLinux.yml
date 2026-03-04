@@ -1,10 +1,10 @@
-app-id: com.figma.FigmaLinux
+app-id: com.figma.FigmaLinuxNext
 runtime: org.freedesktop.Platform
 runtime-version: '23.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '23.08'
-command: figma-linux
+command: figma-linux-next
 separate-locales: false
 
 finish-args:
@@ -33,7 +33,7 @@ finish-args:
   - --talk-name=org.freedesktop.FileManager1
 
 modules:
-  - name: figma-linux
+  - name: figma-linux-next
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/node18/bin
@@ -48,14 +48,14 @@ modules:
 
       # Install to /app
       - |
-        mkdir -p /app/figma-linux
-        cp -r dist /app/figma-linux/
-        cp -r resources /app/figma-linux/
-        cp package.json /app/figma-linux/
+        mkdir -p /app/figma-linux-next
+        cp -r dist /app/figma-linux-next/
+        cp -r resources /app/figma-linux-next/
+        cp package.json /app/figma-linux-next/
 
       # Create wrapper script
       - |
-        cat > figma-linux.sh << 'EOF'
+        cat > figma-linux-next.sh << 'EOF'
         #!/bin/bash
         export TMPDIR="$XDG_RUNTIME_DIR/app/$FLATPAK_ID"
         export ELECTRON_IS_DEV=0
@@ -65,58 +65,65 @@ modules:
         export LIBGL_ALWAYS_SOFTWARE=0
 
         exec zypak-wrapper /app/lib/node_modules/electron/dist/electron \
-          /app/figma-linux \
+          /app/figma-linux-next \
           --enable-features=UseOzonePlatform,WaylandWindowDecorations \
           --ozone-platform-hint=auto \
           "$@"
         EOF
-        chmod +x figma-linux.sh
-        install -Dm755 figma-linux.sh /app/bin/figma-linux
+        chmod +x figma-linux-next.sh
+        install -Dm755 figma-linux-next.sh /app/bin/figma-linux-next
 
       # Install desktop file and icons
-      - install -Dm644 figma-linux.desktop /app/share/applications/com.figma.FigmaLinux.desktop
+      - install -Dm644 figma-linux-next.desktop /app/share/applications/com.figma.FigmaLinuxNext.desktop
       - |
         for size in 16 24 32 48 64 128 256 512; do
           if [ -f resources/icons/${size}x${size}.png ]; then
             install -Dm644 resources/icons/${size}x${size}.png \
-              /app/share/icons/hicolor/${size}x${size}/apps/com.figma.FigmaLinux.png
+              /app/share/icons/hicolor/${size}x${size}/apps/com.figma.FigmaLinuxNext.png
           fi
         done
 
       # AppStream metadata
       - |
         mkdir -p /app/share/metainfo
-        cat > /app/share/metainfo/com.figma.FigmaLinux.appdata.xml << 'APPDATA'
+        cat > /app/share/metainfo/com.figma.FigmaLinuxNext.appdata.xml << 'APPDATA'
         <?xml version="1.0" encoding="UTF-8"?>
         <component type="desktop-application">
-          <id>com.figma.FigmaLinux</id>
+          <id>com.figma.FigmaLinuxNext</id>
           <metadata_license>MIT</metadata_license>
           <project_license>MIT</project_license>
-          <name>Figma Linux</name>
+          <name>Figma Linux Next</name>
           <summary>Unofficial Figma desktop app for Linux</summary>
           <description>
             <p>
-              Figma-Linux is an unofficial desktop application for Figma, providing a native
+              figma-linux-next is a fork of the unofficial desktop application for Figma, providing a native
               Linux experience with Wayland support, GPU acceleration, and system integration.
             </p>
             <p>Features:</p>
             <ul>
               <li>Native Wayland support with proper window decorations</li>
               <li>GPU acceleration for smooth rendering</li>
-              <li>Customizable window frame styles (Windows/GNOME/macOS)</li>
+              <li>Customizable window frame styles (Windows/GNOME)</li>
               <li>Local font access for design work</li>
               <li>Deep linking support (figma:// URLs)</li>
             </ul>
           </description>
-          <launchable type="desktop-id">com.figma.FigmaLinux.desktop</launchable>
-          <url type="homepage">https://github.com/Figma-Linux/figma-linux</url>
-          <url type="bugtracker">https://github.com/Figma-Linux/figma-linux/issues</url>
-          <screenshots>
-            <screenshot type="default">
-              <image>https://raw.githubusercontent.com/Figma-Linux/figma-linux/master/images/screenshot1.jpg</image>
-            </screenshot>
-          </screenshots>
+          <launchable type="desktop-id">com.figma.FigmaLinuxNext.desktop</launchable>
+          <url type="homepage">https://github.com/arximus88/figma-linux-next</url>
+          <url type="bugtracker">https://github.com/arximus88/figma-linux-next/issues</url>
           <releases>
+            <release version="0.13.0" date="2026-02-23">
+              <description>
+                <p>Modernization and renaming release:</p>
+                <ul>
+                  <li>Migrated to Vite build system</li>
+                  <li>Svelte 5 runes adoption</li>
+                  <li>Electron 39.6.0</li>
+                  <li>Fontkit for Variable Font support</li>
+                  <li>Renamed to figma-linux-next</li>
+                </ul>
+              </description>
+            </release>
             <release version="0.12.0" date="2025-12-11">
               <description>
                 <p>Major rebuild with critical improvements:</p>

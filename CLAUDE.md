@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding assistants when working with code in this repository.
 
 ## Project Overview
 
-Figma Linux is an unofficial Electron-based desktop application for Figma on Linux. It provides native Wayland support, GPU acceleration, system integration, themes, extensions, and advanced window management.
+figma-linux-next is a fork of the unofficial Electron-based Figma desktop app for Linux. It provides native Wayland support, GPU acceleration, system integration, themes, extensions, and advanced window management.
 
 ## Development Commands
 
@@ -29,13 +29,12 @@ bun run run:watch
 
 ### Build System
 
-The project uses **Rollup** with separate configurations:
-- `config/rollup.main.config.js` - Main process (Node.js backend)
-- `config/rollup.renderer.config.js` - Renderer process (Panel + Settings UI)
+The project uses **Vite** with `vite-plugin-electron`:
+- `vite.config.ts` - Unified build config for main + renderer processes
 
 Build outputs to `dist/`:
 - `dist/main/main.js` - Main process entry point
-- `dist/renderer/` - UI bundles
+- `dist/renderer/` - UI bundles (Panel + Settings)
 
 ### Packaging
 
@@ -46,14 +45,14 @@ bun run package
 # Build and create installers (includes AppImageTool dependency)
 bun run pack
 
-# Install locally to /opt/figma-linux for testing
+# Install locally to /opt/figma-linux-next for testing
 bun run local:install
 
 # Build with electron-builder
 bun run builder
 ```
 
-Build targets configured in `config/builder.json`:
+Build targets configured in [`config/builder.json`](config/builder.json):
 - deb (x64, arm64)
 - rpm (x64, arm64)
 - pacman (x64)
@@ -319,6 +318,7 @@ Three frame styles configurable in settings (`app.frameStyle`):
 
 | File | Purpose |
 |------|---------|
+| `vite.config.ts` | Vite build config (main + renderer) |
 | `src/main/index.ts` | App entry point, dependency injection |
 | `src/main/App.ts` | Main event orchestration, IPC handlers |
 | `src/main/Storage.ts` | Settings persistence & IPC bridge |
@@ -327,14 +327,13 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/main/Ui/ThemeManager/index.ts` | Theme loading & management |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
-| `src/renderer/Panel/ipc.ts` | Panel IPC handlers |
+| `src/renderer/Panel/ipc.svelte` | Panel IPC handlers |
 | `src/renderer/DesktopAPI/webBinding.ts` | Figma web app bridge |
 | `src/renderer/DesktopAPI/ThemesApplier.ts` | Theme injection |
 | `src/utils/Render/defaultSettings.ts` | Default settings definition |
-| `config/rollup.main.config.js` | Main process build config |
-| `config/rollup.renderer.config.js` | Renderer build config (Panel + Settings) |
+| `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
+| `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
 | `config/builder.json` | electron-builder package config |
-| `config/.eslintrc.js` | ESLint configuration |
 
 ## Common Development Tasks
 
@@ -372,8 +371,8 @@ When modifying the codebase:
 bun run pack
 bun run local:install
 
-# Run from /opt/figma-linux
-/opt/figma-linux/figma-linux
+# Run from /opt/figma-linux-next
+/opt/figma-linux-next/figma-linux-next
 ```
 
 ## Environment Variables

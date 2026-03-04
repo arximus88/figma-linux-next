@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-# Figma-Linux Snap Build Script
+# figma-linux-next Snap Build Script
 
-echo "📦 Building Figma-Linux Snap package"
+echo "📦 Building figma-linux-next Snap package"
 echo "====================================="
 echo ""
 

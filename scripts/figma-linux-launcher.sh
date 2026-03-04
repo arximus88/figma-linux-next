@@ -1,5 +1,5 @@
 #!/bin/bash
-# Figma-Linux Optimized Launcher
+# figma-linux-next Optimized Launcher
 # Smart launcher for CachyOS/Arch with Wayland and GPU optimizations
 
 # Detect Wayland session
@@ -47,20 +47,20 @@ else
 fi
 
 # Determine app path
-if [ -f "/usr/lib/figma-linux/dist/main/main.js" ]; then
-    APP_PATH="/usr/lib/figma-linux"
-elif [ -f "/opt/figma-linux/resources/app/dist/main/main.js" ]; then
-    APP_PATH="/opt/figma-linux/resources/app"
+if [ -f "/usr/lib/figma-linux-next/dist/main/main.js" ]; then
+    APP_PATH="/usr/lib/figma-linux-next"
+elif [ -f "/opt/figma-linux-next/resources/app/dist/main/main.js" ]; then
+    APP_PATH="/opt/figma-linux-next/resources/app"
 elif [ -f "./dist/main/main.js" ]; then
     # Development mode
     APP_PATH="."
 else
-    echo "Error: Figma-Linux app not found!"
+    echo "Error: figma-linux-next app not found!"
     exit 1
 fi
 
 # Launch with optimized flags
-echo "Launching Figma-Linux with optimizations..."
+echo "Launching figma-linux-next with optimizations..."
 echo "Electron: $ELECTRON_BIN"
 echo "App path: $APP_PATH"
 
