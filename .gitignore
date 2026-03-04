@@ -14,3 +14,21 @@ snap/prime
 snap/snap
 snap/stage
 bun.lock
+bun.lockb
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Electron
+*.asar
+
+# Coverage & testing
+coverage

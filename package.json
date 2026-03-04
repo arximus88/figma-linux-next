@@ -9,10 +9,10 @@
   "license": "MIT",
   "scripts": {
     "start": "bun run build && bun run run",
-    "dev": "NODE_ENV=dev vite",
-    "run": "env -u ELECTRON_RUN_AS_NODE electron dist/main/main.js",
-    "run:watch": "env -u ELECTRON_RUN_AS_NODE nodemon --watch dist/main --ext js,json --exec electron dist/main/main.js",
-    "build": "bun run cln && vite build && cp src/package.json dist/ && cd dist && bun install --production --no-save",
+    "dev": "cross-env NODE_ENV=dev vite",
+    "run": "electron dist/main/main.js",
+    "run:watch": "nodemon --watch dist/main --ext js,json --exec \"electron dist/main/main.js\"",
+    "build": "bun run cln && vite build && node -e \"require('fs').cpSync('src/package.json','dist/package.json')\" && cd dist && bun install --production --no-save",
     "builder": "electron-builder --config=config/builder.json -l",
     "pack": "rm -rf build/installers && bun run build && chmod a+x ./resources/AppRun && bun run builder",
     "pack:pacman": "bun run build && electron-builder --config=config/builder.json -l pacman",
@@ -23,7 +23,7 @@
     "lint": "eslint -c ./config/.eslintrc.js src/**/*.ts",
     "prettier": "prettier \"src/**/*.ts\" --write",
     "precommit": "lint-staged",
-    "cln": "rm -rf ./dist"
+    "cln": "node -e \"require('fs').rmSync('./dist',{recursive:true,force:true})\""
   },
   "lint-staged": {
     "*.{ts, tsx, js, jsx}": [
@@ -53,6 +53,7 @@
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
+    "cross-env": "^10.1.0",
     "dotenv": "^16.6.1",
     "electron": "^39.6.0",
     "electron-builder": "^26.7.0",
