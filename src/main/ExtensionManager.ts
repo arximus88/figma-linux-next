@@ -589,10 +589,10 @@ export default class ExtensionManager {
       title: data.dir.name
         ? "Choose plugin directory location"
         : "Choose plugin name and directory location",
-      // TODO: if lastSavedPluginDir is undefined, use home dir
-      defaultPath: storage.settings.app.lastSavedPluginDir
-        ? resolve(storage.settings.app.lastSavedPluginDir, data.dir.name)
-        : data.dir.name,
+      defaultPath: resolve(
+        storage.settings.app.lastSavedPluginDir || app.getPath("home"),
+        data.dir.name || "",
+      ),
     });
 
     if (!path) {
