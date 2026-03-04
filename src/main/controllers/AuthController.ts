@@ -25,10 +25,10 @@ export default class AuthController {
     ipcRegistry.on("setUser", this.setUser.bind(this), "AuthController");
   }
 
-  private setAuthedUsers(_: IpcMainEvent, userIds: string[]) {
+  private async setAuthedUsers(_: IpcMainEvent, userIds: string[]) {
     if (!Array.isArray(storage.settings.authedUserIDs)) {
       storage.settings.authedUserIDs = userIds;
-      storage.save();
+      await storage.save();
     }
 
     storage.settings.authedUserIDs = [...new Set([...storage.settings.authedUserIDs, ...userIds])];

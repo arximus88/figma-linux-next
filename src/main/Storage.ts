@@ -13,6 +13,8 @@ import { logger } from "./Logger";
 export class Storage {
   private filePath: string;
   public settings: Types.SettingsInterface;
+  private writePromise: Promise<void> | null = null;
+  private nextWriteData: Types.SettingsInterface | null = null;
 
   constructor() {}
 
@@ -78,8 +80,29 @@ export class Storage {
     fs.writeFileSync(this.filePath, JSON.stringify(settings, null, 2));
   };
 
-  public save() {
-    this.writeSync(this.settings);
+  private writeAsync = async (settings: Types.SettingsInterface): Promise<void> => {
+    await fs.promises.writeFile(this.filePath, JSON.stringify(settings, null, 2));
+  };
+
+  public save(): Promise<void> {
+    this.nextWriteData = this.settings;
+    if (this.writePromise) {
+      return this.writePromise;
+    }
+
+    this.writePromise = (async () => {
+      while (this.nextWriteData !== null) {
+        const dataToWrite = this.nextWriteData;
+        this.nextWriteData = null;
+        try {
+          await this.writeAsync(dataToWrite);
+        } catch (e) {
+          logger.error("Error saving settings.json:", e);
+        }
+      }
+      this.writePromise = null;
+    })();
+    return this.writePromise;
   }
 
   public setFeatureFlags(_: IpcMainEvent, data: { featureFlags: Types.FeatureFlags }) {

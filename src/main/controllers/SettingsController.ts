@@ -41,7 +41,7 @@ export default class SettingsController {
     );
   }
 
-  private closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
+  private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
     if (storage.settings.app.enableColorSpaceSrgb !== settings.app.enableColorSpaceSrgb) {
       app.emit("enableColorSpaceSrgbWasChanged", true);
     }
@@ -56,7 +56,7 @@ export default class SettingsController {
     }
 
     storage.settings = settings;
-    storage.save();
+    await storage.save();
 
     this.windowManager.closeSettingsViewForLastWindow();
   }
