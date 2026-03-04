@@ -1,4 +1,4 @@
-const hexReg = /^#[a-fA-F0-9]{3,6}$/;
+const hexReg = /^#([a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/;
 const rgbReg = /(\d{1,3}),\s?(\d{1,3}),\s?(\d{1,3})/;
 
 export const isHex = (color: string) => hexReg.test(color);
