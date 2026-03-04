@@ -18,60 +18,61 @@ export default class FontManager {
   };
 
   private async loadFonts(dirs: Array<string>) {
-    let files: string[] = [];
-
     // Find all font files (.ttf, .otf, .ttc, etc.)
-    await Promise.all(
-      dirs.map((dir) =>
-        this.find(dir, "*.{ttf,otf,ttc,otc}").then((a) => (files = [...files, ...a])),
-      ),
+    const filesArrays = await Promise.all(
+      dirs.map((dir) => this.find(dir, "*.{ttf,otf,ttc,otc}")),
     );
 
-    for (const path of files) {
-      try {
-        // fontkit.openSync returns a Font object or a FontCollection
-        const fontOrCollection = fontkit.openSync(path);
-        let fonts: any[] = []; // Using any to avoid complex fontkit type issues for now
+    // Flatten and deduplicate the list of files
+    const uniqueFiles = Array.from(new Set(filesArrays.flat()));
 
-        if ("fonts" in fontOrCollection) {
-          // It's a collection (TTC/OTC)
-          fonts = fontOrCollection.fonts;
-        } else {
-          // It's a single font
-          fonts = [fontOrCollection];
-        }
+    await Promise.all(
+      uniqueFiles.map(async (path) => {
+        try {
+          // fontkit.open returns a Promise that resolves to a Font object or a FontCollection
+          const fontOrCollection = await fontkit.open(path);
+          let fonts: any[] = []; // Using any to avoid complex fontkit type issues for now
 
-        const figmaFonts: Fonts.IFontsFigmaItem[] = [];
+          if ("fonts" in fontOrCollection) {
+            // It's a collection (TTC/OTC)
+            fonts = fontOrCollection.fonts;
+          } else {
+            // It's a single font
+            fonts = [fontOrCollection];
+          }
 
-        for (const font of fonts) {
-          const variations = font.variationAxes && Object.keys(font.variationAxes).length > 0;
+          const figmaFonts: Fonts.IFontsFigmaItem[] = [];
 
-          if (variations && "namedVariations" in font) {
-            // It's a variable font with named instances
-            const namedVariations = font.namedVariations;
+          for (const font of fonts) {
+            const variations = font.variationAxes && Object.keys(font.variationAxes).length > 0;
 
-            for (const variationName in namedVariations) {
-              const instance = font.getVariation(namedVariations[variationName]);
-              figmaFonts.push(this.mapToFigma(instance, path));
-            }
-            // Also add the default instance if needed, or if no named variations found?
-            // Typically namedVariations covers standard styles (Bold, Italic, etc.)
-            if (Object.keys(namedVariations).length === 0) {
+            if (variations && "namedVariations" in font) {
+              // It's a variable font with named instances
+              const namedVariations = font.namedVariations;
+
+              for (const variationName in namedVariations) {
+                const instance = font.getVariation(namedVariations[variationName]);
+                figmaFonts.push(this.mapToFigma(instance, path));
+              }
+              // Also add the default instance if needed, or if no named variations found?
+              // Typically namedVariations covers standard styles (Bold, Italic, etc.)
+              if (Object.keys(namedVariations).length === 0) {
+                figmaFonts.push(this.mapToFigma(font, path));
+              }
+            } else {
+              // Standard static font
               figmaFonts.push(this.mapToFigma(font, path));
             }
-          } else {
-            // Standard static font
-            figmaFonts.push(this.mapToFigma(font, path));
           }
-        }
 
-        if (figmaFonts.length > 0) {
-          this.fontList[path] = figmaFonts;
+          if (figmaFonts.length > 0) {
+            this.fontList[path] = figmaFonts;
+          }
+        } catch (error) {
+          logger.warn(`skip font: ${path}, error: `, error.message);
         }
-      } catch (error) {
-        logger.warn(`skip font: ${path}, error: `, error.message);
-      }
-    }
+      }),
+    );
   }
 
   private mapToFigma(font: any, path: string): Fonts.IFontsFigmaItem {
