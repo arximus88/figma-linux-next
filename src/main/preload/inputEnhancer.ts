@@ -26,7 +26,7 @@ function handleTrackpadGesture(event: WheelEvent): void {
     const zoomDelta = -event.deltaY * 0.01;
 
     // Dispatch custom zoom event that Figma's canvas can handle
-    const canvasZoomEvent = new WheelEvent('wheel', {
+    const canvasZoomEvent = new WheelEvent("wheel", {
       deltaY: event.deltaY,
       deltaMode: event.deltaMode,
       clientX: event.clientX,
@@ -37,7 +37,7 @@ function handleTrackpadGesture(event: WheelEvent): void {
     });
 
     // Find canvas element and dispatch directly
-    const canvas = document.querySelector('canvas');
+    const canvas = document.querySelector("canvas");
     if (canvas) {
       canvas.dispatchEvent(canvasZoomEvent);
     }
@@ -59,7 +59,7 @@ function handleTrackpadGesture(event: WheelEvent): void {
  */
 function handleMouseWheel(event: WheelEvent): void {
   // Improve precision for Wayland scroll events
-  if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+  if (window.matchMedia && window.matchMedia("(pointer: fine)").matches) {
     // High-precision mouse detected
     // Adjust delta for better feel
     const enhancedEvent = new WheelEvent(event.type, {
@@ -86,11 +86,11 @@ function handleMouseWheel(event: WheelEvent): void {
  */
 function enhancePointerEvents(): void {
   // Request pointer lock for better precision during drag operations
-  document.addEventListener('pointerdown', (event: PointerEvent) => {
-    if (event.pointerType === 'mouse' && event.pressure > 0) {
+  document.addEventListener("pointerdown", (event: PointerEvent) => {
+    if (event.pointerType === "mouse" && event.pressure > 0) {
       // Optimize for mouse input
       // Enable predicted points for lower latency
-      if ('getCoalescedEvents' in event) {
+      if ("getCoalescedEvents" in event) {
         const coalescedEvents = (event as any).getCoalescedEvents();
         if (coalescedEvents.length > 0) {
           // Use most recent coalesced event for lowest latency
@@ -105,55 +105,55 @@ function enhancePointerEvents(): void {
  * Initialize input enhancements
  */
 function initInputEnhancements(): void {
-  console.log('[Figma-Linux] Initializing input enhancements for Wayland/Linux');
+  console.log("[Figma-Linux] Initializing input enhancements for Wayland/Linux");
 
   // Intercept wheel events at capture phase for highest priority
-  document.addEventListener('wheel', handleTrackpadGesture, {
+  document.addEventListener("wheel", handleTrackpadGesture, {
     capture: true,
-    passive: false
+    passive: false,
   });
 
   // Enhance pointer events
   enhancePointerEvents();
 
   // Detect Wayland session and apply specific optimizations
-  const isWayland = navigator.userAgent.includes('Wayland') ||
-                    (window as any).DESKTOP_SESSION_TYPE === 'wayland';
+  const isWayland =
+    navigator.userAgent.includes("Wayland") || (window as any).DESKTOP_SESSION_TYPE === "wayland";
 
   if (isWayland) {
-    console.log('[Figma-Linux] Wayland session detected - applying Wayland optimizations');
+    console.log("[Figma-Linux] Wayland session detected - applying Wayland optimizations");
 
     // Set CSS for better rendering on Wayland
-    document.documentElement.style.setProperty('will-change', 'transform');
-    document.documentElement.style.setProperty('transform', 'translateZ(0)');
+    document.documentElement.style.setProperty("will-change", "transform");
+    document.documentElement.style.setProperty("transform", "translateZ(0)");
   }
 
   // Optimize canvas rendering
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
-        if (node.nodeName === 'CANVAS') {
+        if (node.nodeName === "CANVAS") {
           const canvas = node as HTMLCanvasElement;
 
           // Enable desynchronized for lower latency
-          const context = canvas.getContext('2d', {
+          const context = canvas.getContext("2d", {
             desynchronized: true,
             alpha: false,
           });
 
           // WebGL optimization
-          const gl = canvas.getContext('webgl2', {
+          const gl = canvas.getContext("webgl2", {
             desynchronized: true,
             antialias: true,
             depth: true,
             stencil: true,
             preserveDrawingBuffer: false,
-            powerPreference: 'high-performance',
+            powerPreference: "high-performance",
             failIfMajorPerformanceCaveat: false,
           });
 
           if (gl) {
-            console.log('[Figma-Linux] WebGL2 context initialized with high-performance settings');
+            console.log("[Figma-Linux] WebGL2 context initialized with high-performance settings");
           }
         }
       });
@@ -168,8 +168,8 @@ function initInputEnhancements(): void {
 }
 
 // Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initInputEnhancements);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initInputEnhancements);
 } else {
   initInputEnhancements();
 }

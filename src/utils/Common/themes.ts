@@ -53,7 +53,10 @@ export const variablesColorsMap: Themes.ColorsMap = {
   "rgb(27, 196, 125)": "var(--bg-beta-label)",
 };
 
-export const getColorsMap = (palette: Themes.Palette, currentPalette?: Themes.ColorsMap): Themes.ColorsMap => {
+export const getColorsMap = (
+  palette: Themes.Palette,
+  currentPalette?: Themes.ColorsMap,
+): Themes.ColorsMap => {
   const defaultColorsMap: Themes.ColorsMap = {
     "rgb(255, 255, 255)": palette["bg-panel"],
     "rgb(252, 252, 252)": palette["bg-panel"],
