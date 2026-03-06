@@ -26,5 +26,5 @@ export const bridgePreloadPathDev = `${resolve(__dirname, "../renderer", "bridge
 export const bridgePreloadPathProd = `${resolve(__dirname, "../renderer", "bridge.js")}`;
 
 export const isFigmaValidUrl = (url: string): boolean => {
-  return /^(figma:\/\/|https?:\/\/w{0,3}?\.?figma\.com)/.test(url);
+  return /^(figma:\/\/|https?:\/\/(w{0,3}\.)?figma\.com)/.test(url);
 };
