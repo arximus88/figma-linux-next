@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFile } from "fs/promises";
 import { statSync } from "fs";
 import { logger } from "Main/Logger";
@@ -19,9 +19,7 @@ export default class FontManager {
 
   private async loadFonts(dirs: Array<string>) {
     // Find all font files (.ttf, .otf, .ttc, etc.)
-    const filesArrays = await Promise.all(
-      dirs.map((dir) => this.find(dir, "*.{ttf,otf,ttc,otc}")),
-    );
+    const filesArrays = await Promise.all(dirs.map((dir) => this.find(dir, "*.{ttf,otf,ttc,otc}")));
 
     // Flatten and deduplicate the list of files
     const uniqueFiles = Array.from(new Set(filesArrays.flat()));
@@ -97,7 +95,7 @@ export default class FontManager {
     };
   }
 
-  private find = async (path: string, wilecard: string) => {
+  private find = async (path: string, wildcard: string) => {
     return new Promise<string[]>((resolve) => {
       try {
         statSync(path);
@@ -106,14 +104,45 @@ export default class FontManager {
         return;
       }
 
-      const find = spawnSync("find", [path, "-type", "f", "-name", wilecard]);
+      const args = [path, "-type", "f"];
 
-      resolve(
-        find.stdout
-          .toString()
-          .split("\n")
-          .filter((s) => !!s),
-      );
+      const match = wildcard.match(/\*\.\{([^}]+)\}/);
+      if (match) {
+        const extensions = match[1].split(",");
+        args.push("(");
+        extensions.forEach((ext, index) => {
+          if (index > 0) args.push("-o");
+          args.push("-name", `*.${ext}`);
+        });
+        args.push(")");
+      } else {
+        args.push("-name", wildcard);
+      }
+
+      const find = spawn("find", args);
+      let stdout = "";
+      let stderr = "";
+
+      find.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      find.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      find.on("error", (error) => {
+        logger.warn(`find process error: `, error.message);
+        resolve([]);
+      });
+
+      find.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          logger.warn(`find process exited with code ${code}: ${stderr}`);
+          // Note: we still resolve stdout because find often exits with code 1 due to permission denied on subdirs
+        }
+        resolve(stdout.split("\n").filter((s) => !!s));
+      });
     });
   };
 }
