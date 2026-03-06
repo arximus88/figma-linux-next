@@ -4,7 +4,7 @@ const file = 'src/main/Fonts/index.ts';
 let code = fs.readFileSync(file, 'utf8');
 
 code = code.replace(
-  /private find = async \(path: string, wildcard: string\) => \{[\s\S]*?\}\n  \};\n\}/,
+  /private find = async \(path: string, wilecard: string\) => \{\s*return new Promise<string\[\]>\(\(resolve\) => \{\s*try \{\s*statSync\(path\);\s*\} catch \(error\) \{\s*resolve\(\[\]\);\s*return;\s*\}\s*const find = spawnSync\("find", \[path, "-type", "f", "-name", wilecard\]\);\s*resolve\(\s*find\.stdout\s*\.toString\(\)\s*\.split\("\\n"\)\s*\.filter\(\(s\) => !!s\),\s*\);\s*\}\);\s*\};\s*\}/m,
   `private find = async (path: string, wildcard: string) => {
     return new Promise<string[]>((resolve) => {
       try {
@@ -49,7 +49,7 @@ code = code.replace(
       find.on("close", (code) => {
         if (code !== 0 && code !== null) {
           logger.warn(\`find process exited with code \${code}: \${stderr}\`);
-          // Still return what we found, as permission denied on some subdirs is common
+          // Note: we still resolve stdout because find often exits with code 1 due to permission denied on subdirs
         }
         resolve(
           stdout

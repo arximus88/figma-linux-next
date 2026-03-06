@@ -4,7 +4,12 @@ const file = 'src/main/Fonts/index.ts';
 let code = fs.readFileSync(file, 'utf8');
 
 code = code.replace(
-  /private find = async \(path: string, wildcard: string\) => \{[\s\S]*?\}\n  \};\n\}/,
+  /import \{ spawnSync \} from "node:child_process";/,
+  `import { spawn } from "node:child_process";`
+);
+
+code = code.replace(
+  /private find = async \(path: string, wilecard: string\) => \{[\s\S]*?\}\n  \};\n\}/,
   `private find = async (path: string, wildcard: string) => {
     return new Promise<string[]>((resolve) => {
       try {
@@ -47,9 +52,9 @@ code = code.replace(
       });
 
       find.on("close", (code) => {
-        if (code !== 0) {
+        if (code !== 0 && code !== null) {
           logger.warn(\`find process exited with code \${code}: \${stderr}\`);
-          // Still return what we found, as permission denied on some subdirs is common
+          // Note: we still resolve stdout because find often exits with code 1 due to permission denied on subdirs
         }
         resolve(
           stdout
@@ -60,6 +65,12 @@ code = code.replace(
     });
   };
 }`
+);
+
+// We also need to fix the spelling `wilecard` -> `wildcard` where it is called.
+code = code.replace(
+  /this\.find\(dir, "\*\.\{ttf,otf,ttc,otc\}"\)\),/,
+  `this.find(dir, "*.{ttf,otf,ttc,otc}")),`
 );
 
 fs.writeFileSync(file, code);

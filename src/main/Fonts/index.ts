@@ -104,11 +104,31 @@ export default class FontManager {
         return;
       }
 
-      const find = spawn("find", [path, "-type", "f", "-name", wildcard]);
+      const args = [path, "-type", "f"];
+
+      const match = wildcard.match(/\*\.\{([^}]+)\}/);
+      if (match) {
+        const extensions = match[1].split(",");
+        args.push("(");
+        extensions.forEach((ext, index) => {
+          if (index > 0) args.push("-o");
+          args.push("-name", `*.${ext}`);
+        });
+        args.push(")");
+      } else {
+        args.push("-name", wildcard);
+      }
+
+      const find = spawn("find", args);
       let stdout = "";
+      let stderr = "";
 
       find.stdout.on("data", (data) => {
         stdout += data.toString();
+      });
+
+      find.stderr.on("data", (data) => {
+        stderr += data.toString();
       });
 
       find.on("error", (error) => {
@@ -116,7 +136,11 @@ export default class FontManager {
         resolve([]);
       });
 
-      find.on("close", () => {
+      find.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          logger.warn(`find process exited with code ${code}: ${stderr}`);
+          // Note: we still resolve stdout because find often exits with code 1 due to permission denied on subdirs
+        }
         resolve(stdout.split("\n").filter((s) => !!s));
       });
     });
