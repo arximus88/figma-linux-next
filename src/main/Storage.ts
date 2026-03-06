@@ -85,7 +85,7 @@ export class Storage {
   };
 
   public save(): Promise<void> {
-    this.nextWriteData = this.settings;
+    this.nextWriteData = JSON.parse(JSON.stringify(this.settings));
     if (this.writePromise) {
       return this.writePromise;
     }
