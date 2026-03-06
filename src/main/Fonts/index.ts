@@ -19,9 +19,7 @@ export default class FontManager {
 
   private async loadFonts(dirs: Array<string>) {
     // Find all font files (.ttf, .otf, .ttc, etc.)
-    const filesArrays = await Promise.all(
-      dirs.map((dir) => this.find(dir, "*.{ttf,otf,ttc,otc}")),
-    );
+    const filesArrays = await Promise.all(dirs.map((dir) => this.find(dir, "*.{ttf,otf,ttc,otc}")));
 
     // Flatten and deduplicate the list of files
     const uniqueFiles = Array.from(new Set(filesArrays.flat()));
