@@ -9,7 +9,7 @@ Features:
 - **Window frame styles** — GNOME/Adwaita, Windows 11
 - **Extension system** — hot-reloadable plugins
 
-## Installation
+<!-- ## Installation (TO BE DONE)
 
 ### Arch-based distros
 
@@ -29,7 +29,7 @@ sudo apt-get install -f
 ```bash
 chmod +x figma-linux-next-*.AppImage
 ./figma-linux-next-*.AppImage
-```
+``` -->
 
 ## Building from source
 
