@@ -1,3 +1,4 @@
+import { app } from "electron";
 import App from "./App";
 import Session from "./Session";
 import FontManager from "./Fonts";
@@ -6,6 +7,9 @@ import WindowManager from "./Ui/WindowManager";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 import { dialogs } from "./Dialogs";
+
+// Set the application name explicitly
+app.setName("figma-linux-next");
 
 process.on("uncaughtException", (error: Error) => {
   logger.error(`uncaughtException: `, error);

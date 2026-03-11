@@ -7,24 +7,24 @@ export DH_OPTIONS=-v
 # 	rm -rf ./debian/figma-linux
 
 override_dh_auto_install:
-	mkdir -p ./debian/figma-linux/opt/figma-linux
-	mkdir -p ./debian/figma-linux/usr/share/applications
-	mkdir -p ./debian/figma-linux/usr/share/icons/hicolor
-	rsync -av --progress ./* ./debian/figma-linux/opt/figma-linux/ --exclude debian --exclude .pc --exclude resources/icon --exclude resources/figma-linux.desktop
-	cp -rf ./resources/figma-linux.desktop ./debian/figma-linux/usr/share/applications/
-	chmod 755 ./debian/figma-linux/opt/figma-linux/figma-linux
+	mkdir -p ./debian/figma-linux-next/opt/figma-linux-next
+	mkdir -p ./debian/figma-linux-next/usr/share/applications
+	mkdir -p ./debian/figma-linux-next/usr/share/icons/hicolor
+	rsync -av --progress ./* ./debian/figma-linux-next/opt/figma-linux-next/ --exclude debian --exclude .pc --exclude resources/icon --exclude resources/figma-linux.desktop
+	cp -rf ./figma-linux-next.desktop ./debian/figma-linux-next/usr/share/applications/
+	chmod 755 ./debian/figma-linux-next/opt/figma-linux-next/figma-linux-next
 
-	bash -c 'for file in ./resources/icon/*; do name=`basename $${file%.*}`; mkdir -p ./debian/figma-linux/usr/share/icons/hicolor/$${name}/apps; cp -rf "$$file" ./debian/figma-linux/usr/share/icons/hicolor/$${name}/apps/figma-linux.png; done'
+	bash -c 'for file in ./resources/icons/*; do name=`basename $${file%.*}`; mkdir -p ./debian/figma-linux-next/usr/share/icons/hicolor/$${name}/apps; cp -rf "$$file" ./debian/figma-linux-next/usr/share/icons/hicolor/$${name}/apps/figma-linux-next.png; done'
 
-	rm -rf ./resources/icon ./resources/figma-linux.desktop
+	rm -rf ./resources/icons ./figma-linux-next.desktop
 
-	xdg-mime default figma-linux.desktop x-scheme-handler/figma
+	xdg-mime default figma-linux-next.desktop x-scheme-handler/figma
 
 
 override_dh_shlibdeps:
 
 override_dh_builddeb:
-	dpkg-deb --build debian/figma-linux ..
+	dpkg-deb --build debian/figma-linux-next ..
 
 %:
 	dh $@
