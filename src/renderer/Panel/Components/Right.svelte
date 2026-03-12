@@ -1,10 +1,11 @@
 <script lang="ts">
-    import { ButtonWindow } from "Common/Buttons";
-import { getContext } from "svelte";
+  import { getContext } from "svelte";
   import type { FrameTheme } from "Utils/Render/frameTheme";
+  import { ButtonWindow } from "Common/Buttons";
+  import { tabs, isMenuOpen } from "../store";
+
   const theme = getContext<FrameTheme>("frameTheme");
   const config = $derived(theme.config);
-  import { tabs, isMenuOpen } from "../store";
 
 
   function clickMenu() {

@@ -1,12 +1,13 @@
 <script lang="ts">
-    import { tabs, currentTab } from "../store";
-import { getContext } from "svelte";
+  import { getContext } from "svelte";
   import type { FrameTheme } from "Utils/Render/frameTheme";
-  const theme = getContext<FrameTheme>("frameTheme");
-  const config = $derived(theme.config);
+  import { tabs, currentTab } from "../store";
   import { closeTab, tabFocus } from "./utils";
   import List from "./List.svelte";
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
+
+  const theme = getContext<FrameTheme>("frameTheme");
+  const config = $derived(theme.config);
 
 
   let currentTabId = $state<number | undefined>();
