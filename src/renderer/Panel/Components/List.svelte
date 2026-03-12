@@ -1,5 +1,5 @@
  <script lang="ts">
-  import type { FrameConfig } from "Utils/Render/frameConfig";
+  import type { FrameConfig } from "Utils/Render/frameTheme";
   let { currentTabId, config, items = $bindable([]), onClickTitle = (event: MouseEvent, id: number) => {}, onClickClose = (event: CustomEvent, id: number) => {}, onDndConsider = (event: any) => {}, onDndFinalize = (event: any) => {} } = $props<{
     currentTabId: number | undefined;
     config: FrameConfig;

@@ -1,10 +1,11 @@
 <script lang="ts">
-  let { frameStyle = "windows" as Types.FrameStyle } = $props();
-  import { ButtonWindow } from "Common/Buttons";
+    import { ButtonWindow } from "Common/Buttons";
+import { getContext } from "svelte";
+  import type { FrameTheme } from "Utils/Render/frameTheme";
+  const theme = getContext<FrameTheme>("frameTheme");
+  const config = $derived(theme.config);
   import { tabs, isMenuOpen } from "../store";
-  import { getFrameConfig } from "Utils/Render/frameConfig";
 
-  const config = $derived(getFrameConfig(frameStyle));
 
   function clickMenu() {
     if (isMenuOpen.value) {

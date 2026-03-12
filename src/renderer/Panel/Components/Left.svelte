@@ -1,12 +1,13 @@
 <script lang="ts">
-  let { frameStyle = "windows" as Types.FrameStyle } = $props();
-  import { ButtonWindow, ButtonTool } from "Common/Buttons";
+    import { ButtonWindow, ButtonTool } from "Common/Buttons";
+import { getContext } from "svelte";
+  import type { FrameTheme } from "Utils/Render/frameTheme";
+  const theme = getContext<FrameTheme>("frameTheme");
+  const config = $derived(theme.config);
   import { newFileVisible, communityTabVisible, currentTab } from "../store";
   import { onClickHome, onClickNewProject, onClickCommunity } from "./utils";
-  import { getFrameConfig } from "Utils/Render/frameConfig";
 
-  const config = $derived(getFrameConfig(frameStyle));
-</script>
+  </script>
 
 <div class="panel-left">
   <ButtonWindow

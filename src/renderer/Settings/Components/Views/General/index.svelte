@@ -7,7 +7,7 @@
   import { TOPPANELHEIGHT } from "Const";
   import { Folder } from "Common/Icons";
   import { settings, modalBounds } from "../../../store";
-  import { getAvailableFrameStyles } from "Utils/Render/frameStyles";
+  import { getAvailableFrameStyles } from "Utils/Render/frameTheme";
 
   import DirectoryListItem from "./DirectoryListItem.svelte";
   import SwitchListItem from "./SwitchListItem.svelte";
