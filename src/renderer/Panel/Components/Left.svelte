@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { getContext } from "svelte";
+    import { ButtonWindow, ButtonTool } from "Common/Buttons";
+import { getContext } from "svelte";
   import type { FrameTheme } from "Utils/Render/frameTheme";
-  import { ButtonWindow, ButtonTool } from "Common/Buttons";
+  const theme = getContext<FrameTheme>("frameTheme");
+  const config = $derived(theme.config);
   import { newFileVisible, communityTabVisible, currentTab } from "../store";
   import { onClickHome, onClickNewProject, onClickCommunity } from "./utils";
 
-  const theme = getContext<FrameTheme>("frameTheme");
-  const config = $derived(theme.config);
-</script>
+  </script>
 
 <div class="panel-left">
   <ButtonWindow
