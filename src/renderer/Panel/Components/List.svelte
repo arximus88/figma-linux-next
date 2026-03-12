@@ -19,6 +19,7 @@
   const loadingItems: Dict<boolean> = {};
   const flipDurationMs = 150;
   const constrainAxisY = true;
+  const morphDisabled = true;
   const cursorStartDrag = "default";
   const cursorDragging = "default";
   const cursorDrop = "default";
@@ -44,6 +45,7 @@
   use:dndzone={{
     items: items,
     flipDurationMs,
+    morphDisabled,
     constrainAxisY,
     cursorStartDrag,
     cursorDragging,

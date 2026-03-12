@@ -6,6 +6,7 @@ export interface DndZoneOptions {
   cursorDragging?: string;
   cursorDrop?: string;
   cursorHover?: string;
+  morphDisabled?: boolean;
 }
 
 export function dndzone(
