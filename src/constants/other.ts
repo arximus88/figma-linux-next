@@ -45,6 +45,8 @@ export const LINKS = {
   PLUGINS_DOCS: `${HOMEPAGE}/plugin-docs/intro`,
   FIGMA_COMMUNITY_FORUM: "https://github.com/arximus88/figma-linux-next/discussions",
   FIGMA_LINUX_COMMUNITY_FORUM: "https://github.com/arximus88/figma-linux-next/discussions",
+  FIGMA_LINUX_TELEGRAM: "https://t.me/figma_linux",
+  THEMES_REPO: "https://github.com/Figma-Linux/figma-linux-themes",
   VIDEO_TUTORIALS: "https://www.youtube.com/figmadesign",
   RELEASE_NOTES: "https://github.com/arximus88/figma-linux-next/releases/latest",
   LEGAL_SUMMARY: `${HOMEPAGE}/summary-of-policy`,
