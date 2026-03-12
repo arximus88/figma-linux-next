@@ -257,8 +257,6 @@ declare namespace Electron {
     on(channel: "changeTheme", listener: (event: IpcMainEvent, theme: Themes.Theme) => void): this;
 
     on(
-      channel: "getSettings",
-      listener: (event: IpcMainEvent, settings: Types.SettingsInterface) => void,
     ): this;
     on(channel: "requestMicrophonePermission", listener: (event: IpcMainEvent) => void): this;
     on(
@@ -465,7 +463,6 @@ declare namespace Electron {
     send(channed: "web-callback:registerCodeChangeObserver", callbackID: number, args?: any): this;
     send(channed: "web-callback:registerUiChangeObserver", callbackID: number, args?: any): this;
 
-    sendSync(channed: "getSettings"): Types.SettingsInterface;
 
     invoke(
       channel: "writeNewExtensionToDisk",

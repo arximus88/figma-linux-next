@@ -1,12 +1,13 @@
 <script lang="ts">
-  let { frameStyle = "windows" as Types.FrameStyle } = $props();
-  import { tabs, currentTab } from "../store";
+    import { tabs, currentTab } from "../store";
+import { getContext } from "svelte";
+  import type { FrameTheme } from "Utils/Render/frameTheme";
+  const theme = getContext<FrameTheme>("frameTheme");
+  const config = $derived(theme.config);
   import { closeTab, tabFocus } from "./utils";
   import List from "./List.svelte";
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
-  import { getFrameConfig } from "Utils/Render/frameConfig";
 
-  const config = $derived(getFrameConfig(frameStyle));
 
   let currentTabId = $state<number | undefined>();
 

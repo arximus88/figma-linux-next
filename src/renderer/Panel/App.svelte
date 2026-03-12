@@ -1,6 +1,7 @@
 <script lang="ts">
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
-  import { getFrameStyleVars } from "Utils/Render/frameStyles";
+  import { setContext } from "svelte";
+  import { getFrameStyleVars, getFrameConfig, isValidFrameStyle } from "Utils/Render/frameTheme";
   import { themeApp } from "../Common/Store/Themes";
   import { initIpc } from "./ipc.svelte";
   import { panelZoom } from "./store";
@@ -15,14 +16,17 @@
   let frameStyle = $state<Types.FrameStyle>("gnome");
   let frameStyleVars = $state(getFrameStyleVars("gnome"));
 
+  setContext("frameTheme", {
+    get config() { return getFrameConfig(frameStyle); },
+    get vars() { return getFrameStyleVars(frameStyle); },
+  });
+
   // Async bootstrap — replaces sendSync("getSettings")
   window.figmaApi.invoke("getSettings").then((settings: Types.SettingsInterface) => {
     if (settings?.app?.frameStyle) {
       frameStyle = settings.app.frameStyle as Types.FrameStyle;
     }
-    if (!frameStyle || !["windows", "gnome", "macos", "kde"].includes(frameStyle)) {
-      frameStyle = "gnome";
-    }
+    frameStyle = isValidFrameStyle(frameStyle) ? frameStyle : "gnome";
     frameStyleVars = getFrameStyleVars(frameStyle);
   }).catch((e: Error) => {
     console.error("App.svelte: failed to get settings:", e);
@@ -31,9 +35,7 @@
 
   window.figmaApi.on("frameStyleChanged", (newStyle: Types.FrameStyle) => {
     frameStyle = newStyle;
-    if (!["windows", "gnome", "macos", "kde"].includes(frameStyle)) {
-      frameStyle = "gnome";
-    }
+    frameStyle = isValidFrameStyle(frameStyle) ? frameStyle : "gnome";
     frameStyleVars = getFrameStyleVars(frameStyle);
   });
 </script>
@@ -43,9 +45,9 @@
   data-frame-style={frameStyle}
   style={`zoom: ${panelZoom.value}; ${pallet.join("; ")}; ${frameStyleVars}`}
 >
-  <Left {frameStyle} />
-  <Tabs {frameStyle} />
-  <Right {frameStyle} />
+  <Left />
+  <Tabs />
+  <Right />
 </div>
 
 <style>
