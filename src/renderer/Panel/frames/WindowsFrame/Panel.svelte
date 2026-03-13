@@ -6,7 +6,7 @@
   let { zoom = 1 } = $props<{ zoom?: number }>();
 </script>
 
-<div id="panel" style:zoom>
+<div id="panel" data-frame="windows" style:zoom>
   <Left />
   <Tabs />
   <Right />

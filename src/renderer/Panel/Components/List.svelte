@@ -108,7 +108,8 @@
               <Loader size="14" />
             </Spiner>
           {:else}
-            <closeIcon size={closeIconSize}></closeIcon>
+            {@const CloseIcon = closeIcon}
+            <CloseIcon size={closeIconSize} />
           {/if}
         </ButtonTool>
       </div>

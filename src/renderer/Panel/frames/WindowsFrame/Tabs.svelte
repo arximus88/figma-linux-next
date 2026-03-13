@@ -65,13 +65,13 @@
     closeIcon={Close}
     closeIconSize="14"
     showDividers={false}
-    tabClass="tab"
-    tabWrapperClass="tab-wrapper"
-    dividerClass="divider"
-    dividerNearActiveClass="divider--near-active"
-    tabActiveClass="tab--active"
-    tabTextClass="tab-text"
-    tabCloseClass="tab-close"
+    tabClass="w-tab"
+    tabWrapperClass="w-tab-wrapper"
+    dividerClass="w-divider"
+    dividerNearActiveClass="w-divider--near-active"
+    tabActiveClass="w-tab--active"
+    tabTextClass="w-tab-text"
+    tabCloseClass="w-tab-close"
     {onClickTitle}
     {onClickClose}
     {onDndConsider}
@@ -90,59 +90,60 @@
     scrollbar-width: none;
     overflow-x: scroll;
     outline: none !important;
-    color: var(--fg-tab);
+    color: var(--fg-tab, rgba(255, 255, 255, 0.8));
     padding: 0 16px;
     -webkit-app-region: drag;
   }
   .tabs:focus-visible { outline: none !important; }
   .tabs::-webkit-scrollbar { display: none; }
 
-  /* Windows tab styles */
-  :global(.tab-wrapper) { display: flex; align-items: center; gap: 0px; }
+  /* Windows tab styles — classes are on the elements themselves so they survive DnD ghost cloning */
+  :global(.w-tab-wrapper) { display: flex; align-items: center; gap: 0px; }
 
-  :global(.tab) {
+  :global(.w-tab) {
     display: flex;
     align-items: center;
     margin: 0 0 0 2px;
     border-radius: 0px;
-    background-color: var(--bg-tab);
+    background-color: var(--bg-tab, transparent);
     border: none;
     height: 40px;
-    transition: all 0.08s ease;
+    transition: background-color 0.08s ease;
     outline: none !important;
     -webkit-app-region: no-drag;
     box-sizing: border-box;
   }
-  :global(.tab:hover) { background-color: var(--bg-tab-hover); }
-  :global(.tab--active) { background-color: var(--bg-tab-hover); }
+  :global(.w-tab:hover) { background-color: var(--bg-tab-hover, rgba(255, 255, 255, 0.08)); }
+  :global(.w-tab--active) { background-color: var(--bg-tab-hover, rgba(255, 255, 255, 0.08)); }
 
-  :global(.tab-text) {
+  :global(.w-tab-text) {
     display: flex;
     min-width: 60px;
     max-width: 200px;
     align-items: center;
     user-select: none;
     padding: 0 0 0 12px;
-    color: var(--fg-tab);
-    font-size: var(--text-size-tab);
+    color: var(--fg-tab, rgba(255, 255, 255, 0.8));
+    font-size: var(--text-size-tab, 14px);
     outline: none !important;
   }
-  :global(.tab-text:focus-visible) { outline: none !important; }
-  :global(.tab-text span) {
+  :global(.w-tab-text:focus-visible) { outline: none !important; }
+  :global(.w-tab-text span) {
     display: inline;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  :global(.tab:hover .tab-text span) { color: var(--fg-tab-hover); }
-  :global(.tab--active .tab-text span) { color: var(--fg-tab-hover); }
+  :global(.w-tab:hover .w-tab-text span) { color: var(--fg-tab-hover, rgba(255, 255, 255, 1)); }
+  :global(.w-tab--active .w-tab-text span) { color: var(--fg-tab-hover, rgba(255, 255, 255, 1)); }
 
-  :global(.tab :global(div[role="button"])) {
+  :global(.w-tab div[role="button"]) {
     background-color: transparent;
     border-radius: 0px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 7px;
+    opacity: 1;
   }
 </style>

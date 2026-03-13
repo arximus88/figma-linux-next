@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ButtonWindow, ButtonTool } from "Common/Buttons";
+  import { ButtonWindow } from "Common/Buttons";
   import { GnomeFigma, GnomePlus, Community } from "Icons";
   import { newFileVisible, communityTabVisible, currentTab } from "../../store";
   import { onClickHome, onClickNewProject, onClickCommunity } from "../../Components/utils";
@@ -29,9 +29,9 @@
   {/if}
 
   {#if newFileVisible.value}
-    <ButtonTool padding="0" onButtonClick={onClickNewProject}>
+    <ButtonWindow padding="0" hoverBgColor="rgba(255,255,255,0.08)" onButtonClick={onClickNewProject}>
       <GnomePlus size="16" />
-    </ButtonTool>
+    </ButtonWindow>
   {/if}
 </div>
 

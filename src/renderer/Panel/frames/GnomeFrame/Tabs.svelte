@@ -65,13 +65,13 @@
     closeIcon={GnomeTabClose}
     closeIconSize="24"
     showDividers={true}
-    tabClass="tab"
-    tabWrapperClass="tab-wrapper"
-    dividerClass="divider"
-    dividerNearActiveClass="divider--near-active"
-    tabActiveClass="tab--active"
-    tabTextClass="tab-text"
-    tabCloseClass="tab-close"
+    tabClass="g-tab"
+    tabWrapperClass="g-tab-wrapper"
+    dividerClass="g-divider"
+    dividerNearActiveClass="g-divider--near-active"
+    tabActiveClass="g-tab--active"
+    tabTextClass="g-tab-text"
+    tabCloseClass="g-tab-close"
     {onClickTitle}
     {onClickClose}
     {onDndConsider}
@@ -90,65 +90,66 @@
     scrollbar-width: none;
     overflow-x: scroll;
     outline: none !important;
-    color: var(--fg-tab);
+    color: rgba(255, 255, 255, 0.8);
     padding: 0;
     -webkit-app-region: drag;
   }
   .tabs:focus-visible { outline: none !important; }
   .tabs::-webkit-scrollbar { display: none; }
 
-  /* Tab styles — co-located here for GNOME */
-  :global(.tab-wrapper) { display: flex; align-items: center; gap: 2px; }
+  /* Gnome tab styles — classes are on the elements themselves so they survive DnD ghost cloning */
+  :global(.g-tab-wrapper) { display: flex; align-items: center; gap: 2px; }
 
-  :global(.divider) {
+  :global(.g-divider) {
     width: 1px;
     height: 28px;
     background-color: #4f4f4f;
     flex-shrink: 0;
     transition: background-color 0.15s ease;
   }
-  :global(.divider--near-active) { background-color: transparent; }
+  :global(.g-divider--near-active) { background-color: transparent; }
 
-  :global(.tab) {
+  :global(.g-tab) {
     display: flex;
     align-items: center;
+    gap: 10px;
     margin: 0;
+    padding-right: 5px;
     border-radius: 8px;
-    background-color: var(--bg-tab);
+    background-color: transparent;
     border: none;
     height: 34px;
-    transition: all 0.08s ease;
+    transition: background-color 0.08s ease;
     outline: none !important;
     -webkit-app-region: no-drag;
     box-sizing: border-box;
   }
-  :global(.tab:hover) { background-color: var(--bg-tab-hover); }
-  :global(.tab--active) { background-color: #3d3d40; }
+  :global(.g-tab:hover) { background-color: rgba(61, 61, 64, 0.6); }
+  :global(.g-tab--active) { background-color: #3d3d40; }
 
-  :global(.tab-text) {
+  :global(.g-tab-text) {
     display: flex;
     min-width: 60px;
     max-width: 200px;
     align-items: center;
     user-select: none;
     padding: 0 0 0 14px;
-    color: var(--fg-tab);
-    font-size: var(--text-size-tab);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: var(--text-size-tab, 13px);
     font-weight: 600;
     outline: none !important;
   }
-  :global(.tab-text:focus-visible) { outline: none !important; }
-  :global(.tab-text span) {
+  :global(.g-tab-text:focus-visible) { outline: none !important; }
+  :global(.g-tab-text span) {
     display: inline;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  :global(.tab:hover .tab-text span) { color: var(--fg-tab-hover); }
-  :global(.tab--active .tab-text span) { color: var(--fg-tab-hover); }
+  :global(.g-tab:hover .g-tab-text span) { color: rgba(255, 255, 255, 0.9); }
+  :global(.g-tab--active .g-tab-text span) { color: rgba(255, 255, 255, 0.9); }
 
-  :global(.tab-close) { display: flex; align-items: center; justify-content: center; }
-  :global(.tab div[role="button"]) {
+  :global(.g-tab div[role="button"]:not(.g-tab-text)) {
     background-color: transparent;
     border-radius: 20px;
     display: flex;
@@ -158,7 +159,7 @@
     opacity: 0;
     transition: opacity 0.08s ease, background-color 0.08s ease;
   }
-  :global(.tab:hover div[role="button"]) { opacity: 1; }
-  :global(.tab--active div[role="button"]) { opacity: 1; }
-  :global(.tab div[role="button"]:hover) { background-color: rgba(255, 255, 255, 0.06); }
+  :global(.g-tab:hover div[role="button"]:not(.g-tab-text)) { opacity: 1; }
+  :global(.g-tab--active div[role="button"]:not(.g-tab-text)) { opacity: 1; }
+  :global(.g-tab div[role="button"]:not(.g-tab-text):hover) { background-color: rgba(255, 255, 255, 0.06); }
 </style>
