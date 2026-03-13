@@ -134,6 +134,7 @@
     padding: 0 0 0 14px;
     color: var(--fg-tab);
     font-size: var(--text-size-tab);
+    font-weight: 600;
     outline: none !important;
   }
   :global(.tab-text:focus-visible) { outline: none !important; }
@@ -147,12 +148,17 @@
   :global(.tab--active .tab-text span) { color: var(--fg-tab-hover); }
 
   :global(.tab-close) { display: flex; align-items: center; justify-content: center; }
-  :global(.tab :global(div[role="button"])) {
-    background-color: rgba(255, 255, 255, 0.06);
+  :global(.tab div[role="button"]) {
+    background-color: transparent;
     border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    opacity: 0;
+    transition: opacity 0.08s ease, background-color 0.08s ease;
   }
+  :global(.tab:hover div[role="button"]) { opacity: 1; }
+  :global(.tab--active div[role="button"]) { opacity: 1; }
+  :global(.tab div[role="button"]:hover) { background-color: rgba(255, 255, 255, 0.06); }
 </style>

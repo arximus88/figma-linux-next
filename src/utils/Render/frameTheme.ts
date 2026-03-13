@@ -191,25 +191,25 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
   },
 
   gnome: {
-    // GNOME/Adwaita style — rounded, padded, matching prototype reference
-    "--panel-height": "46px",
+    // GNOME/Adwaita style — matching Figlinux prototype reference
+    "--panel-height": "40px",
     "--panel-bg": "#2e2e32",
-    "--panel-border-bottom": "1px solid rgba(0, 0, 0, 0.24)",
+    "--panel-border-bottom": "none",
     "--panel-padding": "0 9px",
     "--panel-gap": "12px",
     "--panel-align-items": "center",
-    "--panel-border-radius": "12px 12px 0 0",
+    "--panel-border-radius": "0",
     "--panel-box-shadow": "0px 1px 2px 0px rgba(0, 0, 0, 0.24)",
 
     "--left-btn-padding": "0",
     "--left-btn-size": "34px",
-    "--left-gap": "4px",
+    "--left-gap": "12px",
 
     "--window-control-size": "24px",
     "--window-control-spacing": "12px",
     "--window-control-radius": "20px",
-    "--window-control-hover-bg": "rgba(255, 255, 255, 0.08)",
-    "--window-control-active-bg": "rgba(255, 255, 255, 0.12)",
+    "--window-control-hover-bg": "rgba(255, 255, 255, 0.12)",
+    "--window-control-active-bg": "rgba(255, 255, 255, 0.18)",
     "--window-control-padding-right": "0px",
     "--window-close-hover-bg": "#c01c28",
     "--window-close-hover-fg": "#ffffff",
@@ -221,7 +221,7 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
     "--tab-border": "none",
     "--tab-active-bg": "#3d3d40",
     "--tab-close-padding": "0",
-    "--tab-close-bg": "rgba(255, 255, 255, 0.06)",
+    "--tab-close-bg": "transparent",
     "--tab-close-radius": "20px",
     "--tab-divider-width": "1px",
     "--tab-divider-height": "28px",

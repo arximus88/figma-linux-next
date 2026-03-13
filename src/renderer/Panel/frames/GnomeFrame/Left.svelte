@@ -39,13 +39,13 @@
   .left {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 12px;
     -webkit-app-region: no-drag;
   }
 
   .left :global(div[role="button"]) {
     width: 34px;
     height: 34px;
-    border-radius: 20px;
+    border-radius: 9px;
   }
 </style>
