@@ -2,7 +2,6 @@
   let { zIndex, onSetSettingsTabViewIndex } = $props();
   import { themes, settings, modalBounds } from "../../../store";
   import { DropDown, Flex, Grid } from "Common";
-  import { themeApp } from "Common/Store/Themes";
   import { DEFAULT_THEME } from "Const";
 
   import ThemeItem from "./ThemeItem.svelte";

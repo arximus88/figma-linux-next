@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Project renamed from `figma-linux` to `figma-linux-next` and comprehensively modernized.
 
+- **Configuration Isolation** — Changed config path to `~/.config/figma-linux-next` to prevent conflicts with legacy installations.
+- **Branding Update** — All repository links, documentation, and app metadata updated to `arximus88/figma-linux-next`.
+
 ### Added
 
 - **Vite Build System** — Replaced Rollup with Vite + `vite-plugin-electron` for faster builds and HMR
@@ -31,6 +34,10 @@ Project renamed from `figma-linux` to `figma-linux-next` and comprehensively mod
 - **TypeScript**: `5.7.3` → `5.9.3`
 - **Vite**: Added `7.3.1`
 - **svelte-check**: `4.3.3` → `4.4.0`
+
+### Removed
+
+- **Legacy Theme System** — Removed unstable theme engine and related constants/UI to improve application stability and performance.
 
 ### Fixed
 

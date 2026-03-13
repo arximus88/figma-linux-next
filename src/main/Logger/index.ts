@@ -5,7 +5,7 @@ import { AppLogger } from "./AppLogger";
 log.initialize();
 log.transports.file.level = "debug";
 log.transports.console.level = "debug";
-log.transports.file.fileName = "figma-linux.log";
+log.transports.file.fileName = "figma-linux-next.log";
 
 // Initialize AppLogger with electron-log instance
 export const logger = new AppLogger(log);

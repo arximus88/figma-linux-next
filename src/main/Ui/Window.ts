@@ -216,6 +216,11 @@ export default class Window {
   public updateFigmaUiScale(_: IpcMainEvent, scale: number) {
     this.tabManager.updateScaleAll(scale);
   }
+
+  public setFrameStyle(style: Types.FrameStyle) {
+    this.window.webContents.send("frameStyleChanged", style);
+  }
+
   public getBounds() {
     return this.window.getBounds();
   }

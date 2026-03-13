@@ -1,6 +1,7 @@
 import { app, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 import * as fs from "fs";
+import * as os from "os";
 import { resolve, relative, extname, join, basename, parse } from "path";
 import * as cp from "child_process";
 import * as Chokidar from "chokidar";
@@ -33,7 +34,7 @@ export default class ExtensionManager {
 
     return entry.path;
   }
-  public removePath(id: number): void {
+  public async removePath(id: number): Promise<void> {
     const entry = this.extensionMap.get(id);
 
     if (entry) {
@@ -47,7 +48,7 @@ export default class ExtensionManager {
     }
 
     this.extensionMap.delete(id);
-    this.save();
+    await this.save();
     this.notifyManifestObservers({ id, type: "removed" });
     this.notifyCodeObservers({ id, type: "removed" });
   }
@@ -167,9 +168,9 @@ export default class ExtensionManager {
     }
   }
 
-  save() {
+  async save() {
     storage.settings.app.savedExtensions = this.saveToJson();
-    storage.save();
+    await storage.save();
   }
 
   reload() {
@@ -398,7 +399,7 @@ export default class ExtensionManager {
 
     this.addWatcher(id);
     this.notifyFileAdded(id);
-    this.save();
+    await this.save();
 
     return id;
   }
@@ -524,8 +525,11 @@ export default class ExtensionManager {
 
     shell.showItemInFolder(extensionDirectory);
   }
-  private removeLocalFileExtension(event: IpcMainEvent, data: WebApi.ExtensionId): void {
-    this.removePath(data.id);
+  private async removeLocalFileExtension(
+    event: IpcMainEvent,
+    data: WebApi.ExtensionId,
+  ): Promise<void> {
+    await this.removePath(data.id);
   }
   private async createMultipleNewLocalFileExtensions(
     event: IpcMainInvokeEvent,
@@ -590,7 +594,7 @@ export default class ExtensionManager {
         ? "Choose plugin directory location"
         : "Choose plugin name and directory location",
       defaultPath: resolve(
-        storage.settings.app.lastSavedPluginDir || app.getPath("home"),
+        storage.settings.app.lastSavedPluginDir || os.homedir(),
         data.dir.name || "",
       ),
     });

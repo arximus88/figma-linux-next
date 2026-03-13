@@ -34,12 +34,12 @@ export default (): AppArgs => {
 
   if (argv.indexOf("-h") != -1 || argv.indexOf("--help") != -1) {
     const help = `
-Figma-Linux-Test v${version}
+Figma Linux Next v${version}
 
 Optimized Figma desktop application for Linux with native Wayland support and GPU acceleration.
 
 Usage:
-    figma-linux-test [options] [URL]
+    figma-linux-next [options] [URL]
 
 Arguments:
     URL                     Open a specific Figma URL or file (figma:// or https://figma.com/...)
@@ -50,12 +50,12 @@ Options:
     --new-file=TYPE        Create a new file (TYPE: design or figjam)
 
 Examples:
-    figma-linux-test                                    # Launch application
-    figma-linux-test --new-file=design                  # Create new design file
-    figma-linux-test figma://file/abc123                # Open specific file
-    figma-linux-test https://www.figma.com/file/xyz     # Open from URL
+    figma-linux-next                                    # Launch application
+    figma-linux-next --new-file=design                  # Create new design file
+    figma-linux-next figma://file/abc123                # Open specific file
+    figma-linux-next https://www.figma.com/file/xyz     # Open from URL
 
-For more information, visit: https://github.com/Figma-Linux/figma-linux
+For more information, visit: https://github.com/arximus88/figma-linux-next
     `;
 
     console.log(help);

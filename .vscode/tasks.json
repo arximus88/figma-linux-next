@@ -6,37 +6,32 @@
     {
       "label": "Run builder",
       "type": "shell",
-      "command": "npm run builder"
+      "command": "bun run builder"
     },
     {
       "label": "Run Dev",
       "type": "shell",
-      "command": "npm run dev"
+      "command": "bun run dev"
     },
     {
       "label": "Run Release",
       "type": "shell",
-      "command": "npm run start"
-    },
-    {
-      "label": "Run Release",
-      "type": "shell",
-      "command": "npm run start"
+      "command": "bun run start"
     },
     {
       "label": "Build",
       "type": "shell",
-      "command": "npm run build"
+      "command": "bun run build"
     },
     {
       "label": "Build & Run Release",
       "type": "shell",
-      "command": "npm run build && npm run start"
+      "command": "bun run build && bun run start"
     },
     {
       "label": "Build & Run Dev",
       "type": "shell",
-      "command": "npm run build && npm run dev"
+      "command": "bun run build && bun run dev"
     },
     {
       "label": "Replace installed version",

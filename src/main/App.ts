@@ -189,9 +189,9 @@ export default class App {
     app.quit();
   }
 
-  private quitApp() {
+  private async quitApp() {
     this.windowManager.saveState();
-    storage.save();
+    await storage.save();
 
     app.quit();
   }

@@ -7,7 +7,7 @@
   import { TOPPANELHEIGHT } from "Const";
   import { Folder } from "Common/Icons";
   import { settings, modalBounds } from "../../../store";
-  import { getAvailableFrameStyles } from "Utils/Render/frameStyles";
+  import { getAvailableFrameStyles } from "../../../../Panel/frames/index";
 
   import DirectoryListItem from "./DirectoryListItem.svelte";
   import SwitchListItem from "./SwitchListItem.svelte";
@@ -107,9 +107,13 @@
   function onFrameStyleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const newStyle = target.value as Types.FrameStyle;
+    // Guard: don't apply disabled (unimplemented) styles
+    const style = frameStyles.find((s: { value: Types.FrameStyle; label: string; disabled?: boolean }) => s.value === newStyle);
+    if (!style || style.disabled) {
+      target.value = $settings.app.frameStyle;
+      return;
+    }
     $settings.app.frameStyle = newStyle;
-
-    // Notify panel to update frame style
     window.figmaApi.send("setFrameStyle", newStyle);
   }
 </script>
@@ -156,7 +160,7 @@
         onchange={onFrameStyleChange}
       >
         {#each frameStyles as style}
-          <option value={style.value}>{style.label}</option>
+          <option value={style.value} disabled={style.disabled}>{style.label}</option>
         {/each}
       </select>
     </Flex>

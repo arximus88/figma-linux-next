@@ -22,6 +22,7 @@ export default class SettingsView {
         webviewTag: true,
       },
     } as any);
+    this.view.setBackgroundColor("#00000000");
 
     /*
     this.view.setAutoResize({
