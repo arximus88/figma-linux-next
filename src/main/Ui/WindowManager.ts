@@ -76,6 +76,12 @@ export default class WindowManager {
     }
   }
 
+  public setFrameStyleAllWindows(style: Types.FrameStyle) {
+    for (const [_, window] of this.windows) {
+      window.setFrameStyle(style);
+    }
+  }
+
   public closeTabOnAllWindows() {
     for (const [_, window] of this.windows) {
       window.closeAllTab(null);

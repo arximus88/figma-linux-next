@@ -39,6 +39,7 @@ export default class SettingsController {
       (event: IpcMainInvokeEvent) => event.sender.isDevToolsOpened(),
       "SettingsController",
     );
+    ipcRegistry.on("setFrameStyle", this.setFrameStyle.bind(this), "SettingsController");
   }
 
   private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
@@ -77,5 +78,11 @@ export default class SettingsController {
 
   private updateFigmaUiScale(_: IpcMainInvokeEvent, scale: number) {
     this.windowManager.updateFigmaUiScaleAllWindows(scale);
+  }
+
+  private setFrameStyle(_: IpcMainEvent, style: Types.FrameStyle) {
+    storage.settings.app.frameStyle = style;
+    storage.save();
+    this.windowManager.setFrameStyleAllWindows(style);
   }
 }
