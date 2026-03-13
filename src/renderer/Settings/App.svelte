@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { themeApp } from "../Common/Store/Themes";
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc";
   import { settings } from "./store";
@@ -11,19 +10,26 @@
 
   let pallet = $state<string[]>([]);
 
-  function onCloseModalHandler(event: MouseEvent) {
+  function closeSettings() {
+    settings.trim();
+    window.figmaApi.send("closeSettingsView", $settings);
+  }
+
+  function handleOverlayMouseDown(event: MouseEvent) {
     if (event.target === event.currentTarget) {
-        settings.trim();
-        window.figmaApi.send("closeSettingsView", $settings);
+      closeSettings();
     }
   }
 </script>
 
-<div role="presentation" onmousedown={onCloseModalHandler} id="settings" style={pallet.join("; ")}>
-  <Body onCloseSettings={onCloseModalHandler} />
+<div role="presentation" onmousedown={handleOverlayMouseDown} id="settings" style={pallet.join("; ")}>
+  <Body onCloseSettings={closeSettings} />
 </div>
 
 <style>
+  :global(html) {
+    background-color: transparent !important;
+  }
   :global(body) {
     background-color: rgba(0, 0, 0, 0.5);
   }
