@@ -23,7 +23,7 @@
     padding-right: 8px;
     gap: 12px;
     align-items: center;
-    box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.24);
+    box-shadow: 0 -1px 0px #424242 inset;
     -webkit-app-region: drag;
     width: 100%;
     box-sizing: border-box;
