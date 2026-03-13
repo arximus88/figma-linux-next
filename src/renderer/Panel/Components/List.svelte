@@ -44,7 +44,7 @@
     tabCloseClass?: string;
   }>();
 
-  const flipDurationMs = 150;
+  const flipDurationMs = 0;
   const constrainAxisY = true;
   const morphDisabled = true;
   const cursorStartDrag = "default";
@@ -123,5 +123,12 @@
     display: flex;
     align-items: center;
     outline: none !important;
+  }
+  :global([data-is-dnd-shadow-item]) {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 </style>

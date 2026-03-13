@@ -17,7 +17,10 @@
     display: flex;
     height: 40px;
     background: #2e2e32;
-    padding: 0 9px;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 3px;
+    padding-right: 8px;
     gap: 12px;
     align-items: center;
     box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.24);
