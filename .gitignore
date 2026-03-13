@@ -27,6 +27,7 @@ vscode
 .idea
 *.swp
 *.swo
+.zed
 
 # Electron
 *.asar
