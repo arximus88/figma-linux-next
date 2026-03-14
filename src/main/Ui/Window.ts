@@ -317,7 +317,7 @@ export default class Window {
       this.settingsView.updateProps(bounds);
     }, 100);
   }
-  public closeSettingsView() {
+  public async closeSettingsView() {
     if (!this.settingsView.view) {
       return;
     }
@@ -326,7 +326,7 @@ export default class Window {
 
     this.window.contentView.removeChildView(this.settingsView.view);
 
-    this.settingsView.postClose();
+    await this.settingsView.postClose();
   }
   public toggleFullScreen() {
     if (this.window.isFullScreen()) {

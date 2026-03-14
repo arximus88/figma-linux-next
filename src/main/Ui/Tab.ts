@@ -149,7 +149,7 @@ export default class Tab {
     shell.openExternal(url);
   }
 
-  private permissionHandler(
+  private async permissionHandler(
     webContents: WebContents,
     permission:
       | "clipboard-read"
@@ -186,7 +186,7 @@ export default class Tab {
         return callback(true);
       }
 
-      const id = dialogs.showMessageBoxSync({
+      const id = await dialogs.showMessageBox({
         type: "question",
         title: "Figma",
         message: "Microphone access required for voice call.",

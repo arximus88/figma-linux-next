@@ -59,7 +59,7 @@ export default class SettingsController {
     storage.settings = settings;
     await storage.save();
 
-    this.windowManager.closeSettingsViewForLastWindow();
+    await this.windowManager.closeSettingsViewForLastWindow();
   }
 
   private async selectExportDirectory(_: IpcMainInvokeEvent) {

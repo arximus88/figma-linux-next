@@ -44,10 +44,10 @@ export default class SettingsView {
     }
   }
 
-  public postClose() {
+  public async postClose() {
     let id = 1;
     if (this.enableColorSpaceSrgbWasChanged) {
-      id = dialogs.showMessageBoxSync({
+      id = await dialogs.showMessageBox({
         type: "question",
         title: "Figma",
         message: "Restart to Change Color Space?",
@@ -57,7 +57,7 @@ export default class SettingsView {
       });
     }
     if (this.chromiumFlagsChanged) {
-      id = dialogs.showMessageBoxSync({
+      id = await dialogs.showMessageBox({
         type: "question",
         title: "Figma",
         message: "Restart to apply Chromium flags?",
@@ -74,7 +74,7 @@ export default class SettingsView {
         text = "Restart to enable themes?";
       }
 
-      id = dialogs.showMessageBoxSync({
+      id = await dialogs.showMessageBox({
         type: "question",
         title: "Figma",
         message: text,

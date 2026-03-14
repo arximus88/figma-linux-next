@@ -57,10 +57,10 @@ export default class WindowManager {
     return this.windows.get(this.lastFocusedwindowId);
   }
 
-  public closeSettingsViewForLastWindow() {
+  public async closeSettingsViewForLastWindow() {
     const window = this.windows.get(this.lastFocusedwindowId);
     if (window) {
-      window.closeSettingsView();
+      await window.closeSettingsView();
     }
   }
 
