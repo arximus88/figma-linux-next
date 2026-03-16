@@ -270,15 +270,40 @@ const publicAPI: any = {
   setIsPreloaded() {
     sendMsgToMain("setIsPreloaded");
   },
-  // TODO:
-  // setEditorType(args: any) {
-  //   console.log("setEditorType, args: ", args);
-  //   // n.send("updateEditorType", e.getString("editorType"));
-  // },
-  // setRealtimeToken(args: any) {
-  //   console.log("setRealtimeToken, args: ", args);
-  //   // n.send("setRealtimeToken", e.getString("realtimeToken"), e.getString("fileKey"));
-  // },
+  // Fire-and-forget messages that don't need main-process handling
+  setEditorType(_args: any) {},
+  setRealtimeToken(_args: any) {},
+  setLocales(_args: any) {},
+  setTabPreviewData(_args: any) {},
+  setIsLibrary(_args: any) {},
+  setIsTeamTemplate(_args: any) {},
+  updateColorProfile(_args: any) {},
+  setTabColor(args: any) {
+    sendMsgToMain("setTabColor", args);
+  },
+
+  // Returns current screen(s) dimensions — used by Figma for modal/popup positioning
+  getActiveNSScreens() {
+    return Promise.resolve({
+      data: [
+        {
+          frame: { x: 0, y: 0, width: window.screen.width, height: window.screen.height },
+          visibleFrame: { x: 0, y: 0, width: window.screen.availWidth, height: window.screen.availHeight },
+          scaleFactor: window.devicePixelRatio ?? 1,
+        },
+      ],
+    });
+  },
+
+  // Returns keyboard layout type — used by Figma for shortcut key labels
+  getKeyboardLayout() {
+    return Promise.resolve({ data: "ANSI" });
+  },
+
+  // Returns available spell-check languages
+  spellingGetLanguages() {
+    return Promise.resolve({ data: [navigator.language] });
+  },
   setInitialOptions(args: WebApi.SetInitOptions) {
     sendMsgToMain("setInitialOptions", args);
   },
