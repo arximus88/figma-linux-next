@@ -9,9 +9,11 @@ Unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) 
 
 ## What's different from other forks
 
+- **Increased performance and build times** — thanks to [Bun](https://bun.sh), Vite 8, and Electron 41.
 - **Instant new-file tab** — pre-loaded in background after login, opens without delay
-- **Full local font support** — uses fontconfig (`fc-list`) instead of fontkit; variable fonts and all named instances work correctly (Open Sans, Google Sans, Google Sans Flex, Google Sans Code, e-Ukraine, etc.)
-- **Native window frame styles** — GNOME, KDE, Windows, macOS frames that match your desktop environment; no custom theming that breaks rendering
+- **Full local font support** — uses fontconfig (`fc-list`) instead of fontkit; variable fonts and all named instances work correctly
+- **Updated Google Fonts support** — new fonts available: Google Sans, Google Sans Flex, Google Sans Code, etc
+- **Native window frame styles** — New GNOME and old style Windows frames that match your desktop environment (MacOS and KDE styles TBD); no custom theming injections that breaks visual rendering.
 - **Native Wayland** — works on GNOME Wayland, KDE Plasma, Sway, Hyprland
 - **Runs on arm64** — tested on Asahi Linux (Apple Silicon)
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations
