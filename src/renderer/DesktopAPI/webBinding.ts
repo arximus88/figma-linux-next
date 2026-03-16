@@ -270,14 +270,15 @@ const publicAPI: any = {
   setIsPreloaded() {
     sendMsgToMain("setIsPreloaded");
   },
-  // Fire-and-forget messages that don't need main-process handling
-  setEditorType(_args: any) {},
-  setRealtimeToken(_args: any) {},
-  setLocales(_args: any) {},
-  setTabPreviewData(_args: any) {},
-  setIsLibrary(_args: any) {},
-  setIsTeamTemplate(_args: any) {},
-  updateColorProfile(_args: any) {},
+  // Fire-and-forget messages that don't need main-process handling yet.
+  // In dev mode they log args so you can inspect the payload for future feature implementation.
+  setEditorType(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditorType", args); },
+  setRealtimeToken(args: any) { if (import.meta.env.DEV) console.debug("[stub] setRealtimeToken", args); },
+  setLocales(args: any) { if (import.meta.env.DEV) console.debug("[stub] setLocales", args); },
+  setTabPreviewData(args: any) { if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args); },
+  setIsLibrary(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args); },
+  setIsTeamTemplate(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args); },
+  updateColorProfile(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateColorProfile", args); },
   setTabColor(args: any) {
     sendMsgToMain("setTabColor", args);
   },
