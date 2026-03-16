@@ -75,7 +75,8 @@
     "vite-plugin-commonjs": "^0.10.4",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vite-plugin-require": "^1.2.14"
+    "vite-plugin-require": "^1.2.14",
+    "yallist": "4"
   },
   "keywords": [
     "Figma",
