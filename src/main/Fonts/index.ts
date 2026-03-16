@@ -6,6 +6,7 @@ import * as fontkit from "fontkit";
 
 export default class FontManager {
   private fontList: Fonts.IFonts = {};
+  private processedFiles: Set<string> = new Set();
 
   public getFonts = async (dirs: Array<string>): Promise<Fonts.IFonts> => {
     await this.loadFonts(dirs);
@@ -26,6 +27,8 @@ export default class FontManager {
 
     await Promise.all(
       uniqueFiles.map(async (path) => {
+        if (this.processedFiles.has(path)) return;
+        this.processedFiles.add(path);
         try {
           // fontkit.open returns a Promise that resolves to a Font object or a FontCollection
           const fontOrCollection = await fontkit.open(path);
@@ -44,21 +47,23 @@ export default class FontManager {
           for (const font of fonts) {
             const variations = font.variationAxes && Object.keys(font.variationAxes).length > 0;
 
+            let handledAsVariable = false;
             if (variations && "namedVariations" in font) {
-              // It's a variable font with named instances
-              const namedVariations = font.namedVariations;
-
-              for (const variationName in namedVariations) {
-                const instance = font.getVariation(namedVariations[variationName]);
-                figmaFonts.push(this.mapToFigma(instance, path));
+              try {
+                const namedVariations = font.namedVariations;
+                const names = Object.keys(namedVariations);
+                if (names.length > 0) {
+                  for (const variationName of names) {
+                    const instance = font.getVariation(namedVariations[variationName]);
+                    figmaFonts.push(this.mapToFigma(instance, path));
+                  }
+                  handledAsVariable = true;
+                }
+              } catch {
+                // namedVariations getter threw (e.g. corrupt name table) — fall through to static
               }
-              // Also add the default instance if needed, or if no named variations found?
-              // Typically namedVariations covers standard styles (Bold, Italic, etc.)
-              if (Object.keys(namedVariations).length === 0) {
-                figmaFonts.push(this.mapToFigma(font, path));
-              }
-            } else {
-              // Standard static font
+            }
+            if (!handledAsVariable) {
               figmaFonts.push(this.mapToFigma(font, path));
             }
           }
