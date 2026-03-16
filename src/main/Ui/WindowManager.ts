@@ -557,7 +557,7 @@ export default class WindowManager {
   }
   private setTabTitle(event: IpcMainEvent, title: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
-
+    if (!window) return;
     window.setTabTitle(event, title);
   }
   private openFile(event: IpcMainEvent, ...args: string[]) {

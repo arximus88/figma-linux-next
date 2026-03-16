@@ -270,6 +270,10 @@ const publicAPI: any = {
   setIsPreloaded() {
     sendMsgToMain("setIsPreloaded");
   },
+  // Real-time collaboration — not applicable on Linux desktop
+  initLivegraph(_args: any) {},
+  setThemePreference(args: any) { if (import.meta.env.DEV) console.debug("[stub] setThemePreference", args); },
+
   // Fire-and-forget messages that don't need main-process handling yet.
   // In dev mode they log args so you can inspect the payload for future feature implementation.
   setEditorType(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditorType", args); },
