@@ -317,6 +317,7 @@ export default class Window {
     parsedUrl.searchParams.set("fuid", this._userId);
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
+    tab.view.setBackgroundColor(this.figmaThemeBgColor);
 
     this.window.webContents.send("didTabAdd", {
       id: tab.id,
@@ -620,6 +621,10 @@ export default class Window {
     this.window.close();
   }
 
+  private get figmaThemeBgColor(): string {
+    return storage.settings.app.figmaTheme === "light" ? "#ffffff" : "#1e1e1e";
+  }
+
   private initWarmTab() {
     if (!this._userId) return;
 
@@ -629,6 +634,7 @@ export default class Window {
     }
 
     const tab = new Tab(this.windowId);
+    tab.view.setBackgroundColor(this.figmaThemeBgColor);
     const url = new URL(NEW_PROJECT_TAB_URL);
     url.searchParams.set("fuid", this._userId);
     tab.loadUrl(url.toString());

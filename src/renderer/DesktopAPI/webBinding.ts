@@ -308,10 +308,9 @@ const publicAPI: any = {
   setInitialOptions(args: WebApi.SetInitOptions) {
     sendMsgToMain("setInitialOptions", args);
   },
-  // setTheme(args: any) {
-  //   console.log("isTabOpen, args: ", args);
-  //   // n.send("setTheme", e.getString("theme", "dark"));
-  // },
+  setTheme(args: any) {
+    sendMsgToMain("setFigmaTheme", args.theme ?? args);
+  },
 
   setFeatureFlags(args: any) {
     sendMsgToMain("setFeatureFlags", args);

@@ -229,6 +229,7 @@ export default class WindowManager {
     );
 
     // Tab content events (from Figma web app via DesktopAPI)
+    ipcRegistry.on("setFigmaTheme", this.setFigmaTheme.bind(this), "WindowManager");
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
     ipcRegistry.on("openFile", this.openFile.bind(this), "WindowManager");
     ipcRegistry.on("openCommunity", this.openCommunity.bind(this), "WindowManager");
@@ -548,6 +549,12 @@ export default class WindowManager {
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
 
+  private setFigmaTheme(_: IpcMainEvent, theme: "dark" | "light") {
+    if (theme !== "dark" && theme !== "light") return;
+    if (storage.settings.app.figmaTheme === theme) return;
+    storage.settings.app.figmaTheme = theme;
+    storage.save();
+  }
   private setTabTitle(event: IpcMainEvent, title: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
