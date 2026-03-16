@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — feat/electron-41-vite-8
+
+> ⚠️ Testing build. Binaries available at https://github.com/arximus88/figma-linux-next/tags
+
+### Changed
+
+- **Electron** `39` → `41.0.2`
+- **Vite** `7` → `8.0.0`
+- **@sveltejs/vite-plugin-svelte** `6` → `7`
+
+### Added
+
+- **Instant new-file tab** — warm tab preloading: "New file" tab is pre-loaded in background after login, opens immediately without network delay
+- **Figma theme sync** — `setTheme` message now persists dark/light preference to settings; new tabs get correct `setBackgroundColor` (`#1e1e1e` / `#ffffff`) eliminating white flash
+- **Font loading via `fc-list`** — replaced fontkit parser with fontconfig enumeration; variable fonts (Open Sans, Google Sans Flex, e-Ukraine, etc.) now correctly appear with all named instances
+- **Unhandled message stubs** — `getActiveNSScreens`, `getKeyboardLayout`, `spellingGetLanguages`, `setTabColor`, `setThemePreference`, `initLivegraph` and others are now handled; dev mode logs payload for future feature work
+
+### Fixed
+
+- **`import.meta.url` in CJS build** — Vite 8 breaking change patched via `define` in `vite.config.ts`
+- **`openFileFromNewTab` 404** — files opened from new-file tab now correctly resolve URL via `new URL(args.url)`
+- **Font micro-freezes** — variable fonts with non-standard name tables (e.g. Cantarell) no longer cause repeated `Cannot read properties of undefined` errors; fallback to static font metadata
+- **Warm tab cascade** — `warmTabScheduled` flag prevents duplicate tab init when warm tab sends `setUser` back to main process
+- **`setTabTitle` crash** — `uncaughtException` on IPC from warm tab fixed with null guard and explicit warm-tab check
+- **`openFile` handlers** — null guards added across WindowManager to prevent crashes from unknown webContentsIds
+
+### Removed
+
+- Leftover one-off patch scripts from repo root (`fix-storage-3.js`, `patch_*.py`, `patch_find_*.js`, `test.js`)
+
+---
+
 ## [0.13.0] - 2026-02-23
 
 ### 🔧 Modernization & Renaming
