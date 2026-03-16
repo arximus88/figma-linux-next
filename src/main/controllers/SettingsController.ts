@@ -55,6 +55,9 @@ export default class SettingsController {
     ) {
       app.emit("chromiumFlagsChanged", true);
     }
+    if (storage.settings.app.useZenity !== settings.app.useZenity) {
+      dialogs.switchProvider(settings.app.useZenity);
+    }
 
     storage.settings = settings;
     await storage.save();

@@ -1,5 +1,3 @@
-import { ipcMain } from "electron";
-
 import { storage } from "../Storage";
 import { NativeDialogs } from "./Native";
 import { ZenityDialogs } from "./Zenity";
@@ -19,19 +17,11 @@ export class Provider {
     }
 
     this.provider = this.makeProvider(provider);
-
-    this.initListeners();
   }
 
-  private initListeners = () => {
-    ipcMain.on("set-use-zenity", (_, value) => {
-      if (value) {
-        this.provider = this.makeProvider("Zenity");
-      } else {
-        this.provider = this.makeProvider("Native");
-      }
-    });
-  };
+  public switchProvider(useZenity: boolean): void {
+    this.provider = this.makeProvider(useZenity ? "Zenity" : "Native");
+  }
 
   private makeProvider = (provider: Dialogs.Providers): ProviderDialog => {
     switch (provider) {

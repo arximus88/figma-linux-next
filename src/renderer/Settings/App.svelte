@@ -10,6 +10,12 @@
 
   let pallet = $state<string[]>([]);
 
+  $effect(() => {
+    const theme = $settings.app.figmaTheme ?? "dark";
+    document.documentElement.setAttribute("data-theme", theme);
+    return () => document.documentElement.removeAttribute("data-theme");
+  });
+
   function closeSettings() {
     settings.trim();
     window.figmaApi.send("closeSettingsView", $settings);

@@ -80,7 +80,6 @@ declare namespace Types {
       logLevel: number;
       lastTimeClearLogFile: number;
       enableColorSpaceSrgb: boolean;
-      visibleNewProjectBtn: boolean;
       useZenity: boolean;
       disableThemes: boolean;
       panelHeight: number;

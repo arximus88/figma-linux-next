@@ -29,7 +29,14 @@
     ],
     "typeRoots": [
       "node_modules/@types",
-      "src/types/**/*.d.ts"
+      "src/types"
+    ],
+    "types": [
+      "node",
+      "bun",
+      "adm-zip",
+      "fontkit",
+      "lodash"
     ],
     "paths": {
       "Main": ["src/main"],

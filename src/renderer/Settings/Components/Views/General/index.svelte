@@ -144,10 +144,21 @@
   <Flex>
     <Flex der="column" width="-webkit-fill-available">
       <Label>Main settings</Label>
-      <CheckBox bind:checked={$settings.app.saveLastOpenedTabs} text="Save the last opened tabs" />
-      <CheckBox bind:checked={$settings.app.enableColorSpaceSrgb} text="Enable color space sRGB" />
-      <CheckBox bind:checked={$settings.app.visibleNewProjectBtn} text="Show new project button" />
-      <CheckBox bind:checked={$settings.app.useZenity} text="Use Zenity for Dialogs" />
+      <CheckBox
+        bind:checked={$settings.app.saveLastOpenedTabs}
+        text="Save the last opened tabs"
+        description="Restore previously open Figma tabs when the app starts."
+      />
+      <CheckBox
+        bind:checked={$settings.app.enableColorSpaceSrgb}
+        text="Enable color space sRGB"
+        description="Forces sRGB color profile. Useful if colors look washed out on wide-gamut displays. Requires restart."
+      />
+      <CheckBox
+        bind:checked={$settings.app.useZenity}
+        text="Use Zenity for Dialogs"
+        description="Use Zenity (GTK dialog tool) instead of native Electron dialogs for file open/save prompts."
+      />
 
 
 
@@ -227,25 +238,25 @@
     width: 100%;
     padding: 8px 12px;
     margin-top: 8px;
-    background-color: var(--bg-item);
+    background-color: var(--bg-item, var(--bg-panel));
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid var(--borders);
     border-radius: 6px;
     font-size: 14px;
     font-family: "Inter", sans-serif;
     cursor: pointer;
     outline: none;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .frame-style-select:hover {
-    background-color: var(--bg-item-hover);
-    border-color: var(--border-hover);
+    background-color: var(--bg-item-hover, var(--bg-panel-hover));
+    border-color: var(--text-disabled);
   }
 
   .frame-style-select:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-transparent);
+    border-color: var(--accent, #18a0fb);
+    box-shadow: 0 0 0 2px var(--accent-transparent, rgba(24, 160, 251, 0.15));
   }
 
   .frame-style-select option {

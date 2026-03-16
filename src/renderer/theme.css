@@ -122,4 +122,33 @@
   --color-bg-secondary: var(--bg-panel-hover);
   --color-bg-tooltip: var(--bg-overlay);
   --ui2-button-color-bg-disabled: var(--borders);
+
+  /* Accent / brand color */
+  --accent: #18a0fb;
+  --accent-transparent: rgba(24, 160, 251, 0.15);
+
+  /* Toggle switch */
+  --toggle-track: #d1d5db;
+  --toggle-knob: #ffffff;
+
+  /* Settings item backgrounds (aliases for missing vars) */
+  --bg-item: var(--bg-panel);
+  --bg-item-hover: var(--bg-panel-hover);
+  --border: var(--borders);
+  --border-hover: var(--bg-toolbar-active);
+}
+
+/* Dark theme overrides — applied when Figma is in dark mode */
+html[data-theme="dark"] {
+  --text: #e2e2e2;
+  --text-active: #ffffff;
+  --text-disabled: #666666;
+  --borders: #3a3a3a;
+  --bg-panel: #1e1e1e;
+  --bg-panel-hover: #2a2a2a;
+  --bg-overlay: #333333;
+  --toggle-track: #4a4a4a;
+  --toggle-knob: #aaaaaa;
+  --bg-item: #1e1e1e;
+  --bg-item-hover: #2a2a2a;
 }

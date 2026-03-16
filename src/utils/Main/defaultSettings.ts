@@ -9,7 +9,6 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     logLevel: LogLevel.INFO,
     lastTimeClearLogFile: 0,
     enableColorSpaceSrgb: false,
-    visibleNewProjectBtn: true,
     useZenity: false,
     disableThemes: true,
     panelHeight: 40,

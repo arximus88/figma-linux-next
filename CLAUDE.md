@@ -334,6 +334,21 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
 | `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
 | `config/builder.json` | electron-builder package config |
+| `src/package.json` | Production manifest copied to `dist/` during build — **must stay in sync with `package.json` dependencies** |
+
+## Important Gotchas
+
+### Two package.json files — keep dependencies in sync
+`package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
+
+### TabManager.getById() fallback
+`TabManager.getById(id)` falls back to returning `mainTab` when the ID is not found (instead of `undefined`). This is a known footgun — calling `closeTab()` or `removeChildView()` on the result of an unknown ID will silently operate on `mainTab`. Always guard with `tabManager.getAll().has(id)` before calling `getById` for dynamic IDs.
+
+### Figma web app → desktop IPC (webBinding.ts)
+Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message channel. Unhandled messages log `[desktop] Unhandled message <name>` warnings. To silence a message without implementing it, add a no-op stub in the `publicAPI` object in `src/renderer/DesktopAPI/webBinding.ts`. DEV-mode `console.debug` is acceptable for stubs to aid future implementation.
+
+### Warm tab and double-close
+When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
 
 ## Common Development Tasks
 
