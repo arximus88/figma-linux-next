@@ -665,7 +665,7 @@ export default class Window {
       this.warmTab.view.webContents.destroy();
     }
 
-    const tab = new Tab(this.windowId);
+    const tab = new Tab(this.window.id);
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
     const url = new URL(NEW_PROJECT_TAB_URL);
     url.searchParams.set("fuid", this._userId);
