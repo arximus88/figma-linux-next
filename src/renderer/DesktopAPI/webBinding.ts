@@ -226,6 +226,14 @@ const publicAPI: any = {
   openFile(args: any) {
     sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target);
   },
+  openFileFromNewTab(args: any) {
+    if (args.url) {
+      const u = new URL(args.url);
+      sendMsgToMain("openFile", u.pathname + u.search, args.title, undefined, args.target ?? "tab");
+    } else {
+      sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target ?? "tab");
+    }
+  },
   openCommunity(args: WebApi.OpenCommunity) {
     sendMsgToMain("openCommunity", args);
   },
