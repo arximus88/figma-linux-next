@@ -20,6 +20,7 @@ import {
   isAppAuthRedeem,
   isFigmaDocLink,
 } from "Utils/Common";
+import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
 import { logger } from "Main/Logger";
 
@@ -106,6 +107,12 @@ export default class Tab {
     }
 
     if (newUrl === currentUrl) {
+      event.preventDefault();
+      return;
+    }
+
+    if (this.title === NEW_FILE_TAB_TITLE && isFigmaRunUrl(newUrl)) {
+      app.emit("openUrlInNewTab", newUrl);
       event.preventDefault();
       return;
     }

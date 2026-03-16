@@ -323,9 +323,7 @@ export default class MenuManager {
       submenu: [
         this.openExternal("Help Page", LINKS.HELP_PAGE),
         this.openExternal("Plugins documentation", LINKS.PLUGINS_DOCS),
-        this.openExternal("Community Forum", LINKS.FIGMA_COMMUNITY_FORUM),
-        this.openExternal("Figma Linux Community Forum", LINKS.FIGMA_LINUX_COMMUNITY_FORUM),
-        this.openExternal("Figma Linux in Telegram", LINKS.FIGMA_LINUX_TELEGRAM),
+        this.openExternal("GitHub Discussions", LINKS.FIGMA_LINUX_COMMUNITY_FORUM),
         this.openExternal("Figma Linux Themes", LINKS.THEMES_REPO),
         this.openExternal("Video Tutorials", LINKS.VIDEO_TUTORIALS),
         this.openExternal("Release Notes", LINKS.RELEASE_NOTES),

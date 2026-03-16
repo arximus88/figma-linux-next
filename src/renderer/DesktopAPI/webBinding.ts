@@ -272,7 +272,10 @@ const publicAPI: any = {
   },
   // Real-time collaboration — not applicable on Linux desktop
   initLivegraph(_args: any) {},
-  setThemePreference(args: any) { if (import.meta.env.DEV) console.debug("[stub] setThemePreference", args); },
+  setThemePreference(args: any) {
+    const theme = args?.theme ?? args?.colorScheme ?? args;
+    sendMsgToMain("setFigmaTheme", theme);
+  },
 
   // Fire-and-forget messages that don't need main-process handling yet.
   // In dev mode they log args so you can inspect the payload for future feature implementation.

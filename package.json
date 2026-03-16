@@ -1,7 +1,7 @@
 {
   "name": "figma-linux-next",
   "version": "0.13.0",
-  "description": "Optimized Figma desktop application for Linux with native Wayland support, GPU acceleration, and system integration.",
+  "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
   "homepage": "https://github.com/arximus88/figma-linux-next",
@@ -18,6 +18,9 @@
     "pack:pacman": "bun run build && electron-builder --config=config/builder.json -l pacman",
     "package": "rm -rf build/installers && bun run build && electron-builder --config=config/builder.json -l",
     "local:install": "sudo rm -rf /opt/figma-linux && sudo mkdir -p /opt/figma-linux && sudo cp -rf ./build/installers/linux-unpacked/* /opt/figma-linux/",
+    "test:unit": "bun test",
+    "test:e2e": "playwright test",
+    "test": "bun test && playwright test",
     "check": "svelte-check",
     "lp": "bun run lint & bun run prettier",
     "lint": "eslint -c ./config/.eslintrc.js src/**/*.ts",
@@ -43,6 +46,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@playwright/test": "^1.58.2",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tsconfig/svelte": "^5.0.8",
     "@types/adm-zip": "^0.5.7",

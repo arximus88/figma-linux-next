@@ -7,7 +7,7 @@ import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { isDev, isCommunityUrl, isAppAuthRedeem, normalizeUrl, parseURL } from "Utils/Common";
+import { isDev, isCommunityUrl, isAppAuthRedeem, normalizeUrl, parseURL, getFileKeyFromUrl } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
 
@@ -18,6 +18,7 @@ export default class Window {
   private state: Types.WindowState;
 
   private _userId: string;
+  private settingsViewOpen = false;
 
   // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
   private warmTab: Tab | null = null;
@@ -190,7 +191,24 @@ export default class Window {
     toggleDetachedDevTools(tab.view.webContents);
   }
 
+  /** Find an already-open tab for the same Figma file key (checks both stored and live URLs). */
+  private findTabByFileKey(url: string): Tab | undefined {
+    const key = getFileKeyFromUrl(url);
+    if (!key) return undefined;
+    for (const tab of this.tabManager.getAll().values()) {
+      const storedKey = tab.url ? getFileKeyFromUrl(tab.url) : null;
+      const liveKey = getFileKeyFromUrl(tab.getUrl());
+      if (storedKey === key || liveKey === key) return tab;
+    }
+    return undefined;
+  }
+
   public openUrlFromCommunity(url: string) {
+    const existing = this.findTabByFileKey(url);
+    if (existing) {
+      this.setTabFocus(existing.id);
+      return;
+    }
     const tab = this.addTab(url);
     if (!tab) return;
 
@@ -206,9 +224,22 @@ export default class Window {
       this.handleUrl(parse(url).path);
       this.setFocusToMainTab();
     } else if (/figma:\/\//.test(url)) {
-      this.addTab(url.replace(/figma:\//, HOMEPAGE));
+      const httpUrl = url.replace(/figma:\//, HOMEPAGE);
+      const existing = this.findTabByFileKey(httpUrl);
+      if (existing) {
+        this.setTabFocus(existing.id);
+        return;
+      }
+      const tab = this.addTab(httpUrl);
+      if (tab) this.setTabFocus(tab.id);
     } else if (/https?:\/\//.test(url)) {
-      this.addTab(url);
+      const existing = this.findTabByFileKey(url);
+      if (existing) {
+        this.setTabFocus(existing.id);
+        return;
+      }
+      const tab = this.addTab(url);
+      if (tab) this.setTabFocus(tab.id);
     }
   }
   public focus() {
@@ -245,6 +276,10 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
 
     this.tabManager.setBoundsForAllTab(bounds);
+
+    if (this.settingsViewOpen) {
+      this.settingsView.updateProps(this.window.getBounds());
+    }
   }
   public closeAllTab(_: IpcMainEvent) {
     const tabs = this.tabManager.getAll();
@@ -341,6 +376,7 @@ export default class Window {
   }
 
   public openSettingsView() {
+    this.settingsViewOpen = true;
     const bounds = this.window.getBounds();
     this.settingsView.updateProps(bounds);
 
@@ -357,6 +393,7 @@ export default class Window {
       return;
     }
 
+    this.settingsViewOpen = false;
     this.settingsView.closeDevTools();
 
     this.window.contentView.removeChildView(this.settingsView.view);
@@ -594,7 +631,14 @@ export default class Window {
       url = `${url}${args[2]}`;
     }
 
-    this.addTab(url);
+    const existing = this.findTabByFileKey(url);
+    if (existing) {
+      this.setTabFocus(existing.id);
+      return;
+    }
+
+    const tab = this.addTab(url);
+    if (tab) this.setTabFocus(tab.id);
   }
   public closeCommunityTab() {
     this.window.contentView.removeChildView(this.tabManager.communityTab.view);
@@ -641,6 +685,8 @@ export default class Window {
       this.warmTab.view.webContents.destroy();
     }
     this.warmTab = null;
+    this.settingsView.destroy();
+    this.tabManager.closeAll();
     this.window.close();
   }
 

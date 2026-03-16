@@ -1,11 +1,11 @@
+import { app, ipcMain, IpcMainEvent, Rectangle } from "electron";
 import * as URL from "url";
-import { app, ipcMain, Rectangle, IpcMainEvent } from "electron";
 
 import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
-import MainTab from "./MainTab";
-import CommunityTab from "./CommunityTab";
-import Tab from "./Tab";
 import { storage } from "Main/Storage";
+import CommunityTab from "./CommunityTab";
+import MainTab from "./MainTab";
+import Tab from "./Tab";
 
 export default class TabManager {
   public mainTab: MainTab;
@@ -71,6 +71,11 @@ export default class TabManager {
   }
 
   public closeAll() {
+    for (const tab of this.tabs.values()) {
+      if (tab.view?.webContents && !tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.destroy();
+      }
+    }
     this.tabs.clear();
   }
   public close(tabId: number): Types.TabIdType {

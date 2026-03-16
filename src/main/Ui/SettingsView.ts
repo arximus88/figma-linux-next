@@ -143,15 +143,41 @@ export default class SettingsView {
     this.loadSettings();
   }
 
-  private registerEvents() {
-    ipcMain.on("changeTheme", this.changeTheme.bind(this));
-    ipcMain.on("frontReady", this.handleFrontReady.bind(this));
+  private boundChangeTheme = this.changeTheme.bind(this);
+  private boundHandleFrontReady = this.handleFrontReady.bind(this);
+  private boundEnableColorSpaceSrgbChange = this.enableColorSpaceSrgbChange.bind(this);
+  private boundChromiumFlagsChange = this.chromiumFlagsChange.bind(this);
+  private boundDisableThemesChange = this.disableThemesChange.bind(this);
+  private boundSyncThemesStart = this.syncThemesStart.bind(this);
+  private boundSyncThemesEnd = this.syncThemesEnd.bind(this);
+  private boundLoadCurrentTheme = this.loadCurrentTheme.bind(this);
 
-    app.on("enableColorSpaceSrgbWasChanged", this.enableColorSpaceSrgbChange.bind(this));
-    app.on("chromiumFlagsChanged", this.chromiumFlagsChange.bind(this));
-    app.on("disableThemesChanged", this.disableThemesChange.bind(this));
-    app.on("syncThemesStart", this.syncThemesStart.bind(this));
-    app.on("syncThemesEnd", this.syncThemesEnd.bind(this));
-    app.on("loadCurrentTheme", this.loadCurrentTheme.bind(this));
+  private registerEvents() {
+    ipcMain.on("changeTheme", this.boundChangeTheme);
+    ipcMain.on("frontReady", this.boundHandleFrontReady);
+
+    app.on("enableColorSpaceSrgbWasChanged", this.boundEnableColorSpaceSrgbChange);
+    app.on("chromiumFlagsChanged", this.boundChromiumFlagsChange);
+    app.on("disableThemesChanged", this.boundDisableThemesChange);
+    app.on("syncThemesStart", this.boundSyncThemesStart);
+    app.on("syncThemesEnd", this.boundSyncThemesEnd);
+    app.on("loadCurrentTheme", this.boundLoadCurrentTheme);
+  }
+
+  public destroy() {
+    ipcMain.off("changeTheme", this.boundChangeTheme);
+    ipcMain.off("frontReady", this.boundHandleFrontReady);
+
+    const appEmitter = app as NodeJS.EventEmitter;
+    appEmitter.off("enableColorSpaceSrgbWasChanged", this.boundEnableColorSpaceSrgbChange);
+    appEmitter.off("chromiumFlagsChanged", this.boundChromiumFlagsChange);
+    appEmitter.off("disableThemesChanged", this.boundDisableThemesChange);
+    appEmitter.off("syncThemesStart", this.boundSyncThemesStart);
+    appEmitter.off("syncThemesEnd", this.boundSyncThemesEnd);
+    appEmitter.off("loadCurrentTheme", this.boundLoadCurrentTheme);
+
+    if (!this.view.webContents.isDestroyed()) {
+      this.view.webContents.destroy();
+    }
   }
 }
