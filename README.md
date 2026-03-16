@@ -1,84 +1,79 @@
 # <img src="resources/icons/128x128.png" width="32"> Figma Linux Next (unofficial)
 
-Figma Linux Next is a **community-driven fork** of the unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop app for Linux. This project is maintained by the Figma Linux Community to ensure it remains open, modern, and high-performance.
+Unofficial [Electron](http://electron.atom.io)-based [Figma](https://figma.com) desktop client for Linux.
 
-### Why "Next"?
-- **Modern Stack:** Built with Bun, Vite, and Svelte 5 (Runes).
-- **Native Wayland:** First-class support for modern compositors (Sway, Hyprland, GNOME Wayland).
-- **Independent Configuration:** Uses `~/.config/figma-linux-next` to avoid conflicts with legacy versions.
-- **Optimized for CachyOS/Arch:** Tailored performance flags and system integration.
+> **🧪 Status: Active Testing**
+> Not yet available in AUR or other package stores.
+> Pre-built binaries (`.pacman`, `.deb`, `.rpm`, `.AppImage`) for x64 and arm64:
+> **https://github.com/arximus88/figma-linux-next/tags**
+
+## What's different from other forks
+
+- **Increased performance and build times** — thanks to [Bun](https://bun.sh), Vite 8, and Electron 41.
+- **Instant new-file tab** — pre-loaded in background after login, opens without delay
+- **Full local font support** — uses fontconfig (`fc-list`) instead of fontkit; variable fonts and all named instances work correctly
+- **Updated Google Fonts support** — new fonts available: Google Sans, Google Sans Flex, Google Sans Code, etc
+- **Native window frame styles** — New GNOME and old style Windows frames that match your desktop environment (MacOS and KDE styles TBD); no custom theming injections that breaks visual rendering.
+- **Native Wayland** — works on GNOME Wayland, KDE Plasma, Sway, Hyprland
+- **Runs on arm64** — tested on Asahi Linux (Apple Silicon)
+- **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations
 
 ## Tech Stack
-- **Electron 39** (Chromium 132)
-- **Bun** (Package manager & runtime)
-- **Svelte 5** (UI framework, runes)
-- **Vite 7** (Build system)
-- **Fontkit** (Font parsing)
 
-## Migration from legacy figma-linux
-
-If you are moving from the old `figma-linux`, your settings will not be automatically imported to ensure a clean state. However, you can manually copy your `settings.json` from `~/.config/figma-linux/` to `~/.config/figma-linux-next/`.
+- **Electron 41** (Chromium 134)
+- **Svelte 5** with runes
+- **Vite 8**
+- **Bun**
 
 ## Installation
 
-### Arch-based distros (AUR)
+Download from **https://github.com/arximus88/figma-linux-next/tags**:
 
 ```bash
-# Stable version (from releases)
-yay -S figma-linux-next
+# Arch / CachyOS (x64)
+sudo pacman -U figma-linux-next_*_linux_x64.pacman
 
-# Development version (from master branch)
-yay -S figma-linux-next-git
-```
-
-### Debian-based distros
-
-Download the latest `.deb` from [Releases](https://github.com/arximus88/figma-linux-next/releases) and install:
-
-```bash
+# Debian / Ubuntu (x64 or arm64)
 sudo dpkg -i figma-linux-next_*_amd64.deb
-sudo apt-get install -f
+# or
+sudo dpkg -i figma-linux-next_*_arm64.deb
+
+# Fedora / openSUSE
+sudo rpm -i figma-linux-next_*_x86_64.rpm
+
+# AppImage
+chmod +x figma-linux-next-*.AppImage && ./figma-linux-next-*.AppImage
 ```
 
-### AppImage
+### AUR / other stores
 
-Download the `.AppImage`, make it executable, and run:
+Not available yet.
+
+## Migration from legacy figma-linux
+
+Settings are stored in `~/.config/figma-linux-next`. To carry over settings from the old installation:
 
 ```bash
-chmod +x figma-linux-next-*.AppImage
-./figma-linux-next-*.AppImage
+cp ~/.config/figma-linux/settings.json ~/.config/figma-linux-next/
 ```
 
 ## Building from source
 
-1. Clone the repository:
 ```bash
 git clone https://github.com/arximus88/figma-linux-next.git
 cd figma-linux-next
-```
-
-2. Install dependencies:
-```bash
 bun install
+bun run dev      # dev mode with HMR
+bun run build    # production build
+bun run start    # run production build
+bun run pack     # build all packages
 ```
 
-3. Run in development mode:
-```bash
-bun run dev
-```
+## Issues & Discussions
 
-### Other commands:
-- `bun run build` — build for production
-- `bun run start` — run the built version
-- `bun run builder` — package for distribution
-- `bun run pack` — clean old packages and pack
-- `bun run pack:pacman` — build pacman package
-
-## Community & Feedback
-
-- **Issues:** Report bugs at [GitHub Issues](https://github.com/arximus88/figma-linux-next/issues)
-- **Discussions:** Join the community at [GitHub Discussions](https://github.com/arximus88/figma-linux-next/discussions)
+- https://github.com/arximus88/figma-linux-next/issues
+- https://github.com/arximus88/figma-linux-next/discussions
 
 ## License
 
-MIT License — See [LICENSE](LICENSE) file.
+MIT — see [LICENSE](LICENSE).

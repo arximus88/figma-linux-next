@@ -12,6 +12,9 @@ export default defineConfig({
       {
         entry: "main/index.ts",
         vite: {
+          define: {
+            "import.meta.url": 'require("url").pathToFileURL(__filename).href',
+          },
           resolve: {
             alias: {
               Main: path.resolve(__dirname, "src/main"),

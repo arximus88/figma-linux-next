@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     frameStyle: "gnome" as Types.FrameStyle,
     savedExtensions: [],
     themeDropdownOpen: true,
+    figmaTheme: "dark" as "dark" | "light",
   },
   theme: {
     currentTheme: "0",

@@ -47,6 +47,13 @@ export default class TabManager {
     return tab;
   }
 
+  /** Promote a pre-warmed Tab (already loaded in background) into the active tab list. */
+  public promoteWarmTab(tab: Tab): void {
+    tab.title = NEW_FILE_TAB_TITLE;
+    this.tabs.set(tab.id, tab);
+    this.hasOpenedNewFileTab = true;
+  }
+
   public addCommunityTab() {
     this.communityTab = new CommunityTab(this.windowId);
   }

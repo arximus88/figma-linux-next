@@ -103,6 +103,7 @@ declare namespace Types {
       lastSavedPluginDir?: string;
       lastExportDir?: string;
       themeDropdownOpen: boolean;
+      figmaTheme?: "dark" | "light";
     };
     ui: {
       scalePanel: number;

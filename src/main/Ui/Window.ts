@@ -19,6 +19,12 @@ export default class Window {
 
   private _userId: string;
 
+  // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
+  private warmTab: Tab | null = null;
+  private warmTabCreatedAt = 0;
+  private warmTabScheduled = false;
+  private static readonly WARM_TAB_TTL = 5 * 60 * 1000; // 5 minutes
+
   constructor(state: Types.WindowState) {
     this.window = new BrowserWindow({
       ...WINDOW_DEFAULT_OPTIONS,
@@ -82,6 +88,10 @@ export default class Window {
     if (this.tabManager.communityTabWebContentId) {
       ids.add(this.tabManager.communityTabWebContentId);
     }
+    // Include warm tab so IPC messages from it can be routed to this window
+    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
+      ids.add(this.warmTab.id);
+    }
 
     return [...ids];
   }
@@ -89,6 +99,12 @@ export default class Window {
   public setUserId(id: string) {
     this._userId = id;
     this.tabManager.setUserId(id);
+    // Start warming the new-file tab in background once we have a userId.
+    // Guard with warmTabScheduled to prevent cascade: the warm tab itself
+    // loads Figma which sends setUser again, which would re-trigger this.
+    if (!this.warmTab && !this.warmTabScheduled) {
+      this.scheduleWarmTab(2000);
+    }
   }
   public sortTabs(tabs: Types.TabFront[]) {
     this.tabManager.sortTabs(tabs);
@@ -252,7 +268,19 @@ export default class Window {
       return;
     }
 
-    this.addTab(`${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`, NEW_FILE_TAB_TITLE);
+    const warm = this.warmTab;
+    if (warm && !warm.view.webContents.isDestroyed()) {
+      // Promote the pre-warmed tab — instant, no loading delay
+      this.warmTab = null;
+      this.tabManager.promoteWarmTab(warm);
+      this.window.webContents.send("didTabAdd", { id: warm.id, url: warm.url, title: NEW_FILE_TAB_TITLE });
+      this.setTabFocus(warm.id);
+      // Warm the next one for next time
+      this.scheduleWarmTab(100);
+    } else {
+      // Fallback: warm tab not ready yet, create normally
+      this.addTab(`${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`, NEW_FILE_TAB_TITLE);
+    }
 
     this.window.webContents.send("newFileBtnVisible", false);
   }
@@ -295,6 +323,7 @@ export default class Window {
     parsedUrl.searchParams.set("fuid", this._userId);
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
+    tab.view.setBackgroundColor(this.figmaThemeBgColor);
 
     this.window.webContents.send("didTabAdd", {
       id: tab.id,
@@ -532,6 +561,9 @@ export default class Window {
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
   }
   public setTabTitle(event: IpcMainEvent, title: string) {
+    // Ignore title updates from the warm tab (not yet promoted to active tab)
+    if (this.warmTab && event.sender.id === this.warmTab.id) return;
+
     const tab = this.tabManager.getById(event.sender.id);
 
     if (!tab || (tab instanceof Tab && tab.title === NEW_FILE_TAB_TITLE)) {
@@ -591,7 +623,52 @@ export default class Window {
   }
 
   public close() {
+    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
+      this.warmTab.view.webContents.destroy();
+    }
+    this.warmTab = null;
     this.window.close();
+  }
+
+  private get figmaThemeBgColor(): string {
+    return storage.settings.app.figmaTheme === "light" ? "#ffffff" : "#1e1e1e";
+  }
+
+  private scheduleWarmTab(delayMs: number) {
+    if (this.warmTabScheduled) return;
+    this.warmTabScheduled = true;
+    setTimeout(() => {
+      this.warmTabScheduled = false;
+      this.initWarmTab();
+    }, delayMs);
+  }
+
+  private initWarmTab() {
+    if (!this._userId) return;
+
+    // Destroy previous warm tab if still alive
+    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
+      this.warmTab.view.webContents.destroy();
+    }
+
+    const tab = new Tab(this.windowId);
+    tab.view.setBackgroundColor(this.figmaThemeBgColor);
+    const url = new URL(NEW_PROJECT_TAB_URL);
+    url.searchParams.set("fuid", this._userId);
+    tab.loadUrl(url.toString());
+
+    this.warmTab = tab;
+    this.warmTabCreatedAt = Date.now();
+    logger.debug("WarmTab: initialized");
+  }
+
+  private refreshWarmTabIfStale() {
+    const isAlive = this.warmTab && !this.warmTab.view.webContents.isDestroyed();
+    const isStale = Date.now() - this.warmTabCreatedAt > Window.WARM_TAB_TTL;
+
+    if (!isAlive || isStale) {
+      this.scheduleWarmTab(0);
+    }
   }
 
   private registerEvents() {
@@ -600,7 +677,10 @@ export default class Window {
     this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));
-    this.window.on("focus", () => app.emit("windowFocus", this.window.id));
+    this.window.on("focus", () => {
+      app.emit("windowFocus", this.window.id);
+      this.refreshWarmTabIfStale();
+    });
     this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
     this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));

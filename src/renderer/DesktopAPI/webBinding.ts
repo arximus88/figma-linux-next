@@ -226,6 +226,14 @@ const publicAPI: any = {
   openFile(args: any) {
     sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target);
   },
+  openFileFromNewTab(args: any) {
+    if (args.url) {
+      const u = new URL(args.url);
+      sendMsgToMain("openFile", u.pathname + u.search, args.title, undefined, args.target ?? "tab");
+    } else {
+      sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target ?? "tab");
+    }
+  },
   openCommunity(args: WebApi.OpenCommunity) {
     sendMsgToMain("openCommunity", args);
   },
@@ -262,22 +270,51 @@ const publicAPI: any = {
   setIsPreloaded() {
     sendMsgToMain("setIsPreloaded");
   },
-  // TODO:
-  // setEditorType(args: any) {
-  //   console.log("setEditorType, args: ", args);
-  //   // n.send("updateEditorType", e.getString("editorType"));
-  // },
-  // setRealtimeToken(args: any) {
-  //   console.log("setRealtimeToken, args: ", args);
-  //   // n.send("setRealtimeToken", e.getString("realtimeToken"), e.getString("fileKey"));
-  // },
+  // Real-time collaboration — not applicable on Linux desktop
+  initLivegraph(_args: any) {},
+  setThemePreference(args: any) { if (import.meta.env.DEV) console.debug("[stub] setThemePreference", args); },
+
+  // Fire-and-forget messages that don't need main-process handling yet.
+  // In dev mode they log args so you can inspect the payload for future feature implementation.
+  setEditorType(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditorType", args); },
+  setRealtimeToken(args: any) { if (import.meta.env.DEV) console.debug("[stub] setRealtimeToken", args); },
+  setLocales(args: any) { if (import.meta.env.DEV) console.debug("[stub] setLocales", args); },
+  setTabPreviewData(args: any) { if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args); },
+  setIsLibrary(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args); },
+  setIsTeamTemplate(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args); },
+  updateColorProfile(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateColorProfile", args); },
+  setTabColor(args: any) {
+    sendMsgToMain("setTabColor", args);
+  },
+
+  // Returns current screen(s) dimensions — used by Figma for modal/popup positioning
+  getActiveNSScreens() {
+    return Promise.resolve({
+      data: [
+        {
+          frame: { x: 0, y: 0, width: window.screen.width, height: window.screen.height },
+          visibleFrame: { x: 0, y: 0, width: window.screen.availWidth, height: window.screen.availHeight },
+          scaleFactor: window.devicePixelRatio ?? 1,
+        },
+      ],
+    });
+  },
+
+  // Returns keyboard layout type — used by Figma for shortcut key labels
+  getKeyboardLayout() {
+    return Promise.resolve({ data: "ANSI" });
+  },
+
+  // Returns available spell-check languages
+  spellingGetLanguages() {
+    return Promise.resolve({ data: [navigator.language] });
+  },
   setInitialOptions(args: WebApi.SetInitOptions) {
     sendMsgToMain("setInitialOptions", args);
   },
-  // setTheme(args: any) {
-  //   console.log("isTabOpen, args: ", args);
-  //   // n.send("setTheme", e.getString("theme", "dark"));
-  // },
+  setTheme(args: any) {
+    sendMsgToMain("setFigmaTheme", args.theme ?? args);
+  },
 
   setFeatureFlags(args: any) {
     sendMsgToMain("setFeatureFlags", args);
