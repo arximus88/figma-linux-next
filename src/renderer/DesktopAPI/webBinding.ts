@@ -83,12 +83,12 @@ const initWebApi = (props: IntiApiOptions) => {
     appVersion: props.appVersion,
     fileBrowser: props.fileBrowser,
     postMessage: function (name, args, transferList): void {
-      console.log("postMessage, name, args, transferList: ", name, args, transferList);
+      if (import.meta.env.DEV) console.debug("[webBinding] postMessage:", name, args);
       channel.port1.postMessage({ name, args }, transferList);
     },
     registerCallback: function (name, args, callback) {
       const id = nextCallbackID++;
-      console.log(`Register pending promise with id: "${id}", name: "${name}", args: `, args);
+      if (import.meta.env.DEV) console.debug(`[webBinding] registerCallback id="${id}" name="${name}"`);
       registeredCallbacks.set(id, callback);
       channel.port1.postMessage({ name, args, callbackID: id });
       return (): void => {
@@ -129,7 +129,7 @@ const initWebApi = (props: IntiApiOptions) => {
       if (registeredCallback) {
         registeredCallback(msg.args);
       } else {
-        console.log("callback missing? ", msg);
+        if (import.meta.env.DEV) console.warn("[webBinding] callback missing:", msg);
       }
     } else if (msg.name != null) {
       messageHandler(msg.name, msg.args);
@@ -283,6 +283,8 @@ const publicAPI: any = {
   setIsLibrary(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args); },
   setIsTeamTemplate(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args); },
   updateColorProfile(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateColorProfile", args); },
+  setEditFilePermissions(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditFilePermissions", args); },
+  updateViewport(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateViewport", args); },
   setTabColor(args: any) {
     sendMsgToMain("setTabColor", args);
   },

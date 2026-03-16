@@ -98,6 +98,7 @@ export default class Tab {
     this.reloadCurrentTheme();
   }
   private onMainWindowWillNavigate(event: any, newUrl: string) {
+    if (!event.sender || event.sender.isDestroyed()) return;
     const currentUrl = event.sender.getURL();
 
     if (isAppAuthRedeem(newUrl)) {

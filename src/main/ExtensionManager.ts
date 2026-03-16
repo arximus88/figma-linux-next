@@ -43,7 +43,7 @@ export default class ExtensionManager {
           file[1].close();
         }
       } catch (e) {
-        console.error(e);
+        logger.error(e);
       }
     }
 
@@ -77,7 +77,7 @@ export default class ExtensionManager {
           entry.lastKnownPluginId = parsed.id;
         }
       } catch (e) {
-        console.error(e);
+        logger.error(e);
       }
 
       return [entry.lastKnownName, entry.lastKnownPluginId];

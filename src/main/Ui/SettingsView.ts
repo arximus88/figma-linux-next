@@ -61,7 +61,7 @@ export default class SettingsView {
         type: "question",
         title: "Figma",
         message: "Restart to apply Chromium flags?",
-        detail: `Figma needs to be restarted to ppply Chromium flags.`,
+        detail: `Figma needs to be restarted to apply Chromium flags.`,
         textOkButton: "Restart",
         defaultFocusedButton: "Ok",
       });

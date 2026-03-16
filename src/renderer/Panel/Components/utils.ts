@@ -60,7 +60,6 @@ export function onClickCommunity(event: MouseEvent) {
   }
 }
 export function onClickNewProject() {
-  console.log("onClickNewProject");
   window.figmaApi.send("newProject");
   newFileVisible.set(false);
 }

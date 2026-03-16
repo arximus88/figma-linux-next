@@ -192,6 +192,7 @@ export default class Window {
 
   public openUrlFromCommunity(url: string) {
     const tab = this.addTab(url);
+    if (!tab) return;
 
     this.setTabFocus(tab.id);
   }
@@ -287,6 +288,7 @@ export default class Window {
   public createFile(args: WebApi.CreateFile) {
     const newFileTab = this.tabManager.getByTitle(NEW_FILE_TAB_TITLE);
     const tab = this.addTab(args.url);
+    if (!tab) return false;
 
     tab.loadUrl(args.url);
     this.closeTab(newFileTab.id);
@@ -320,6 +322,10 @@ export default class Window {
 
   public addTab(url: string, title?: string) {
     const parsedUrl = parseURL(url);
+    if (!parsedUrl) {
+      logger.warn(`addTab: invalid URL "${url}", skipping`);
+      return null;
+    }
     parsedUrl.searchParams.set("fuid", this._userId);
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
@@ -457,6 +463,14 @@ export default class Window {
     this.tabManager.reloadTab(tabId);
   }
   public closeTab(tabId: number) {
+    // Guard: reject IDs that are not in the active tab list.
+    // TabManager.getById() falls back to mainTab for unknown IDs, which would
+    // cause mainTab to be removed from contentView on double-close (e.g. when
+    // renderer sends closeTab after setFocusToMainTab already closed it internally).
+    if (!this.tabManager.getAll().has(tabId)) {
+      return;
+    }
+
     const tab = this.tabManager.getById(tabId);
 
     if (!tab) {
