@@ -38,3 +38,4 @@ coverage
 # Agents
 .agent
 .gemini/settings.*
+.agent/skills
