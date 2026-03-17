@@ -7,19 +7,93 @@ import WindowManager from "Main/Ui/WindowManager";
 
 const MCP_PORT = 3845;
 const MCP_HOST = "127.0.0.1";
-const FIGMA_MCP_URL = "https://mcp.figma.com/mcp";
+const FIGMA_API = "https://api.figma.com/v1";
 
-const GET_CURRENT_FILE_TOOL = {
-  name: "get_current_file",
-  description:
-    "Returns the fileKey, nodeId, URL, and title of the file currently open in figma-linux-next. " +
-    "Use this to get the context for what the user is actively working on before calling other Figma tools.",
-  inputSchema: {
-    type: "object",
-    properties: {},
-    required: [] as string[],
+// ── Tool definitions ──────────────────────────────────────────────────────────
+
+const TOOLS = [
+  {
+    name: "get_current_file",
+    description:
+      "Returns the fileKey, nodeId, URL, and title of the file currently open in figma-linux-next. " +
+      "Always call this first to get context before calling other Figma tools.",
+    inputSchema: { type: "object", properties: {}, required: [] as string[] },
   },
-};
+  {
+    name: "get_file_nodes",
+    description:
+      "Returns the design tree for one or more nodes from a Figma file. " +
+      "Use this to inspect component structure, layout, and style properties.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fileKey: { type: "string", description: "Figma file key" },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Node IDs in '1:2' format",
+        },
+        depth: {
+          type: "number",
+          description: "Tree depth to traverse (default: 2, use 0 for full tree)",
+        },
+      },
+      required: ["fileKey", "nodeIds"],
+    },
+  },
+  {
+    name: "get_image",
+    description:
+      "Exports a Figma node as an image (SVG or PNG). " +
+      "Use this for visual reference when implementing a component.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fileKey: { type: "string", description: "Figma file key" },
+        nodeId: { type: "string", description: "Node ID in '1:2' format" },
+        format: {
+          type: "string",
+          enum: ["svg", "png", "jpg"],
+          description: "Image format (default: svg)",
+        },
+        scale: {
+          type: "number",
+          description: "Export scale 0.5–4 (default: 1, PNG only)",
+        },
+      },
+      required: ["fileKey", "nodeId"],
+    },
+  },
+  {
+    name: "get_file_variables",
+    description: "Returns design tokens (colors, spacing, typography) defined as variables in a Figma file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fileKey: { type: "string", description: "Figma file key" },
+      },
+      required: ["fileKey"],
+    },
+  },
+  {
+    name: "get_file_styles",
+    description: "Returns named styles (color, text, effect, grid) published in a Figma file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fileKey: { type: "string", description: "Figma file key" },
+      },
+      required: ["fileKey"],
+    },
+  },
+  {
+    name: "whoami",
+    description: "Returns the authenticated Figma user. Useful to verify the session is active.",
+    inputSchema: { type: "object", properties: {}, required: [] as string[] },
+  },
+];
+
+// ── Context from Figma web app ────────────────────────────────────────────────
 
 interface McpContext {
   updateType: string;
@@ -27,6 +101,8 @@ interface McpContext {
   pageId?: string;
   [key: string]: unknown;
 }
+
+// ── Server ────────────────────────────────────────────────────────────────────
 
 export class McpServer {
   private server: http.Server | null = null;
@@ -36,7 +112,6 @@ export class McpServer {
 
   private onContextUpdate(_event: IpcMainEvent, args: McpContext) {
     this.lastContext = args;
-    if (import.meta.env.DEV) logger.debug("[MCP] context update:", JSON.stringify(args));
   }
 
   public start(): void {
@@ -65,8 +140,9 @@ export class McpServer {
     }
   }
 
+  // ── HTTP handler ────────────────────────────────────────────────────────────
+
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    // OPTIONS preflight for CORS
     if (req.method === "OPTIONS") {
       res.writeHead(204, this.corsHeaders());
       res.end();
@@ -85,98 +161,138 @@ export class McpServer {
     try {
       message = JSON.parse(body);
     } catch {
-      res.writeHead(400, { "Content-Type": "application/json", ...this.corsHeaders() });
-      res.end(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          error: { code: -32700, message: "Parse error" },
-          id: null,
-        }),
-      );
+      this.sendJson(res, 400, { jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null });
       return;
     }
 
-    // Notifications: no response body required
     if (message.method?.startsWith("notifications/")) {
       res.writeHead(202, this.corsHeaders());
       res.end();
       return;
     }
 
-    // initialize — respond locally with server capabilities
     if (message.method === "initialize") {
-      res.writeHead(200, { "Content-Type": "application/json", ...this.corsHeaders() });
-      res.end(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: message.id,
-          result: {
-            protocolVersion: "2024-11-05",
-            capabilities: { tools: {} },
-            serverInfo: { name: "figma-linux-next", version: "0.13.0" },
-          },
-        }),
-      );
+      this.sendJson(res, 200, {
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          protocolVersion: "2024-11-05",
+          capabilities: { tools: {} },
+          serverInfo: { name: "figma-linux-next", version: "0.13.0" },
+        },
+      });
       return;
     }
 
-    // tools/list — inject get_current_file into upstream tool list
     if (message.method === "tools/list") {
-      const upstream = await this.proxyToFigma(message);
-      const tools: any[] = upstream?.result?.tools ?? [];
-      tools.unshift(GET_CURRENT_FILE_TOOL);
-      if (upstream?.result) upstream.result.tools = tools;
-
-      res.writeHead(200, { "Content-Type": "application/json", ...this.corsHeaders() });
-      res.end(
-        JSON.stringify(
-          upstream ?? {
-            jsonrpc: "2.0",
-            id: message.id,
-            result: { tools: [GET_CURRENT_FILE_TOOL] },
-          },
-        ),
-      );
+      this.sendJson(res, 200, { jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } });
       return;
     }
 
-    // tools/call — handle get_current_file locally, proxy everything else
     if (message.method === "tools/call") {
-      if (message.params?.name === "get_current_file") {
-        const result = this.handleGetCurrentFile();
-        res.writeHead(200, { "Content-Type": "application/json", ...this.corsHeaders() });
-        res.end(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: message.id,
-            result: {
-              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-            },
-          }),
-        );
-        return;
-      }
+      const result = await this.dispatchTool(message.params?.name, message.params?.arguments ?? {});
+      this.sendJson(res, 200, { jsonrpc: "2.0", id: message.id, result });
+      return;
     }
 
-    // Everything else: stream-proxy to mcp.figma.com
-    await this.proxyStream(req, body, res);
+    this.sendJson(res, 200, {
+      jsonrpc: "2.0",
+      id: message.id,
+      error: { code: -32601, message: "Method not found" },
+    });
   }
+
+  // ── Tool dispatch ───────────────────────────────────────────────────────────
+
+  private async dispatchTool(name: string, args: any): Promise<any> {
+    try {
+      switch (name) {
+        case "get_current_file":
+          return this.toolResult(JSON.stringify(this.handleGetCurrentFile(), null, 2));
+        case "get_file_nodes":
+          return this.toolResult(JSON.stringify(await this.getFileNodes(args), null, 2));
+        case "get_image":
+          return this.toolResult(JSON.stringify(await this.getImage(args), null, 2));
+        case "get_file_variables":
+          return this.toolResult(JSON.stringify(await this.getFileVariables(args), null, 2));
+        case "get_file_styles":
+          return this.toolResult(JSON.stringify(await this.getFileStyles(args), null, 2));
+        case "whoami":
+          return this.toolResult(JSON.stringify(await this.whoami(), null, 2));
+        default:
+          return { isError: true, content: [{ type: "text", text: `Unknown tool: ${name}` }] };
+      }
+    } catch (err: any) {
+      logger.error(`[MCP] Tool error (${name}):`, err?.message ?? err);
+      return { isError: true, content: [{ type: "text", text: err?.message ?? String(err) }] };
+    }
+  }
+
+  private toolResult(text: string) {
+    return { content: [{ type: "text", text }] };
+  }
+
+  // ── Tool implementations ────────────────────────────────────────────────────
 
   private handleGetCurrentFile() {
-    const window = this.windowManager.getLastFocusedWindow();
-    if (!window) return { error: "No Figma window open" };
+    const win = this.windowManager.getLastFocusedWindow();
+    if (!win) return { error: "No Figma window open" };
 
-    const tabId = window.getLatestFocusedTabId();
+    const tabId = win.getLatestFocusedTabId();
     if (!tabId) return { error: "No tab focused" };
 
-    const { url, title } = window.getTabInfo(tabId);
-    const fileKey = getFileKeyFromUrl(url);
-    const nodeId = this.extractNodeId(url);
+    const { url, title } = win.getTabInfo(tabId);
 
-    const selectedNodes = this.lastContext?.selectedNodes ?? null;
-
-    return { url, fileKey, nodeId, title, selectedNodes };
+    return {
+      url,
+      fileKey: getFileKeyFromUrl(url),
+      nodeId: this.extractNodeId(url),
+      title,
+      selectedNodes: this.lastContext?.selectedNodes ?? null,
+    };
   }
+
+  private async getFileNodes(args: { fileKey: string; nodeIds: string[]; depth?: number }) {
+    const ids = args.nodeIds.join(",");
+    const depth = args.depth ?? 2;
+    const params = `ids=${encodeURIComponent(ids)}&depth=${depth}`;
+    return this.figmaGet(`/files/${args.fileKey}/nodes?${params}`);
+  }
+
+  private async getImage(args: { fileKey: string; nodeId: string; format?: string; scale?: number }) {
+    const format = args.format ?? "svg";
+    const scale = args.scale ?? 1;
+    const id = encodeURIComponent(args.nodeId);
+    const params = `ids=${id}&format=${format}&scale=${scale}`;
+    return this.figmaGet(`/images/${args.fileKey}?${params}`);
+  }
+
+  private async getFileVariables(args: { fileKey: string }) {
+    return this.figmaGet(`/files/${args.fileKey}/variables/local`);
+  }
+
+  private async getFileStyles(args: { fileKey: string }) {
+    return this.figmaGet(`/files/${args.fileKey}/styles`);
+  }
+
+  private async whoami() {
+    return this.figmaGet("/me");
+  }
+
+  // ── Figma REST API ──────────────────────────────────────────────────────────
+
+  private async figmaGet(path: string): Promise<any> {
+    const response = await net.fetch(`${FIGMA_API}${path}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Figma API ${response.status}: ${text}`);
+    }
+
+    return response.json();
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private extractNodeId(url: string): string | null {
     try {
@@ -187,57 +303,9 @@ export class McpServer {
     }
   }
 
-  private async proxyToFigma(message: any): Promise<any | null> {
-    try {
-      const response = await net.fetch(FIGMA_MCP_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(message),
-      });
-      return (await response.json()) as any;
-    } catch (err) {
-      logger.error("[MCP] Upstream error:", err);
-      return null;
-    }
-  }
-
-  private async proxyStream(
-    req: http.IncomingMessage,
-    body: string,
-    res: http.ServerResponse,
-  ): Promise<void> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-
-    if (req.headers.authorization) {
-      headers["Authorization"] = req.headers.authorization as string;
-    }
-
-    try {
-      const upstream = await net.fetch(FIGMA_MCP_URL, { method: "POST", headers, body });
-
-      const contentType = upstream.headers.get("content-type") ?? "application/json";
-      res.writeHead(upstream.status, { "Content-Type": contentType, ...this.corsHeaders() });
-
-      if (upstream.body) {
-        const reader = upstream.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-      }
-      res.end();
-    } catch (err) {
-      logger.error("[MCP] Proxy error:", err);
-      res.writeHead(502, { "Content-Type": "application/json", ...this.corsHeaders() });
-      res.end(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          error: { code: -32603, message: "Upstream unavailable" },
-          id: null,
-        }),
-      );
-    }
+  private sendJson(res: http.ServerResponse, status: number, data: any) {
+    res.writeHead(status, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.end(JSON.stringify(data));
   }
 
   private readBody(req: http.IncomingMessage): Promise<string> {
