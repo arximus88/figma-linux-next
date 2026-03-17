@@ -1,5 +1,5 @@
 import http from "http";
-import { net, ipcMain, IpcMainEvent } from "electron";
+import { ipcMain, IpcMainEvent } from "electron";
 
 import { logger } from "Main/Logger";
 import { getFileKeyFromUrl } from "Utils/Common";
@@ -7,7 +7,6 @@ import WindowManager from "Main/Ui/WindowManager";
 
 const MCP_PORT = 3845;
 const MCP_HOST = "127.0.0.1";
-const FIGMA_API = "https://api.figma.com/v1";
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
 
@@ -280,16 +279,19 @@ export class McpServer {
   }
 
   // ── Figma REST API ──────────────────────────────────────────────────────────
+  // Executes fetch from within the active Figma BrowserView — same origin,
+  // session cookies included automatically, no personal access token needed.
 
   private async figmaGet(path: string): Promise<any> {
-    const response = await net.fetch(`${FIGMA_API}${path}`);
+    const win = this.windowManager.getLastFocusedWindow();
+    if (!win) throw new Error("No Figma window open");
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Figma API ${response.status}: ${text}`);
-    }
+    const data = await win.figmaApiFetch(path);
 
-    return response.json();
+    if (data?.error) throw new Error(data.error);
+    if (data?.status && data.status >= 400) throw new Error(`Figma API ${data.status}: ${data.err ?? JSON.stringify(data)}`);
+
+    return data;
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

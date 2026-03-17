@@ -563,6 +563,16 @@ export default class Window {
   public getLatestFocusedTabId() {
     return this.tabManager.lastFocusedTab;
   }
+
+  public figmaApiFetch(path: string): Promise<any> {
+    const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
+    const script = `
+      fetch("https://api.figma.com/v1${path}", { credentials: "include" })
+        .then(r => r.json())
+        .catch(e => ({ error: e.message }))
+    `;
+    return tab.view.webContents.executeJavaScript(script);
+  }
   public tabWasClosed(tabId: number) {
     this.window.webContents.send("tabWasClosed", tabId);
   }
