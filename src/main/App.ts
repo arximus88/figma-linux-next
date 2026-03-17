@@ -10,6 +10,7 @@ import ExtensionManager from "./ExtensionManager";
 import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
 import FontManager from "./Fonts";
+import { McpServer } from "./MCP";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -21,6 +22,7 @@ import FileController from "./controllers/FileController";
 
 export default class App {
   private authController: AuthController;
+  private mcpServer: McpServer;
 
   constructor(
     private windowManager: WindowManager,
@@ -41,6 +43,8 @@ export default class App {
     if (!app.isDefaultProtocolClient(Const.PROTOCOL)) {
       app.setAsDefaultProtocolClient(Const.PROTOCOL);
     }
+
+    this.mcpServer = new McpServer(this.windowManager);
 
     // Initialize controllers — registers all IPC handlers through the registry
     new SettingsController(this.windowManager);
@@ -63,6 +67,7 @@ export default class App {
 
     this.windowManager.restoreState();
     this.session.handleAppReady();
+    this.mcpServer.start();
 
     setTimeout(() => {
       if (figmaUrl !== "") {
@@ -190,6 +195,7 @@ export default class App {
   }
 
   private async quitApp() {
+    this.mcpServer.stop();
     this.windowManager.saveState();
     await storage.save();
 
