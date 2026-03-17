@@ -88,7 +88,8 @@ export default class FontManager {
         if (isNaN(fcWeight)) continue;
 
         const item: Fonts.IFontsFigmaItem = {
-          postscript: postscript || `${family.replace(/ /g, "")}-${(style || "Regular").replace(/ /g, "")}`,
+          postscript:
+            postscript || `${family.replace(/ /g, "")}-${(style || "Regular").replace(/ /g, "")}`,
           family: family.trim(),
           id: postscript || family,
           style: (style || "Regular").trim(),
@@ -120,12 +121,14 @@ export default class FontManager {
           newFiles.map(async (filePath) => {
             try {
               const fontOrCollection = await fontkit.open(filePath);
-              const fonts: any[] = "fonts" in fontOrCollection ? fontOrCollection.fonts : [fontOrCollection];
+              const fonts: any[] =
+                "fonts" in fontOrCollection ? fontOrCollection.fonts : [fontOrCollection];
               const items: Fonts.IFontsFigmaItem[] = [];
 
               for (const font of fonts) {
                 const isItalic =
-                  font.italicAngle !== 0 || (font.subfamilyName && font.subfamilyName.toLowerCase().includes("italic"));
+                  font.italicAngle !== 0 ||
+                  (font.subfamilyName && font.subfamilyName.toLowerCase().includes("italic"));
                 let weight = 400;
                 if (font["OS/2"]?.usWeightClass) weight = font["OS/2"].usWeightClass;
                 items.push({
@@ -152,13 +155,16 @@ export default class FontManager {
 
     this.fontList = result;
     const totalFaces = Object.values(result).reduce((s, arr) => s + arr.length, 0);
-    logger.info(`FontManager: loaded ${totalFaces} font faces from ${Object.keys(result).length} files`);
+    logger.info(
+      `FontManager: loaded ${totalFaces} font faces from ${Object.keys(result).length} files`,
+    );
   }
 
   private runFcList(): Promise<string[]> {
     return new Promise((resolve, reject) => {
       // %{family[0]} picks the first (English) family name from comma-separated list
-      const format = "%{file}\t%{family[0]}\t%{style[0]}\t%{postscriptname}\t%{weight}\t%{slant}\t%{width}\n";
+      const format =
+        "%{file}\t%{family[0]}\t%{style[0]}\t%{postscriptname}\t%{weight}\t%{slant}\t%{width}\n";
       const fc = spawn("fc-list", [`--format=${format}`]);
       let stdout = "";
       let stderr = "";
@@ -186,7 +192,24 @@ export default class FontManager {
         return;
       }
 
-      const args = [dir, "-type", "f", "(", "-name", "*.ttf", "-o", "-name", "*.otf", "-o", "-name", "*.ttc", "-o", "-name", "*.otc", ")"];
+      const args = [
+        dir,
+        "-type",
+        "f",
+        "(",
+        "-name",
+        "*.ttf",
+        "-o",
+        "-name",
+        "*.otf",
+        "-o",
+        "-name",
+        "*.ttc",
+        "-o",
+        "-name",
+        "*.otc",
+        ")",
+      ];
       const find = spawn("find", args);
       let stdout = "";
 

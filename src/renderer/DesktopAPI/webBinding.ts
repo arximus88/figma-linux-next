@@ -88,7 +88,8 @@ const initWebApi = (props: IntiApiOptions) => {
     },
     registerCallback: function (name, args, callback) {
       const id = nextCallbackID++;
-      if (import.meta.env.DEV) console.debug(`[webBinding] registerCallback id="${id}" name="${name}"`);
+      if (import.meta.env.DEV)
+        console.debug(`[webBinding] registerCallback id="${id}" name="${name}"`);
       registeredCallbacks.set(id, callback);
       channel.port1.postMessage({ name, args, callbackID: id });
       return (): void => {
@@ -231,7 +232,13 @@ const publicAPI: any = {
       const u = new URL(args.url);
       sendMsgToMain("openFile", u.pathname + u.search, args.title, undefined, args.target ?? "tab");
     } else {
-      sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target ?? "tab");
+      sendMsgToMain(
+        "openFile",
+        "/file/" + args.fileKey,
+        args.title,
+        undefined,
+        args.target ?? "tab",
+      );
     }
   },
   openCommunity(args: WebApi.OpenCommunity) {
@@ -279,15 +286,33 @@ const publicAPI: any = {
 
   // Fire-and-forget messages that don't need main-process handling yet.
   // In dev mode they log args so you can inspect the payload for future feature implementation.
-  setEditorType(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditorType", args); },
-  setRealtimeToken(args: any) { if (import.meta.env.DEV) console.debug("[stub] setRealtimeToken", args); },
-  setLocales(args: any) { if (import.meta.env.DEV) console.debug("[stub] setLocales", args); },
-  setTabPreviewData(args: any) { if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args); },
-  setIsLibrary(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args); },
-  setIsTeamTemplate(args: any) { if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args); },
-  updateColorProfile(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateColorProfile", args); },
-  setEditFilePermissions(args: any) { if (import.meta.env.DEV) console.debug("[stub] setEditFilePermissions", args); },
-  updateViewport(args: any) { if (import.meta.env.DEV) console.debug("[stub] updateViewport", args); },
+  setEditorType(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setEditorType", args);
+  },
+  setRealtimeToken(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setRealtimeToken", args);
+  },
+  setLocales(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setLocales", args);
+  },
+  setTabPreviewData(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args);
+  },
+  setIsLibrary(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args);
+  },
+  setIsTeamTemplate(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args);
+  },
+  updateColorProfile(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] updateColorProfile", args);
+  },
+  setEditFilePermissions(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setEditFilePermissions", args);
+  },
+  updateViewport(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] updateViewport", args);
+  },
   setTabColor(args: any) {
     sendMsgToMain("setTabColor", args);
   },
@@ -298,7 +323,12 @@ const publicAPI: any = {
       data: [
         {
           frame: { x: 0, y: 0, width: window.screen.width, height: window.screen.height },
-          visibleFrame: { x: 0, y: 0, width: window.screen.availWidth, height: window.screen.availHeight },
+          visibleFrame: {
+            x: 0,
+            y: 0,
+            width: window.screen.availWidth,
+            height: window.screen.availHeight,
+          },
           scaleFactor: window.devicePixelRatio ?? 1,
         },
       ],

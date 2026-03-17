@@ -27,17 +27,23 @@ export function getFramePanel(style: Types.FrameStyle): Component<{ zoom?: numbe
 }
 
 export const VALID_FRAME_STYLES = new Set<Types.FrameStyle>(["windows", "gnome", "macos", "kde"]);
-export const IMPLEMENTED_FRAME_STYLES = new Set<Types.FrameStyle>(Object.keys(FRAME_MAP) as Types.FrameStyle[]);
+export const IMPLEMENTED_FRAME_STYLES = new Set<Types.FrameStyle>(
+  Object.keys(FRAME_MAP) as Types.FrameStyle[],
+);
 
 export function isValidFrameStyle(style: any): style is Types.FrameStyle {
   return typeof style === "string" && VALID_FRAME_STYLES.has(style as Types.FrameStyle);
 }
 
-export function getAvailableFrameStyles(): Array<{ value: Types.FrameStyle; label: string; disabled?: boolean }> {
+export function getAvailableFrameStyles(): Array<{
+  value: Types.FrameStyle;
+  label: string;
+  disabled?: boolean;
+}> {
   return [
-    { value: "gnome",   label: "GNOME / Adwaita" },
+    { value: "gnome", label: "GNOME / Adwaita" },
     { value: "windows", label: "Windows 11" },
-    { value: "macos",   label: "macOS (Coming Soon)",      disabled: true },
-    { value: "kde",     label: "KDE Plasma (Coming Soon)", disabled: true },
+    { value: "macos", label: "macOS (Coming Soon)", disabled: true },
+    { value: "kde", label: "KDE Plasma (Coming Soon)", disabled: true },
   ];
 }

@@ -7,7 +7,14 @@ import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { isDev, isCommunityUrl, isAppAuthRedeem, normalizeUrl, parseURL, getFileKeyFromUrl } from "Utils/Common";
+import {
+  isDev,
+  isCommunityUrl,
+  isAppAuthRedeem,
+  normalizeUrl,
+  parseURL,
+  getFileKeyFromUrl,
+} from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
 
@@ -309,7 +316,11 @@ export default class Window {
       // Promote the pre-warmed tab — instant, no loading delay
       this.warmTab = null;
       this.tabManager.promoteWarmTab(warm);
-      this.window.webContents.send("didTabAdd", { id: warm.id, url: warm.url, title: NEW_FILE_TAB_TITLE });
+      this.window.webContents.send("didTabAdd", {
+        id: warm.id,
+        url: warm.url,
+        title: NEW_FILE_TAB_TITLE,
+      });
       this.setTabFocus(warm.id);
       // Warm the next one for next time
       this.scheduleWarmTab(100);

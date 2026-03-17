@@ -156,4 +156,3 @@ export const INITACTIONINITSTATE = {
   "distribute-vertical-center": false,
   "distribute-bottom": false,
 };
-

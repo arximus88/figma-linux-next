@@ -58,6 +58,10 @@ export default class AuthController {
   }
 
   private setInitialOptions(event: IpcMainEvent, data: WebApi.SetInitOptions) {
+    if (data.userId) {
+      storage.settings.userId = data.userId;
+    }
+
     const window = this.windowManager.getWindowByWebContentsId(event.sender.id);
 
     if (window) {
@@ -66,6 +70,10 @@ export default class AuthController {
   }
 
   private setUser(event: IpcMainEvent, userId: string) {
+    if (userId) {
+      storage.settings.userId = userId;
+    }
+
     const window = this.windowManager.getWindowByWebContentsId(event.sender.id);
 
     if (window) {

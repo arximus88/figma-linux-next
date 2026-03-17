@@ -153,7 +153,9 @@ function initInputEnhancements(): void {
           });
 
           if (gl) {
-            console.log("[Figma-Linux-Next] WebGL2 context initialized with high-performance settings");
+            console.log(
+              "[Figma-Linux-Next] WebGL2 context initialized with high-performance settings",
+            );
           }
         }
       });

@@ -1,4 +1,12 @@
-import { app, shell, BrowserWindow, WebContentsView, Rectangle, HandlerDetails, DidCreateWindowDetails } from "electron";
+import {
+  app,
+  shell,
+  BrowserWindow,
+  WebContentsView,
+  Rectangle,
+  HandlerDetails,
+  DidCreateWindowDetails,
+} from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
 import {

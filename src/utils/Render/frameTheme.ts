@@ -243,7 +243,6 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
 FRAME_STYLES.macos = { ...FRAME_STYLES.windows };
 FRAME_STYLES.kde = { ...FRAME_STYLES.windows };
 
-
 // ============================================================================
 // Helpers
 // ============================================================================

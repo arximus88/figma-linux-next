@@ -418,7 +418,6 @@ declare namespace Electron {
     send(channed: "web-callback:registerCodeChangeObserver", callbackID: number, args?: any): this;
     send(channed: "web-callback:registerUiChangeObserver", callbackID: number, args?: any): this;
 
-
     invoke(
       channel: "writeNewExtensionToDisk",
       data: WebApi.WriteNewExtensionToDiskArgs,

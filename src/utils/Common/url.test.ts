@@ -43,7 +43,9 @@ describe("getFileKeyFromUrl", () => {
   });
 
   test("extracts key from URL with node-id query param", () => {
-    expect(getFileKeyFromUrl("https://www.figma.com/design/ABC123xyz/file?node-id=1-2")).toBe("ABC123xyz");
+    expect(getFileKeyFromUrl("https://www.figma.com/design/ABC123xyz/file?node-id=1-2")).toBe(
+      "ABC123xyz",
+    );
   });
 
   test("returns null for home/recent pages", () => {
