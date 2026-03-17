@@ -2,7 +2,7 @@
 name: figma-linux-next
 description: |
   Developer reference skill for the figma-linux-next project — an Electron-based unofficial Figma desktop client for Linux.
-  Use this skill whenever working on ANY task in this repository: adding features, fixing bugs, tracing IPC flows, modifying tabs/windows, touching the renderer, working with themes/extensions, or debugging Electron-specific behavior. Load this skill at the start of every figma-linux-next coding session — it saves significant re-reading of architecture files.
+  Use this skill whenever working on ANY task in this repository: adding features, fixing bugs, tracing IPC flows, modifying tabs/windows, touching the renderer, working with extensions, or debugging Electron-specific behavior. Load this skill at the start of every figma-linux-next coding session — it saves significant re-reading of architecture files.
 ---
 
 # figma-linux-next Developer Reference
@@ -18,7 +18,6 @@ App.ts          ←──IPC──→         Panel/   (Svelte toolbar + tabs UI
 WindowManager                     Settings/ (Svelte settings modal)
 TabManager                        DesktopAPI/ (Figma web app bridge)
 ExtensionManager
-ThemeManager
 Storage (singleton)
 ```
 
@@ -119,7 +118,7 @@ Controllers in `src/main/controllers/` register handlers via `ipcRegistry` (thin
 - Deep-merges saved settings with `defaultSettings` on load
 - Works in both main and renderer processes
 - Renderer reads synchronously via `ipcMain.on('getSettings')` (special sync path)
-- Top-level keys: `clientId`, `userId`, `app`, `theme`, `ui`
+- Top-level keys: `clientId`, `userId`, `app`, `ui`
 
 When adding a setting:
 1. `src/utils/Render/defaultSettings.ts` — add with default value
@@ -158,13 +157,9 @@ Extensions hot-reload from `~/.config/figma-linux/Extensions/` via Chokidar. Eac
 
 ---
 
-## Theme System
+## Styling
 
-Two types:
-- **Community themes** (`~/.config/figma-linux/Themes/`) — downloaded, applied app-wide
-- **Creator themes** (`~/.config/figma-linux/ThemeCreator/`) — user-built, live preview
-
-Themes are CSS custom properties injected into Figma's stylesheet by `ThemesApplier`. Structure: `{ id, name, palette: { [colorName]: hexColor } }`.
+Panel and Settings UI use static CSS custom properties defined in `src/renderer/theme.css`, imported by both renderers. These are hardcoded design tokens — there is no dynamic theme system. Native Figma dark/light mode is controlled via `settings.app.figmaTheme` and passed to Figma's web app.
 
 ---
 
@@ -196,7 +191,6 @@ bun run local:install  # install to /opt/figma-linux-next for testing
 | `src/main/Ui/CommunityTab.ts` | Community browser, window.open routing |
 | `src/main/Storage.ts` | Settings persistence + sync IPC bridge |
 | `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop message bridge, publicAPI stubs |
-| `src/renderer/DesktopAPI/ThemesApplier.ts` | CSS custom property injection |
 | `src/renderer/Panel/ipc.ts` | Panel IPC listener registrations |
 | `src/utils/Render/defaultSettings.ts` | All setting defaults + structure |
 | `src/utils/Common/` | Shared URL predicates (`isFigmaUrl`, `isPrototypeUrl`, etc.) |
