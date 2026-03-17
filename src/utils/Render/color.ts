@@ -38,14 +38,3 @@ export const RgbToHex = (rgb: string) => {
 
   return `#${red}${green}${blue}`;
 };
-
-/**
- * Converts a theme's palette into CSS custom property declarations.
- * Returns an array of strings like ["--text: #fff", "--bg-panel: #1e1e1e", ...]
- * for use as inline style attributes.
- */
-export const getColorPallet = (theme: Themes.Theme): string[] => {
-  if (!theme?.palette) return [];
-
-  return Object.entries(theme.palette).map(([key, value]) => `--${key}: ${value}`);
-};

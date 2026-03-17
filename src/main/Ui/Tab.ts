@@ -91,13 +91,7 @@ export default class Tab {
   public updateScale(scale: number) {
     this.view.webContents.setZoomFactor(scale);
   }
-  public reloadCurrentTheme() {
-    app.emit("reloadCurrentTheme");
-  }
-
-  private onDomReady(event: any) {
-    this.reloadCurrentTheme();
-  }
+  private onDomReady(_event: any) {}
   private onMainWindowWillNavigate(event: any, newUrl: string) {
     if (!event.sender || event.sender.isDestroyed()) return;
     const currentUrl = event.sender.getURL();

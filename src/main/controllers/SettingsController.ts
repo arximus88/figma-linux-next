@@ -30,11 +30,6 @@ export default class SettingsController {
       "SettingsController",
     );
     ipcRegistry.handle(
-      "themesIsDisabled",
-      () => storage.settings.app.disableThemes,
-      "SettingsController",
-    );
-    ipcRegistry.handle(
       "isDevToolsOpened",
       (event: IpcMainInvokeEvent) => event.sender.isDevToolsOpened(),
       "SettingsController",
@@ -45,9 +40,6 @@ export default class SettingsController {
   private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
     if (storage.settings.app.enableColorSpaceSrgb !== settings.app.enableColorSpaceSrgb) {
       app.emit("enableColorSpaceSrgbWasChanged", true);
-    }
-    if (storage.settings.app.disableThemes !== settings.app.disableThemes) {
-      app.emit("disableThemesChanged", true);
     }
     if (
       JSON.stringify(storage.settings.app.commandSwitches) !==

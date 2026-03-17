@@ -9,7 +9,6 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     lastTimeClearLogFile: 0,
     enableColorSpaceSrgb: false,
     useZenity: false,
-    disableThemes: true,
     panelHeight: 40,
     saveLastOpenedTabs: true,
     exportDir: "",
@@ -32,13 +31,8 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     lastOpenedTabs: {},
     featureFlags: {},
     savedExtensions: [],
-    themeDropdownOpen: true,
-
     frameStyle: "gnome",
     figmaTheme: "dark" as "dark" | "light",
-  },
-  theme: {
-    currentTheme: "0",
   },
   ui: {
     scalePanel: 1,

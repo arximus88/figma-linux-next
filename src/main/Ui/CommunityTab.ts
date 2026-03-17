@@ -1,4 +1,4 @@
-import { app, shell, WebContentsView, Rectangle, HandlerDetails } from "electron";
+import { app, shell, BrowserWindow, WebContentsView, Rectangle, HandlerDetails, DidCreateWindowDetails } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
 import {
@@ -66,15 +66,6 @@ export default class CommunityTab {
   public updateScale(scale: number) {
     this.view.webContents.setZoomFactor(scale);
   }
-  public reloadCurrentTheme() {
-    app.emit("reloadCurrentTheme");
-  }
-  public loadTheme(theme: Themes.Theme) {
-    if (this.view?.webContents && !this.view.webContents.isDestroyed()) {
-      this.view.webContents.send("loadCurrentTheme", theme);
-    }
-  }
-
   private onCommunityTabWillNavigate(event: Event, url: string) {
     if (isFigmaUrl(url) && !isRecentFilesLink(url)) {
       return;
@@ -89,9 +80,7 @@ export default class CommunityTab {
 
     shell.openExternal(url);
   }
-  private onDomReady(event: any) {
-    this.reloadCurrentTheme();
-  }
+  private onDomReady(_event: any) {}
   private windowOpenHandler(details: HandlerDetails) {
     const url = details.url;
 
@@ -105,9 +94,24 @@ export default class CommunityTab {
     return { action: "deny" };
   }
 
+  private onNewWindow(window: BrowserWindow, details: DidCreateWindowDetails) {
+    const url = details.url;
+    logger.debug("CommunityTab newWindow, url:", url);
+
+    window.close();
+
+    if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
+      app.emit("openUrlFromCommunity", url);
+      return;
+    }
+
+    shell.openExternal(url);
+  }
+
   private registerEvents() {
     this.view.webContents.setWindowOpenHandler(this.windowOpenHandler.bind(this));
     this.view.webContents.on("will-navigate", this.onCommunityTabWillNavigate.bind(this));
     this.view.webContents.on("dom-ready", this.onDomReady.bind(this));
+    this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
   }
 }

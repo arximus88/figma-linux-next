@@ -29,8 +29,6 @@ const SEND_CHANNELS = [
   "openTabMenu",
   // Settings
   "closeSettingsView",
-  "changeTheme",
-  "syncThemes",
   "setFrameStyle",
 ] as const;
 
@@ -51,10 +49,6 @@ const RECEIVE_CHANNELS = [
   "communityTabWasClose",
   "setLoading",
   "frameStyleChanged",
-  // Settings
-  "themesLoaded",
-  // Common
-  "loadCurrentTheme",
 ] as const;
 
 const INVOKE_CHANNELS = [

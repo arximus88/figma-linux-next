@@ -81,7 +81,6 @@ declare namespace Types {
       lastTimeClearLogFile: number;
       enableColorSpaceSrgb: boolean;
       useZenity: boolean;
-      disableThemes: boolean;
       panelHeight: number;
       saveLastOpenedTabs: boolean;
       exportDir: string;
@@ -101,15 +100,11 @@ declare namespace Types {
       savedExtensions: Extensions.ExtensionJson[];
       lastSavedPluginDir?: string;
       lastExportDir?: string;
-      themeDropdownOpen: boolean;
       figmaTheme?: "dark" | "light";
     };
     ui: {
       scalePanel: number;
       scaleFigmaUI: number;
-    };
-    theme: {
-      currentTheme: string;
     };
     [path: string]: any;
   }

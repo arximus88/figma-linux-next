@@ -105,15 +105,6 @@ export default class MainTab {
   public updateScale(scale: number) {
     this.view.webContents.setZoomFactor(scale);
   }
-  public reloadCurrentTheme() {
-    app.emit("reloadCurrentTheme");
-  }
-  public loadTheme(theme: Themes.Theme) {
-    if (this.view?.webContents && !this.view.webContents.isDestroyed()) {
-      this.view.webContents.send("loadCurrentTheme", theme);
-    }
-  }
-
   private onMainTabWillNavigate(event: Event<any>, url: string) {
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
@@ -121,9 +112,7 @@ export default class MainTab {
       event.preventDefault();
     }
   }
-  private onDomReady(event: any) {
-    this.reloadCurrentTheme();
-  }
+  private onDomReady(_event: any) {}
   private onMainWindowWillNavigate(event: Event<any>, url: string) {
     if (event?.sender) {
       const currentUrl = event.sender.getURL();
