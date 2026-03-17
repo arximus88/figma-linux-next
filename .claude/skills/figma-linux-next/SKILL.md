@@ -117,7 +117,7 @@ Controllers in `src/main/controllers/` register handlers via `ipcRegistry` (thin
 
 - Deep-merges saved settings with `defaultSettings` on load
 - Works in both main and renderer processes
-- Renderer reads synchronously via `ipcMain.on('getSettings')` (special sync path)
+- Renderer reads via `ipcRenderer.invoke('getSettings')` → async, registered as `ipcRegistry.handle('getSettings', ...)`
 - Top-level keys: `clientId`, `userId`, `app`, `ui`
 
 When adding a setting:
@@ -172,11 +172,10 @@ All Chromium command-line switches applied in `App.applySwitches()` (`src/main/A
 ## Key Commands
 
 ```bash
-bun run dev        # build main + hot-reload renderer
-bun run lp         # lint + prettier (run before committing)
-bun run check      # Svelte type checking
-bun run build      # production build
-bun run local:install  # install to /opt/figma-linux-next for testing
+bun run dev    # build main + hot-reload renderer
+bun run lp     # lint + prettier (run before committing)
+bun run check  # Svelte type checking
+# For builds/packaging/releases → use the figma-linux-next-build skill
 ```
 
 ---
