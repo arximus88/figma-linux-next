@@ -285,17 +285,17 @@ const publicAPI: any = {
   },
 
   // MCP integration — Figma web app notifies the desktop about MCP state.
-  // setEnableMCP: Figma tells us it wants MCP enabled; we confirm our local server is running.
-  // sendMCPUpdate: Figma pushes real-time context (selection, page, file info) to the desktop.
   setEnableMCP(args: any) {
-    console.debug("[MCP] setEnableMCP args:", JSON.stringify(args));
-    sendMsgToMain("logInfo", "[MCP] setEnableMCP", JSON.stringify(args));
-    // TODO: respond with local MCP server info once we understand the expected response shape
+    if (import.meta.env.DEV) console.debug("[MCP] setEnableMCP:", JSON.stringify(args));
+    // Figma confirms it wants MCP on args.port (3845). Server already started — just ack.
+    return { data: null as null };
   },
   sendMCPUpdate(args: any) {
-    console.debug("[MCP] sendMCPUpdate args:", JSON.stringify(args));
-    sendMsgToMain("logInfo", "[MCP] sendMCPUpdate", JSON.stringify(args));
-    // TODO: forward selection/context data to McpServer so get_current_file can return it
+    if (import.meta.env.DEV) console.debug("[MCP] sendMCPUpdate:", JSON.stringify(args));
+    // Forward context updates to main process so McpServer can serve them.
+    // Known updateTypes: "tool_list" (tool list sync), future: "selection" (selected nodes).
+    sendMsgToMain("mcpContextUpdate", args);
+    return { data: null as null };
   },
 
   // Fire-and-forget messages that don't need main-process handling yet.

@@ -1,5 +1,5 @@
 import http from "http";
-import { net } from "electron";
+import { net, ipcMain, IpcMainEvent } from "electron";
 
 import { logger } from "Main/Logger";
 import { getFileKeyFromUrl } from "Utils/Common";
@@ -21,12 +21,26 @@ const GET_CURRENT_FILE_TOOL = {
   },
 };
 
+interface McpContext {
+  updateType: string;
+  selectedNodes?: string[];
+  pageId?: string;
+  [key: string]: unknown;
+}
+
 export class McpServer {
   private server: http.Server | null = null;
+  private lastContext: McpContext | null = null;
 
   constructor(private windowManager: WindowManager) {}
 
+  private onContextUpdate(_event: IpcMainEvent, args: McpContext) {
+    this.lastContext = args;
+    if (import.meta.env.DEV) logger.debug("[MCP] context update:", JSON.stringify(args));
+  }
+
   public start(): void {
+    ipcMain.on("mcpContextUpdate", this.onContextUpdate.bind(this));
     this.server = http.createServer(this.handleRequest.bind(this));
 
     this.server.on("error", (err: NodeJS.ErrnoException) => {
@@ -43,6 +57,7 @@ export class McpServer {
   }
 
   public stop(): void {
+    ipcMain.removeAllListeners("mcpContextUpdate");
     if (this.server) {
       this.server.close();
       this.server = null;
@@ -158,7 +173,9 @@ export class McpServer {
     const fileKey = getFileKeyFromUrl(url);
     const nodeId = this.extractNodeId(url);
 
-    return { url, fileKey, nodeId, title };
+    const selectedNodes = this.lastContext?.selectedNodes ?? null;
+
+    return { url, fileKey, nodeId, title, selectedNodes };
   }
 
   private extractNodeId(url: string): string | null {
