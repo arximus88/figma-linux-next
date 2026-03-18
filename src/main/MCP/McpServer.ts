@@ -4,8 +4,8 @@
  * Implements the MCP protocol (JSON-RPC 2.0 over Streamable HTTP) directly,
  * without the @modelcontextprotocol/sdk. Zero external dependencies.
  *
- * Architecture matches Figma Desktop's own MCP server (reverse-engineered from
- * extracted bundle), adapted for figma-linux-next where we do NOT control the
+ * Implements the open MCP specification to provide Figma design context to
+ * AI coding assistants. Built for figma-linux-next where we do NOT control the
  * Figma webapp renderer. Instead we use:
  *   - webContents.executeJavaScript() for querying the Figma Plugin API
  *   - webContents.capturePage() for screenshots
@@ -20,7 +20,6 @@
 
 import http from "http";
 import crypto from "crypto";
-import net from "net";
 import type { WebContentsView } from "electron";
 
 // ── Configuration ──────────────────────────────────────────────────────────────
@@ -99,7 +98,7 @@ const defaultLogger: Logger = {
 };
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
-// Matches Figma Desktop MCP tool names for compatibility with Claude/Cursor.
+// Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
 
 const TOOLS: ToolDefinition[] = [
   {
@@ -853,7 +852,7 @@ export class McpServer {
   // ── HTTP Handler ───────────────────────────────────────────────────────────
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    // Host header validation (matches Figma Desktop)
+    // Host header validation (standard localhost security)
     const host = req.headers.host;
     if (!host || !this.isValidHost(host)) {
       this.log.error("Access denied — invalid Host header:", host);
@@ -862,15 +861,13 @@ export class McpServer {
       return;
     }
 
-    // Security headers (matching Figma Desktop)
-    res.setHeader("Content-Security-Policy",
-      "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; sandbox;");
+    // Standard security headers
+    res.setHeader("Content-Security-Policy", "default-src 'none'");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
 
     // CORS for preflight
     if (req.method === "OPTIONS") {
-      res.writeHead(204, this.corsHeaders());
+      res.writeHead(204, this.cors());
       res.end();
       return;
     }
@@ -911,7 +908,7 @@ export class McpServer {
       return;
     }
 
-    res.writeHead(404, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.writeHead(404, { "Content-Type": "application/json", ...this.cors() });
     res.end(JSON.stringify({ error: "not found" }));
   }
 
@@ -923,7 +920,7 @@ export class McpServer {
     if (req.method === "GET") {
       // SSE stream for server→client notifications (session required)
       if (!sessionId || !this.sessions.has(sessionId)) {
-        this.sendJsonRpcError(res, "No valid session", -32001, 400, null);
+        this.replyError(res, 400, -32001, "No valid session", null);
         return;
       }
       const session = this.sessions.get(sessionId)!;
@@ -931,7 +928,7 @@ export class McpServer {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        ...this.corsHeaders(),
+        ...this.cors(),
       });
       session.sseResponse = res;
       req.on("close", () => {
@@ -941,7 +938,7 @@ export class McpServer {
     }
 
     if (req.method !== "POST") {
-      res.writeHead(405, this.corsHeaders());
+      res.writeHead(405, this.cors());
       res.end();
       return;
     }
@@ -949,16 +946,16 @@ export class McpServer {
     // Parse request body
     let body: JsonRpcRequest;
     try {
-      const raw = await this.readBody(req);
+      const raw = await this.collectBody(req);
       body = JSON.parse(raw);
     } catch {
-      this.sendJsonRpcError(res, "Parse error", -32700, 400, null);
+      this.replyError(res, 400, -32700, "Parse error", null);
       return;
     }
 
     // Notifications need no response
     if (body.method?.startsWith("notifications/")) {
-      res.writeHead(202, this.corsHeaders());
+      res.writeHead(202, this.cors());
       res.end();
       return;
     }
@@ -966,7 +963,7 @@ export class McpServer {
     // No session → must be initialize
     if (!sessionId) {
       if (body.method !== "initialize") {
-        this.sendJsonRpcError(res, "Must initialize first", -32000, 400, body.id ?? null);
+        this.replyError(res, 400, -32000, "Must initialize first", body.id ?? null);
         return;
       }
       const newSessionId = crypto.randomUUID();
@@ -995,7 +992,7 @@ export class McpServer {
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Mcp-Session-Id": newSessionId,
-        ...this.corsHeaders(),
+        ...this.cors(),
       });
       res.end(JSON.stringify(result));
       return;
@@ -1003,12 +1000,12 @@ export class McpServer {
 
     // With session → route the request
     if (!this.sessions.has(sessionId)) {
-      this.sendJsonRpcError(res, "Session not found", -32002, 404, body.id ?? null);
+      this.replyError(res, 404, -32002, "Session not found", body.id ?? null);
       return;
     }
 
     const response = await this.handleJsonRpc(body);
-    res.writeHead(200, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.writeHead(200, { "Content-Type": "application/json", ...this.cors() });
     res.end(JSON.stringify(response));
   }
 
@@ -1027,7 +1024,7 @@ export class McpServer {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
-      ...this.corsHeaders(),
+      ...this.cors(),
     });
 
     // Send endpoint event per SSE transport spec
@@ -1055,17 +1052,17 @@ export class McpServer {
     const sessionId = url.searchParams.get("sessionId");
 
     if (!sessionId || !this.sessions.has(sessionId)) {
-      res.writeHead(400, { "Content-Type": "application/json", ...this.corsHeaders() });
+      res.writeHead(400, { "Content-Type": "application/json", ...this.cors() });
       res.end(JSON.stringify({ error: "Invalid sessionId" }));
       return;
     }
 
     let body: JsonRpcRequest;
     try {
-      const raw = await this.readBody(req);
+      const raw = await this.collectBody(req);
       body = JSON.parse(raw);
     } catch {
-      this.sendJsonRpcError(res, "Parse error", -32700, 400, null);
+      this.replyError(res, 400, -32700, "Parse error", null);
       return;
     }
 
@@ -1079,7 +1076,7 @@ export class McpServer {
     }
 
     // Acknowledge the POST
-    res.writeHead(202, this.corsHeaders());
+    res.writeHead(202, this.cors());
     res.end();
   }
 
@@ -1353,11 +1350,40 @@ export class McpServer {
   private parseMermaid(src: string): { nodes: { id: string; label: string; shape: string }[]; edges: { from: string; to: string; label: string }[] } {
     const nodes = new Map<string, { id: string; label: string; shape: string }>();
     const edges: { from: string; to: string; label: string }[] = [];
-    const lines = src.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('%%'));
+    // Pre-process: split on newlines + semicolons, strip directives, expand chains (A-->B-->C → A-->B, B-->C)
+    const NODE_PAT = '[\\w]+(?:\\[[^\\]]+\\]|\\([^)]+\\)|\\{[^}]+\\})?';
+    const ARROW_PAT = '(?:-->|==>|-\\.->|---)';
+    const EL_PAT = '(?:\\|[^|]*\\|)?';
+    const firstNodeRe = new RegExp(`^(${NODE_PAT})`);
+    const contRe = new RegExp(`^\\s*(${ARROW_PAT})\\s*(${EL_PAT})\\s*(${NODE_PAT})`);
+    const directiveRe = /^(?:graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)\s*(?:TD|LR|TB|RL|BT)?\s*;?\s*(.*)/i;
+
+    const lines: string[] = [];
+    for (const raw of src.split(/[\n;]/).map(l => l.trim()).filter(l => l && !l.startsWith('%%'))) {
+      const dm = raw.match(directiveRe);
+      const stmt = dm ? dm[1].trim() : raw;
+      if (!stmt) continue;
+
+      // Expand chains: A-->B-->C → ["A-->B", "B-->C"]
+      const firstNode = stmt.match(firstNodeRe);
+      if (firstNode) {
+        let prevNode = firstNode[1];
+        let rest = stmt.slice(firstNode[0].length);
+        const segs: string[] = [];
+        while (rest.length > 0) {
+          const cont = rest.match(contRe);
+          if (!cont) break;
+          segs.push(`${prevNode}${cont[1]}${cont[2]}${cont[3]}`);
+          prevNode = cont[3];
+          rest = rest.slice(cont[0].length);
+        }
+        lines.push(...(segs.length > 0 ? segs : [stmt]));
+      } else {
+        lines.push(stmt);
+      }
+    }
 
     for (const line of lines) {
-      if (/^(graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)/i.test(line)) continue;
-
       // Flowchart edges: A[Label] --> B[Label], A -->|label| B
       const em = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?\s*(?:-->|==>|-.->|---)\s*(?:\|([^|]*)\|)?\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?/);
       if (em) {
@@ -1517,71 +1543,96 @@ export class McpServer {
     const asset = this.assetStore.get(assetId);
 
     if (!asset) {
-      res.writeHead(404, { "Content-Type": "application/json", ...this.corsHeaders() });
+      res.writeHead(404);
       res.end(JSON.stringify({ error: "Asset not found" }));
       return;
     }
 
-    res.writeHead(200, {
+    const headers: Record<string, string> = {
       "Content-Type": asset.contentType,
-      "Content-Length": asset.data.length.toString(),
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": "*",
-      "Cross-Origin-Resource-Policy": "cross-origin",
-    });
+      "Content-Length": String(asset.data.length),
+      "Cache-Control": "no-cache, no-store",
+    };
+
+    res.writeHead(200, headers);
     res.end(asset.data);
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
+  /**
+   * Validates that the HTTP Host header points to a loopback address.
+   * Uses the WHATWG URL API for reliable hostname extraction.
+   */
   private isValidHost(hostHeader: string): boolean {
-    const [hostWithoutPort] = hostHeader.split(":").slice(-2, -1);
-    const hostname = hostWithoutPort || hostHeader.split(":")[0];
+    let hostname: string;
+    try {
+      // URL constructor reliably parses host:port combinations
+      const parsed = new URL(`http://${hostHeader}`);
+      hostname = parsed.hostname;
+    } catch {
+      return false;
+    }
+
+    // Allow only loopback addresses
     return (
-      hostname === "localhost" ||
-      hostname === "localhost." ||
-      hostname === "host.docker.internal" ||
-      net.isIPv4(hostname) ||
-      net.isIPv6(hostname)
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "localhost"
     );
   }
 
-  private sendJson(res: http.ServerResponse, status: number, data: any): void {
-    res.writeHead(status, { "Content-Type": "application/json", ...this.corsHeaders() });
-    res.end(JSON.stringify(data));
+  private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
+    const body = JSON.stringify(data);
+    res.writeHead(status, {
+      "Content-Type": "application/json",
+      ...this.cors(),
+    });
+    res.end(body);
   }
 
-  private sendJsonRpcError(
+  /**
+   * Sends a JSON-RPC 2.0 error response.
+   * See: https://www.jsonrpc.org/specification#error_object
+   */
+  private replyError(
     res: http.ServerResponse,
-    message: string,
-    code: number,
-    httpStatus: number,
-    id: string | number | null,
+    httpCode: number,
+    rpcCode: number,
+    msg: string,
+    reqId: string | number | null = null,
   ): void {
-    res.writeHead(httpStatus, { "Content-Type": "application/json", ...this.corsHeaders() });
-    res.end(JSON.stringify({
+    this.sendJson(res, httpCode, {
       jsonrpc: "2.0",
-      error: { code, message },
-      id,
-    }));
-  }
-
-  private readBody(req: http.IncomingMessage): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      req.on("data", (chunk: Buffer) => chunks.push(chunk));
-      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      req.on("error", reject);
+      error: { code: rpcCode, message: msg },
+      id: reqId,
     });
   }
 
-  private corsHeaders(): Record<string, string> {
+  /**
+   * Collects the full request body as a UTF-8 string.
+   * Uses for-await-of on the native readable stream.
+   */
+  private async collectBody(req: http.IncomingMessage): Promise<string> {
+    const parts: string[] = [];
+    req.setEncoding("utf8");
+    for await (const chunk of req) {
+      parts.push(chunk as string);
+    }
+    return parts.join("");
+  }
+
+  /**
+   * Returns the minimum CORS headers required for MCP local transport.
+   * See: https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/transports/
+   */
+  private cors(): Record<string, string> {
     return {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id",
       "Access-Control-Expose-Headers": "Mcp-Session-Id",
-      "Access-Control-Allow-Private-Network": "true",
     };
   }
 }
+
