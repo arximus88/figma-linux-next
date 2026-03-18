@@ -6,6 +6,7 @@ dist
 gpg
 gui
 build
+ref
 *.deb
 *.bak
 Figma-app*

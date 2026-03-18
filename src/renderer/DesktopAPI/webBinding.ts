@@ -287,8 +287,9 @@ const publicAPI: any = {
   // MCP integration — Figma web app notifies the desktop about MCP state.
   setEnableMCP(args: any) {
     if (import.meta.env.DEV) console.debug("[MCP] setEnableMCP:", JSON.stringify(args));
-    // Figma confirms it wants MCP on args.port (3845). Server already started — just ack.
-    return { data: null as null };
+    // Confirm server is running on the expected port so Figma activates the
+    // "Enable Desktop MCP server" button and starts sending sendMCPUpdate events.
+    return { data: { enabled: true, port: 3845 } };
   },
   sendMCPUpdate(args: any) {
     if (import.meta.env.DEV) console.debug("[MCP] sendMCPUpdate:", JSON.stringify(args));

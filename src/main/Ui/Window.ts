@@ -564,14 +564,21 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
-  public figmaApiFetch(path: string): Promise<any> {
+  /** Execute arbitrary JS from within the active Figma BrowserView context. */
+  public executeInBrowserView(script: string): Promise<any> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
-    const script = `
-      fetch("https://api.figma.com/v1${path}", { credentials: "include" })
-        .then(r => r.json())
-        .catch(e => ({ error: e.message }))
-    `;
     return tab.view.webContents.executeJavaScript(script);
+  }
+
+  /** Execute a fetch from within the active Figma BrowserView context.
+   *  Uses relative paths on www.figma.com so session cookies are sent automatically.
+   *  @param path - relative path, e.g. "/api/files/{key}/nodes?ids=..." */
+  public figmaApiFetch(path: string): Promise<any> {
+    return this.executeInBrowserView(`
+      fetch(${JSON.stringify(path)})
+        .then(r => r.ok ? r.json() : r.text().then(t => ({ error: r.status + ": " + t })))
+        .catch(e => ({ error: e.message }))
+    `);
   }
   public tabWasClosed(tabId: number) {
     this.window.webContents.send("tabWasClosed", tabId);
