@@ -1,229 +1,721 @@
-import http from "http";
-import { ipcMain, IpcMainEvent } from "electron";
+/**
+ * McpServer.ts — Figma MCP Server for figma-linux-next
+ *
+ * Implements the MCP protocol (JSON-RPC 2.0 over Streamable HTTP) directly,
+ * without the @modelcontextprotocol/sdk. Zero external dependencies.
+ *
+ * Architecture matches Figma Desktop's own MCP server (reverse-engineered from
+ * extracted bundle), adapted for figma-linux-next where we do NOT control the
+ * Figma webapp renderer. Instead we use:
+ *   - webContents.executeJavaScript() for querying the Figma Plugin API
+ *   - webContents.capturePage() for screenshots
+ *
+ * Exposes:
+ *   POST /mcp   — Streamable HTTP transport (MCP spec 2025-03-26)
+ *   GET  /mcp   — SSE stream for server→client notifications
+ *   GET  /sse   — Legacy SSE transport (deprecated)
+ *   POST /messages — Legacy SSE message endpoint
+ *   GET  /assets/:id — Exported images
+ */
 
-import { logger } from "Main/Logger";
-import { getFileKeyFromUrl } from "Utils/Common";
-import WindowManager from "Main/Ui/WindowManager";
+import http from "http";
+import crypto from "crypto";
+import net from "net";
+import type { WebContentsView } from "electron";
+
+// ── Configuration ──────────────────────────────────────────────────────────────
 
 const MCP_PORT = 3845;
 const MCP_HOST = "127.0.0.1";
+const SERVER_NAME = "figma-linux-next";
+const SERVER_VERSION = "0.13.0";
+const PROTOCOL_VERSION = "2025-03-26";
 
-// ── Tool definitions ──────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
 
-const TOOLS = [
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id?: string | number | null;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id: string | number | null;
+  result?: unknown;
+  error?: { code: number; message: string; data?: unknown };
+}
+
+interface McpSession {
+  id: string;
+  createdAt: number;
+  sseResponse: http.ServerResponse | null;
+  clientInfo?: { name: string; version: string };
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+interface AssetEntry {
+  data: Buffer;
+  contentType: string;
+}
+
+/** Minimal interface for querying the Figma BrowserView.
+ *  Matches figma-linux-next Window class public surface. */
+export interface FigmaViewProvider {
+  /** Execute arbitrary JS in the active Figma tab's webContents. */
+  executeInBrowserView(script: string): Promise<any>;
+  /** Get the active tab's WebContentsView (for capturePage). */
+  getActiveTabView(): WebContentsView | null;
+  /** Get the URL of the currently focused tab. */
+  getActiveTabUrl(): string | null;
+}
+
+// ── Logger (accepts figma-linux-next logger interface) ─────────────────────────
+
+interface Logger {
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  debug(...args: unknown[]): void;
+}
+
+const defaultLogger: Logger = {
+  info: (...args) => console.log("[MCP]", ...args),
+  warn: (...args) => console.warn("[MCP]", ...args),
+  error: (...args) => console.error("[MCP]", ...args),
+  debug: (...args) => console.debug("[MCP]", ...args),
+};
+
+// ── Tool Definitions ───────────────────────────────────────────────────────────
+// Matches Figma Desktop MCP tool names for compatibility with Claude/Cursor.
+
+const TOOLS: ToolDefinition[] = [
   {
-    name: "get_current_file",
+    name: "get_design_context",
     description:
-      "Returns the fileKey, nodeId, URL, and title of the file currently open in figma-linux-next. " +
-      "Always call this first to get context before calling other Figma tools.",
-    inputSchema: { type: "object", properties: {}, required: [] as string[] },
-  },
-  {
-    name: "get_file_nodes",
-    description:
-      "Returns the design tree for one or more nodes from a Figma file. " +
-      "Use this to inspect component structure, layout, and style properties.",
+      "Get the design context for the current Figma selection or a specific node. " +
+      "Returns the full scene-graph subtree as JSON: node tree structure, layout " +
+      "properties, typography, fills, strokes, effects, auto-layout, and component " +
+      "metadata. When nodeId is omitted, uses the currently selected nodes.",
     inputSchema: {
       type: "object",
       properties: {
-        fileKey: { type: "string", description: "Figma file key" },
-        nodeIds: {
-          type: "array",
-          items: { type: "string" },
-          description: "Node IDs in '1:2' format",
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection.",
         },
         depth: {
           type: "number",
-          description: "Tree depth to traverse (default: 2, use 0 for full tree)",
+          description: "Maximum depth to traverse (default: 10).",
         },
       },
-      required: ["fileKey", "nodeIds"],
     },
   },
   {
-    name: "get_image",
+    name: "get_metadata",
     description:
-      "Exports a Figma node as an image (SVG or PNG). " +
-      "Use this for visual reference when implementing a component.",
+      "Get metadata about the current Figma file: name, last modified date, " +
+      "current page name, total page count, selection count, and component/style " +
+      "statistics.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "get_screenshot",
+    description:
+      "Capture a screenshot of the currently selected node or the visible canvas. " +
+      "Returns a local URL (http://127.0.0.1:3845/assets/<id>.png) that can be " +
+      "fetched to get the PNG data. When nodeId is omitted, captures the selection.",
     inputSchema: {
       type: "object",
       properties: {
-        fileKey: { type: "string", description: "Figma file key" },
-        nodeId: { type: "string", description: "Node ID in '1:2' format" },
-        format: {
+        nodeId: {
           type: "string",
-          enum: ["svg", "png", "jpg"],
-          description: "Image format (default: svg)",
+          description: "Node ID in '1:2' format. Omit to capture current selection.",
         },
         scale: {
           type: "number",
-          description: "Export scale 0.5–4 (default: 1, PNG only)",
+          description: "Export scale (default: 2, range: 0.5–4).",
         },
       },
-      required: ["fileKey", "nodeId"],
     },
-  },
-  {
-    name: "get_file_variables",
-    description: "Returns design tokens (colors, spacing, typography) defined as variables in a Figma file.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        fileKey: { type: "string", description: "Figma file key" },
-      },
-      required: ["fileKey"],
-    },
-  },
-  {
-    name: "get_file_styles",
-    description: "Returns named styles (color, text, effect, grid) published in a Figma file.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        fileKey: { type: "string", description: "Figma file key" },
-      },
-      required: ["fileKey"],
-    },
-  },
-  {
-    name: "whoami",
-    description: "Returns the authenticated Figma user. Useful to verify the session is active.",
-    inputSchema: { type: "object", properties: {}, required: [] as string[] },
   },
 ];
 
-// ── Context from Figma web app ────────────────────────────────────────────────
+// ── Figma Plugin API Queries ───────────────────────────────────────────────────
+// These JS snippets run inside the Figma webapp's renderer context via
+// webContents.executeJavaScript(). They use the internal Figma scene graph
+// that's available in the global scope.
 
-interface McpContext {
-  updateType: string;
-  selectedNodes?: string[];
-  pageId?: string;
-  [key: string]: unknown;
-}
+const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 
-// ── Server ────────────────────────────────────────────────────────────────────
+    function serializeNode(node, currentDepth, maxDepth) {
+      if (!node || currentDepth > maxDepth) return null;
+      const result = {
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        visible: node.visible,
+      };
+
+      // Layout
+      if ('x' in node) result.x = node.x;
+      if ('y' in node) result.y = node.y;
+      if ('width' in node) result.width = node.width;
+      if ('height' in node) result.height = node.height;
+      if ('rotation' in node) result.rotation = node.rotation;
+      if ('opacity' in node) result.opacity = node.opacity;
+
+      // Auto-layout
+      if ('layoutMode' in node && node.layoutMode !== 'NONE') {
+        result.layoutMode = node.layoutMode;
+        result.primaryAxisSizingMode = node.primaryAxisSizingMode;
+        result.counterAxisSizingMode = node.counterAxisSizingMode;
+        result.primaryAxisAlignItems = node.primaryAxisAlignItems;
+        result.counterAxisAlignItems = node.counterAxisAlignItems;
+        result.paddingLeft = node.paddingLeft;
+        result.paddingRight = node.paddingRight;
+        result.paddingTop = node.paddingTop;
+        result.paddingBottom = node.paddingBottom;
+        result.itemSpacing = node.itemSpacing;
+      }
+
+      // Sizing constraints
+      if ('constraints' in node) result.constraints = node.constraints;
+      if ('layoutSizingHorizontal' in node) result.layoutSizingHorizontal = node.layoutSizingHorizontal;
+      if ('layoutSizingVertical' in node) result.layoutSizingVertical = node.layoutSizingVertical;
+
+      // Fills, strokes, effects
+      if ('fills' in node) {
+        try { result.fills = JSON.parse(JSON.stringify(node.fills)); } catch(e) {}
+      }
+      if ('strokes' in node) {
+        try { result.strokes = JSON.parse(JSON.stringify(node.strokes)); } catch(e) {}
+      }
+      if ('effects' in node) {
+        try { result.effects = JSON.parse(JSON.stringify(node.effects)); } catch(e) {}
+      }
+      if ('strokeWeight' in node) result.strokeWeight = node.strokeWeight;
+      if ('cornerRadius' in node) result.cornerRadius = node.cornerRadius;
+
+      // Typography
+      if (node.type === 'TEXT') {
+        result.characters = node.characters;
+        if ('fontSize' in node) result.fontSize = node.fontSize;
+        if ('fontName' in node) {
+          try { result.fontName = JSON.parse(JSON.stringify(node.fontName)); } catch(e) {}
+        }
+        if ('textAlignHorizontal' in node) result.textAlignHorizontal = node.textAlignHorizontal;
+        if ('textAlignVertical' in node) result.textAlignVertical = node.textAlignVertical;
+        if ('lineHeight' in node) {
+          try { result.lineHeight = JSON.parse(JSON.stringify(node.lineHeight)); } catch(e) {}
+        }
+        if ('letterSpacing' in node) {
+          try { result.letterSpacing = JSON.parse(JSON.stringify(node.letterSpacing)); } catch(e) {}
+        }
+      }
+
+      // Component info
+      if ('componentProperties' in node) {
+        try { result.componentProperties = JSON.parse(JSON.stringify(node.componentProperties)); } catch(e) {}
+      }
+      if (node.type === 'INSTANCE' && node.mainComponent) {
+        result.mainComponentId = node.mainComponent.id;
+        result.mainComponentName = node.mainComponent.name;
+      }
+      if (node.type === 'COMPONENT') {
+        result.isComponent = true;
+      }
+
+      // Children
+      if ('children' in node && currentDepth < maxDepth) {
+        result.children = node.children.map(c => serializeNode(c, currentDepth + 1, maxDepth)).filter(Boolean);
+      }
+
+      return result;
+    }
+
+    let targetNodes;
+    ${nodeId ? `
+      const target = figma.getNodeById("${nodeId}");
+      if (!target) return { error: "Node not found: ${nodeId}" };
+      targetNodes = [target];
+    ` : `
+      targetNodes = figma.currentPage.selection;
+      if (!targetNodes || targetNodes.length === 0) {
+        return { error: "No nodes selected. Select a node in Figma or provide a nodeId." };
+      }
+    `}
+
+    const result = {
+      fileName: figma.root.name,
+      currentPage: figma.currentPage.name,
+      selectionCount: targetNodes.length,
+      nodes: targetNodes.map(n => serializeNode(n, 0, ${depth})),
+    };
+
+    return result;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const METADATA_SCRIPT = `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+
+    const pages = figma.root.children;
+    const currentPage = figma.currentPage;
+    const selection = currentPage.selection;
+
+    let componentCount = 0;
+    let instanceCount = 0;
+    let textCount = 0;
+    let frameCount = 0;
+
+    function countNodes(node) {
+      if (node.type === 'COMPONENT') componentCount++;
+      if (node.type === 'INSTANCE') instanceCount++;
+      if (node.type === 'TEXT') textCount++;
+      if (node.type === 'FRAME') frameCount++;
+      if ('children' in node) node.children.forEach(countNodes);
+    }
+    currentPage.children.forEach(countNodes);
+
+    return {
+      fileName: figma.root.name,
+      currentPage: currentPage.name,
+      pageCount: pages.length,
+      pageNames: pages.map(p => p.name),
+      selectionCount: selection.length,
+      selectedNodeIds: selection.map(n => n.id),
+      selectedNodeNames: selection.map(n => n.name),
+      currentPageStats: {
+        components: componentCount,
+        instances: instanceCount,
+        textNodes: textCount,
+        frames: frameCount,
+      },
+    };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+
+    let target;
+    ${nodeId ? `
+      target = figma.getNodeById("${nodeId}");
+      if (!target) return { error: "Node not found: ${nodeId}" };
+    ` : `
+      const sel = figma.currentPage.selection;
+      if (!sel || sel.length === 0) return { error: "No node selected" };
+      target = sel[0];
+    `}
+
+    // exportAsync returns a Uint8Array in Plugin API
+    return target.exportAsync({
+      format: 'PNG',
+      constraint: { type: 'SCALE', value: ${scale} }
+    }).then(bytes => {
+      // Convert to base64 for transport over IPC
+      let binary = '';
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return { base64: btoa(binary), nodeId: target.id, nodeName: target.name };
+    });
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── McpServer Class ────────────────────────────────────────────────────────────
 
 export class McpServer {
   private server: http.Server | null = null;
-  private lastContext: McpContext | null = null;
+  private sessions = new Map<string, McpSession>();
+  private assetStore = new Map<string, AssetEntry>();
+  private log: Logger;
+  private viewProvider: FigmaViewProvider | null = null;
+  private _isRunning = false;
 
-  constructor(private windowManager: WindowManager) {}
-
-  private onContextUpdate(_event: IpcMainEvent, args: McpContext) {
-    this.lastContext = args;
+  constructor(log?: Logger) {
+    this.log = log ?? defaultLogger;
   }
 
-  public start(): void {
-    ipcMain.on("mcpContextUpdate", this.onContextUpdate.bind(this));
-    this.server = http.createServer(this.handleRequest.bind(this));
+  public get isRunning(): boolean {
+    return this._isRunning;
+  }
 
-    this.server.on("error", (err: NodeJS.ErrnoException) => {
-      if (err.code === "EADDRINUSE") {
-        logger.warn(`[MCP] Port ${MCP_PORT} already in use — local MCP server not started`);
-      } else {
-        logger.error("[MCP] Server error:", err);
-      }
-    });
+  /** Set the provider that gives us access to the Figma webContents. */
+  public setViewProvider(provider: FigmaViewProvider): void {
+    this.viewProvider = provider;
+    this.log.info("View provider attached");
+  }
 
-    this.server.listen(MCP_PORT, MCP_HOST, () => {
-      logger.info(`[MCP] Local Figma MCP server running at http://${MCP_HOST}:${MCP_PORT}/mcp`);
+  /** Start the HTTP server. */
+  public start(port = MCP_PORT, host = MCP_HOST): Promise<{ didStart: boolean; port: number }> {
+    if (this._isRunning) {
+      this.log.info("MCP server already running");
+      return Promise.resolve({ didStart: true, port });
+    }
+
+    return new Promise((resolve) => {
+      this.server = http.createServer((req, res) => this.handleRequest(req, res));
+
+      this.server.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "EADDRINUSE") {
+          this.log.warn(`Port ${port} already in use — MCP server not started`);
+          resolve({ didStart: false, port });
+        } else {
+          this.log.error("Server error:", err);
+          resolve({ didStart: false, port });
+        }
+      });
+
+      this.server.listen(port, host, () => {
+        this._isRunning = true;
+        this.log.info(`MCP server running at http://${host}:${port}/mcp`);
+        resolve({ didStart: true, port });
+      });
     });
   }
 
+  /** Stop the HTTP server and clean up all sessions. */
   public stop(): void {
-    ipcMain.removeAllListeners("mcpContextUpdate");
+    // Close all SSE connections
+    for (const [id, session] of this.sessions) {
+      if (session.sseResponse) {
+        try { session.sseResponse.end(); } catch { /* ignore */ }
+      }
+      this.sessions.delete(id);
+    }
+
     if (this.server) {
       this.server.close();
       this.server = null;
-      logger.info("[MCP] Local Figma MCP server stopped");
+      this._isRunning = false;
+      this.log.info("MCP server stopped");
     }
   }
 
-  // ── HTTP handler ────────────────────────────────────────────────────────────
+  // ── HTTP Handler ───────────────────────────────────────────────────────────
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    // Host header validation (matches Figma Desktop)
+    const host = req.headers.host;
+    if (!host || !this.isValidHost(host)) {
+      this.log.error("Access denied — invalid Host header:", host);
+      res.writeHead(403);
+      res.end("Access denied — invalid Host header");
+      return;
+    }
+
+    // Security headers (matching Figma Desktop)
+    res.setHeader("Content-Security-Policy",
+      "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; sandbox;");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+
+    // CORS for preflight
     if (req.method === "OPTIONS") {
       res.writeHead(204, this.corsHeaders());
       res.end();
       return;
     }
 
-    if (req.method !== "POST" || req.url !== "/mcp") {
-      res.writeHead(404);
-      res.end("Not found");
+    // OAuth discovery — tell clients no auth is required on this local server.
+    if (req.url === "/.well-known/oauth-authorization-server" || req.url === "/.well-known/oauth-protected-resource") {
+      this.sendJson(res, 200, {
+        issuer: `http://${MCP_HOST}:${MCP_PORT}`,
+        authorization_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/authorize`,
+        token_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/token`,
+        scopes_supported: [],
+        response_types_supported: [],
+      });
       return;
     }
 
-    const body = await this.readBody(req);
-    let message: any;
+    // Asset serving — GET /assets/:id
+    if (req.method === "GET" && req.url?.startsWith("/assets/")) {
+      this.handleAssetRequest(req, res);
+      return;
+    }
 
+    // MCP endpoint
+    if (req.url === "/mcp") {
+      await this.handleMcpEndpoint(req, res);
+      return;
+    }
+
+    // Legacy SSE endpoint
+    if (req.url === "/sse" && req.method === "GET") {
+      this.handleSseConnect(req, res);
+      return;
+    }
+
+    // Legacy SSE message endpoint
+    if (req.url?.startsWith("/messages") && req.method === "POST") {
+      await this.handleSseMessage(req, res);
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.end(JSON.stringify({ error: "not found" }));
+  }
+
+  // ── Streamable HTTP Transport (/mcp) ─────────────────────────────────────
+
+  private async handleMcpEndpoint(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    if (req.method === "GET") {
+      // SSE stream for server→client notifications (session required)
+      if (!sessionId || !this.sessions.has(sessionId)) {
+        this.sendJsonRpcError(res, "No valid session", -32001, 400, null);
+        return;
+      }
+      const session = this.sessions.get(sessionId)!;
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        ...this.corsHeaders(),
+      });
+      session.sseResponse = res;
+      req.on("close", () => {
+        session.sseResponse = null;
+      });
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.writeHead(405, this.corsHeaders());
+      res.end();
+      return;
+    }
+
+    // Parse request body
+    let body: JsonRpcRequest;
     try {
-      message = JSON.parse(body);
+      const raw = await this.readBody(req);
+      body = JSON.parse(raw);
     } catch {
-      this.sendJson(res, 400, { jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null });
+      this.sendJsonRpcError(res, "Parse error", -32700, 400, null);
       return;
     }
 
-    if (message.method?.startsWith("notifications/")) {
+    // Notifications need no response
+    if (body.method?.startsWith("notifications/")) {
       res.writeHead(202, this.corsHeaders());
       res.end();
       return;
     }
 
-    if (message.method === "initialize") {
-      this.sendJson(res, 200, {
-        jsonrpc: "2.0",
-        id: message.id,
-        result: {
-          protocolVersion: "2024-11-05",
-          capabilities: { tools: {} },
-          serverInfo: { name: "figma-linux-next", version: "0.13.0" },
-        },
+    // No session → must be initialize
+    if (!sessionId) {
+      if (body.method !== "initialize") {
+        this.sendJsonRpcError(res, "Must initialize first", -32000, 400, body.id ?? null);
+        return;
+      }
+      const newSessionId = crypto.randomUUID();
+      this.sessions.set(newSessionId, {
+        id: newSessionId,
+        createdAt: Date.now(),
+        sseResponse: null,
+        clientInfo: body.params?.clientInfo as any,
       });
+
+      this.log.info("New session initialized:", newSessionId,
+        "client:", (body.params?.clientInfo as any)?.name);
+
+      const result: JsonRpcResponse = {
+        jsonrpc: "2.0",
+        id: body.id ?? null,
+        result: {
+          protocolVersion: PROTOCOL_VERSION,
+          capabilities: {
+            tools: { listChanged: true },
+          },
+          serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+        },
+      };
+
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Mcp-Session-Id": newSessionId,
+        ...this.corsHeaders(),
+      });
+      res.end(JSON.stringify(result));
       return;
     }
 
-    if (message.method === "tools/list") {
-      this.sendJson(res, 200, { jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } });
+    // With session → route the request
+    if (!this.sessions.has(sessionId)) {
+      this.sendJsonRpcError(res, "Session not found", -32002, 404, body.id ?? null);
       return;
     }
 
-    if (message.method === "tools/call") {
-      const result = await this.dispatchTool(message.params?.name, message.params?.arguments ?? {});
-      this.sendJson(res, 200, { jsonrpc: "2.0", id: message.id, result });
-      return;
-    }
-
-    this.sendJson(res, 200, {
-      jsonrpc: "2.0",
-      id: message.id,
-      error: { code: -32601, message: "Method not found" },
-    });
+    const response = await this.handleJsonRpc(body);
+    res.writeHead(200, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.end(JSON.stringify(response));
   }
 
-  // ── Tool dispatch ───────────────────────────────────────────────────────────
+  // ── Legacy SSE Transport (/sse + /messages) ──────────────────────────────
 
-  private async dispatchTool(name: string, args: any): Promise<any> {
+  private handleSseConnect(_req: http.IncomingMessage, res: http.ServerResponse): void {
+    const sessionId = crypto.randomUUID();
+
+    this.sessions.set(sessionId, {
+      id: sessionId,
+      createdAt: Date.now(),
+      sseResponse: res,
+    });
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      ...this.corsHeaders(),
+    });
+
+    // Send endpoint event per SSE transport spec
+    res.write(`event: endpoint\ndata: /messages?sessionId=${sessionId}\n\n`);
+
+    // Keep-alive ping every 30s
+    const keepAlive = setInterval(() => {
+      try { res.write(":\n\n"); } catch {
+        clearInterval(keepAlive);
+        this.sessions.delete(sessionId);
+      }
+    }, 30_000);
+
+    _req.on("close", () => {
+      clearInterval(keepAlive);
+      this.sessions.delete(sessionId);
+      this.log.info("SSE session closed:", sessionId);
+    });
+
+    this.log.info("SSE session connected:", sessionId);
+  }
+
+  private async handleSseMessage(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const sessionId = url.searchParams.get("sessionId");
+
+    if (!sessionId || !this.sessions.has(sessionId)) {
+      res.writeHead(400, { "Content-Type": "application/json", ...this.corsHeaders() });
+      res.end(JSON.stringify({ error: "Invalid sessionId" }));
+      return;
+    }
+
+    let body: JsonRpcRequest;
+    try {
+      const raw = await this.readBody(req);
+      body = JSON.parse(raw);
+    } catch {
+      this.sendJsonRpcError(res, "Parse error", -32700, 400, null);
+      return;
+    }
+
+    // Process the request
+    const response = await this.handleJsonRpc(body);
+
+    // Send response over SSE stream
+    const session = this.sessions.get(sessionId)!;
+    if (session.sseResponse && !session.sseResponse.destroyed) {
+      session.sseResponse.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+    }
+
+    // Acknowledge the POST
+    res.writeHead(202, this.corsHeaders());
+    res.end();
+  }
+
+  // ── JSON-RPC dispatcher ──────────────────────────────────────────────────
+
+  private async handleJsonRpc(msg: JsonRpcRequest): Promise<JsonRpcResponse> {
+    const id = msg.id ?? null;
+
+    switch (msg.method) {
+      case "initialize":
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            protocolVersion: PROTOCOL_VERSION,
+            capabilities: { tools: { listChanged: true } },
+            serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+          },
+        };
+
+      case "tools/list":
+        return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
+
+      case "tools/call": {
+        const toolName = msg.params?.name as string;
+        const toolArgs = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+        const result = await this.dispatchTool(toolName, toolArgs);
+        return { jsonrpc: "2.0", id, result };
+      }
+
+      case "ping":
+        return { jsonrpc: "2.0", id, result: {} };
+
+      default:
+        return {
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32601, message: `Method not found: ${msg.method}` },
+        };
+    }
+  }
+
+  // ── Tool Dispatch ────────────────────────────────────────────────────────
+
+  private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    if (!this.viewProvider) {
+      return this.toolError("No Figma window open — open a file first");
+    }
+
     try {
       switch (name) {
-        case "get_current_file":
-          return this.toolResult(JSON.stringify(this.handleGetCurrentFile(), null, 2));
-        case "get_file_nodes":
-          return this.toolResult(JSON.stringify(await this.getFileNodes(args), null, 2));
-        case "get_image":
-          return this.toolResult(JSON.stringify(await this.getImage(args), null, 2));
-        case "get_file_variables":
-          return this.toolResult(JSON.stringify(await this.getFileVariables(args), null, 2));
-        case "get_file_styles":
-          return this.toolResult(JSON.stringify(await this.getFileStyles(args), null, 2));
-        case "whoami":
-          return this.toolResult(JSON.stringify(await this.whoami(), null, 2));
+        case "get_design_context":
+          return await this.toolGetDesignContext(args);
+        case "get_metadata":
+          return await this.toolGetMetadata();
+        case "get_screenshot":
+          return await this.toolGetScreenshot(args);
         default:
-          return { isError: true, content: [{ type: "text", text: `Unknown tool: ${name}` }] };
+          return this.toolError(`Unknown tool: ${name}`);
       }
     } catch (err: any) {
-      logger.error(`[MCP] Tool error (${name}):`, err?.message ?? err);
-      return { isError: true, content: [{ type: "text", text: err?.message ?? String(err) }] };
+      this.log.error(`Tool error (${name}):`, err?.message ?? err);
+      return this.toolError(err?.message ?? String(err));
     }
   }
 
@@ -231,83 +723,146 @@ export class McpServer {
     return { content: [{ type: "text", text }] };
   }
 
-  // ── Tool implementations ────────────────────────────────────────────────────
-
-  private handleGetCurrentFile() {
-    const win = this.windowManager.getLastFocusedWindow();
-    if (!win) return { error: "No Figma window open" };
-
-    const tabId = win.getLatestFocusedTabId();
-    if (!tabId) return { error: "No tab focused" };
-
-    const { url, title } = win.getTabInfo(tabId);
-
-    return {
-      url,
-      fileKey: getFileKeyFromUrl(url),
-      nodeId: this.extractNodeId(url),
-      title,
-      selectedNodes: this.lastContext?.selectedNodes ?? null,
-    };
+  private toolError(text: string) {
+    return { isError: true, content: [{ type: "text", text }] };
   }
 
-  private async getFileNodes(args: { fileKey: string; nodeIds: string[]; depth?: number }) {
-    const ids = args.nodeIds.join(",");
-    const depth = args.depth ?? 2;
-    const params = `ids=${encodeURIComponent(ids)}&depth=${depth}`;
-    return this.figmaGet(`/files/${args.fileKey}/nodes?${params}`);
-  }
+  // ── Tool: get_design_context ─────────────────────────────────────────────
 
-  private async getImage(args: { fileKey: string; nodeId: string; format?: string; scale?: number }) {
-    const format = args.format ?? "svg";
-    const scale = args.scale ?? 1;
-    const id = encodeURIComponent(args.nodeId);
-    const params = `ids=${id}&format=${format}&scale=${scale}`;
-    return this.figmaGet(`/images/${args.fileKey}?${params}`);
-  }
+  private async toolGetDesignContext(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const depth = typeof args.depth === "number" ? args.depth : 10;
 
-  private async getFileVariables(args: { fileKey: string }) {
-    return this.figmaGet(`/files/${args.fileKey}/variables/local`);
-  }
+    const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
+    const result = await this.viewProvider!.executeInBrowserView(script);
 
-  private async getFileStyles(args: { fileKey: string }) {
-    return this.figmaGet(`/files/${args.fileKey}/styles`);
-  }
-
-  private async whoami() {
-    return this.figmaGet("/me");
-  }
-
-  // ── Figma REST API ──────────────────────────────────────────────────────────
-  // Executes fetch from within the active Figma BrowserView — same origin,
-  // session cookies included automatically, no personal access token needed.
-
-  private async figmaGet(path: string): Promise<any> {
-    const win = this.windowManager.getLastFocusedWindow();
-    if (!win) throw new Error("No Figma window open");
-
-    const data = await win.figmaApiFetch(path);
-
-    if (data?.error) throw new Error(data.error);
-    if (data?.status && data.status >= 400) throw new Error(`Figma API ${data.status}: ${data.err ?? JSON.stringify(data)}`);
-
-    return data;
-  }
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  private extractNodeId(url: string): string | null {
-    try {
-      const nodeId = new URL(url).searchParams.get("node-id");
-      return nodeId ? nodeId.replace(/-/g, ":") : null;
-    } catch {
-      return null;
+    if (result?.error) {
+      return this.toolError(result.error);
     }
+
+    return this.toolResult(JSON.stringify(result, null, 2));
   }
 
-  private sendJson(res: http.ServerResponse, status: number, data: any) {
+  // ── Tool: get_metadata ───────────────────────────────────────────────────
+
+  private async toolGetMetadata() {
+    const result = await this.viewProvider!.executeInBrowserView(METADATA_SCRIPT);
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: get_screenshot ─────────────────────────────────────────────────
+
+  private async toolGetScreenshot(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.5, args.scale)) : 2;
+
+    // Try Plugin API exportAsync first
+    const script = SCREENSHOT_SCRIPT(nodeId, scale);
+    const result = await this.viewProvider!.executeInBrowserView(script);
+
+    if (result?.error) {
+      // Fallback: capture the visible page via capturePage
+      this.log.warn("Plugin API export failed, falling back to capturePage:", result.error);
+      return this.capturePageFallback();
+    }
+
+    if (result?.base64) {
+      const buffer = Buffer.from(result.base64, "base64");
+      const assetId = `${crypto.randomUUID()}.png`;
+      this.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
+
+      // Auto-cleanup after 10 minutes
+      setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
+
+      const url = `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`;
+      return this.toolResult(JSON.stringify({
+        url,
+        nodeId: result.nodeId,
+        nodeName: result.nodeName,
+        note: "Fetch this URL to get the PNG image data",
+      }, null, 2));
+    }
+
+    return this.toolError("Screenshot export returned no data");
+  }
+
+  /** Fallback: use Electron's capturePage on the webContents */
+  private async capturePageFallback() {
+    const view = this.viewProvider!.getActiveTabView();
+    if (!view) return this.toolError("No active Figma view");
+
+    const image = await view.webContents.capturePage();
+    const buffer = image.toPNG();
+    const assetId = `${crypto.randomUUID()}.png`;
+    this.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
+
+    setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
+
+    return this.toolResult(JSON.stringify({
+      url: `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`,
+      note: "Captured visible canvas area (Plugin API export unavailable). Fetch this URL for PNG data.",
+    }, null, 2));
+  }
+
+  // ── Asset Serving ────────────────────────────────────────────────────────
+
+  private handleAssetRequest(_req: http.IncomingMessage, res: http.ServerResponse): void {
+    const assetId = _req.url!.slice("/assets/".length);
+    const asset = this.assetStore.get(assetId);
+
+    if (!asset) {
+      res.writeHead(404, { "Content-Type": "application/json", ...this.corsHeaders() });
+      res.end(JSON.stringify({ error: "Asset not found" }));
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": asset.contentType,
+      "Content-Length": asset.data.length.toString(),
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+      "Cross-Origin-Resource-Policy": "cross-origin",
+    });
+    res.end(asset.data);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  private isValidHost(hostHeader: string): boolean {
+    const [hostWithoutPort] = hostHeader.split(":").slice(-2, -1);
+    const hostname = hostWithoutPort || hostHeader.split(":")[0];
+    return (
+      hostname === "localhost" ||
+      hostname === "localhost." ||
+      hostname === "host.docker.internal" ||
+      net.isIPv4(hostname) ||
+      net.isIPv6(hostname)
+    );
+  }
+
+  private sendJson(res: http.ServerResponse, status: number, data: any): void {
     res.writeHead(status, { "Content-Type": "application/json", ...this.corsHeaders() });
     res.end(JSON.stringify(data));
+  }
+
+  private sendJsonRpcError(
+    res: http.ServerResponse,
+    message: string,
+    code: number,
+    httpStatus: number,
+    id: string | number | null,
+  ): void {
+    res.writeHead(httpStatus, { "Content-Type": "application/json", ...this.corsHeaders() });
+    res.end(JSON.stringify({
+      jsonrpc: "2.0",
+      error: { code, message },
+      id,
+    }));
   }
 
   private readBody(req: http.IncomingMessage): Promise<string> {
@@ -321,9 +876,11 @@ export class McpServer {
 
   private corsHeaders(): Record<string, string> {
     return {
-      "Access-Control-Allow-Origin": "http://127.0.0.1",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id",
+      "Access-Control-Expose-Headers": "Mcp-Session-Id",
+      "Access-Control-Allow-Private-Network": "true",
     };
   }
 }

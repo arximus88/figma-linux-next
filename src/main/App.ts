@@ -11,6 +11,7 @@ import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
 import FontManager from "./Fonts";
 import { McpServer } from "./MCP";
+import type { FigmaViewProvider } from "./MCP";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -44,7 +45,7 @@ export default class App {
       app.setAsDefaultProtocolClient(Const.PROTOCOL);
     }
 
-    this.mcpServer = new McpServer(this.windowManager);
+    this.mcpServer = new McpServer(logger);
 
     // Initialize controllers — registers all IPC handlers through the registry
     new SettingsController(this.windowManager);
@@ -67,6 +68,31 @@ export default class App {
 
     this.windowManager.restoreState();
     this.session.handleAppReady();
+
+    // Wire up the FigmaViewProvider — dynamically resolves the last focused window
+    const viewProvider: FigmaViewProvider = {
+      executeInBrowserView: (script: string) => {
+        const win = this.windowManager.getLastFocusedWindow();
+        if (!win) throw new Error("No Figma window open");
+        return win.executeInBrowserView(script);
+      },
+      getActiveTabView: () => {
+        const win = this.windowManager.getLastFocusedWindow();
+        if (!win) return null;
+        const tabId = win.getLatestFocusedTabId();
+        if (!tabId) return null;
+        const tab = win.tabs.get(tabId);
+        return tab?.view ?? null;
+      },
+      getActiveTabUrl: () => {
+        const win = this.windowManager.getLastFocusedWindow();
+        if (!win) return null;
+        const tabId = win.getLatestFocusedTabId();
+        if (!tabId) return null;
+        return win.getTabInfo(tabId)?.url ?? null;
+      },
+    };
+    this.mcpServer.setViewProvider(viewProvider);
     this.mcpServer.start();
 
     setTimeout(() => {
