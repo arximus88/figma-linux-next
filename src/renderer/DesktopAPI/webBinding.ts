@@ -284,6 +284,21 @@ const publicAPI: any = {
     sendMsgToMain("setFigmaTheme", theme);
   },
 
+  // MCP integration — Figma web app notifies the desktop about MCP state.
+  setEnableMCP(args: any) {
+    if (import.meta.env.DEV) console.debug("[MCP] setEnableMCP:", JSON.stringify(args));
+    // Confirm server is running on the expected port so Figma activates the
+    // "Enable Desktop MCP server" button and starts sending sendMCPUpdate events.
+    return { data: { enabled: true, port: 3845 } };
+  },
+  sendMCPUpdate(args: any) {
+    if (import.meta.env.DEV) console.debug("[MCP] sendMCPUpdate:", JSON.stringify(args));
+    // Forward context updates to main process so McpServer can serve them.
+    // Known updateTypes: "tool_list" (tool list sync), future: "selection" (selected nodes).
+    sendMsgToMain("mcpContextUpdate", args);
+    return { data: null as null };
+  },
+
   // Fire-and-forget messages that don't need main-process handling yet.
   // In dev mode they log args so you can inspect the payload for future feature implementation.
   setEditorType(args: any) {
