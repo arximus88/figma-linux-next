@@ -105,10 +105,12 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_design_context",
     description:
-      "Get the design context for the current Figma selection or a specific node. " +
-      "Returns the full scene-graph subtree as JSON: node tree structure, layout " +
-      "properties, typography, fills, strokes, effects, auto-layout, and component " +
-      "metadata. When nodeId is omitted, uses the currently selected nodes.",
+      "Get the design context for a layer or your selection in Figma. Returns the full " +
+      "scene-graph subtree as JSON including node tree structure, layout properties, " +
+      "typography, fills, strokes, effects, auto-layout, and component metadata. " +
+      "By default outputs React + Tailwind-style context, but the agent can customize " +
+      "via prompt (e.g. Vue, plain HTML + CSS, iOS). Supports Figma Design and Figma Make files. " +
+      "When nodeId is omitted, uses the currently selected nodes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -126,9 +128,12 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_metadata",
     description:
-      "Get metadata about the current Figma file: name, last modified date, " +
-      "current page name, total page count, selection count, and component/style " +
-      "statistics.",
+      "Returns a sparse XML representation of the current selection containing basic " +
+      "properties such as layer IDs, names, types, positions and sizes. This is an outline " +
+      "that the agent can break down and call get_design_context on specific nodes to retrieve " +
+      "only the styling information needed. Useful for very large designs where get_design_context " +
+      "produces output with large context size. Also works with multiple selections or the whole " +
+      "page if nothing is selected. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -138,8 +143,10 @@ const TOOLS: ToolDefinition[] = [
     name: "get_screenshot",
     description:
       "Capture a screenshot of the currently selected node or the visible canvas. " +
-      "Returns a local URL (http://127.0.0.1:3845/assets/<id>.png) that can be " +
-      "fetched to get the PNG data. When nodeId is omitted, captures the selection.",
+      "Returns a local URL (http://127.0.0.1:3845/assets/<id>.png) that can be fetched " +
+      "to get the PNG image data. Helps preserve layout fidelity in generated code. " +
+      "Recommended to keep on — only skip if concerned about token limits. " +
+      "Supports Figma Design and FigJam files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -157,9 +164,10 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_variable_defs",
     description:
-      "Returns the variables and styles used in the current Figma selection " +
-      "(such as colors, spacing, typography tokens). Returns variable names, " +
-      "values, types, and the collection they belong to.",
+      "Returns the variables and styles used in the current Figma selection — colors, " +
+      "spacing, typography tokens, and more. For each variable: name, resolved type, " +
+      "collection name, and values by mode (e.g. Light/Dark). For each style: name, " +
+      "type (PAINT/TEXT/EFFECT/GRID), and description. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -173,10 +181,11 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_code_connect_map",
     description:
-      "Retrieves a mapping between Figma node IDs and their corresponding code " +
-      "components in your codebase. Each entry contains codeConnectSrc (file path) " +
-      "and codeConnectName (component name). Use this to connect Figma design " +
-      "elements directly to their code implementations.",
+      "Retrieves the mapping between Figma node IDs and their corresponding code " +
+      "components in your codebase. Each entry contains codeConnectSrc (file path or URL) " +
+      "and codeConnectName (component name). This mapping connects Figma design elements " +
+      "directly to their React, Vue, SwiftUI, or other framework implementations, enabling " +
+      "seamless design-to-code workflows. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -187,7 +196,9 @@ const TOOLS: ToolDefinition[] = [
     description:
       "Adds a mapping between a Figma node ID and its corresponding code component " +
       "in your codebase. Setting up these mappings improves the output quality of " +
-      "design-to-code workflows.",
+      "design-to-code workflows by ensuring the correct components are used for each " +
+      "part of the design. Mappings persist for the current session. " +
+      "Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -210,22 +221,63 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "create_design_system_rules",
     description:
-      "Creates a rules/instructions file that provides agents with the right context " +
-      "to translate Figma designs into high-quality, codebase-aware frontend code. " +
-      "It helps ensure alignment with your design system and tech stack. Save the " +
-      "result to your project's rules/ or instructions/ directory.",
+      "Creates a rules file that provides agents with the right context to translate " +
+      "Figma designs into high-quality, codebase-aware frontend code. Collects all design " +
+      "tokens (variable collections with values by mode), local styles, and component " +
+      "definitions from the current file. It helps ensure alignment with your design " +
+      "system and tech stack. Save the result to your project's rules/ or .cursor/rules/ " +
+      "directory so your agent can access it during code generation. " +
+      "No file context required.",
     inputSchema: {
       type: "object",
       properties: {
         techStack: {
           type: "string",
-          description: "Tech stack description (e.g., 'React + Tailwind CSS', 'Vue + CSS Modules').",
+          description: "Tech stack description (e.g., 'React + Tailwind CSS', 'Svelte + vanilla CSS').",
         },
         componentLibraryPath: {
           type: "string",
           description: "Path to your component library (e.g., 'src/components/ui').",
         },
       },
+    },
+  },
+  {
+    name: "get_figjam",
+    description:
+      "Converts FigJam diagrams (such as app architecture workflows) to XML format. " +
+      "Returns metadata for FigJam nodes including layer IDs, names, types, positions, " +
+      "sizes, text content of stickies and shapes, connector start/end node relationships, " +
+      "and screenshots of top-level nodes. Similar to get_metadata but specifically for " +
+      "FigJam files with FigJam-specific properties. Supports FigJam files only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection or entire page.",
+        },
+      },
+    },
+  },
+  {
+    name: "generate_diagram",
+    description:
+      "Generates a FigJam diagram from Mermaid syntax. Accepts Mermaid diagram definitions " +
+      "and converts them into interactive FigJam shapes and connectors that can be edited " +
+      "and shared. Supported diagram types: Flowchart, Gantt chart, State diagram, " +
+      "Sequence diagram. You do not have to provide Mermaid syntax yourself — describe " +
+      "the desired diagram in natural language and the agent will generate the appropriate " +
+      "Mermaid syntax. Requires an open FigJam file. No file context required to start.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mermaid: {
+          type: "string",
+          description: "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
+        },
+      },
+      required: ["mermaid"],
     },
   },
 ];
@@ -482,6 +534,142 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
       styles: Object.values(styles),
       nodeCount: targetNodes.length,
     };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const FIGJAM_SCRIPT = (nodeId: string | null) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+
+    function nodeToXml(node, indent) {
+      try {
+        if (!node) return '';
+        const pad = '  '.repeat(indent);
+        const attrs = [];
+        try { attrs.push('id="' + node.id + '"'); } catch(_) {}
+        try { attrs.push('name="' + (node.name || '').replace(/"/g, '&quot;') + '"'); } catch(_) {}
+        try { attrs.push('type="' + node.type + '"'); } catch(_) {}
+        try { if ('x' in node) attrs.push('x="' + Math.round(node.x) + '"'); } catch(_) {}
+        try { if ('y' in node) attrs.push('y="' + Math.round(node.y) + '"'); } catch(_) {}
+        try { if ('width' in node) attrs.push('width="' + Math.round(node.width) + '"'); } catch(_) {}
+        try { if ('height' in node) attrs.push('height="' + Math.round(node.height) + '"'); } catch(_) {}
+        try {
+          if (node.type === 'STICKY' || node.type === 'SHAPE_WITH_TEXT') {
+            var text = ('characters' in node) ? node.characters : (node.text ? node.text.characters : null);
+            if (text) attrs.push('text="' + String(text).replace(/"/g, '&quot;') + '"');
+          }
+        } catch(_) {}
+        try {
+          if (node.type === 'CONNECTOR') {
+            try { if (node.connectorStart && node.connectorStart.endpointNodeId) attrs.push('startNodeId="' + node.connectorStart.endpointNodeId + '"'); } catch(_) {}
+            try { if (node.connectorEnd && node.connectorEnd.endpointNodeId) attrs.push('endNodeId="' + node.connectorEnd.endpointNodeId + '"'); } catch(_) {}
+            try { if (node.text && node.text.characters) attrs.push('label="' + node.text.characters.replace(/"/g, '&quot;') + '"'); } catch(_) {}
+          }
+        } catch(_) {}
+        var nodeType = node.type || 'NODE';
+        if ('children' in node && node.children && node.children.length > 0) {
+          var xml = pad + '<' + nodeType + ' ' + attrs.join(' ') + '>\\n';
+          for (var ci = 0; ci < node.children.length; ci++) {
+            try { xml += nodeToXml(node.children[ci], indent + 1); } catch(_) {}
+          }
+          xml += pad + '</' + nodeType + '>\\n';
+          return xml;
+        } else {
+          return pad + '<' + nodeType + ' ' + attrs.join(' ') + '/>\\n';
+        }
+      } catch(e) {
+        return '';
+      }
+    }
+
+    var targetNodes;
+    ${nodeId ? `
+      var target = figma.getNodeById("${nodeId}");
+      if (!target) return { error: "Node not found: ${nodeId}" };
+      targetNodes = [target];
+    ` : `
+      var sel = figma.currentPage.selection;
+      targetNodes = (sel && sel.length > 0) ? sel : figma.currentPage.children;
+    `}
+
+    var xml = '<?xml version="1.0" encoding="UTF-8"?>\\n<figjam fileName="' + figma.root.name + '" page="' + figma.currentPage.name + '">\\n';
+    for (var i = 0; i < targetNodes.length; i++) {
+      xml += nodeToXml(targetNodes[i], 1);
+    }
+    xml += '</figjam>\\n';
+
+    var nodeIds = [];
+    function collectIds(n) {
+      if (n.type !== 'DOCUMENT' && n.type !== 'CANVAS') nodeIds.push(n.id);
+      if ('children' in n && nodeIds.length < 20) { for (var k = 0; k < n.children.length; k++) { try { collectIds(n.children[k]); } catch(_) {} } }
+    }
+    for (var j = 0; j < targetNodes.length; j++) { try { collectIds(targetNodes[j]); } catch(_) {} }
+
+    return { xml: xml, nodeIds: nodeIds.slice(0, 20), nodeCount: targetNodes.length };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const GENERATE_DIAGRAM_SCRIPT = (nodesJson: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    if (typeof figma.createShapeWithText !== 'function') {
+      return { error: "This command requires a FigJam file. Open or create a FigJam file first." };
+    }
+    const nodes = ${nodesJson};
+    const createdNodes = {};
+    const SPACING_X = 250;
+    const SPACING_Y = 120;
+    const cols = Math.ceil(Math.sqrt(nodes.length));
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const shape = figma.createShapeWithText();
+      shape.shapeType = n.shape || 'ROUNDED_RECTANGLE';
+      shape.x = (i % cols) * SPACING_X + 100;
+      shape.y = Math.floor(i / cols) * SPACING_Y + 100;
+      shape.resize(200, 60);
+      try {
+        if (shape.text) {
+          figma.loadFontAsync(shape.text.fontName || { family: 'Inter', style: 'Medium' }).then(() => {
+            shape.text.characters = n.label || n.id;
+          }).catch(() => {});
+        }
+      } catch(_) {}
+      createdNodes[n.id] = shape.id;
+      figma.currentPage.appendChild(shape);
+    }
+    const edgeList = nodes.filter(n => n._edges).flatMap(n => n._edges);
+    const connectors = [];
+    for (const edge of edgeList) {
+      if (createdNodes[edge.from] && createdNodes[edge.to]) {
+        try {
+          const connector = figma.createConnector();
+          connector.connectorStart = { endpointNodeId: createdNodes[edge.from], magnet: 'AUTO' };
+          connector.connectorEnd = { endpointNodeId: createdNodes[edge.to], magnet: 'AUTO' };
+          if (edge.label && connector.text) {
+            figma.loadFontAsync(connector.text.fontName || { family: 'Inter', style: 'Medium' }).then(() => {
+              connector.text.characters = edge.label;
+            }).catch(() => {});
+          }
+          connectors.push(connector.id);
+        } catch(e) {}
+      }
+    }
+    const allCreated = Object.values(createdNodes).map(id => figma.getNodeById(id)).filter(Boolean);
+    if (allCreated.length > 0) {
+      figma.currentPage.selection = allCreated;
+      figma.viewport.scrollAndZoomIntoView(allCreated);
+    }
+    return { success: true, nodesCreated: Object.keys(createdNodes).length, connectorsCreated: connectors.length };
   } catch (e) {
     return { error: e.message || String(e) };
   }
@@ -957,6 +1145,10 @@ export class McpServer {
           return this.toolAddCodeConnectMap(args);
         case "create_design_system_rules":
           return await this.toolCreateDesignSystemRules(args);
+        case "get_figjam":
+          return await this.toolGetFigjam(args);
+        case "generate_diagram":
+          return await this.toolGenerateDiagram(args);
         default:
           return this.toolError(`Unknown tool: ${name}`);
       }
@@ -1085,6 +1277,127 @@ export class McpServer {
       mappings: map,
       count: this.codeConnectMap.size,
     }, null, 2));
+  }
+
+  // ── Tool: get_figjam ─────────────────────────────────────────────────────
+
+  private async toolGetFigjam(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const script = FIGJAM_SCRIPT(nodeId);
+    const result = await this.viewProvider!.executeInBrowserView(script);
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    // Try to capture screenshots of top nodes
+    const screenshots: Record<string, string> = {};
+    if (result.nodeIds?.length > 0) {
+      for (const nid of result.nodeIds.slice(0, 5)) {
+        try {
+          const ssScript = SCREENSHOT_SCRIPT(nid, 1);
+          const ssResult = await this.viewProvider!.executeInBrowserView(ssScript);
+          if (ssResult?.base64) {
+            const buffer = Buffer.from(ssResult.base64, "base64");
+            const assetId = `${crypto.randomUUID()}.png`;
+            this.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
+            setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
+            screenshots[nid] = `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`;
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    let xml = result.xml ?? '';
+    if (Object.keys(screenshots).length > 0) {
+      xml += '\n<!-- Node Screenshots -->\n';
+      for (const [nid, url] of Object.entries(screenshots)) {
+        xml += `<!-- node="${nid}" screenshot="${url}" -->\n`;
+      }
+    }
+
+    return this.toolResult(xml);
+  }
+
+  // ── Tool: generate_diagram ───────────────────────────────────────────────
+
+  private async toolGenerateDiagram(args: Record<string, unknown>) {
+    const mermaid = args.mermaid as string;
+    if (!mermaid) {
+      return this.toolError("Missing required field: mermaid (Mermaid diagram syntax)");
+    }
+
+    const { nodes, edges } = this.parseMermaid(mermaid);
+    if (nodes.length === 0) {
+      return this.toolError("Could not parse any nodes from the Mermaid syntax.");
+    }
+
+    const nodesWithEdges = nodes.map(n => ({ ...n, _edges: edges.filter(e => e.from === n.id) }));
+    const nodesJson = JSON.stringify(nodesWithEdges);
+    const script = GENERATE_DIAGRAM_SCRIPT(nodesJson);
+    const result = await this.viewProvider!.executeInBrowserView(script);
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    return this.toolResult(JSON.stringify({
+      success: true,
+      nodesCreated: result.nodesCreated,
+      connectorsCreated: result.connectorsCreated,
+      message: `Created ${result.nodesCreated} nodes and ${result.connectorsCreated} connectors in FigJam.`,
+    }, null, 2));
+  }
+
+  /** Parse Mermaid syntax into nodes and edges. */
+  private parseMermaid(src: string): { nodes: { id: string; label: string; shape: string }[]; edges: { from: string; to: string; label: string }[] } {
+    const nodes = new Map<string, { id: string; label: string; shape: string }>();
+    const edges: { from: string; to: string; label: string }[] = [];
+    const lines = src.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('%%'));
+
+    for (const line of lines) {
+      if (/^(graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)/i.test(line)) continue;
+
+      // Flowchart edges: A[Label] --> B[Label], A -->|label| B
+      const em = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?\s*(?:-->|==>|-.->|---)\s*(?:\|([^|]*)\|)?\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?/);
+      if (em) {
+        const fId = em[1], fL = em[2]||em[3]||em[4]||em[1], eL = em[5]||'', tId = em[6], tL = em[7]||em[8]||em[9]||em[6];
+        const fS = em[4]?'DIAMOND':em[3]?'ELLIPSE':'ROUNDED_RECTANGLE';
+        const tS = em[9]?'DIAMOND':em[8]?'ELLIPSE':'ROUNDED_RECTANGLE';
+        if (!nodes.has(fId)) nodes.set(fId, { id: fId, label: fL, shape: fS });
+        if (!nodes.has(tId)) nodes.set(tId, { id: tId, label: tL, shape: tS });
+        edges.push({ from: fId, to: tId, label: eL.trim() });
+        continue;
+      }
+
+      // Standalone node: A["Label"]
+      const nm = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})\s*$/);
+      if (nm) {
+        const id = nm[1], label = nm[2]||nm[3]||nm[4]||id;
+        const shape = nm[4]?'DIAMOND':nm[3]?'ELLIPSE':'ROUNDED_RECTANGLE';
+        if (!nodes.has(id)) nodes.set(id, { id, label, shape });
+        continue;
+      }
+
+      // Sequence diagram: Actor ->> Actor: message
+      const sm = line.match(/^\s*([\w\s]+?)\s*(?:->>|-->>|->|-->)\s*([\w\s]+?)\s*:\s*(.+)$/);
+      if (sm) {
+        const fId = sm[1].trim().replace(/\s+/g,'_'), tId = sm[2].trim().replace(/\s+/g,'_');
+        if (!nodes.has(fId)) nodes.set(fId, { id: fId, label: sm[1].trim(), shape: 'ROUNDED_RECTANGLE' });
+        if (!nodes.has(tId)) nodes.set(tId, { id: tId, label: sm[2].trim(), shape: 'ROUNDED_RECTANGLE' });
+        edges.push({ from: fId, to: tId, label: sm[3].trim() });
+        continue;
+      }
+
+      // State diagram: StateA --> StateB : event
+      const stm = line.match(/^\s*([\w]+)\s*-->\s*([\w]+)\s*(?::\s*(.+))?$/);
+      if (stm) {
+        if (!nodes.has(stm[1])) nodes.set(stm[1], { id: stm[1], label: stm[1], shape: 'ROUNDED_RECTANGLE' });
+        if (!nodes.has(stm[2])) nodes.set(stm[2], { id: stm[2], label: stm[2], shape: 'ROUNDED_RECTANGLE' });
+        edges.push({ from: stm[1], to: stm[2], label: (stm[3]||'').trim() });
+      }
+    }
+    return { nodes: [...nodes.values()], edges };
   }
 
   // ── Tool: add_code_connect_map ───────────────────────────────────────────

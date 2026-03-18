@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Figma theme sync** — `setTheme` message now persists dark/light preference to settings; new tabs get correct `setBackgroundColor` (`#1e1e1e` / `#ffffff`) eliminating white flash
 - **Font loading via `fc-list`** — replaced fontkit parser with fontconfig enumeration; variable fonts (Open Sans, Google Sans Flex, e-Ukraine, etc.) now correctly appear with all named instances
 - **Unhandled message stubs** — `getActiveNSScreens`, `getKeyboardLayout`, `spellingGetLanguages`, `setTabColor`, `setThemePreference`, `initLivegraph` and others are now handled; dev mode logs payload for future feature work
+- **Local MCP Server** — complete rewrite of the Model Context Protocol server, matching Figma Desktop behavior for seamless integration with AI coding assistants (Claude Code, Cursor, OpenCode, etc.):
+  - Uses Figma Plugin API (`window.figma`) via `executeJavaScript()` instead of REST API (which was blocked by CORS)
+  - Streamable HTTP transport (MCP spec `2025-03-26`) with Mcp-Session-Id session management
+  - Legacy SSE transport (`/sse` + `/messages`) for backward compatibility
+  - Security: host validation, CSP headers, X-Frame-Options, localhost-only binding
+  - 9 tools implemented:
+    - `get_design_context` — full scene-graph subtree with layout, typography, fills, effects, component metadata
+    - `get_metadata` — sparse XML outline of selection for efficient large-design workflows
+    - `get_screenshot` — node/canvas capture with Plugin API `exportAsync()` and `capturePage()` fallback
+    - `get_variable_defs` — design tokens (variables by mode, applied styles) from selection
+    - `get_code_connect_map` / `add_code_connect_map` — in-memory Figma↔code component mappings
+    - `create_design_system_rules` — generates design system rules file for agent context
+    - `get_figjam` — FigJam diagram XML with stickies, shapes, connectors, and node screenshots
+    - `generate_diagram` — Mermaid syntax → FigJam shapes and connectors (flowcharts, state/sequence diagrams)
 
 ### Changed
 
