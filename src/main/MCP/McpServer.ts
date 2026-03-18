@@ -65,6 +65,12 @@ interface AssetEntry {
   contentType: string;
 }
 
+interface CodeConnectEntry {
+  nodeId: string;
+  codeConnectSrc: string;
+  codeConnectName: string;
+}
+
 /** Minimal interface for querying the Figma BrowserView.
  *  Matches figma-linux-next Window class public surface. */
 export interface FigmaViewProvider {
@@ -144,6 +150,80 @@ const TOOLS: ToolDefinition[] = [
         scale: {
           type: "number",
           description: "Export scale (default: 2, range: 0.5–4).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_variable_defs",
+    description:
+      "Returns the variables and styles used in the current Figma selection " +
+      "(such as colors, spacing, typography tokens). Returns variable names, " +
+      "values, types, and the collection they belong to.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_code_connect_map",
+    description:
+      "Retrieves a mapping between Figma node IDs and their corresponding code " +
+      "components in your codebase. Each entry contains codeConnectSrc (file path) " +
+      "and codeConnectName (component name). Use this to connect Figma design " +
+      "elements directly to their code implementations.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "add_code_connect_map",
+    description:
+      "Adds a mapping between a Figma node ID and its corresponding code component " +
+      "in your codebase. Setting up these mappings improves the output quality of " +
+      "design-to-code workflows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Figma node ID in '1:2' format.",
+        },
+        codeConnectSrc: {
+          type: "string",
+          description: "File path or URL of the code component (e.g., 'src/components/Button.tsx').",
+        },
+        codeConnectName: {
+          type: "string",
+          description: "Name of the component in your codebase (e.g., 'Button').",
+        },
+      },
+      required: ["nodeId", "codeConnectSrc", "codeConnectName"],
+    },
+  },
+  {
+    name: "create_design_system_rules",
+    description:
+      "Creates a rules/instructions file that provides agents with the right context " +
+      "to translate Figma designs into high-quality, codebase-aware frontend code. " +
+      "It helps ensure alignment with your design system and tech stack. Save the " +
+      "result to your project's rules/ or instructions/ directory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        techStack: {
+          type: "string",
+          description: "Tech stack description (e.g., 'React + Tailwind CSS', 'Vue + CSS Modules').",
+        },
+        componentLibraryPath: {
+          type: "string",
+          description: "Path to your component library (e.g., 'src/components/ui').",
         },
       },
     },
@@ -318,6 +398,164 @@ const METADATA_SCRIPT = `
 })()
 `;
 
+const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+
+    let targetNodes;
+    ${nodeId ? `
+      const target = figma.getNodeById("${nodeId}");
+      if (!target) return { error: "Node not found: ${nodeId}" };
+      targetNodes = [target];
+    ` : `
+      targetNodes = figma.currentPage.selection;
+      if (!targetNodes || targetNodes.length === 0) {
+        return { error: "No nodes selected. Select a node in Figma or provide a nodeId." };
+      }
+    `}
+
+    const variables = {};
+    const styles = {};
+
+    function collectVariables(node) {
+      // Collect bound variables
+      if ('boundVariables' in node && node.boundVariables) {
+        for (const [prop, binding] of Object.entries(node.boundVariables)) {
+          try {
+            const bindings = Array.isArray(binding) ? binding : [binding];
+            for (const b of bindings) {
+              if (b && b.id) {
+                const v = figma.variables.getVariableById(b.id);
+                if (v && !variables[v.id]) {
+                  const collection = figma.variables.getVariableCollectionById(v.variableCollectionId);
+                  variables[v.id] = {
+                    name: v.name,
+                    type: v.resolvedType,
+                    collection: collection ? collection.name : null,
+                    valuesByMode: {},
+                  };
+                  // Get values for each mode
+                  if (collection) {
+                    for (const mode of collection.modes) {
+                      try {
+                        const val = v.valuesByMode[mode.modeId];
+                        variables[v.id].valuesByMode[mode.name] = JSON.parse(JSON.stringify(val));
+                      } catch(e) {}
+                    }
+                  }
+                }
+              }
+            }
+          } catch(e) {}
+        }
+      }
+
+      // Collect applied styles
+      const styleProps = ['fillStyleId', 'strokeStyleId', 'textStyleId', 'effectStyleId', 'gridStyleId'];
+      for (const prop of styleProps) {
+        if (prop in node && node[prop] && typeof node[prop] === 'string') {
+          try {
+            const style = figma.getStyleById(node[prop]);
+            if (style && !styles[style.id]) {
+              styles[style.id] = {
+                name: style.name,
+                type: style.type,
+                description: style.description || null,
+              };
+            }
+          } catch(e) {}
+        }
+      }
+
+      // Recurse
+      if ('children' in node) {
+        node.children.forEach(collectVariables);
+      }
+    }
+
+    targetNodes.forEach(collectVariables);
+
+    return {
+      variables: Object.values(variables),
+      styles: Object.values(styles),
+      nodeCount: targetNodes.length,
+    };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const DESIGN_SYSTEM_RULES_SCRIPT = `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+
+    // Collect all local variable collections and their variables
+    const collections = [];
+    try {
+      const localCollections = figma.variables.getLocalVariableCollections();
+      for (const coll of localCollections) {
+        const vars = [];
+        for (const varId of coll.variableIds) {
+          const v = figma.variables.getVariableById(varId);
+          if (v) {
+            const values = {};
+            for (const mode of coll.modes) {
+              try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+            }
+            vars.push({ name: v.name, type: v.resolvedType, values });
+          }
+        }
+        collections.push({ name: coll.name, modes: coll.modes.map(m => m.name), variables: vars });
+      }
+    } catch(e) {}
+
+    // Collect local styles
+    const allStyles = [];
+    const styleTypes = ['PAINT', 'TEXT', 'EFFECT', 'GRID'];
+    for (const type of styleTypes) {
+      try {
+        const localStyles = figma.getLocalPaintStyles ? 
+          (type === 'PAINT' ? figma.getLocalPaintStyles() :
+           type === 'TEXT' ? figma.getLocalTextStyles() :
+           type === 'EFFECT' ? figma.getLocalEffectStyles() :
+           figma.getLocalGridStyles()) : [];
+        for (const s of localStyles) {
+          allStyles.push({ name: s.name, type: type, description: s.description || null });
+        }
+      } catch(e) {}
+    }
+
+    // Collect component sets (variants)
+    const components = [];
+    function findComponents(node) {
+      if (node.type === 'COMPONENT_SET') {
+        const props = {};
+        try { Object.assign(props, JSON.parse(JSON.stringify(node.componentPropertyDefinitions))); } catch(e) {}
+        components.push({ name: node.name, type: 'COMPONENT_SET', properties: props });
+      } else if (node.type === 'COMPONENT' && (!node.parent || node.parent.type !== 'COMPONENT_SET')) {
+        components.push({ name: node.name, type: 'COMPONENT' });
+      }
+      if ('children' in node) node.children.forEach(findComponents);
+    }
+    figma.currentPage.children.forEach(findComponents);
+
+    return {
+      fileName: figma.root.name,
+      collections,
+      styles: allStyles,
+      components: components.slice(0, 100), // limit
+    };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
 const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
 (function() {
   try {
@@ -358,6 +596,7 @@ const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
 export class McpServer {
   private server: http.Server | null = null;
   private sessions = new Map<string, McpSession>();
+  private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
@@ -710,6 +949,14 @@ export class McpServer {
           return await this.toolGetMetadata();
         case "get_screenshot":
           return await this.toolGetScreenshot(args);
+        case "get_variable_defs":
+          return await this.toolGetVariableDefs(args);
+        case "get_code_connect_map":
+          return this.toolGetCodeConnectMap();
+        case "add_code_connect_map":
+          return this.toolAddCodeConnectMap(args);
+        case "create_design_system_rules":
+          return await this.toolCreateDesignSystemRules(args);
         default:
           return this.toolError(`Unknown tool: ${name}`);
       }
@@ -807,6 +1054,147 @@ export class McpServer {
       url: `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`,
       note: "Captured visible canvas area (Plugin API export unavailable). Fetch this URL for PNG data.",
     }, null, 2));
+  }
+
+  // ── Tool: get_variable_defs ──────────────────────────────────────────────
+
+  private async toolGetVariableDefs(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const script = VARIABLE_DEFS_SCRIPT(nodeId);
+    const result = await this.viewProvider!.executeInBrowserView(script);
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: get_code_connect_map ───────────────────────────────────────────
+
+  private toolGetCodeConnectMap() {
+    const map: Record<string, { codeConnectSrc: string; codeConnectName: string }> = {};
+    for (const [nodeId, entry] of this.codeConnectMap) {
+      map[nodeId] = {
+        codeConnectSrc: entry.codeConnectSrc,
+        codeConnectName: entry.codeConnectName,
+      };
+    }
+
+    return this.toolResult(JSON.stringify({
+      mappings: map,
+      count: this.codeConnectMap.size,
+    }, null, 2));
+  }
+
+  // ── Tool: add_code_connect_map ───────────────────────────────────────────
+
+  private toolAddCodeConnectMap(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const codeConnectSrc = args.codeConnectSrc as string;
+    const codeConnectName = args.codeConnectName as string;
+
+    if (!nodeId || !codeConnectSrc || !codeConnectName) {
+      return this.toolError("Missing required fields: nodeId, codeConnectSrc, codeConnectName");
+    }
+
+    this.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName });
+    this.log.info("Code Connect mapping added:", nodeId, "→", codeConnectName, `(${codeConnectSrc})`);
+
+    return this.toolResult(JSON.stringify({
+      success: true,
+      nodeId,
+      codeConnectSrc,
+      codeConnectName,
+      totalMappings: this.codeConnectMap.size,
+    }, null, 2));
+  }
+
+  // ── Tool: create_design_system_rules ─────────────────────────────────────
+
+  private async toolCreateDesignSystemRules(args: Record<string, unknown>) {
+    const techStack = (args.techStack as string) || "Not specified";
+    const componentLibraryPath = (args.componentLibraryPath as string) || "Not specified";
+
+    // Collect design system data from Figma
+    const result = await this.viewProvider!.executeInBrowserView(DESIGN_SYSTEM_RULES_SCRIPT);
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    // Format as a design system rules document
+    const lines: string[] = [
+      `# Design System Rules — ${result.fileName}`,
+      "",
+      `> Auto-generated from Figma file "${result.fileName}"`,
+      "",
+      "## Tech Stack",
+      `- Framework: ${techStack}`,
+      `- Component Library: ${componentLibraryPath}`,
+      "",
+    ];
+
+    // Variables/tokens
+    if (result.collections?.length > 0) {
+      lines.push("## Design Tokens (Variables)", "");
+      for (const coll of result.collections) {
+        lines.push(`### ${coll.name}`, `Modes: ${coll.modes.join(", ")}`, "");
+        lines.push("| Token | Type | Values |", "|-------|------|--------|");
+        for (const v of coll.variables.slice(0, 50)) {
+          const values = Object.entries(v.values || {})
+            .map(([mode, val]: [string, any]) => `${mode}: ${JSON.stringify(val)}`)
+            .join("; ");
+          lines.push(`| \`${v.name}\` | ${v.type} | ${values} |`);
+        }
+        lines.push("");
+      }
+    }
+
+    // Styles
+    if (result.styles?.length > 0) {
+      lines.push("## Styles", "");
+      lines.push("| Name | Type | Description |", "|------|------|-------------|");
+      for (const s of result.styles.slice(0, 50)) {
+        lines.push(`| \`${s.name}\` | ${s.type} | ${s.description ?? "—"} |`);
+      }
+      lines.push("");
+    }
+
+    // Components
+    if (result.components?.length > 0) {
+      lines.push("## Components", "");
+      for (const comp of result.components) {
+        lines.push(`- **${comp.name}** (${comp.type})`);
+        if (comp.properties && Object.keys(comp.properties).length > 0) {
+          for (const [propName, propDef] of Object.entries(comp.properties) as [string, any][]) {
+            lines.push(`  - \`${propName}\`: ${propDef?.type ?? "unknown"}`);
+          }
+        }
+      }
+      lines.push("");
+    }
+
+    // Code Connect mappings
+    if (this.codeConnectMap.size > 0) {
+      lines.push("## Code Connect Mappings", "");
+      lines.push("| Figma Node ID | Component | File |", "|---------------|-----------|------|");
+      for (const [_, entry] of this.codeConnectMap) {
+        lines.push(`| ${entry.nodeId} | \`${entry.codeConnectName}\` | \`${entry.codeConnectSrc}\` |`);
+      }
+      lines.push("");
+    }
+
+    lines.push(
+      "## Usage Instructions",
+      "",
+      "Save this file to your project's `rules/` or `.cursor/rules/` directory.",
+      "Your AI coding assistant will use these rules to generate code that matches",
+      "your design system's tokens, styles, and component structure.",
+      "",
+    );
+
+    return this.toolResult(lines.join("\n"));
   }
 
   // ── Asset Serving ────────────────────────────────────────────────────────
