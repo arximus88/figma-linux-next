@@ -1,9 +1,9 @@
 app-id: com.figma.FigmaLinuxNext
 runtime: org.freedesktop.Platform
-runtime-version: '23.08'
+runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: '23.08'
+base-version: '25.08'
 command: figma-linux-next
 separate-locales: false
 
@@ -36,7 +36,7 @@ modules:
   - name: figma-linux-next
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/node18/bin
+      append-path: /usr/lib/sdk/node20/bin
       env:
         NPM_CONFIG_LOGLEVEL: info
     build-commands:
@@ -149,4 +149,4 @@ modules:
       - generated-sources.json
 
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node18
+  - org.freedesktop.Sdk.Extension.node20
