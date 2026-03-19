@@ -146,13 +146,32 @@ export default class App {
     // Chromium flags for better performance and GPU support
     // Full flags reference: https://peter.sh/experiments/chromium-command-line-switches/
 
-    // Apply default performance optimizations for Linux
-    this.applyDefaultOptimizations();
-
     const switches = storage.settings.app.commandSwitches;
 
-    if (switches && switches.length) {
-      for (const item of switches) {
+    // Detect session type before applying defaults so we can make informed decisions
+    const isWayland = process.env.XDG_SESSION_TYPE === "wayland" || !!process.env.WAYLAND_DISPLAY;
+
+    // Vulkan switches — both trigger Vulkan usage and are incompatible with ozone=wayland.
+    const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-graphite"];
+
+    // "value": "false" / "0" is a UI convention for "disabled" — skip those entirely.
+    // Chromium boolean flags have no =false form; you either pass them or you don't.
+    const effectiveSwitches = (switches ?? []).filter(
+      (s) => s.value !== "false" && s.value !== "0",
+    );
+
+    // User explicitly opts into Vulkan only if a vulkan switch is present and not disabled.
+    const userForcesVulkan = effectiveSwitches.some((s) => VULKAN_SWITCHES.includes(s.switch));
+
+    this.applyDefaultOptimizations(isWayland, userForcesVulkan);
+
+    if (effectiveSwitches.length) {
+      for (const item of effectiveSwitches) {
+        // Skip Vulkan switches on Wayland unless user explicitly forced them above.
+        if (isWayland && !userForcesVulkan && VULKAN_SWITCHES.includes(item.switch)) {
+          logger.info(`Wayland: skipping user switch --${item.switch}`);
+          continue;
+        }
         app.commandLine.appendSwitch(item.switch, item.value);
       }
     }
@@ -166,9 +185,14 @@ export default class App {
     }
   }
 
-  private applyDefaultOptimizations() {
-    // GPU Acceleration - critical for Figma's WebGL rendering
-    app.commandLine.appendSwitch("ignore-gpu-blocklist");
+  private applyDefaultOptimizations(isWayland: boolean, userForcesVulkan: boolean) {
+    // On X11: bypass the GPU blocklist so hardware acceleration isn't blocked for
+    // capable GPUs. On Wayland: leave the blocklist active — it disables Vulkan for
+    // known-incompatible combos (AMD + ozone=wayland), preventing the Dawn/Vulkan
+    // surface factory conflict and the associated log spam.
+    if (!isWayland) {
+      app.commandLine.appendSwitch("ignore-gpu-blocklist");
+    }
     app.commandLine.appendSwitch("enable-gpu-rasterization");
     app.commandLine.appendSwitch("enable-zero-copy");
 
@@ -182,18 +206,26 @@ export default class App {
     ];
 
     // Wayland support detection and enablement
-    if (process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY) {
+    if (isWayland) {
       logger.info("Wayland session detected - enabling native Wayland support");
       app.commandLine.appendSwitch("ozone-platform-hint", "auto");
       features.push("WaylandWindowDecorations", "UseOzonePlatform");
+
     }
 
     // Enable modern rendering features
     app.commandLine.appendSwitch("enable-features", features.join(","));
 
-    // User-requested high-performance GPU flags
-    // SECURITY: enable-unsafe-webgpu bypasses WebGPU safety checks.
-    app.commandLine.appendSwitch("enable-unsafe-webgpu");
+    // WebGPU/Vulkan: enabled on X11 explicitly. On Wayland the GPU blocklist handles
+    // disabling Vulkan automatically — we don't need to pass enable-unsafe-webgpu
+    // (and shouldn't, since it would re-enable it regardless of the blocklist).
+    // User can still force it via commandSwitches if they know what they're doing.
+    if (!isWayland || userForcesVulkan) {
+      if (userForcesVulkan && isWayland) {
+        logger.warn("enable-unsafe-webgpu forced on Wayland via commandSwitches — Vulkan may conflict with the compositor");
+      }
+      app.commandLine.appendSwitch("enable-unsafe-webgpu");
+    }
 
     // WebGL optimizations for Figma's canvas engine
     app.commandLine.appendSwitch("enable-webgl");
@@ -208,7 +240,9 @@ export default class App {
     app.commandLine.appendSwitch("disable-background-timer-throttling");
     app.commandLine.appendSwitch("disable-renderer-backgrounding");
 
-    logger.info("Applied default performance optimizations for Linux");
+    logger.info(
+      `Applied default performance optimizations for Linux (session: ${isWayland ? "Wayland" : "X11"})`,
+    );
   }
 
   private onWindowAllClosed() {

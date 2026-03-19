@@ -20,6 +20,8 @@
 
 import http from "http";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import type { WebContentsView } from "electron";
 
 // ── Configuration ──────────────────────────────────────────────────────────────
@@ -107,9 +109,10 @@ const TOOLS: ToolDefinition[] = [
       "Get the design context for a layer or your selection in Figma. Returns the full " +
       "scene-graph subtree as JSON including node tree structure, layout properties, " +
       "typography, fills, strokes, effects, auto-layout, and component metadata. " +
-      "By default outputs React + Tailwind-style context, but the agent can customize " +
-      "via prompt (e.g. Vue, plain HTML + CSS, iOS). Supports Figma Design and Figma Make files. " +
-      "When nodeId is omitted, uses the currently selected nodes.",
+      "Supports Figma Design and Figma Make files. When nodeId is omitted, uses the currently selected nodes. " +
+      "⚠ WARNING: responses can be very large (10k–100k+ tokens) depending on node complexity and depth. " +
+      "Always use get_metadata first to identify a specific nodeId, then call with depth ≤ 3. " +
+      "Avoid calling on page-level or large container nodes without a targeted nodeId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -127,12 +130,31 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_metadata",
     description:
-      "Returns a sparse XML representation of the current selection containing basic " +
-      "properties such as layer IDs, names, types, positions and sizes. This is an outline " +
-      "that the agent can break down and call get_design_context on specific nodes to retrieve " +
-      "only the styling information needed. Useful for very large designs where get_design_context " +
-      "produces output with large context size. Also works with multiple selections or the whole " +
-      "page if nothing is selected. Supports Figma Design files.",
+      "Returns a sparse XML scene-graph outline of a node or the current page — layer IDs, " +
+      "types, names, positions, and sizes only. No fills, strokes, or styling. Use this to " +
+      "navigate large designs and discover node IDs before calling get_design_context on " +
+      "specific nodes. When nodeId is omitted, uses the current selection or the full page. " +
+      "Supports Figma Design files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection or full page.",
+        },
+        depth: {
+          type: "number",
+          description: "Maximum depth to traverse (default: 8).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_file_info",
+    description:
+      "Returns JSON metadata about the current Figma file: file name, current page name, " +
+      "page list, selection count and selected node IDs/names, and page-level statistics " +
+      "(frame count, text nodes, components, instances). Does not traverse the scene graph.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -156,6 +178,10 @@ const TOOLS: ToolDefinition[] = [
         scale: {
           type: "number",
           description: "Export scale (default: 2, range: 0.5–4).",
+        },
+        savePath: {
+          type: "string",
+          description: "Optional path to save the PNG on disk (absolute or relative to cwd). E.g. 'assets/frame.png' or '/tmp/design.png'. If omitted, image is returned inline only.",
         },
       },
     },
@@ -290,7 +316,7 @@ const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
 
     function serializeNode(node, currentDepth, maxDepth) {
       if (!node || currentDepth > maxDepth) return null;
@@ -381,12 +407,12 @@ const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
     let targetNodes;
     ${nodeId ? `
       const target = figma.getNodeById("${nodeId}");
-      if (!target) return { error: "Node not found: ${nodeId}" };
+      if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
       targetNodes = [target];
     ` : `
       targetNodes = figma.currentPage.selection;
       if (!targetNodes || targetNodes.length === 0) {
-        return { error: "No nodes selected. Select a node in Figma or provide a nodeId." };
+        return JSON.stringify({ error: "No nodes selected. Select a node in Figma or provide a nodeId." });
       }
     `}
 
@@ -397,14 +423,14 @@ const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       nodes: targetNodes.map(n => serializeNode(n, 0, ${depth})),
     };
 
-    return result;
+    return JSON.stringify(result);
   } catch (e) {
-    return { error: e.message || String(e) };
+    return JSON.stringify({ error: e.message || String(e) });
   }
 })()
 `;
 
-const METADATA_SCRIPT = `
+const FILE_INFO_SCRIPT = `
 (function() {
   try {
     const figma = window.figma;
@@ -445,6 +471,71 @@ const METADATA_SCRIPT = `
     };
   } catch (e) {
     return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const METADATA_XML_SCRIPT = (nodeId: string | null, depth: number) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
+
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function nodeToXml(node, indent, currentDepth) {
+      if (!node || currentDepth > ${depth}) return '';
+      try {
+        const pad = '  '.repeat(indent);
+        const tag = (node.type || 'node').toLowerCase().replace(/_/g, '-');
+        const attrs = [];
+        try { attrs.push('id="' + esc(node.id) + '"'); } catch(_) {}
+        try { attrs.push('name="' + esc(node.name) + '"'); } catch(_) {}
+        try { if ('x' in node) attrs.push('x="' + Math.round(node.x) + '"'); } catch(_) {}
+        try { if ('y' in node) attrs.push('y="' + Math.round(node.y) + '"'); } catch(_) {}
+        try { if ('width' in node) attrs.push('width="' + Math.round(node.width) + '"'); } catch(_) {}
+        try { if ('height' in node) attrs.push('height="' + Math.round(node.height) + '"'); } catch(_) {}
+        try {
+          if (node.type === 'TEXT' && 'characters' in node) {
+            attrs.push('text="' + esc(String(node.characters).substring(0, 80)) + '"');
+          }
+        } catch(_) {}
+
+        if ('children' in node && node.children && node.children.length > 0 && currentDepth < ${depth}) {
+          let xml = pad + '<' + tag + ' ' + attrs.join(' ') + '>\\n';
+          for (let i = 0; i < node.children.length; i++) {
+            try { xml += nodeToXml(node.children[i], indent + 1, currentDepth + 1); } catch(_) {}
+          }
+          xml += pad + '</' + tag + '>\\n';
+          return xml;
+        } else {
+          return pad + '<' + tag + ' ' + attrs.join(' ') + '/>\\n';
+        }
+      } catch(e) { return ''; }
+    }
+
+    let targetNodes;
+    ${nodeId ? `
+      const target = figma.getNodeById("${nodeId}");
+      if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
+      targetNodes = [target];
+    ` : `
+      const sel = figma.currentPage.selection;
+      targetNodes = (sel && sel.length > 0) ? sel : figma.currentPage.children;
+    `}
+
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\\n';
+    xml += '<canvas name="' + esc(figma.currentPage.name) + '" file="' + esc(figma.root.name) + '">\\n';
+    for (let i = 0; i < targetNodes.length; i++) {
+      try { xml += nodeToXml(targetNodes[i], 1, 0); } catch(_) {}
+    }
+    xml += '</canvas>\\n';
+
+    return JSON.stringify({ xml });
+  } catch (e) {
+    return JSON.stringify({ error: e.message || String(e) });
   }
 })()
 `;
@@ -1131,7 +1222,9 @@ export class McpServer {
         case "get_design_context":
           return await this.toolGetDesignContext(args);
         case "get_metadata":
-          return await this.toolGetMetadata();
+          return await this.toolGetMetadata(args);
+        case "get_file_info":
+          return await this.toolGetFileInfo();
         case "get_screenshot":
           return await this.toolGetScreenshot(args);
         case "get_variable_defs":
@@ -1170,19 +1263,61 @@ export class McpServer {
     const depth = typeof args.depth === "number" ? args.depth : 10;
 
     const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
-    const result = await this.viewProvider!.executeInBrowserView(script);
+    const raw = await this.viewProvider!.executeInBrowserView(script);
+
+    // Script returns a JSON string to avoid V8 structured-clone failures over IPC
+    let result: any;
+    try {
+      result = typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch {
+      return this.toolError("Failed to deserialize design context — the Figma scene graph may contain non-serializable objects");
+    }
 
     if (result?.error) {
       return this.toolError(result.error);
     }
 
-    return this.toolResult(JSON.stringify(result, null, 2));
+    const json = JSON.stringify(result, null, 2);
+    const approxTokens = Math.round(json.length / 4);
+    const WARNING_TOKENS = 8_000;
+
+    if (approxTokens > WARNING_TOKENS) {
+      const warn =
+        `⚠ Large response (~${(approxTokens / 1000).toFixed(1)}k tokens). ` +
+        `This may fill context quickly. Consider re-calling with a more specific nodeId or a smaller depth.\n\n`;
+      return this.toolResult(warn + json);
+    }
+
+    return this.toolResult(json);
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────
 
-  private async toolGetMetadata() {
-    const result = await this.viewProvider!.executeInBrowserView(METADATA_SCRIPT);
+  private async toolGetMetadata(args: Record<string, unknown>) {
+    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const depth = typeof args.depth === "number" ? args.depth : 8;
+
+    const script = METADATA_XML_SCRIPT(nodeId, depth);
+    const raw = await this.viewProvider!.executeInBrowserView(script);
+
+    let result: any;
+    try {
+      result = typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch {
+      return this.toolError("Failed to deserialize metadata response");
+    }
+
+    if (result?.error) {
+      return this.toolError(result.error);
+    }
+
+    return this.toolResult(result.xml ?? "");
+  }
+
+  // ── Tool: get_file_info ──────────────────────────────────────────────────
+
+  private async toolGetFileInfo() {
+    const result = await this.viewProvider!.executeInBrowserView(FILE_INFO_SCRIPT);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -1196,6 +1331,7 @@ export class McpServer {
   private async toolGetScreenshot(args: Record<string, unknown>) {
     const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
     const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.5, args.scale)) : 2;
+    const savePath = args.savePath ? String(args.savePath) : null;
 
     // Try Plugin API exportAsync first
     const script = SCREENSHOT_SCRIPT(nodeId, scale);
@@ -1204,45 +1340,48 @@ export class McpServer {
     if (result?.error) {
       // Fallback: capture the visible page via capturePage
       this.log.warn("Plugin API export failed, falling back to capturePage:", result.error);
-      return this.capturePageFallback();
+      return this.capturePageFallback(savePath);
     }
 
     if (result?.base64) {
-      const buffer = Buffer.from(result.base64, "base64");
-      const assetId = `${crypto.randomUUID()}.png`;
-      this.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
-
-      // Auto-cleanup after 10 minutes
-      setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
-
-      const url = `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`;
-      return this.toolResult(JSON.stringify({
-        url,
-        nodeId: result.nodeId,
-        nodeName: result.nodeName,
-        note: "Fetch this URL to get the PNG image data",
-      }, null, 2));
+      return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath);
     }
 
     return this.toolError("Screenshot export returned no data");
   }
 
+  /** Build an MCP response with the image inline + optional disk save. */
+  private buildScreenshotResponse(base64: string, nodeId: string, nodeName: string, savePath: string | null) {
+    type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
+    const content: ContentItem[] = [
+      { type: "image", data: base64, mimeType: "image/png" },
+    ];
+
+    const meta: Record<string, unknown> = { nodeId, nodeName };
+
+    if (savePath) {
+      try {
+        const absPath = path.isAbsolute(savePath) ? savePath : path.join(process.cwd(), savePath);
+        fs.mkdirSync(path.dirname(absPath), { recursive: true });
+        fs.writeFileSync(absPath, Buffer.from(base64, "base64"));
+        meta.savedTo = absPath;
+      } catch (e: any) {
+        meta.saveError = e.message;
+      }
+    }
+
+    content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
+    return { content };
+  }
+
   /** Fallback: use Electron's capturePage on the webContents */
-  private async capturePageFallback() {
+  private async capturePageFallback(savePath: string | null = null) {
     const view = this.viewProvider!.getActiveTabView();
     if (!view) return this.toolError("No active Figma view");
 
     const image = await view.webContents.capturePage();
     const buffer = image.toPNG();
-    const assetId = `${crypto.randomUUID()}.png`;
-    this.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
-
-    setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
-
-    return this.toolResult(JSON.stringify({
-      url: `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`,
-      note: "Captured visible canvas area (Plugin API export unavailable). Fetch this URL for PNG data.",
-    }, null, 2));
+    return this.buildScreenshotResponse(buffer.toString("base64"), "", "canvas (capturePage fallback)", savePath);
   }
 
   // ── Tool: get_variable_defs ──────────────────────────────────────────────

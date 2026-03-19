@@ -134,19 +134,19 @@ new App(
 - Only one tab visible at a time
 
 **ExtensionManager** (`src/main/ExtensionManager.ts`):
-- Scans `~/.config/figma-linux/Extensions/` directory
+- Scans `~/.config/figma-linux-next/Extensions/` directory
 - File watching with Chokidar for hot-reloading during development
 - Observer pattern for manifest and code file changes
 - Extensions loaded from `savedExtensions` in settings
 
 **ThemeManager** (`src/main/Ui/ThemeManager/index.ts`):
-- Loads themes from `~/.config/figma-linux/Themes/`
+- Loads themes from `~/.config/figma-linux-next/Themes/`
 - Two theme types: community themes (downloaded) and creator themes (user-created)
 - ThemeValidator validates theme structure
 - Themes applied via CSS custom properties injected into Figma
 
 **Storage** (`src/main/Storage.ts`):
-- Singleton for settings persistence to `~/.config/figma-linux/settings.json`
+- Singleton for settings persistence to `~/.config/figma-linux-next/settings.json`
 - Dual-initialization: works in both main and renderer processes
 - IPC synchronous getter for renderer: `ipcMain.on('getSettings')`
 - Deep-merges defaults with saved settings
@@ -216,7 +216,7 @@ When adding new code, use these aliases instead of relative paths.
 
 ### Settings Structure
 
-Settings are stored in `~/.config/figma-linux/settings.json` with this structure:
+Settings are stored in `~/.config/figma-linux-next/settings.json` with this structure:
 
 ```typescript
 {
@@ -249,7 +249,7 @@ Default settings in `src/utils/Render/defaultSettings.ts`.
 
 ## Extension System
 
-Extensions are plugins loaded from `~/.config/figma-linux/Extensions/`.
+Extensions are plugins loaded from `~/.config/figma-linux-next/Extensions/`.
 
 **Structure**:
 - `manifest.json` - Extension metadata
@@ -262,31 +262,6 @@ Extensions are plugins loaded from `~/.config/figma-linux/Extensions/`.
 - No app restart needed
 
 Extensions registered in `settings.json` under `savedExtensions`.
-
-## Theme System
-
-**Two theme types**:
-
-1. **Community Themes** (`~/.config/figma-linux/Themes/`)
-   - Downloaded from online repository
-   - Applied application-wide
-
-2. **Creator Themes** (`~/.config/figma-linux/ThemeCreator/`)
-   - User-created in Theme Creator UI
-   - Live preview support
-
-**Theme File Structure**:
-```typescript
-{
-  id: string,
-  name: string,
-  palette: {
-    [colorName: string]: hexColor
-  }
-}
-```
-
-Themes applied by injecting CSS custom properties into Figma's stylesheet via `ThemesApplier`.
 
 ## Platform-Specific Features
 
@@ -311,7 +286,7 @@ Three frame styles configurable in settings (`app.frameStyle`):
 
 **Logger** (`src/main/Logger/AppLogger.ts`):
 - Multi-sink architecture: console + file
-- File logs: `~/.config/figma-linux/logs/app.log`
+- File logs: `~/.config/figma-linux-next/logs/app.log`
 - Configurable log level in settings
 
 ## Critical Files Reference

@@ -13,12 +13,10 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     saveLastOpenedTabs: true,
     exportDir: "",
     commandSwitches: [
-      { switch: "enable-gpu-rasterization" },
-      // { switch: "enable-unsafe-webgpu" },
-      // { switch: "enable-skia-graphite" },
-      // { switch: "enable-accelerated-2d-canvas" },
       { switch: "enable-experimental-canvas-features" },
-      { switch: "use-vulkan" },
+      // Vulkan switches (use-vulkan, enable-unsafe-webgpu) are managed automatically
+      // by App.ts based on session type (Wayland vs X11). Add them here only to
+      // force-enable on Wayland.
     ],
     fontDirs: [
       "/usr/share/fonts",
