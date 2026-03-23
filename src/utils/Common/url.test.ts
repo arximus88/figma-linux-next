@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { normalizeUrl, getFileKeyFromUrl, isFigmaRunUrl } from "./url";
+import { normalizeUrl, getFileKeyFromUrl, isFigmaRunUrl, isFileBrowserUrl } from "./url";
 import { HOMEPAGE } from "Const";
 
 describe("normalizeUrl", () => {
@@ -84,8 +84,12 @@ describe("isFigmaRunUrl", () => {
     expect(isFigmaRunUrl("figma://file/ABC123")).toBe(true);
   });
 
-  test("returns false for home/recent pages", () => {
-    expect(isFigmaRunUrl("https://www.figma.com/files/recent")).toBe(true); // /files/ is valid
+  test("returns true for /files/ browser paths (file browser, not a design file)", () => {
+    expect(isFigmaRunUrl("https://www.figma.com/files/recent")).toBe(true);
+    expect(isFigmaRunUrl("https://www.figma.com/files/team/123/my-team")).toBe(true);
+  });
+
+  test("returns false for non-browser figma pages", () => {
     expect(isFigmaRunUrl("https://www.figma.com/desktop_new_tab")).toBe(false);
   });
 
@@ -99,3 +103,35 @@ describe("isFigmaRunUrl", () => {
     expect(isFigmaRunUrl("")).toBe(false);
   });
 });
+
+describe("isFileBrowserUrl", () => {
+  test("returns true for /files/recent", () => {
+    expect(isFileBrowserUrl("https://www.figma.com/files/recent")).toBe(true);
+  });
+
+  test("returns true for team browser URL", () => {
+    expect(isFileBrowserUrl("https://www.figma.com/files/team/123456789/my-team")).toBe(true);
+  });
+
+  test("returns true for project browser URL", () => {
+    expect(isFileBrowserUrl("https://www.figma.com/files/project/987654/my-project")).toBe(true);
+  });
+
+  test("returns false for design file URL", () => {
+    expect(isFileBrowserUrl("https://www.figma.com/design/ABC123/my-file")).toBe(false);
+  });
+
+  test("returns false for old /file/ URL (singular)", () => {
+    expect(isFileBrowserUrl("https://www.figma.com/file/ABC123/name")).toBe(false);
+  });
+
+  test("returns false for non-figma URL", () => {
+    expect(isFileBrowserUrl("https://google.com/files/something")).toBe(false);
+  });
+
+  test("returns false for invalid input", () => {
+    expect(isFileBrowserUrl("not-a-url")).toBe(false);
+    expect(isFileBrowserUrl("")).toBe(false);
+  });
+});
+

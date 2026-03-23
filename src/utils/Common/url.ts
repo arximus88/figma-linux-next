@@ -82,7 +82,7 @@ export const isValidFigjamLink = (url: string) =>
  *  They should stay in the MainTab, not be opened as a new design-file tab. */
 export const isFileBrowserUrl = (url: string): boolean => {
   const parsed = parseURL(url);
-  return parsed && /(w{0,3}\.)?figma\.com/.test(parsed.hostname) && /^\/files\//.test(parsed.pathname);
+  return !!parsed && /(w{0,3}\.)?figma\.com/.test(parsed.hostname) && /^\/files\//.test(parsed.pathname);
 };
 
 export const isFigmaDocLink = (url: string) =>
