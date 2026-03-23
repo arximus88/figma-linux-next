@@ -48,6 +48,7 @@ describe("color utils", () => {
       expect(HexToRgb("#fff")).toBe("rgb(255, 255, 255)");
       expect(HexToRgb("#000")).toBe("rgb(0, 0, 0)");
       expect(HexToRgb("#f0f")).toBe("rgb(255, 0, 255)");
+      expect(HexToRgb("#abc")).toBe("rgb(170, 187, 204)");
     });
 
     test("should convert 6-digit hex to rgb", () => {
@@ -59,6 +60,12 @@ describe("color utils", () => {
     test("should return original string if not hex", () => {
       expect(HexToRgb("not-a-hex")).toBe("not-a-hex");
       expect(HexToRgb("255, 255, 255")).toBe("255, 255, 255");
+    });
+
+    test("should return original string for hex strings with invalid lengths", () => {
+      expect(HexToRgb("#a")).toBe("#a");
+      expect(HexToRgb("#abcd")).toBe("#abcd");
+      expect(HexToRgb("#abcdefg")).toBe("#abcdefg");
     });
   });
 

@@ -21,6 +21,8 @@ export const HexToRgb = (hex: string) => {
     r = Number("0x" + hex[1] + hex[2]);
     g = Number("0x" + hex[3] + hex[4]);
     b = Number("0x" + hex[5] + hex[6]);
+  } else {
+    return hex;
   }
 
   return `rgb(${r}, ${g}, ${b})`;

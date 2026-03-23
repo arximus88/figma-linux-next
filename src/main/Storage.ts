@@ -3,7 +3,7 @@ import type { IpcMainEvent } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 
-import { DEFAULT_SETTINGS, accessSync } from "Utils/Main";
+import { DEFAULT_SETTINGS, access } from "Utils/Main";
 import { logger } from "./Logger";
 
 /**
@@ -18,16 +18,16 @@ export class Storage {
 
   constructor() {}
 
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     if (this.filePath) return;
 
     this.filePath = path.join(app.getPath("userData"), "settings.json");
 
-    this.load();
+    await this.load();
   }
 
-  private load = (): void => {
-    const exist = accessSync(this.filePath);
+  private load = async (): Promise<void> => {
+    const exist = await access(this.filePath);
 
     if (!exist) {
       const mergedSettings = {
@@ -36,12 +36,12 @@ export class Storage {
       };
 
       this.settings = mergedSettings;
-      this.writeSync(mergedSettings);
+      await this.writeAsync(mergedSettings);
 
       return;
     }
 
-    this.settings = this.readSync();
+    this.settings = await this.readAsync();
 
     this.settings = {
       ...DEFAULT_SETTINGS,
@@ -60,24 +60,18 @@ export class Storage {
       },
     };
 
-    this.writeSync(this.settings);
+    await this.writeAsync(this.settings);
   };
-  private readSync = (): Types.SettingsInterface => {
-    const content = fs.readFileSync(this.filePath).toString();
 
-    let settings: Types.SettingsInterface;
+  private readAsync = async (): Promise<Types.SettingsInterface> => {
     try {
-      settings = JSON.parse(content);
+      const content = (await fs.promises.readFile(this.filePath)).toString();
+      return JSON.parse(content);
     } catch (error) {
-      logger.error("Parse settings.json file error: ", error);
+      logger.error("Read/Parse settings.json file error: ", error);
       logger.warn("Apply default settings instead file settings.");
-      settings = DEFAULT_SETTINGS;
+      return DEFAULT_SETTINGS;
     }
-
-    return settings;
-  };
-  private writeSync = (settings: Types.SettingsInterface): void => {
-    fs.writeFileSync(this.filePath, JSON.stringify(settings, null, 2));
   };
 
   private writeAsync = async (settings: Types.SettingsInterface): Promise<void> => {

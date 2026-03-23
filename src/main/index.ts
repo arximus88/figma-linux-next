@@ -19,12 +19,17 @@ process.on("unhandledRejection", (reason: Error) => {
 });
 
 logger.initialize();
-storage.initialize();
-dialogs.initialize();
 
-const session = new Session();
-const fontManager = new FontManager();
-const extensionManager = new ExtensionManager();
-const windowManager = new WindowManager();
+async function start() {
+  await storage.initialize();
+  dialogs.initialize();
 
-new App(windowManager, extensionManager, session, fontManager);
+  const session = new Session();
+  const fontManager = new FontManager();
+  const extensionManager = new ExtensionManager();
+  const windowManager = new WindowManager();
+
+  new App(windowManager, extensionManager, session, fontManager);
+}
+
+start();
