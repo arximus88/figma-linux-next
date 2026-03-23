@@ -48,30 +48,12 @@ export default class Tab {
   }
   public setAutosize(flag: boolean) {
     // WebContentsView does not support setAutoResize
-    /*
-    this.view.setAutoResize({
-      width: false,
-      height: false,
-      horizontal: false,
-      vertical: false,
-    });
-    */
   }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
 
   private initTab() {
-    // const options: WebContentsViewConstructorOptions = {
-    //   webPreferences: {
-    //     nodeIntegration: false,
-    //     webgl: true,
-    //     contextIsolation: false,
-    //     zoomFactor: 1,
-    //     preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
-    //   },
-    // };
-
     this.view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -82,8 +64,6 @@ export default class Tab {
       },
     } as any);
     this.id = this.view.webContents.id;
-
-    // this.setAutosize(false);
 
     app.emit("requestBoundsForTabView", this.windowId);
   }
@@ -122,8 +102,6 @@ export default class Tab {
     const to = parse(newUrl);
 
     if (from.pathname === "/login") {
-      // this.tabManager.reloadAll();
-
       event.preventDefault();
       return;
     }

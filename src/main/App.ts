@@ -263,7 +263,7 @@ export default class App {
   }
 
   private registerAppEvents = (): void => {
-    app.on("ready", this.ready.bind(this));
+    app.whenReady().then(this.ready.bind(this));
     app.on("second-instance", this.secondInstance.bind(this));
     app.on("window-all-closed", this.onWindowAllClosed.bind(this));
     app.on("relaunchApp", this.relaunchApp.bind(this));
