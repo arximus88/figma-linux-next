@@ -20,6 +20,7 @@ import {
 import {
   isDev,
   isFigmaRunUrl,
+  isFileBrowserUrl,
   isValidProjectLink,
   isPrototypeUrl,
   isAppAuthRedeem,
@@ -106,7 +107,7 @@ export default class MainTab {
     this.view.webContents.setZoomFactor(scale);
   }
   private onMainTabWillNavigate(event: Event<any>, url: string) {
-    if (isFigmaRunUrl(url)) {
+    if (isFigmaRunUrl(url) && !isFileBrowserUrl(url)) {
       app.emit("openUrlInNewTab", url);
 
       event.preventDefault();
@@ -162,6 +163,12 @@ export default class MainTab {
 
     if (/start_google_sso/.test(url)) return;
 
+    if (isFileBrowserUrl(url)) {
+      window.close();
+      this.view.webContents.loadURL(url);
+      return;
+    }
+
     if (isFigmaRunUrl(url)) {
       if (isFigmaBoardLink(url) || isFigmaDesignLink(url)) {
         window.destroy();
@@ -175,6 +182,12 @@ export default class MainTab {
 
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
+
+    if (isFileBrowserUrl(url)) {
+      // Team/project/recent browsing — navigate within the main tab, not a new tab
+      this.view.webContents.loadURL(url);
+      return { action: "deny" };
+    }
 
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);

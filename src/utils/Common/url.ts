@@ -78,6 +78,13 @@ export const isValidProjectLink = (url: string) =>
 export const isValidFigjamLink = (url: string) =>
   /^(figma:\/\/|https?:\/\/w{0,3}?\.?figma\.com\/jam)/.test(url);
 
+/** /files/ paths are the home/files browser (recents, team, project).
+ *  They should stay in the MainTab, not be opened as a new design-file tab. */
+export const isFileBrowserUrl = (url: string): boolean => {
+  const parsed = parseURL(url);
+  return parsed && /(w{0,3}\.)?figma\.com/.test(parsed.hostname) && /^\/files\//.test(parsed.pathname);
+};
+
 export const isFigmaDocLink = (url: string) =>
   /^https:\/\/w{0,3}?.figma.com\/plugin-docs/.test(url);
 export const isFigmaBoardLink = (url: string) => /^https:\/\/w{0,3}?.figma.com\/board/.test(url);

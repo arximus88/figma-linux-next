@@ -652,21 +652,27 @@ export default class Window {
     this.tabManager.setTitle(tab.id, title);
     this.window.webContents.send("setTitle", { id: tab.view.webContents.id, title });
   }
-  public openFile(_: IpcMainEvent, ...args: string[]) {
+  public openFile(event: IpcMainEvent, ...args: string[]) {
     let url = `${HOMEPAGE}${args[0]}`;
 
     if (args[2]) {
       url = `${url}${args[2]}`;
     }
 
+    const openedFromNewFileTab = this.tabManager.isNewFileTab(event?.sender?.id);
+
     const existing = this.findTabByFileKey(url);
     if (existing) {
+      if (openedFromNewFileTab) this.closeNewFileTab();
       this.setTabFocus(existing.id);
       return;
     }
 
     const tab = this.addTab(url);
-    if (tab) this.setTabFocus(tab.id);
+    if (tab) {
+      if (openedFromNewFileTab) this.closeNewFileTab();
+      this.setTabFocus(tab.id);
+    }
   }
   public closeCommunityTab() {
     this.window.contentView.removeChildView(this.tabManager.communityTab.view);
