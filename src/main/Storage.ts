@@ -79,7 +79,7 @@ export class Storage {
   };
 
   public save(): Promise<void> {
-    this.nextWriteData = JSON.parse(JSON.stringify(this.settings));
+    this.nextWriteData = structuredClone(this.settings);
     if (this.writePromise) {
       return this.writePromise;
     }

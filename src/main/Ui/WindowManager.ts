@@ -344,7 +344,7 @@ export default class WindowManager {
   private handleCloseTab(window: Window, tabId: number) {
     const tabInfo = window.getTabInfo(tabId);
 
-    if (tabInfo.title !== NEW_FILE_TAB_TITLE) {
+    if (tabInfo && tabInfo.title !== NEW_FILE_TAB_TITLE) {
       this.closedTabs.delete(tabInfo.title);
       this.closedTabs.set(tabInfo.title, {
         title: tabInfo.title,
@@ -438,6 +438,7 @@ export default class WindowManager {
   private openTabMenuHandler(_: IpcMainEvent, tabId: number) {
     const window = this.windows.get(this.lastFocusedwindowId);
     const tabInfo = window.getTabInfo(tabId);
+    if (!tabInfo) return;
 
     this.menuManager.openTabMenuHandler(window.win, tabId, tabInfo.url);
   }

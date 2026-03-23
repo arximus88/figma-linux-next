@@ -195,7 +195,9 @@ export default class Window {
   public toggleCurrentTabDevTools() {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
 
-    toggleDetachedDevTools(tab.view.webContents);
+    if (tab) {
+      toggleDetachedDevTools(tab.view.webContents);
+    }
   }
 
   /** Find an already-open tab for the same Figma file key (checks both stored and live URLs). */
@@ -357,6 +359,14 @@ export default class Window {
 
   public getTabInfo(tabId: number) {
     const tab = this.tabManager.getById(tabId);
+    if (!tab) {
+      return {
+        id: tabId,
+        title: "",
+        url: "",
+      };
+    }
+
     const url = tab.getUrl();
 
     return {
@@ -564,13 +574,14 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
-  /** Execute arbitrary JS from within the active Figma BrowserView context. */
+  /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<any> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
+    if (!tab) return Promise.resolve(undefined);
     return tab.view.webContents.executeJavaScript(script);
   }
 
-  /** Execute a fetch from within the active Figma BrowserView context.
+  /** Execute a fetch from within the active Figma WebContentsView context.
    *  Uses relative paths on www.figma.com so session cookies are sent automatically.
    *  @param path - relative path, e.g. "/api/files/{key}/nodes?ids=..." */
   public figmaApiFetch(path: string): Promise<any> {
@@ -627,8 +638,10 @@ export default class Window {
     this.tabManager.mainTab.loadUrl(url);
   }
   public setTabFocus(tabId: number) {
-    const bounds = this.calcBoundsForTabView();
     const tab = this.tabManager.getById(tabId);
+    if (!tab) return;
+
+    const bounds = this.calcBoundsForTabView();
 
     this.detachLastFocusedTab();
     this.window.contentView.addChildView(tab.view);
@@ -650,7 +663,9 @@ export default class Window {
     }
 
     this.tabManager.setTitle(tab.id, title);
-    this.window.webContents.send("setTitle", { id: tab.view.webContents.id, title });
+    if (tab && tab.view && tab.view.webContents) {
+      this.window.webContents.send("setTitle", { id: tab.view.webContents.id, title });
+    }
   }
   public openFile(event: IpcMainEvent, ...args: string[]) {
     let url = `${HOMEPAGE}${args[0]}`;
@@ -661,16 +676,22 @@ export default class Window {
 
     const openedFromNewFileTab = this.tabManager.isNewFileTab(event?.sender?.id);
 
+    if (event?.sender?.id === this.tabManager.mainTabWebContentId) {
+      this.loadUrlMainTab(url);
+      this.setFocusToMainTab();
+      return;
+    }
+
     const existing = this.findTabByFileKey(url);
     if (existing) {
-      if (openedFromNewFileTab) this.closeNewFileTab();
+      this.closeNewFileTab();
       this.setTabFocus(existing.id);
       return;
     }
 
     const tab = this.addTab(url);
     if (tab) {
-      if (openedFromNewFileTab) this.closeNewFileTab();
+      this.closeNewFileTab();
       this.setTabFocus(tab.id);
     }
   }

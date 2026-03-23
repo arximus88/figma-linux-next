@@ -46,9 +46,7 @@ export default class Tab {
   public getUrl() {
     return this.view.webContents.getURL();
   }
-  public setAutosize(flag: boolean) {
-    // WebContentsView does not support setAutoResize
-  }
+
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
@@ -62,7 +60,7 @@ export default class Tab {
         zoomFactor: 1,
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
-    } as any);
+    });
     this.id = this.view.webContents.id;
 
     app.emit("requestBoundsForTabView", this.windowId);
