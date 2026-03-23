@@ -14,7 +14,7 @@ describe("object utils", () => {
         lastName: "Doe",
         ageInYears: "30",
       };
-      expect(keysToCamelCase(input)).toEqual(expected);
+      expect(keysToCamelCase(input)).toEqual(expected as any);
     });
 
     it("leaves already camelCase keys unchanged", () => {
@@ -40,7 +40,7 @@ describe("object utils", () => {
           "first-name": "John",
         },
       };
-      expect(keysToCamelCase(input)).toEqual(expected);
+      expect(keysToCamelCase(input)).toEqual(expected as any);
     });
   });
 
@@ -56,7 +56,7 @@ describe("object utils", () => {
         "last-name": "Doe",
         "age-in-years": "30",
       };
-      expect(keysToKebabCase(input)).toEqual(expected);
+      expect(keysToKebabCase(input)).toEqual(expected as any);
     });
 
     it("leaves already kebab-case keys unchanged", () => {
@@ -82,7 +82,7 @@ describe("object utils", () => {
           firstName: "John",
         },
       };
-      expect(keysToKebabCase(input)).toEqual(expected);
+      expect(keysToKebabCase(input)).toEqual(expected as any);
     });
   });
 });

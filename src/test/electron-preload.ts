@@ -22,7 +22,7 @@ mock.module("electron", () => ({
   Tray: class { setToolTip = () => {}; setContextMenu = () => {} },
   Notification: class { show = () => {} },
   BrowserWindow: class {
-    static getAllWindows = () => [];
+    static getAllWindows = (): never[] => [];
     id = 1;
     webContents = { id: 2, send: () => {}, on: () => {}, once: () => {}, getURL: () => "http://figma.com" };
     contentView = { addChildView: () => {}, removeChildView: () => {} };

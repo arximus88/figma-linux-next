@@ -106,7 +106,7 @@ describe("Window Tab Routing", () => {
       // Get mainTab ID
       const tabManager: any = (windowInstance as any).tabManager;
       const mainTabWebContentsId = tabManager.mainTabWebContentId;
-      mockEvent.sender.id = mainTabWebContentsId;
+      (mockEvent.sender as any).id = mainTabWebContentsId;
       
       const addTabSpy = spyOn(windowInstance, "addTab");
       const loadUrlMainTabSpy = spyOn(windowInstance, "loadUrlMainTab");
@@ -124,7 +124,7 @@ describe("Window Tab Routing", () => {
     });
     
     test("openFile called from regular tab -> new tab opens as before", () => {
-      mockEvent.sender.id = 12345; // Regular tab ID
+      (mockEvent.sender as any).id = 12345; // Regular tab ID
       const addTabSpy = spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
       windowInstance.openFile(mockEvent, "/files/abc/1234");
       expect(addTabSpy).toHaveBeenCalled();
