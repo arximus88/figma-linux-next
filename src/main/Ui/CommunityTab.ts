@@ -38,16 +38,6 @@ export default class CommunityTab {
   public getUrl() {
     return this.view.webContents.getURL();
   }
-  public setAutosize(flag: boolean) {
-    /*
-    this.view.setAutoResize({
-      width: false,
-      height: false,
-      horizontal: false,
-      vertical: false,
-    });
-    */
-  }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
@@ -61,10 +51,8 @@ export default class CommunityTab {
         zoomFactor: 1,
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
-    } as any);
+    });
     this.id = this.view.webContents.id;
-
-    this.setAutosize(false);
 
     isDev && toggleDetachedDevTools(this.view.webContents);
 

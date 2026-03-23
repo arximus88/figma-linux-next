@@ -67,7 +67,9 @@ export default class TabManager {
   public handleCallbackForTab(webContentsId: number, callbackID: number, args: any) {
     const tab = this.getById(webContentsId);
 
-    tab.view.webContents.send("handleCallback", callbackID, args);
+    if (tab) {
+      tab.view.webContents.send("handleCallback", callbackID, args);
+    }
   }
 
   public closeAll() {
@@ -162,7 +164,9 @@ export default class TabManager {
   public reloadTab(tabId: number) {
     const tab = this.getById(tabId);
 
-    tab.view.webContents.reload();
+    if (tab) {
+      tab.view.webContents.reload();
+    }
   }
   public loadUrlInMainTab(url: string) {
     this.mainTab.loadUrl(url);
@@ -179,7 +183,7 @@ export default class TabManager {
   public handleUrl(path: string) {
     this.mainTab.handleUrl(path);
   }
-  public getById(id: Types.TabIdType) {
+  public getById(id: Types.TabIdType): Tab | MainTab | CommunityTab | undefined {
     switch (id) {
       case "mainTab": {
         return this.mainTab;
@@ -188,8 +192,8 @@ export default class TabManager {
         return this.communityTab;
       }
       default: {
-        if (this.tabs.has(id)) {
-          return this.tabs.get(id);
+        if (this.tabs.has(id as number)) {
+          return this.tabs.get(id as number);
         } else if (this.mainTab.id === id) {
           return this.mainTab;
         } else if (this.communityTab && this.communityTab.id === id) {
@@ -198,7 +202,7 @@ export default class TabManager {
       }
     }
 
-    return this.mainTab;
+    return undefined;
   }
   public getByTitle(title: string) {
     let foundTab: Tab | undefined;
@@ -229,10 +233,13 @@ export default class TabManager {
   public focusTab(id: Types.TabIdType) {
     const tab = this.getById(id);
 
-    this.lastFocusedTab = tab.id;
+    if (tab) {
+      this.lastFocusedTab = tab.id;
+    }
   }
   public setTitle(id: number, title: string) {
     const tab = this.getById(id);
+    if (!tab) return;
 
     if (tab instanceof Tab) {
       tab.title = title;
@@ -241,7 +248,9 @@ export default class TabManager {
   public setBounds(id: number, bounds: Rectangle) {
     const tab = this.getById(id);
 
-    tab.setBounds(bounds);
+    if (tab) {
+      tab.setBounds(bounds);
+    }
   }
   public focusMainTab() {
     this.lastFocusedTab = this.mainTab.id;
@@ -300,11 +309,14 @@ export default class TabManager {
   public handlePluginMenuAction(pluginMenuAction: Menu.MenuAction) {
     const tab = this.getById(this.lastFocusedTab);
 
-    tab.view.webContents.send("handlePluginMenuAction", pluginMenuAction);
+    if (tab) {
+      tab.view.webContents.send("handlePluginMenuAction", pluginMenuAction);
+    }
   }
 
   public getActiveTabPath(): string {
     const tab = this.getById(this.lastFocusedTab);
+    if (!tab) return "";
     const tabUri = tab.view.webContents.getURL();
 
     return URL.parse(tabUri).pathname;

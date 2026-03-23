@@ -27,7 +27,6 @@ export default class App {
 
   constructor(
     private windowManager: WindowManager,
-    private extensionManager: ExtensionManager,
     private session: Session,
     private fontManager: FontManager,
   ) {
@@ -210,7 +209,6 @@ export default class App {
       logger.info("Wayland session detected - enabling native Wayland support");
       app.commandLine.appendSwitch("ozone-platform-hint", "auto");
       features.push("WaylandWindowDecorations", "UseOzonePlatform");
-
     }
 
     // Enable modern rendering features
@@ -222,7 +220,9 @@ export default class App {
     // User can still force it via commandSwitches if they know what they're doing.
     if (!isWayland || userForcesVulkan) {
       if (userForcesVulkan && isWayland) {
-        logger.warn("enable-unsafe-webgpu forced on Wayland via commandSwitches — Vulkan may conflict with the compositor");
+        logger.warn(
+          "enable-unsafe-webgpu forced on Wayland via commandSwitches — Vulkan may conflict with the compositor",
+        );
       }
       app.commandLine.appendSwitch("enable-unsafe-webgpu");
     }

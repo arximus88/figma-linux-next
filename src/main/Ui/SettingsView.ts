@@ -20,17 +20,8 @@ export default class SettingsView {
         experimentalFeatures: false,
         webviewTag: true,
       },
-    } as any);
-    this.view.setBackgroundColor("#00000000");
-
-    /*
-    this.view.setAutoResize({
-      width: false,
-      height: false,
-      horizontal: false,
-      vertical: false,
     });
-    */
+    this.view.setBackgroundColor("#00000000");
 
     this.view.webContents.loadURL(isDev ? settingsUrlDev : settingsUrlProd);
 
