@@ -41,7 +41,7 @@ mock.module("Utils/Main", () => {
     const DEFAULT_SETTINGS = {
         clientId: "test-client-id",
         userId: "",
-        authedUserIDs: [],
+        authedUserIDs: [] as string[],
         app: {
             logLevel: 1,
             lastTimeClearLogFile: 0,
@@ -50,14 +50,14 @@ mock.module("Utils/Main", () => {
             panelHeight: 40,
             saveLastOpenedTabs: true,
             exportDir: "/tmp/Figma",
-            commandSwitches: [],
-            fontDirs: [],
-            recentlyClosedTabs: [],
+            commandSwitches: [] as never[],
+            fontDirs: [] as string[],
+            recentlyClosedTabs: [] as never[],
             windowsState: {},
             lastOpenedTabs: {},
             featureFlags: {},
             frameStyle: "gnome",
-            savedExtensions: [],
+            savedExtensions: [] as never[],
             figmaTheme: "dark",
         },
         ui: {
