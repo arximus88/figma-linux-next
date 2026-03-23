@@ -325,6 +325,20 @@ Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message 
 ### Warm tab and double-close
 When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
 
+### openFile must close the New File tab
+`Window.openFile()` must call `closeNewFileTab()` after opening the file tab. Without this, the New File tab stays visible as a leftover. `createFile()` already does this — keep them consistent.
+
+### app.whenReady() not app.on('ready', ...)
+Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('ready', ...)` silently misses the event if registration is delayed (e.g. async startup). `app.whenReady()` resolves immediately if the app is already ready.
+
+### Branching strategy
+- `dev` — stable main branch, receives merges from `staging` only
+- `staging` — integration branch, all features/fixes target here first
+- `.jules/` — local-only folder (gitignored) with task instructions for the Jules AI agent
+
+### bun test and electron mocking
+bun validates named ESM exports statically before mocks run. `src/utils/Main/net.ts` imports `{ net }` from electron, so any test that touches the `Utils/Main` import chain needs electron pre-mocked. The preload at `src/test/electron-preload.ts` (registered via `bunfig.toml`) handles this globally — do not add per-file electron mocks.
+
 ## Common Development Tasks
 
 When modifying the codebase:

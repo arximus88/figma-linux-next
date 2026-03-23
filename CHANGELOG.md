@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team switch opens infinite-loading tab** — clicking a team/project in the sidebar now navigates the main tab instead of opening a new unresolvable tab
+- **New File tab leftover** — opening an existing file from the New File tab now correctly closes it (previously only `createFile` did this, `openFile` did not)
+- **App startup race with async Storage** — `app.on('ready', ...)` replaced with `app.whenReady()` to handle cases where Electron's ready event fires before async initialization completes
 - **`import.meta.url` in CJS build** — Vite 8 breaking change patched via `define` in `vite.config.ts`
 - **`openFileFromNewTab` 404** — files opened from new-file tab now correctly resolve URL via `new URL(args.url)`
 - **Font micro-freezes** — variable fonts with non-standard name tables (e.g. Cantarell) no longer cause repeated `Cannot read properties of undefined` errors; fallback to static font metadata
