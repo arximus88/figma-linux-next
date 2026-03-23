@@ -564,13 +564,13 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
-  /** Execute arbitrary JS from within the active Figma BrowserView context. */
+  /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<any> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
     return tab.view.webContents.executeJavaScript(script);
   }
 
-  /** Execute a fetch from within the active Figma BrowserView context.
+  /** Execute a fetch from within the active Figma WebContentsView context.
    *  Uses relative paths on www.figma.com so session cookies are sent automatically.
    *  @param path - relative path, e.g. "/api/files/{key}/nodes?ids=..." */
   public figmaApiFetch(path: string): Promise<any> {

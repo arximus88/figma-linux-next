@@ -74,16 +74,6 @@ export default class MainTab {
   public handleUrl(path: string) {
     this.view.webContents.send("handleUrl", path);
   }
-  public setAutosize(flag: boolean) {
-    /*
-    this.view.setAutoResize({
-      width: false,
-      height: false,
-      horizontal: false,
-      vertical: false,
-    });
-    */
-  }
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
   }
@@ -92,11 +82,10 @@ export default class MainTab {
     this._userId = storage.settings.userId;
     const url = `${RECENT_FILES}/?fuid=${this._userId}`;
 
-    this.view = new WebContentsView(this.options as any);
+    this.view = new WebContentsView(this.options);
     this.id = this.view.webContents.id;
 
     this.loadUrl(url);
-    this.setAutosize(false);
 
     isDev && toggleDetachedDevTools(this.view.webContents);
 

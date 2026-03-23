@@ -29,7 +29,7 @@ async function start() {
   const extensionManager = new ExtensionManager();
   const windowManager = new WindowManager();
 
-  new App(windowManager, extensionManager, session, fontManager);
+  new App(windowManager, session, fontManager);
 }
 
 start();
