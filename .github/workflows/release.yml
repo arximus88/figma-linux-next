@@ -106,14 +106,16 @@ jobs:
 
       - name: Setup SSH for AUR
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.ID_RSA }}" | base64 -d > ~/.ssh/id_rsa
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-          chmod 700 ~/.ssh
-          chmod 600 ~/.ssh/id_rsa
+          mkdir -p /root/.ssh
+          echo "${{ secrets.ID_RSA }}" | base64 -d > /root/.ssh/id_rsa
+          ssh-keyscan aur.archlinux.org >> /root/.ssh/known_hosts
+          chmod 700 /root/.ssh
+          chmod 600 /root/.ssh/id_rsa
 
       - name: Clone AUR repo
         run: git clone ssh://aur@aur.archlinux.org/figma-linux-next.git /tmp/aur-pkg
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
 
       - name: Update PKGBUILD
         run: |
@@ -144,3 +146,5 @@ jobs:
           git add PKGBUILD .SRCINFO
           git diff --staged --quiet || git commit -m "Update to v${VERSION}"
           git push
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
