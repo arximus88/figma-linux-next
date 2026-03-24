@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install deps
-        run: pacman -Sy --noconfirm bun nodejs npm base-devel fakeroot
+        run: pacman -Sy --noconfirm bun nodejs npm base-devel fakeroot libxcrypt-compat
 
       - name: Install dependencies
         run: bun install
