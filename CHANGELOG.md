@@ -30,7 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Electron** `39` → `41.0.2`
+- **TypeScript** `5.9` → `6.0` (removed deprecated `baseUrl`, migrated paths to `./`-relative)
+- **ESLint** `9` → `10`
+- **@types/node** `22` → `25`
+- **yallist** `4` → `5`; `hosted-git-info` overridden to `^7` (drops `lru-cache@6` / `yallist@^4` nested dependency that conflicted with yallist 5)
+- **Electron** `39` → `41.0.3`, **svelte** `5.53` → `5.55`, **vite** `8.0.0` → `8.0.2`
 - **Vite** `7` → `8.0.0`
 - **@sveltejs/vite-plugin-svelte** `6` → `7`
 - Settings UI redesigned: toggles use accent color when enabled, info tooltips added to settings items
@@ -40,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Team switch opens infinite-loading tab** — clicking a team/project in the sidebar now navigates the main tab instead of opening a new unresolvable tab
+- **Design files opening in home tab** — `openFile()` from the home tab now correctly opens a new tab for design/proto/board URLs; only file-browser URLs (`/files/…`) stay in-place
+- **Figma Make / Sites / Buzz / Slides open in browser + popup** — added `/make/`, `/site/`, `/buzz/`, `/slides/` to the `isFigmaRunUrl` whitelist and fixed `Tab.onNewWindow` to always close the popup window before routing
 - **New File tab leftover** — opening an existing file from the New File tab now correctly closes it (previously only `createFile` did this, `openFile` did not)
 - **App startup race with async Storage** — `app.on('ready', ...)` replaced with `app.whenReady()` to handle cases where Electron's ready event fires before async initialization completes
 - **`import.meta.url` in CJS build** — Vite 8 breaking change patched via `define` in `vite.config.ts`
