@@ -1,11 +1,11 @@
 import * as fs from "fs";
 
 export async function mkdirIfNotExists(path: string) {
-  fs.mkdir(path, (error) => {
-    if (error && error.code !== "EEXIST") {
-      throw error;
-    }
-  });
+  try {
+    await fs.promises.mkdir(path);
+  } catch (error: any) {
+    if (error?.code !== "EEXIST") throw error;
+  }
 }
 
 export async function access(path: string): Promise<boolean> {

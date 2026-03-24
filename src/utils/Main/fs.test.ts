@@ -33,24 +33,24 @@ describe("fs utils", () => {
 
   describe("mkdirIfNotExists", () => {
     it("creates dir when missing", async () => {
-      const spy = spyOn(fs, "mkdir").mockImplementationOnce((((_path: any, cb: any) => cb(null)) as any));
+      const spy = spyOn(fs.promises, "mkdir").mockResolvedValueOnce(undefined);
       await mkdirIfNotExists("/new/dir");
-      expect(spy).toHaveBeenCalledWith("/new/dir", expect.any(Function));
+      expect(spy).toHaveBeenCalledWith("/new/dir");
       spy.mockRestore();
     });
 
     it("does not throw when dir already exists (EEXIST)", async () => {
-      const spy = spyOn(fs, "mkdir").mockImplementationOnce((((_path: any, cb: any) => {
-        cb(Object.assign(new Error("EEXIST"), { code: "EEXIST" }));
-      }) as any));
+      const spy = spyOn(fs.promises, "mkdir").mockRejectedValueOnce(
+        Object.assign(new Error("EEXIST"), { code: "EEXIST" }),
+      );
       await expect(mkdirIfNotExists("/existing/dir")).resolves.toBeUndefined();
       spy.mockRestore();
     });
 
     it("throws for other errors", async () => {
-      const spy = spyOn(fs, "mkdir").mockImplementationOnce((((_path: any, cb: any) => {
-        cb(Object.assign(new Error("EACCES"), { code: "EACCES" }));
-      }) as any));
+      const spy = spyOn(fs.promises, "mkdir").mockRejectedValueOnce(
+        Object.assign(new Error("EACCES"), { code: "EACCES" }),
+      );
       await expect(mkdirIfNotExists("/no/access/dir")).rejects.toThrow("EACCES");
       spy.mockRestore();
     });
