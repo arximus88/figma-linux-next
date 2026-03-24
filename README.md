@@ -29,7 +29,7 @@ Not affiliated with or endorsed by Figma, Inc.
 
 ## Installation
 
-Download from **https://github.com/arximus88/figma-linux-next/tags**:
+Download from **https://github.com/arximus88/figma-linux-next/releases**:
 
 ```bash
 # Arch / CachyOS (x64)
@@ -46,6 +46,15 @@ sudo rpm -i figma-linux-next_*_x86_64.rpm
 # AppImage
 chmod +x figma-linux-next-*.AppImage && ./figma-linux-next-*.AppImage
 ```
+
+> **AppImage note:** On first launch the app automatically registers the `figma://` URL handler required for login. If login still fails after first launch, register it manually:
+>
+> ```bash
+> # Run once to register the handler
+> ~/.local/share/applications/figma-linux-next-appimage.desktop  # created on first launch
+> xdg-mime default figma-linux-next-appimage.desktop x-scheme-handler/figma
+> update-desktop-database ~/.local/share/applications/
+> ```
 
 ### AUR (Arch / CachyOS)
 
