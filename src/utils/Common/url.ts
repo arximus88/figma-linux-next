@@ -24,6 +24,7 @@ export const isFigmaRunUrl = (url: string): boolean => {
       /^\/make\//, // Figma Make (AI design tool)
       /^\/site\//, // Figma Sites
       /^\/buzz\//, // Figma Buzz (social/marketing templates)
+      /^\/slides\//, // Figma Slides (presentations)
     ];
 
     return validPaths.some((regex) => regex.test(parsed.pathname));
