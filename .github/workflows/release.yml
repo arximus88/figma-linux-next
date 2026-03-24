@@ -127,13 +127,13 @@ jobs:
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
           # Replace first sha256sums entry via Python (avoids shell $1 quoting issues)
-          python3 - "$SHA256" << 'PYEOF'
+          python3 -c "
 import re, sys
 sha256 = sys.argv[1]
 content = open('PKGBUILD').read()
-content = re.sub(r"(sha256sums=\(\n\s*)'[^']*'", r"\g<1>'" + sha256 + "'", content, count=1)
+content = re.sub(r\"(sha256sums=\(\n\s*)'[^']*'\", r\"\g<1>'\" + sha256 + \"'\", content, count=1)
 open('PKGBUILD', 'w').write(content)
-PYEOF
+" "$SHA256"
 
       - name: Generate .SRCINFO
         run: |
