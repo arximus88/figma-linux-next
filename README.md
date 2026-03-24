@@ -5,9 +5,8 @@ Loads figma.com directly — no private APIs, no data scraping, no account shari
 Not affiliated with or endorsed by Figma, Inc.
 
 > **🧪 Status: Active Testing**
-> Not yet available in AUR or other package stores.
 > Pre-built binaries (`.pacman`, `.deb`, `.rpm`, `.AppImage`) for x64 and arm64:
-> **https://github.com/arximus88/figma-linux-next/tags**
+> **https://github.com/arximus88/figma-linux-next/releases**
 
 ## What's different from other forks
 
@@ -48,9 +47,13 @@ sudo rpm -i figma-linux-next_*_x86_64.rpm
 chmod +x figma-linux-next-*.AppImage && ./figma-linux-next-*.AppImage
 ```
 
-### AUR / other stores
+### AUR (Arch / CachyOS)
 
-Not available yet.
+```bash
+yay -S figma-linux-next
+```
+
+Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.org/packages/figma-linux-next)
 
 ## Migration from legacy figma-linux
 

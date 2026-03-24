@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.1-2] - 2026-03-24 — AUR packaging fix
+
+### Fixed
+
+- **AUR package** — installed files were nested under an extra `dist/` directory, causing `electron` to fail with "Unable to find Electron app"; fixed by installing `dist/` contents flat into `/usr/lib/figma-linux-next/`
+- **AUR launcher** — updated path check to match new flat layout
+
+### CI
+
+- Release workflow: split monolithic `build` job into parallel `build-x64` (ubuntu-latest) and `build-arm64` (ubuntu-24.04-arm) jobs — ARM packages now built natively; a single target failure no longer kills the whole pipeline
+- AUR job: added missing `actions/checkout@v4` step (script was unavailable in container); added `curl` to pacman deps; fixed git ownership error after `chown` to non-root user
+
+---
+
 ## [0.13.1] - 2026-03-24
 
 ### Added
