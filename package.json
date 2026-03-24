@@ -76,7 +76,10 @@
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.6",
     "vite-plugin-require": "^1.2.14",
-    "yallist": "4"
+    "yallist": "5"
+  },
+  "overrides": {
+    "hosted-git-info": "^7"
   },
   "keywords": [
     "Figma",
