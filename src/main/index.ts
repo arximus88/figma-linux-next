@@ -11,7 +11,10 @@ import { dialogs } from "./Dialogs";
 // Set the application name explicitly
 app.setName("figma-linux-next");
 
-process.on("uncaughtException", (error: Error) => {
+process.on("uncaughtException", (error: Error & { code?: string }) => {
+  // EPIPE means stdout/stderr pipe was closed (e.g. terminal closed while app runs).
+  // Logging an EPIPE through the same broken pipe triggers another EPIPE → infinite loop.
+  if (error.code === "EPIPE") return;
   logger.error(`uncaughtException: `, error);
 });
 process.on("unhandledRejection", (reason: Error) => {
