@@ -21,6 +21,7 @@ export const isFigmaRunUrl = (url: string): boolean => {
       /^\/board\//, // FigJam boards
       /^\/jam\//, // Old FigJam
       /^\/drafts\//, // Drafts
+      /^\/make\//, // Figma Make (AI design tool)
     ];
 
     return validPaths.some((regex) => regex.test(parsed.pathname));

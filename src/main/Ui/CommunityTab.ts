@@ -11,11 +11,9 @@ import {
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
 import {
   isDev,
-  isValidProjectLink,
-  isPrototypeUrl,
+  isFigmaRunUrl,
   isRecentFilesLink,
   isFigmaUrl,
-  isValidFigjamLink,
 } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
@@ -80,12 +78,11 @@ export default class CommunityTab {
   private windowOpenHandler(details: HandlerDetails) {
     const url = details.url;
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlFromCommunity", url);
-      return { action: "deny" as const };
+    } else {
+      shell.openExternal(url);
     }
-
-    shell.openExternal(url);
 
     return { action: "deny" as const };
   }
@@ -96,7 +93,7 @@ export default class CommunityTab {
 
     window.close();
 
-    if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
+    if (isFigmaRunUrl(url)) {
       app.emit("openUrlFromCommunity", url);
       return;
     }

@@ -119,6 +119,8 @@ export default class Tab {
 
     if (/start_google_sso/.test(url)) return;
 
+    window.close();
+
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
       return;
