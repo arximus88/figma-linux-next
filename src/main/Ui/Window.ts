@@ -11,6 +11,7 @@ import {
   isDev,
   isCommunityUrl,
   isAppAuthRedeem,
+  isFileBrowserUrl,
   normalizeUrl,
   parseURL,
   getFileKeyFromUrl,
@@ -676,7 +677,7 @@ export default class Window {
 
     const openedFromNewFileTab = this.tabManager.isNewFileTab(event?.sender?.id);
 
-    if (event?.sender?.id === this.tabManager.mainTabWebContentId) {
+    if (event?.sender?.id === this.tabManager.mainTabWebContentId && isFileBrowserUrl(url)) {
       this.loadUrlMainTab(url);
       this.setFocusToMainTab();
       return;

@@ -103,26 +103,33 @@ describe("Window Tab Routing", () => {
 
   describe("Bug 1: Team switch opened an infinite-loading new tab", () => {
     test("openFile called with a team URL from mainTab navigates mainTab, no new tab created", () => {
-      // Get mainTab ID
       const tabManager: any = (windowInstance as any).tabManager;
       const mainTabWebContentsId = tabManager.mainTabWebContentId;
       (mockEvent.sender as any).id = mainTabWebContentsId;
-      
-      const addTabSpy = spyOn(windowInstance, "addTab");
+
+      const addTabSpy = spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
       const loadUrlMainTabSpy = spyOn(windowInstance, "loadUrlMainTab");
-      const handleUrlSpy = spyOn(windowInstance, "handleUrl");
-      
-      // We know Window.ts will call addTab instead of handling mainTab navigation.
-      // So let's mock addTab to avoid creating actual tabs and failing
-      addTabSpy.mockReturnValue({ id: 999 } as any);
-      
-      const teamUrl = "/files/team/1234";
-      windowInstance.openFile(mockEvent, teamUrl);
-      
-      // FOR NOW, we'll write the assertions that WILL PASS when the bug is fixed:
+
+      windowInstance.openFile(mockEvent, "/files/team/1234");
+
       expect(addTabSpy).not.toHaveBeenCalled();
+      expect(loadUrlMainTabSpy).toHaveBeenCalled();
     });
-    
+
+    test("openFile called with a design URL from mainTab opens a new tab (not in home tab)", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const mainTabWebContentsId = tabManager.mainTabWebContentId;
+      (mockEvent.sender as any).id = mainTabWebContentsId;
+
+      const addTabSpy = spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
+      const loadUrlMainTabSpy = spyOn(windowInstance, "loadUrlMainTab");
+
+      windowInstance.openFile(mockEvent, "/design/abc123/My-File");
+
+      expect(loadUrlMainTabSpy).not.toHaveBeenCalled();
+      expect(addTabSpy).toHaveBeenCalled();
+    });
+
     test("openFile called from regular tab -> new tab opens as before", () => {
       (mockEvent.sender as any).id = 12345; // Regular tab ID
       const addTabSpy = spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
