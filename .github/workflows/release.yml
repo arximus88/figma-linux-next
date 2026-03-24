@@ -101,8 +101,10 @@ jobs:
     container:
       image: archlinux:latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install deps
-        run: pacman -Sy --noconfirm git openssh pacman python
+        run: pacman -Sy --noconfirm git openssh pacman python curl
 
       - name: Setup SSH for AUR
         run: |
