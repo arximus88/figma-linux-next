@@ -5,9 +5,7 @@ name: Update AUR dev-git
 # Note: figma-linux-next-dev-git AUR package must exist first.
 
 on:
-  push:
-    branches:
-      - dev
+  workflow_dispatch:
 
 jobs:
   aur-dev-git:
