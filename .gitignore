@@ -35,6 +35,9 @@ vscode
 # Coverage & testing
 coverage
 
+# Generated release notes (CI artifact)
+release_notes
+
 # Agents
 .agent
 .gemini/settings.*

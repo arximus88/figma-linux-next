@@ -2,7 +2,7 @@
 name: figma-linux-next-build
 description: |
   Build, packaging, and release skill for the figma-linux-next project.
-  Use this skill when working on: creating releases, bumping versions, building packages (deb/rpm/pacman/AppImage/zip/flatpak/snap), CI/CD workflows (.github/workflows/), Docker build images, AUR packages, Launchpad PPA, or any publishing/distribution task. Also use when asked to "build", "release", "package", "publish", or "ship" figma-linux-next.
+  Use this skill when working on: creating releases, bumping versions, building packages (deb/rpm/pacman/AppImage/zip/flatpak/snap), CI/CD workflows (.github/workflows/), AUR packages, Launchpad PPA, or any publishing/distribution task. Also use when asked to "build", "release", "package", "publish", or "ship" figma-linux-next.
 ---
 
 # figma-linux-next Build & Release Reference
@@ -18,7 +18,14 @@ bun run local:install  # Install to /opt/figma-linux-next for manual testing
 bun run cln            # Clean dist/
 
 # Release prep
-perl scripts/bump_version.pl 0.14.0   # bump version + tag + commit
+perl scripts/bump_version.pl 0.13.1   # bump version + tag + commit
+# NOTE: bump_version.pl reads current version from latest git tag (not package.json)
+# After running, manually verify package.json and src/package.json have correct version
+# If they don't match (tag was alpha), fix manually:
+#   sed -i 's/"version": "OLD"/"version": "NEW"/' package.json src/package.json
+#   git add package.json src/package.json && git commit --amend --no-edit
+#   git tag -d vNEW && git tag -a vNEW -m "Publish vNEW release"
+
 perl scripts/generate_release_notes.pl --latest        # markdown
 perl scripts/generate_release_notes.pl --latest --html # Flathub HTML format
 ```
@@ -71,102 +78,104 @@ When bumping a runtime dep version: update **both**. Dev-only deps (vite, eslint
 
 ---
 
-## Distribution Channels
+## Release Checklist
 
-### GitHub Releases
-Triggered automatically on tag push `v*.*.*`. Uploads all `build/installers/` artifacts + SHA256SUMS.
-
-### AUR (Arch User Repository)
-Three packages:
-- `figma-linux-next` — binary release
-- `figma-linux-next-bin` — pre-built binary
-- `figma-linux-next-dev-git` — **auto-updated on every `dev` branch push**
-
-PKGBUILD: `PKGBUILD` in project root. Uses system Electron (strips bundled electron). Conflicts with `figma-linux`, `figma-linux-bin`, `figma-linux-git`.
-
-Manual trigger: `.github/workflows/manualrun_aur.yml`
-
-### Flatpak / Flathub
-Manifest: `com.figma.FigmaLinux.yml`
-- Runtime: `org.freedesktop.Platform` 23.08
-- Base: `org.electronjs.Electron2.BaseApp` 23.08
-- Permissions: X11, Wayland, DRI (GPU), network, home, notifications
-
-Manual trigger: `.github/workflows/manualrun_flathub.yml`
-
-### Launchpad PPA (Ubuntu/Debian)
-Built inside Docker (`4tqrgqe5yrgfd/figma-linux-docker-image-ppa:latest`). Signs with GPG, uploads via `dput`.
-
-Requires secrets: `GPG_PUB_KEY`, `GPG_SECRET_KEY`, `GPG_PASSPHRASE_KEY`
-
-Manual trigger: `.github/workflows/manualrun_launchpad.yml` (inputs: `revision` number)
-
-### Snap
-Config: `snapcraft.yaml` — base `core22`, strict confinement, amd64 + arm64.
+1. `bun test src/` — all tests pass
+2. `bun run package` — all 8 build targets succeed locally
+3. `perl scripts/bump_version.pl X.Y.Z` — creates commit + tag
+4. Verify `package.json` and `src/package.json` have correct version (fix + amend if needed)
+5. Validate workflow before pushing: `/home/arx/go/bin/actionlint .github/workflows/release.yml`
+6. `git push origin dev && git push origin vX.Y.Z`
 
 ---
 
-## CI/CD Workflows Overview
+## CI/CD Workflows
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `release.yml` | Tag `v*.*.*` | Full release: build amd64 + arm64 (Docker), GitHub Release, AUR ×3, Flathub, Launchpad |
-| `push_aur_dev_git.yml` | Push to `dev` | Updates `figma-linux-next-dev-git` AUR |
+| `release.yml` | Tag `v*.*.*` | Build all packages, GitHub Release, AUR push |
+| `ci.yml` | Push to `dev`/`staging` | Runs `bun test src/` |
+| `push_aur_dev_git.yml` | **Manual only** (`workflow_dispatch`) | Updates `figma-linux-next-dev-git` AUR |
 | `manualrun_aur.yml` | Manual | Push all AUR packages |
 | `manualrun_flathub.yml` | Manual | Publish to Flathub |
 | `manualrun_launchpad.yml` | Manual | Upload to Launchpad (with revision input) |
-| `update_assets.yml` | Manual | Rebuild + re-release on dev |
-| `update_amd64_assets.yml` | Manual | Rebuild amd64 only |
 | `remove_artefacts.yml` | Manual | Clean up old CI artifacts |
 
----
+### release.yml jobs
 
-## Docker Build Images
+```
+build (ubuntu-latest)
+  apt: rpm fakeroot
+  bunx electron-builder → deb, rpm, AppImage, zip (x64 + arm64)
 
-Located in `docker/`. Used by CI and locally via `scripts/build_artefacts.sh`:
+build-pacman (archlinux container)
+  pacman: bun nodejs base-devel fakeroot libxcrypt-compat
+  bunx electron-builder → .pacman (x64 only)
 
-| Dockerfile | Image | Purpose |
-|---|---|---|
-| `Build_artefacts_local` | `figma-linux-docker-image:latest` | x86_64 build from local source |
-| `Build_artefacts_arm64v8` | `figma-linux-docker-image-arm:latest` | ARM64 build (uses QEMU in CI) |
-| `Build_artefacts_repo` | `figma-linux-docker-image:latest` | x86_64 build cloned from GitHub |
-| `Build_ppa` | `figma-linux-docker-image-ppa:latest` | Launchpad source package + dput |
+release
+  merge artifacts → SHA256SUMS → softprops/action-gh-release@v2
 
-Run locally:
-```bash
-scripts/build_artefacts.sh local    # build from local source in Docker
-scripts/build_artefacts.sh repo     # clone from GitHub and build
+aur (archlinux container)
+  SSH key from ID_RSA secret → git clone aur.archlinux.org/figma-linux-next
+  update PKGBUILD (pkgver + sha256 via scripts/update_pkgbuild_sha256.py)
+  makepkg --printsrcinfo → .SRCINFO (runs as non-root 'builder' user)
+  git push → AUR
 ```
 
 ---
 
-## Version Bump Checklist
+## AUR Repository
 
-`perl scripts/bump_version.pl <version>` handles everything automatically:
+Local AUR repo: `/home/arx/aur/figma-linux-next/`
+Remote: `ssh://aur@aur.archlinux.org/figma-linux-next.git`
 
-1. Updates `package.json`, `src/package.json`, `snapcraft.yaml`, `com.figma.FigmaLinux.yml`
-2. Generates `release_notes` file
-3. Updates `scripts/debian/changelog`
-4. Creates commit `Release v<version>` + annotated tag `v<version>`
-
-Then push tag to trigger full release:
+CI updates AUR automatically on release. Manual update:
 ```bash
-git push origin dev
-git push origin v0.14.0
+cd /home/arx/aur/figma-linux-next
+# edit PKGBUILD (pkgver, sha256sums)
+makepkg --printsrcinfo > .SRCINFO
+git add PKGBUILD .SRCINFO
+git commit -m "Update to vX.Y.Z"
+git push
 ```
+
+**PKGBUILD sources:** tarball from GitHub + `figma-linux-next.desktop` + `figma-linux-next-launcher.sh`
+**sha256sums:** first entry = tarball sha256, others = SKIP (local files)
 
 ---
 
 ## Required GitHub Secrets
 
-| Secret | Used for |
-|---|---|
-| `GITHUB_TOKEN` | GitHub Releases API |
-| `ID_RSA` (base64) | SSH key for AUR push |
-| `USER_NAME`, `EMAIL` | Git committer identity |
-| `ACTION_TOKEN` | Flathub action |
-| `GPG_PUB_KEY`, `GPG_SECRET_KEY`, `GPG_PASSPHRASE_KEY` (base64) | PPA signing |
-| `DOCKER_USERNAME`, `DOCKER_PASSWORD` | DockerHub |
+| Secret | Used for | Notes |
+|---|---|---|
+| `GITHUB_TOKEN` | GitHub Releases API | Automatic, no setup needed |
+| `ID_RSA` (base64) | SSH key for AUR push | CI-dedicated key (`~/.ssh/id_ed25519_aur_ci`), registered on AUR only |
+| `USER_NAME` | Git committer name for AUR commits | e.g. `Borys Kharchenko` |
+| `EMAIL` | Git committer email for AUR commits | |
+
+**SSH key setup:** CI uses a dedicated key separate from personal key.
+- Personal key: `~/.ssh/id_ed25519` (GitHub + AUR personal access)
+- CI key: `~/.ssh/id_ed25519_aur_ci` (AUR only, base64 stored in `ID_RSA` secret)
+
+**Encoding for GitHub Secret:** `base64 -w0 ~/.ssh/id_ed25519_aur_ci` — copy output WITHOUT trailing `%` (zsh prompt artifact).
+
+---
+
+## Workflow Validation
+
+Always validate before pushing workflow changes:
+```bash
+/home/arx/go/bin/actionlint .github/workflows/release.yml
+python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
+```
+
+Common pitfalls:
+- Multi-line Python in `run: |` — use external script (`scripts/update_pkgbuild_sha256.py`) instead
+- `$1` in perl regex inside double-quoted shell string — shell eats it, use Python instead
+- `bunx electron-builder` not `electron-builder` (not in PATH in CI)
+- archlinux container needs `libxcrypt-compat` for fpm/ruby
+- `makepkg --printsrcinfo` requires non-root user — use `useradd -m builder && su builder -c`
+- SSH `known_hosts` in archlinux container: use `/root/.ssh/` explicitly, set `GIT_SSH_COMMAND`
 
 ---
 
@@ -174,17 +183,16 @@ git push origin v0.14.0
 
 ```
 build/installers/
-├── figma-linux-next_<ver>_linux_amd64.zip
-├── figma-linux-next_<ver>_linux_arm64.zip
 ├── figma-linux-next_<ver>_linux_amd64.deb
 ├── figma-linux-next_<ver>_linux_arm64.deb
-├── figma-linux-next-<ver>.x86_64.rpm
-├── figma-linux-next-<ver>.aarch64.rpm
+├── figma-linux-next_<ver>_linux_x86_64.rpm
+├── figma-linux-next_<ver>_linux_aarch64.rpm
 ├── figma-linux-next_<ver>_linux_x64.pacman
-├── figma-linux-next-<ver>-x86_64.AppImage
-├── figma-linux-next-<ver>-aarch64.AppImage
-├── SHA256SUMS
-└── version
+├── figma-linux-next_<ver>_linux_x86_64.AppImage
+├── figma-linux-next_<ver>_linux_arm64.AppImage
+├── figma-linux-next_<ver>_linux_x64.zip
+├── figma-linux-next_<ver>_linux_arm64.zip
+└── SHA256SUMS
 ```
 
 ---
@@ -196,13 +204,11 @@ build/installers/
 | `config/builder.json` | electron-builder targets, app metadata, file associations |
 | `vite.config.ts` | Vite build config (main + renderer bundles) |
 | `package.json` / `src/package.json` | Dev / production manifests |
-| `PKGBUILD` | Arch Linux package definition |
-| `com.figma.FigmaLinux.yml` | Flatpak manifest |
-| `snapcraft.yaml` | Snap package config |
+| `/home/arx/aur/figma-linux-next/PKGBUILD` | AUR package definition (separate repo) |
 | `scripts/bump_version.pl` | Version bump + tag automation |
 | `scripts/generate_release_notes.pl` | Changelog from git log |
+| `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
 | `scripts/debian/` | Debian control files for PPA |
-| `docker/` | Build container Dockerfiles |
 | `.github/workflows/` | All CI/CD automation |
 | `resources/AppRun` | AppImage entry point |
 | `resources/icons/` | Multi-size icons (16–512px) |
