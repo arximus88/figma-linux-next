@@ -175,22 +175,26 @@ export default class MainTab {
     if (isFileBrowserUrl(url)) {
       // Team/project/recent browsing — navigate within the main tab, not a new tab
       this.view.webContents.loadURL(url);
-      return { action: "deny" };
+      return { action: "deny" as const };
     }
 
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
-      return { action: "deny" };
+      return { action: "deny" as const };
     } else {
-      return { action: "allow" };
+      return { action: "allow" as const };
     }
   }
 
   private registerEvents() {
-    this.view.webContents.setWindowOpenHandler(this.windowOpenHandler.bind(this));
-    this.view.webContents.on("will-navigate", this.onMainTabWillNavigate.bind(this));
-    this.view.webContents.on("will-navigate", this.onMainWindowWillNavigate.bind(this));
-    this.view.webContents.on("dom-ready", this.onDomReady.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).setWindowOpenHandler(this.windowOpenHandler.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("will-navigate", this.onMainTabWillNavigate.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("will-navigate", this.onMainWindowWillNavigate.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("dom-ready", this.onDomReady.bind(this));
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
   }
 }

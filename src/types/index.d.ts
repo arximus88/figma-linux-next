@@ -67,6 +67,7 @@ declare namespace Electron {
     on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
     on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "frameStyleChanged", listener: (style: Types.FrameStyle) => void): this;
+    on(event: string, listener: (...args: any[]) => void): this;
 
     emit(event: string, ...args: any[]): boolean;
     emit(event: "newFile", sender: Electron.WebContents): boolean;

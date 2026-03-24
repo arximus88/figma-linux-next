@@ -82,12 +82,12 @@ export default class CommunityTab {
 
     if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
       app.emit("openUrlFromCommunity", url);
-      return { action: "deny" };
+      return { action: "deny" as const };
     }
 
     shell.openExternal(url);
 
-    return { action: "deny" };
+    return { action: "deny" as const };
   }
 
   private onNewWindow(window: BrowserWindow, details: DidCreateWindowDetails) {
@@ -105,9 +105,12 @@ export default class CommunityTab {
   }
 
   private registerEvents() {
-    this.view.webContents.setWindowOpenHandler(this.windowOpenHandler.bind(this));
-    this.view.webContents.on("will-navigate", this.onCommunityTabWillNavigate.bind(this));
-    this.view.webContents.on("dom-ready", this.onDomReady.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).setWindowOpenHandler(this.windowOpenHandler.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("will-navigate", this.onCommunityTabWillNavigate.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("dom-ready", this.onDomReady.bind(this));
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
   }
 }

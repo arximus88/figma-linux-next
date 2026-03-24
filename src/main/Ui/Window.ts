@@ -787,7 +787,8 @@ export default class Window {
   }
 
   private registerEvents() {
-    this.window.on("show", this.showHandler.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.window as any).on("show", this.showHandler.bind(this));
     this.window.on("resize", this.updateTabsBounds.bind(this));
     this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
