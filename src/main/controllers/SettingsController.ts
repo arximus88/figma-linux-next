@@ -50,6 +50,9 @@ export default class SettingsController {
     if (storage.settings.app.useZenity !== settings.app.useZenity) {
       dialogs.switchProvider(settings.app.useZenity);
     }
+    if (storage.settings.mcp?.enableWriteTools !== settings.mcp?.enableWriteTools) {
+      app.emit("mcpWriteToolsChanged", !!settings.mcp?.enableWriteTools);
+    }
 
     storage.settings = settings;
     await storage.save();

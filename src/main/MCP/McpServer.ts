@@ -189,16 +189,19 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_variable_defs",
     description:
-      "Returns the variables and styles used in the current Figma selection — colors, " +
-      "spacing, typography tokens, and more. For each variable: name, resolved type, " +
-      "collection name, and values by mode (e.g. Light/Dark). For each style: name, " +
-      "type (PAINT/TEXT/EFFECT/GRID), and description. Supports Figma Design files.",
+      "Returns the variables and styles used in your Figma selection or the entire file. " +
+      "When a node is selected or nodeId is provided, returns only variables/styles bound " +
+      "to those nodes. When nothing is selected and no nodeId is given, returns ALL local " +
+      "variable collections and ALL local styles from the file. For each variable: name, " +
+      "resolved type, collection name, and values by mode (e.g. Light/Dark). For each " +
+      "style: name, type (PAINT/TEXT/EFFECT/GRID), and description. " +
+      "Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
         nodeId: {
           type: "string",
-          description: "Node ID in '1:2' format. Omit to use current selection.",
+          description: "Node ID in '1:2' format. Omit to use current selection or get all file variables.",
         },
       },
     },
@@ -303,6 +306,25 @@ const TOOLS: ToolDefinition[] = [
         },
       },
       required: ["mermaid"],
+    },
+  },
+  {
+    name: "search_design_system",
+    description:
+      "Searches local variables, styles, and components in the current Figma file " +
+      "by text query. Returns matching variables (with values by mode), styles " +
+      "(paint/text/effect/grid), and components. Use this to find existing design " +
+      "system elements before creating new ones. Results capped at 50 per category. " +
+      "Supports Figma Design files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Text to search for in variable, style, and component names.",
+        },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -546,23 +568,80 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 
-    let targetNodes;
+    let targetNodes = null;
+    let fileWideMode = false;
     ${nodeId ? `
       const target = figma.getNodeById("${nodeId}");
       if (!target) return { error: "Node not found: ${nodeId}" };
       targetNodes = [target];
     ` : `
-      targetNodes = figma.currentPage.selection;
-      if (!targetNodes || targetNodes.length === 0) {
-        return { error: "No nodes selected. Select a node in Figma or provide a nodeId." };
+      const sel = figma.currentPage.selection;
+      if (sel && sel.length > 0) {
+        targetNodes = sel;
+      } else {
+        fileWideMode = true;
       }
     `}
 
     const variables = {};
     const styles = {};
 
+    if (fileWideMode) {
+      // Collect ALL local variable collections from the file
+      try {
+        const collections = figma.variables.getLocalVariableCollections();
+        for (const coll of collections) {
+          for (const varId of coll.variableIds) {
+            try {
+              const v = figma.variables.getVariableById(varId);
+              if (v && !variables[v.id]) {
+                const values = {};
+                for (const mode of coll.modes) {
+                  try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+                }
+                variables[v.id] = {
+                  name: v.name,
+                  type: v.resolvedType,
+                  collection: coll.name,
+                  valuesByMode: values,
+                };
+              }
+            } catch(e) {}
+          }
+        }
+      } catch(e) {}
+
+      // Collect ALL local styles from the file
+      const styleFns = [
+        ['PAINT', 'getLocalPaintStyles'],
+        ['TEXT', 'getLocalTextStyles'],
+        ['EFFECT', 'getLocalEffectStyles'],
+        ['GRID', 'getLocalGridStyles'],
+      ];
+      for (const [type, fn] of styleFns) {
+        try {
+          const localStyles = figma[fn]();
+          for (const s of localStyles) {
+            if (!styles[s.id]) {
+              styles[s.id] = {
+                name: s.name,
+                type: type,
+                description: s.description || null,
+              };
+            }
+          }
+        } catch(e) {}
+      }
+
+      return {
+        variables: Object.values(variables),
+        styles: Object.values(styles),
+        source: 'file',
+      };
+    }
+
+    // Selection-based collection
     function collectVariables(node) {
-      // Collect bound variables
       if ('boundVariables' in node && node.boundVariables) {
         for (const [prop, binding] of Object.entries(node.boundVariables)) {
           try {
@@ -578,7 +657,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
                     collection: collection ? collection.name : null,
                     valuesByMode: {},
                   };
-                  // Get values for each mode
                   if (collection) {
                     for (const mode of collection.modes) {
                       try {
@@ -594,7 +672,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
         }
       }
 
-      // Collect applied styles
       const styleProps = ['fillStyleId', 'strokeStyleId', 'textStyleId', 'effectStyleId', 'gridStyleId'];
       for (const prop of styleProps) {
         if (prop in node && node[prop] && typeof node[prop] === 'string') {
@@ -611,7 +688,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
         }
       }
 
-      // Recurse
       if ('children' in node) {
         node.children.forEach(collectVariables);
       }
@@ -622,6 +698,7 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
     return {
       variables: Object.values(variables),
       styles: Object.values(styles),
+      source: 'selection',
       nodeCount: targetNodes.length,
     };
   } catch (e) {
@@ -792,21 +869,45 @@ const DESIGN_SYSTEM_RULES_SCRIPT = `
       }
     } catch(e) {}
 
-    // Collect local styles
+    // Collect local styles with full values
     const allStyles = [];
-    const styleTypes = ['PAINT', 'TEXT', 'EFFECT', 'GRID'];
-    for (const type of styleTypes) {
-      try {
-        const localStyles = figma.getLocalPaintStyles ? 
-          (type === 'PAINT' ? figma.getLocalPaintStyles() :
-           type === 'TEXT' ? figma.getLocalTextStyles() :
-           type === 'EFFECT' ? figma.getLocalEffectStyles() :
-           figma.getLocalGridStyles()) : [];
-        for (const s of localStyles) {
-          allStyles.push({ name: s.name, type: type, description: s.description || null });
-        }
-      } catch(e) {}
-    }
+    try {
+      const paintStyles = figma.getLocalPaintStyles ? figma.getLocalPaintStyles() : [];
+      for (const s of paintStyles) {
+        const entry = { name: s.name, type: 'PAINT', description: s.description || null };
+        try { entry.paints = JSON.parse(JSON.stringify(s.paints)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const textStyles = figma.getLocalTextStyles ? figma.getLocalTextStyles() : [];
+      for (const s of textStyles) {
+        const entry = { name: s.name, type: 'TEXT', description: s.description || null };
+        try { entry.fontSize = s.fontSize; } catch(e) {}
+        try { entry.fontName = JSON.parse(JSON.stringify(s.fontName)); } catch(e) {}
+        try { entry.lineHeight = JSON.parse(JSON.stringify(s.lineHeight)); } catch(e) {}
+        try { entry.letterSpacing = JSON.parse(JSON.stringify(s.letterSpacing)); } catch(e) {}
+        try { entry.textDecoration = s.textDecoration; } catch(e) {}
+        try { entry.textCase = s.textCase; } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const effectStyles = figma.getLocalEffectStyles ? figma.getLocalEffectStyles() : [];
+      for (const s of effectStyles) {
+        const entry = { name: s.name, type: 'EFFECT', description: s.description || null };
+        try { entry.effects = JSON.parse(JSON.stringify(s.effects)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const gridStyles = figma.getLocalGridStyles ? figma.getLocalGridStyles() : [];
+      for (const s of gridStyles) {
+        const entry = { name: s.name, type: 'GRID', description: s.description || null };
+        try { entry.layoutGrids = JSON.parse(JSON.stringify(s.layoutGrids)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
 
     // Collect component sets (variants)
     const components = [];
@@ -869,6 +970,243 @@ const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
 })()
 `;
 
+const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const q = "${query}".toLowerCase();
+    const results = { variables: [], styles: [], components: [] };
+
+    // Search local variables
+    try {
+      const collections = figma.variables.getLocalVariableCollections();
+      for (const coll of collections) {
+        for (const varId of coll.variableIds) {
+          try {
+            const v = figma.variables.getVariableById(varId);
+            if (v && v.name.toLowerCase().includes(q)) {
+              const values = {};
+              for (const mode of coll.modes) {
+                try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+              }
+              results.variables.push({ name: v.name, type: v.resolvedType, collection: coll.name, valuesByMode: values });
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // Search local styles
+    const styleFns = [
+      ['PAINT', 'getLocalPaintStyles'],
+      ['TEXT', 'getLocalTextStyles'],
+      ['EFFECT', 'getLocalEffectStyles'],
+      ['GRID', 'getLocalGridStyles'],
+    ];
+    for (const [type, fn] of styleFns) {
+      try {
+        const localStyles = figma[fn]();
+        for (const s of localStyles) {
+          if (s.name.toLowerCase().includes(q)) {
+            results.styles.push({ name: s.name, type: type, description: s.description || null });
+          }
+        }
+      } catch(e) {}
+    }
+
+    // Search components on current page
+    function findComponents(node) {
+      if (node.type === 'COMPONENT_SET' && node.name.toLowerCase().includes(q)) {
+        results.components.push({ name: node.name, id: node.id, type: 'COMPONENT_SET' });
+      } else if (node.type === 'COMPONENT' && (!node.parent || node.parent.type !== 'COMPONENT_SET') && node.name.toLowerCase().includes(q)) {
+        results.components.push({ name: node.name, id: node.id, type: 'COMPONENT' });
+      }
+      if ('children' in node && results.components.length < 50) node.children.forEach(findComponents);
+    }
+    figma.currentPage.children.forEach(findComponents);
+
+    results.variables = results.variables.slice(0, 50);
+    results.styles = results.styles.slice(0, 50);
+    results.components = results.components.slice(0, 50);
+
+    return results;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const USE_FIGMA_SCRIPT = (action: string, params: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const params = ${params};
+    const action = "${action}";
+
+    switch (action) {
+      case 'create_frame': {
+        const frame = figma.createFrame();
+        frame.name = params.name || 'New Frame';
+        frame.resize(params.width || 400, params.height || 300);
+        if (params.x !== undefined) frame.x = params.x;
+        if (params.y !== undefined) frame.y = params.y;
+        if (params.fills) {
+          try { frame.fills = params.fills; } catch(e) {}
+        }
+        figma.currentPage.selection = [frame];
+        figma.viewport.scrollAndZoomIntoView([frame]);
+        return { success: true, nodeId: frame.id, name: frame.name, type: 'FRAME' };
+      }
+      case 'create_text': {
+        const text = figma.createText();
+        text.name = params.name || 'New Text';
+        if (params.x !== undefined) text.x = params.x;
+        if (params.y !== undefined) text.y = params.y;
+        return figma.loadFontAsync({ family: params.fontFamily || 'Inter', style: params.fontStyle || 'Regular' }).then(() => {
+          text.characters = params.characters || 'Text';
+          if (params.fontSize) text.fontSize = params.fontSize;
+          figma.currentPage.selection = [text];
+          return { success: true, nodeId: text.id, name: text.name, type: 'TEXT' };
+        });
+      }
+      case 'create_rectangle': {
+        const rect = figma.createRectangle();
+        rect.name = params.name || 'New Rectangle';
+        rect.resize(params.width || 100, params.height || 100);
+        if (params.x !== undefined) rect.x = params.x;
+        if (params.y !== undefined) rect.y = params.y;
+        if (params.fills) {
+          try { rect.fills = params.fills; } catch(e) {}
+        }
+        if (params.cornerRadius !== undefined) rect.cornerRadius = params.cornerRadius;
+        figma.currentPage.selection = [rect];
+        return { success: true, nodeId: rect.id, name: rect.name, type: 'RECTANGLE' };
+      }
+      case 'update_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        if (params.name !== undefined) node.name = params.name;
+        if (params.visible !== undefined) node.visible = params.visible;
+        if (params.opacity !== undefined && 'opacity' in node) node.opacity = params.opacity;
+        if (params.x !== undefined && 'x' in node) node.x = params.x;
+        if (params.y !== undefined && 'y' in node) node.y = params.y;
+        if (params.width !== undefined && params.height !== undefined && 'resize' in node) node.resize(params.width, params.height);
+        if (params.fills && 'fills' in node) { try { node.fills = params.fills; } catch(e) {} }
+        if (params.cornerRadius !== undefined && 'cornerRadius' in node) node.cornerRadius = params.cornerRadius;
+        if (params.characters !== undefined && node.type === 'TEXT') {
+          return figma.loadFontAsync(node.fontName || { family: 'Inter', style: 'Regular' }).then(() => {
+            node.characters = params.characters;
+            return { success: true, nodeId: node.id, name: node.name };
+          });
+        }
+        return { success: true, nodeId: node.id, name: node.name };
+      }
+      case 'delete_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        const name = node.name;
+        node.remove();
+        return { success: true, deleted: params.nodeId, name: name };
+      }
+      case 'set_variable': {
+        if (!params.name || !params.collectionName) return { error: 'name and collectionName are required' };
+        let collection = null;
+        try {
+          const colls = figma.variables.getLocalVariableCollections();
+          collection = colls.find(c => c.name === params.collectionName);
+        } catch(e) {}
+        if (!collection) {
+          collection = figma.variables.createVariableCollection(params.collectionName);
+        }
+        const resolvedType = params.resolvedType || 'COLOR';
+        const variable = figma.variables.createVariable(params.name, collection, resolvedType);
+        if (params.value !== undefined) {
+          const modeId = collection.modes[0].modeId;
+          variable.setValueForMode(modeId, params.value);
+        }
+        return { success: true, variableId: variable.id, name: variable.name, collection: collection.name };
+      }
+      default:
+        return { error: 'Unknown action: ' + action };
+    }
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const CREATE_PAGE_SCRIPT = (pageName: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const page = figma.createPage();
+    page.name = "${pageName}";
+    figma.currentPage = page;
+    return { success: true, pageId: page.id, pageName: page.name };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── Write Tool Definitions (gated by settings) ──────────────────────────────
+
+const WRITE_TOOLS: ToolDefinition[] = [
+  {
+    name: "use_figma",
+    description:
+      "General-purpose tool for creating, editing, or deleting objects in a Figma file. " +
+      "Accepts an action and params object. Supported actions: create_frame, create_text, " +
+      "create_rectangle, update_node, delete_node, set_variable. " +
+      "Use get_metadata first to discover node IDs before updating or deleting. " +
+      "⚠ This is a WRITE tool that modifies the file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          description:
+            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable.",
+          enum: ["create_frame", "create_text", "create_rectangle", "update_node", "delete_node", "set_variable"],
+        },
+        params: {
+          type: "object",
+          description:
+            "Parameters for the action. For create_frame/rectangle: name, width, height, x, y, fills, cornerRadius. " +
+            "For create_text: name, characters, fontFamily, fontStyle, fontSize, x, y. " +
+            "For update_node: nodeId (required), plus any properties to update. " +
+            "For delete_node: nodeId (required). " +
+            "For set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
+        },
+      },
+      required: ["action", "params"],
+    },
+  },
+  {
+    name: "create_new_file",
+    description:
+      "Creates a new page in the current Figma file and navigates to it. " +
+      "Note: the Figma Plugin API within the renderer cannot create separate files — " +
+      "this tool creates a new page as the closest equivalent. " +
+      "⚠ This is a WRITE tool that modifies the file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Name for the new page.",
+        },
+      },
+      required: ["name"],
+    },
+  },
+];
+
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
 export class McpServer {
@@ -879,6 +1217,7 @@ export class McpServer {
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private _isRunning = false;
+  private _writeToolsEnabled = false;
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
@@ -892,6 +1231,26 @@ export class McpServer {
   public setViewProvider(provider: FigmaViewProvider): void {
     this.viewProvider = provider;
     this.log.info("View provider attached");
+  }
+
+  /** Enable or disable write tools and notify connected clients. */
+  public setWriteToolsEnabled(enabled: boolean): void {
+    if (this._writeToolsEnabled === enabled) return;
+    this._writeToolsEnabled = enabled;
+    this.log.info(`MCP write tools ${enabled ? "enabled" : "disabled"}`);
+
+    // Send tools/list_changed notification to all active SSE sessions
+    const notification = JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/tools/list_changed",
+    });
+    for (const [, session] of this.sessions) {
+      if (session.sseResponse && !session.sseResponse.destroyed) {
+        try {
+          session.sseResponse.write(`event: message\ndata: ${notification}\n\n`);
+        } catch { /* ignore */ }
+      }
+    }
   }
 
   /** Start the HTTP server. */
@@ -1188,8 +1547,10 @@ export class McpServer {
           },
         };
 
-      case "tools/list":
-        return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
+      case "tools/list": {
+        const allTools = this._writeToolsEnabled ? [...TOOLS, ...WRITE_TOOLS] : TOOLS;
+        return { jsonrpc: "2.0", id, result: { tools: allTools } };
+      }
 
       case "tools/call": {
         const toolName = msg.params?.name as string;
@@ -1239,6 +1600,14 @@ export class McpServer {
           return await this.toolGetFigjam(args);
         case "generate_diagram":
           return await this.toolGenerateDiagram(args);
+        case "search_design_system":
+          return await this.toolSearchDesignSystem(args);
+        case "use_figma":
+          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          return await this.toolUseFigma(args);
+        case "create_new_file":
+          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          return await this.toolCreateNewFile(args);
         default:
           return this.toolError(`Unknown tool: ${name}`);
       }
@@ -1673,6 +2042,40 @@ export class McpServer {
     );
 
     return this.toolResult(lines.join("\n"));
+  }
+
+  // ── Tool: search_design_system ──────────────────────────────────────────
+
+  private async toolSearchDesignSystem(args: Record<string, unknown>) {
+    const query = (args.query as string) || "";
+    if (!query) return this.toolError("query is required");
+
+    const result = await this.viewProvider!.executeInBrowserView(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: use_figma (write) ─────────────────────────────────────────────
+
+  private async toolUseFigma(args: Record<string, unknown>) {
+    const action = args.action as string;
+    const params = args.params as Record<string, unknown>;
+    if (!action) return this.toolError("action is required");
+    if (!params) return this.toolError("params is required");
+
+    const paramsJson = JSON.stringify(params);
+    const result = await this.viewProvider!.executeInBrowserView(USE_FIGMA_SCRIPT(action, paramsJson));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: create_new_file (create page, write) ──────────────────────────
+
+  private async toolCreateNewFile(args: Record<string, unknown>) {
+    const name = (args.name as string) || "Untitled Page";
+    const result = await this.viewProvider!.executeInBrowserView(CREATE_PAGE_SCRIPT(name));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Asset Serving ────────────────────────────────────────────────────────

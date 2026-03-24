@@ -160,9 +160,16 @@
         description="Use Zenity (GTK dialog tool) instead of native Electron dialogs for file open/save prompts."
       />
 
+      <Flex height="16px" />
+      <Label>MCP Server</Label>
+      <CheckBox
+        bind:checked={$settings.mcp.enableWriteTools}
+        text="Enable MCP Write Tools"
+        description="Allow AI assistants to create and modify objects in your Figma files. Disabled by default — LLMs can make unintended changes. Requires MCP client reconnect."
+      />
 
 
-
+      <Flex height="16px" />
       <Flex height="16px" />
       <Label>Window Frame Style</Label>
       <select

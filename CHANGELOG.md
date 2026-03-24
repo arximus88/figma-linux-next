@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP: `search_design_system` tool** — search local variables, styles, and components by text query; results include values by mode and are capped at 50 per category
+- **MCP: `use_figma` write tool** — create frames, text, rectangles; update or delete nodes; create design token variables — gated behind a new settings toggle
+- **MCP: `create_new_file` write tool** — creates a new page in the current file (Plugin API limitation: cannot create separate files) — gated behind write tools toggle
+- **MCP Write Tools toggle** — new "Enable MCP Write Tools" checkbox in Settings → General → MCP Server; disabled by default for safety; toggling sends `tools/list_changed` to connected MCP clients without requiring a full server restart
+
+### Improved
+
+- **MCP: `get_variable_defs`** — when nothing is selected and no `nodeId` is provided, now returns ALL local variable collections and ALL local styles from the entire file instead of erroring
+- **MCP: `create_design_system_rules`** — style extraction now includes full values: paint arrays (colors/gradients), text properties (fontSize, fontName, lineHeight, letterSpacing), effect definitions, and grid configurations
+
 ---
 
 ## [0.13.1-2] - 2026-03-24 — AUR packaging fix

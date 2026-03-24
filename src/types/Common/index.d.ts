@@ -102,6 +102,9 @@ declare namespace Types {
       lastExportDir?: string;
       figmaTheme?: "dark" | "light";
     };
+    mcp: {
+      enableWriteTools: boolean;
+    };
     ui: {
       scalePanel: number;
       scaleFigmaUI: number;
