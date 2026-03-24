@@ -102,7 +102,7 @@ jobs:
       image: archlinux:latest
     steps:
       - name: Install deps
-        run: pacman -Sy --noconfirm git openssh pacman
+        run: pacman -Sy --noconfirm git openssh pacman python
 
       - name: Setup SSH for AUR
         run: |
