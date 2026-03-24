@@ -25,8 +25,7 @@ jobs:
         run: bun run build
 
       - name: Package (deb, rpm, AppImage, zip)
-        run: |
-          electron-builder --config=config/builder.json -l deb rpm AppImage zip
+        run: bunx electron-builder --config=config/builder.json -l deb rpm AppImage zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -60,7 +59,7 @@ jobs:
         run: bun run build
 
       - name: Package (pacman)
-        run: electron-builder --config=config/builder.json -l pacman
+        run: bunx electron-builder --config=config/builder.json -l pacman
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
