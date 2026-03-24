@@ -1,72 +1,147 @@
-name: Release Build
+name: Release
 
 on:
   push:
-    tags:
-    - 'v*.*.*'
+    tags: ['v*.*.*']
 
 jobs:
-  setup:
-    name: Setup
-    uses: ./.github/workflows/reuse_setup.yml
-    secrets: inherit
+  # Build deb, rpm, AppImage, zip on ubuntu
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  build_arm64v8:
-    name: Build
-    uses: ./.github/workflows/reuse_build_arm64v8.yml
-    secrets: inherit
-    needs: setup
-  build_amd64:
-    name: Build
-    uses: ./.github/workflows/reuse_build_amd64.yml
-    needs: setup
-    secrets: inherit
+      - uses: oven-sh/setup-bun@v2
 
-  release_arm64v8:
-    name: Release
-    uses: ./.github/workflows/reuse_release_arm64v8.yml
-    secrets: inherit
-    needs: build_arm64v8
-  release_amd64:
-    name: Release
-    uses: ./.github/workflows/reuse_release_amd64.yml
-    needs: build_amd64
-    secrets: inherit
+      - name: Install system deps
+        run: sudo apt-get install -y rpm fakeroot
 
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build app
+        run: bun run build
+
+      - name: Package (deb, rpm, AppImage, zip)
+        run: |
+          electron-builder --config=config/builder.json -l deb rpm AppImage zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate release notes
+        run: perl scripts/generate_release_notes.pl --latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers
+          path: |
+            build/installers/figma-linux-next_*
+            release_notes
+
+  # Build pacman package on Arch Linux (needs makepkg)
+  build-pacman:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install deps
+        run: pacman -Sy --noconfirm bun nodejs npm base-devel fakeroot
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build app
+        run: bun run build
+
+      - name: Package (pacman)
+        run: electron-builder --config=config/builder.json -l pacman
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-pacman
+          path: build/installers/figma-linux-next_*_linux_x64.pacman
+
+  # Create GitHub Release with all artifacts
+  release:
+    needs: [build, build-pacman]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'install*'
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Compute SHA256SUMS
+        working-directory: ./artifacts
+        run: sha256sum figma-linux-next_* > SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ./artifacts/release_notes
+          name: figma-linux-next ${{ github.ref_name }}
+          files: |
+            ./artifacts/figma-linux-next_*
+            ./artifacts/SHA256SUMS
+
+  # Push updated PKGBUILD to AUR
   aur:
-    name: Upload
-    uses: ./.github/workflows/reuse_aur.yml
-    secrets: inherit
-    needs: [release_amd64, release_arm64v8]
+    needs: release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install deps
+        run: pacman -Sy --noconfirm git openssh pacman
 
-  aur_bin:
-    name: Upload
-    uses: ./.github/workflows/reuse_aur_bin.yml
-    secrets: inherit
-    needs: [release_amd64, release_arm64v8]
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ID_RSA }}" | base64 -d > ~/.ssh/id_rsa
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_rsa
 
-  # aur_git:
-  #   name: Upload
-  #   uses: ./.github/workflows/reuse_aur_git.yml
-  #   secrets: inherit
-  #   needs: [release_amd64, release_arm64v8]
+      - name: Clone AUR repo
+        run: git clone ssh://aur@aur.archlinux.org/figma-linux-next.git /tmp/aur-pkg
 
-  aur_dev_git:
-    name: Upload
-    uses: ./.github/workflows/reuse_aur_dev_git.yml
-    secrets: inherit
-    needs: [release_amd64, release_arm64v8]
+      - name: Update PKGBUILD
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          TARBALL_URL="https://github.com/arximus88/figma-linux-next/archive/refs/tags/v${VERSION}.tar.gz"
+          SHA256=$(curl -sL "$TARBALL_URL" | sha256sum | cut -d' ' -f1)
 
-  flathub:
-    name: Upload
-    uses: ./.github/workflows/reuse_flatpak.yml
-    secrets: inherit
-    needs: [release_amd64, release_arm64v8]
+          cd /tmp/aur-pkg
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          # Replace only the first sha256sums entry (source tarball)
+          perl -i -0pe "s/(sha256sums=\(\n?\s*)'[^']*'/$1'${SHA256}'/" PKGBUILD
 
-  launchpad:
-    name: Upload
-    uses: ./.github/workflows/reuse_launchpad.yml
-    secrets: inherit
-    with:
-      rev: 1
-    needs: [release_amd64, release_arm64v8]
+      - name: Generate .SRCINFO
+        run: |
+          cd /tmp/aur-pkg
+          # makepkg --printsrcinfo requires a non-root user
+          useradd -m builder
+          chown -R builder:builder /tmp/aur-pkg
+          su builder -c "cd /tmp/aur-pkg && makepkg --printsrcinfo > .SRCINFO"
+
+      - name: Commit and push to AUR
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          cd /tmp/aur-pkg
+          git config user.name "${{ secrets.USER_NAME }}"
+          git config user.email "${{ secrets.EMAIL }}"
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || git commit -m "Update to v${VERSION}"
+          git push

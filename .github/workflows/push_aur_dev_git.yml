@@ -1,4 +1,8 @@
-name: Update AUR DEV GIT
+name: Update AUR dev-git
+
+# Pushes pkgver bump to figma-linux-next-dev-git on every commit to dev.
+# Requires: ID_RSA, USER_NAME, EMAIL secrets.
+# Note: figma-linux-next-dev-git AUR package must exist first.
 
 on:
   push:
@@ -6,13 +10,44 @@ on:
       - dev
 
 jobs:
-  setup:
-    name: Setup
-    uses: ./.github/workflows/reuse_setup.yml
-    secrets: inherit
+  aur-dev-git:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  aur_dev_git:
-    name: Upload
-    uses: ./.github/workflows/reuse_aur_dev_git.yml
-    secrets: inherit
-    needs: setup
+      - name: Install deps
+        run: pacman -Sy --noconfirm git openssh pacman
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ID_RSA }}" | base64 -d > ~/.ssh/id_rsa
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Clone AUR dev-git repo
+        run: git clone ssh://aur@aur.archlinux.org/figma-linux-next-dev-git.git /tmp/aur-dev-git
+
+      - name: Update pkgver (commit count)
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          cd /tmp/aur-dev-git
+          sed -i "s/^pkgver=.*/pkgver=r${COMMIT_COUNT}.${SHORT_SHA}/" PKGBUILD
+          useradd -m builder
+          chown -R builder:builder /tmp/aur-dev-git
+          su builder -c "cd /tmp/aur-dev-git && makepkg --printsrcinfo > .SRCINFO"
+
+      - name: Push to AUR
+        run: |
+          cd /tmp/aur-dev-git
+          git config user.name "${{ secrets.USER_NAME }}"
+          git config user.email "${{ secrets.EMAIL }}"
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || git commit -m "Update to r$(git -C $GITHUB_WORKSPACE rev-list --count HEAD).$(git -C $GITHUB_WORKSPACE rev-parse --short HEAD)"
+          git push
