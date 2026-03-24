@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
     "outDir": "./dist",
-    "baseUrl": "./",
-    "ignoreDeprecations": "6.0",
     "useUnknownInCatchVariables": false,
     "allowArbitraryExtensions": true,
     "noImplicitAny": true,
