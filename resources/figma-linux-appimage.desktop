@@ -1,11 +1,10 @@
 [Desktop Entry]
-Name=Figma Linux Test
+Name=Figma Linux Next
 Comment=Unofficial desktop application for linux
-Exec=figma-linux-test %U
+Exec=figma-linux-next %U
 Terminal=false
 Type=Application
-Icon=figma-linux-test
-StartupWMClass=figma-linux-test
-X-AppImage-Version=0.12.0
+Icon=figma-linux-next
+StartupWMClass=figma-linux-next
 Categories=Graphics;
 MimeType=application/figma;x-scheme-handler/figma;

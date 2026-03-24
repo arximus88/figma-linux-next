@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "./dist",
+    "rootDir": "./src",
     "useUnknownInCatchVariables": false,
     "allowArbitraryExtensions": true,
     "noImplicitAny": true,
@@ -54,8 +55,8 @@
       "Elements": ["./src/renderer/elements"],
       "Store": ["./src/renderer/stores"],
       "Store/*": ["./src/renderer/stores/*"],
-      "DesktopAPI": ["./DesktopAPI"],
-      "DesktopAPI/*": ["./DesktopAPI/*"],
+      "DesktopAPI": ["./src/renderer/DesktopAPI"],
+      "DesktopAPI/*": ["./src/renderer/DesktopAPI/*"],
       "Const": ["./src/constants"],
       "Const/*": ["./src/constants/*"],
       "Utils": ["./src/utils"],

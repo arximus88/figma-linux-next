@@ -3,6 +3,7 @@ import { app, net, Event, protocol } from "electron";
 import * as Const from "Const";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
 import Args from "./Args";
+import { registerAppImageUrlHandler } from "./AppImageIntegration";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 import ExtensionManager from "./ExtensionManager";
@@ -43,6 +44,8 @@ export default class App {
     if (!app.isDefaultProtocolClient(Const.PROTOCOL)) {
       app.setAsDefaultProtocolClient(Const.PROTOCOL);
     }
+
+    registerAppImageUrlHandler();
 
     this.mcpServer = new McpServer(logger);
 

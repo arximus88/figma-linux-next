@@ -8,6 +8,10 @@
   "extraFiles": [
     {
       "from": "lib/"
+    },
+    {
+      "from": "resources/icons/",
+      "to": "icons/"
     }
   ],
   "files": [
