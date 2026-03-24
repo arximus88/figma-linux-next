@@ -1,3 +1,5 @@
+import { mkdtempSync } from "fs";
+import { tmpdir } from "os";
 import path from "path";
 import { _electron as electron, ElectronApplication, Page } from "@playwright/test";
 
@@ -14,13 +16,15 @@ export interface AppHandle {
  * so tests run without network access or a real Figma account.
  */
 export async function launchApp(): Promise<AppHandle> {
+  // Each test run gets its own user-data-dir so requestSingleInstanceLock()
+  // doesn't collide with a running production instance or another test worker.
+  const userDataDir = mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
+
   const app = await electron.launch({
-    args: [MAIN_JS],
+    args: [MAIN_JS, `--user-data-dir=${userDataDir}`],
     env: {
       ...process.env,
       NODE_ENV: "test",
-      // Point to a writable temp config dir so tests don't touch the real one
-      HOME: process.env.HOME,
       FIGMA_LOGLEVEL: "error",
     },
   });
