@@ -1,26 +1,26 @@
 #!/bin/bash
 
-DESKTOP_FILE="/usr/share/applications/figma-linux-test.desktop"
-LINK="/usr/bin/figma-linux-test"
+DESKTOP_FILE="/usr/share/applications/figma-linux-next.desktop"
+LINK="/usr/bin/figma-linux-next"
 
 case $1 in
   -h|--help)
   echo "
-figma-linux-test
+figma-linux-next
 
 Unofficial desktop application for linux. This application based on the Electron.js.
 
 APPIMAGE OPTIONS:
-    figma-linux-test.AppImage [option]
+    figma-linux-next.AppImage [option]
 
     OPTIONS:
-        -i|--install      installs valid desktop file: /usr/share/applications/figma-linux-test.desktop, icons
-                          and creates /usr/bin/figma-linux-test link to the AppImage file.
+        -i|--install      installs valid desktop file: /usr/share/applications/figma-linux-next.desktop, icons
+                          and creates /usr/bin/figma-linux-next link to the AppImage file.
 
         -r|--remove       removes the desktop file, icons and link to the AppImage file.
 
 FIGMA OPTIONS:
-    figma-linux-test [option] [APP_URL_TO_PROJECT]
+    figma-linux-next [option] [APP_URL_TO_PROJECT]
 
     OPTIONS:
         -v                show version of application.
@@ -32,13 +32,13 @@ COMMON OPTIONS:
   ;;
   -i|--install)
     if [ "$EUID" -ne 0 ]; then
-      echo "For install figma-linux-test AppImage run the file from root user"
+      echo "For install figma-linux-next AppImage run the file from root user"
       exit
     fi
 
-    echo "install figma-linux-test.desktop as $DESKTOP_FILE"
+    echo "install figma-linux-next.desktop as $DESKTOP_FILE"
 
-    cp -rf "$APPDIR/figma-linux-test.desktop" "$DESKTOP_FILE"
+    cp -rf "$APPDIR/figma-linux-next.desktop" "$DESKTOP_FILE"
 
     echo "create link $LINK"
 
@@ -49,10 +49,10 @@ COMMON OPTIONS:
     for size in 24 36 48 64 72 96 128 192 256 384 512; do
       mkdir -p "/usr/share/icons/hicolor/${size}x${size}/apps"
       mkdir -p "/usr/share/icons/hicolor/scalable/apps"
-      cp -rf "$APPDIR/icons/${size}x${size}.png" "/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-test.png"
+      cp -rf "$APPDIR/icons/${size}x${size}.png" "/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-next.png"
     done
 
-    cp -rf "$APPDIR/icons/scalable.svg" "/usr/share/icons/hicolor/scalable/apps/figma-linux-test.svg"
+    cp -rf "$APPDIR/icons/scalable.svg" "/usr/share/icons/hicolor/scalable/apps/figma-linux-next.svg"
 
     echo "install completed"
 
@@ -60,7 +60,7 @@ COMMON OPTIONS:
   ;;
   -r|--remove)
     if [ "$EUID" -ne 0 ]; then
-      echo "For remove figma-linux-test AppImage and related files run the file from root user"
+      echo "For remove figma-linux-next AppImage and related files run the file from root user"
       exit
     fi
 
@@ -75,10 +75,10 @@ COMMON OPTIONS:
     echo "remove icons"
 
     for size in 24 36 48 64 72 96 128 192 256 384 512; do
-      rm -rf "/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-test.png"
+      rm -rf "/usr/share/icons/hicolor/${size}x${size}/apps/figma-linux-next.png"
     done
 
-    rm -rf "/usr/share/icons/hicolor/scalable/apps/figma-linux-test.svg"
+    rm -rf "/usr/share/icons/hicolor/scalable/apps/figma-linux-next.svg"
 
     echo "remove $APPIMAGE"
 
@@ -90,4 +90,4 @@ COMMON OPTIONS:
   ;;
 esac
 
-"$APPDIR/figma-linux-test" $@
+"$APPDIR/figma-linux-next" $@
