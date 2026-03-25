@@ -12,41 +12,49 @@ for my $param (@ARGV) {
   }
 }
 
-my $features=`git log \$(git tag --sort=version:refname | tail -n2 | head -n1)..HEAD --no-merges --oneline | grep -Eo "feat:.*" | uniq`;
-my $fixes=`git log \$(git tag --sort=version:refname | tail -n2 | head -n1)..HEAD --no-merges --oneline | grep -Eo "fix:.*" | uniq`;
-my $other=`git log \$(git tag --sort=version:refname | tail -n2 | head -n1)..HEAD --no-merges --oneline | grep -Eo "(other|chore|impr):.*" | uniq`;
+# Range between second-to-last and last tag (default: last two tags)
+# --latest: same range but capped at the latest tag (works correctly in CI where HEAD = tag)
+my $from = `git tag --sort=version:refname | tail -n2 | head -n1 | tr -d '\n'`;
+my $to   = $latest
+  ? `git tag --sort=version:refname | tail -n1 | tr -d '\n'`
+  : "HEAD";
 
-if ($latest) {
-  $features=`git log \$(git tag --sort=version:refname | tail -n1)..HEAD --no-merges --oneline | grep -Eo "feat:.*" | uniq`;
-  $fixes=`git log \$(git tag --sort=version:refname | tail -n1)..HEAD --no-merges --oneline | grep -Eo "fix:.*" | uniq`;
-  $other=`git log \$(git tag --sort=version:refname | tail -n1)..HEAD --no-merges --oneline | grep -Eo "(other|chore|impr):.*" | uniq`;
-}
+my $log_cmd = "git log ${from}..${to} --no-merges --oneline";
 
-my $hasFeatures=`printf "$features" | wc -l | tr -d '\n'`;
-my $hasFixes=`printf "$fixes" | wc -l | tr -d '\n'`;
-my $hasOther=`printf "$other" | wc -l | tr -d '\n'`;
-my @featureList = split /\n/, $features;
-my @fixList = split /\n/, $fixes;
-my @otherList = split /\n/, $other;
-my $baseUrl = "https://github.com/Figma-Linux/figma-linux/issues";
+# Match both plain (fix:) and scoped (fix(scope):) conventional commits
+my $features = `$log_cmd | grep -Eo "feat(\\([^)]*\\))?:.*" | uniq`;
+my $fixes    = `$log_cmd | grep -Eo "fix(\\([^)]*\\))?:.*"  | uniq`;
+my $perf     = `$log_cmd | grep -Eo "perf(\\([^)]*\\))?:.*" | uniq`;
+my $other    = `$log_cmd | grep -Eo "(chore|impr|refactor|test|ci)(\\([^)]*\\))?:.*" | uniq`;
+
+my @featureList = grep { $_ ne "" } split /\n/, $features;
+my @fixList     = grep { $_ ne "" } split /\n/, $fixes;
+my @perfList    = grep { $_ ne "" } split /\n/, $perf;
+my @otherList   = grep { $_ ne "" } split /\n/, $other;
+
+my $baseUrl = "https://github.com/arximus88/figma-linux-next/issues";
 my $release_note_file_path = "./release_notes";
 
 `echo '' > $release_note_file_path`;
 
-sub generate {
-  my $title = $_[0];
-  my @list = @{$_[1]};
+sub strip_prefix {
+  my ($msg) = @_;
+  # Strip conventional commit prefix: type(scope): or type:
+  $msg =~ s/^\w+(\([^)]*\))?:\s*//;
+  return $msg;
+}
 
+sub generate {
+  my ($title, $listref) = @_;
   `echo "$title" >> $release_note_file_path`;
 
-  for my $msg (@list) {
-    my $issue = `echo "$msg" | grep -Eo "#.*" | tr -d '\n'`;
-    $msg =~ s/^(feat|other|fix|chore|impr): //gi;
+  for my $msg (@$listref) {
+    my $issue = `echo "$msg" | grep -Eo "#[0-9]+" | tr -d '\n'`;
+    $msg = strip_prefix($msg);
+    $msg =~ s/ ?(Close|#).*$//gi if $issue ne "";
 
     if ($issue ne "") {
       my $issueId = substr $issue, 1;
-      $msg =~ s/ ?(Close|#).*$//gi;
-
       if ($isHtml) {
         `echo '<li>$msg <a href="$baseUrl/$issueId" target="_blank">$issue</a></li>' >> $release_note_file_path`;
       } else {
@@ -66,34 +74,21 @@ sub generate {
   }
 }
 
-if ($hasFeatures > 0) {
-  if ($isHtml) {
-    generate("<li>Features:</li>", \@featureList);
-  } else {
-    generate("## Features:", \@featureList);
-  }
-
-  if ($hasFixes > 0) {
-    `echo '' >> $release_note_file_path`;
-  }
+if (@featureList) {
+  generate($isHtml ? "<li>Features:</li>" : "## Features:", \@featureList);
+  `echo '' >> $release_note_file_path` if @fixList || @perfList || @otherList;
 }
 
-if ($hasFixes > 0) {
-  if ($isHtml) {
-    generate("<li>Bug Fixes:</li>", \@fixList);
-  } else {
-    generate("## Bug Fixes:", \@fixList);
-  }
-
-  if ($hasOther > 0) {
-    `echo '' >> $release_note_file_path`;
-  }
+if (@fixList) {
+  generate($isHtml ? "<li>Bug Fixes:</li>" : "## Bug Fixes:", \@fixList);
+  `echo '' >> $release_note_file_path` if @perfList || @otherList;
 }
 
-if ($hasOther > 0) {
-  if ($isHtml) {
-    generate("<li>Other Changes:</li>", \@otherList);
-  } else {
-    generate("## Other Changes:", \@otherList);
-  }
+if (@perfList) {
+  generate($isHtml ? "<li>Performance:</li>" : "## Performance:", \@perfList);
+  `echo '' >> $release_note_file_path` if @otherList;
+}
+
+if (@otherList) {
+  generate($isHtml ? "<li>Other Changes:</li>" : "## Other Changes:", \@otherList);
 }

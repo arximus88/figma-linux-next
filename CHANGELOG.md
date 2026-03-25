@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.2] - 2026-03-25
+
+### Fixed
+
+- **Settings** — sRGB color profile restart dialog now fires only on *enable*, not on disable; eliminated duplicate dialog when toggling rapidly
+
+### Performance
+
+- **Tabs** — during window resize, only the active tab's bounds are updated (previously all tabs were recalculated); reduces resize overhead proportionally to number of open tabs
+
+### Tests
+
+- **E2E** — added resize bounds correctness tests verifying active tab fills the window correctly after resize
+
+---
+
 ## [0.13.1-2] - 2026-03-24 — AUR packaging fix
 
 ### Fixed
