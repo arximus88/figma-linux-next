@@ -284,9 +284,15 @@ export default class Window {
   }
   public updateTabsBounds() {
     const bounds = this.calcBoundsForTabView();
+    this.tabManager.setBoundsForActiveTab(bounds);
+    if (this.settingsViewOpen) {
+      this.settingsView.updateProps(this.window.getBounds());
+    }
+  }
 
+  public updateAllTabsBounds() {
+    const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForAllTab(bounds);
-
     if (this.settingsViewOpen) {
       this.settingsView.updateProps(this.window.getBounds());
     }
@@ -791,8 +797,8 @@ export default class Window {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.window as any).on("show", this.showHandler.bind(this));
     this.window.on("resize", this.updateTabsBounds.bind(this));
-    this.window.on("maximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
-    this.window.on("unmaximize", () => setTimeout(this.updateTabsBounds.bind(this), 100));
+    this.window.on("maximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));
+    this.window.on("unmaximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));
     this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("focus", () => {
       app.emit("windowFocus", this.window.id);

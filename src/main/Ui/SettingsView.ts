@@ -35,27 +35,31 @@ export default class SettingsView {
   }
 
   public postClose() {
-    let id = 1;
-    if (this.enableColorSpaceSrgbWasChanged) {
-      id = dialogs.showMessageBoxSync({
-        type: "question",
-        title: "Figma",
-        message: "Restart to Change Color Space?",
-        detail: `Figma needs to be restarted to change the color space.`,
-        textOkButton: "Restart",
-        defaultFocusedButton: "Ok",
-      });
+    if (!this.enableColorSpaceSrgbWasChanged && !this.chromiumFlagsChanged) {
+      return;
     }
-    if (this.chromiumFlagsChanged) {
-      id = dialogs.showMessageBoxSync({
-        type: "question",
-        title: "Figma",
-        message: "Restart to apply Chromium flags?",
-        detail: `Figma needs to be restarted to apply Chromium flags.`,
-        textOkButton: "Restart",
-        defaultFocusedButton: "Ok",
-      });
-    }
+
+    const bothChanged = this.enableColorSpaceSrgbWasChanged && this.chromiumFlagsChanged;
+    const message = bothChanged
+      ? "Restart to apply changes?"
+      : this.enableColorSpaceSrgbWasChanged
+        ? "Restart to Change Color Space?"
+        : "Restart to apply Chromium flags?";
+    const detail = bothChanged
+      ? "Figma needs to be restarted to apply the color space and Chromium flags changes."
+      : this.enableColorSpaceSrgbWasChanged
+        ? "Figma needs to be restarted to change the color space."
+        : "Figma needs to be restarted to apply Chromium flags.";
+
+    const id = dialogs.showMessageBoxSync({
+      type: "question",
+      title: "Figma",
+      message,
+      detail,
+      textOkButton: "Restart",
+      defaultFocusedButton: "Ok",
+    });
+
     if (!id) {
       app.emit("relaunchApp");
     }
