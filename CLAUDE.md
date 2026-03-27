@@ -80,6 +80,20 @@ bun run precommit
 
 ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line limit
 
+### Testing
+
+```bash
+# Unit tests
+bun test
+
+# E2E tests (Playwright)
+bunx playwright test
+```
+
+Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
+
+`bunfig.toml` registers `src/test/electron-preload.ts` as a test preload — globally mocks the `electron` module so unit tests touching `src/utils/Main/` work without an Electron runtime.
+
 ## Architecture
 
 ### Process Architecture
@@ -87,50 +101,65 @@ ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line li
 The application is a classic Electron app with two processes:
 
 **Main Process** (`src/main/`) - Node.js backend that manages:
-- Windows and tabs (WindowManager, TabManager)
+- Windows and tabs (WindowManager, Window, TabManager)
 - Extensions/plugins (ExtensionManager)
-- Themes (ThemeManager)
 - Figma session authentication (Session)
 - System fonts (FontManager)
 - Persistent settings (Storage)
+- Dialogs (Native or Zenity backends)
+- MCP server for AI assistant integration (McpServer)
 
 **Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
 - **Settings** (`src/renderer/Settings/`) - Settings modal
 
-Communication between processes uses Electron IPC (ipcMain/ipcRenderer).
+Communication between processes goes through a typed **preload bridge** (`src/main/preload/bridge.ts`) that exposes `window.figmaApi` — direct `ipcRenderer` usage in renderers is not allowed.
 
 ### Main Process Structure
 
-Entry point: `src/main/index.ts` instantiates the App class with dependency injection:
+Entry point: `src/main/index.ts` initializes storage and dialogs, then instantiates App:
 
 ```typescript
-new App(
-  new WindowManager(),
-  new ExtensionManager(),
-  new Session(),
-  new FontManager(),
-  new ThemeManager(new ThemeValidator()),
-);
+new App(new WindowManager(), new Session(), new FontManager());
 ```
 
+`ExtensionManager` is instantiated separately, not passed to App.
+
 **App class** (`src/main/App.ts`):
-- Orchestrates lifecycle events (ready, second-instance, window-all-closed)
+- Acquires single-instance lock
 - Applies Chromium command-line switches (GPU acceleration, Wayland, VAAPI)
-- Registers IPC handlers for renderer communication
-- Manages single-instance locking
+- Instantiates all IPC controllers and seals the registry
+- Registers `figma://` protocol handler and starts the MCP server
+- Manages lifecycle events (ready, second-instance, window-all-closed)
+
+**IpcRegistry** (`src/main/controllers/registry.ts`):
+- Central registry for all IPC handlers — replaces direct `ipcMain` calls
+- `ipcRegistry.on(channel, handler, source)` / `ipcRegistry.handle(channel, handler, source)`
+- `ipcRegistry.seal()` called after all controllers register — throws on duplicate or post-seal registration
+- **Always use `ipcRegistry` instead of `ipcMain` directly** for new IPC handlers
+
+**Controllers** (`src/main/controllers/`):
+- `SettingsController` — settings get/set, frame style, scaling, export dir
+- `FontController` — font enumeration and file serving
+- `ClipboardController` — clipboard writes (images, SVG, PDF)
+- `AuthController` — login, logout, app auth flow
+- `FileController` — file creation and export
 
 **WindowManager** (`src/main/Ui/WindowManager.ts`):
-- Maintains Map of all windows (keyed by window ID)
+- Maintains Map of all Window instances (keyed by window ID)
 - Tracks last focused window
 - Restores/saves window state from settings
 - Handles protocol URLs (`figma://` links)
-- Manages closed tabs history (last 10 for "reopen closed tab")
+- Manages closed tabs history
+
+**Window** (`src/main/Ui/Window.ts`):
+- Wraps a `BrowserWindow` with a `TabManager` and a `SettingsView`
+- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes). Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
 - Per-window tab management
-- Three tab types: MainTab (always present), regular tabs, CommunityTab
-- Each tab is a BrowserView positioned below the panel
+- Three tab types: `MainTab` (always present), regular `Tab`s, `CommunityTab`
+- Each tab is a `WebContentsView` positioned below the panel
 - Only one tab visible at a time
 
 **ExtensionManager** (`src/main/ExtensionManager.ts`):
@@ -146,52 +175,47 @@ new App(
 - Themes applied via CSS custom properties injected into Figma
 
 **Storage** (`src/main/Storage.ts`):
-- Singleton for settings persistence to `~/.config/figma-linux-next/settings.json`
-- Dual-initialization: works in both main and renderer processes
-- IPC synchronous getter for renderer: `ipcMain.on('getSettings')`
-- Deep-merges defaults with saved settings
+- Singleton (`storage`) for settings persistence to `~/.config/figma-linux-next/settings.json`
+- `storage.initialize()` must be called at startup before App
+- Deep-merges saved settings with `DEFAULT_SETTINGS` on load
+- IPC registration is in `SettingsController`, not in `storage` itself
+
+**Dialogs** (`src/main/Dialogs/`):
+- Provider pattern: Native (Electron dialogs) or Zenity (GTK dialogs)
+- `dialogs.switchProvider(useZenity)` switches at runtime; controlled by `settings.app.useZenity`
+
+**MCP Server** (`src/main/MCP/McpServer.ts`):
+- MCP protocol (JSON-RPC 2.0 over Streamable HTTP) on port **3845**
+- Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
+- Started in `App.ready()`
+
+**AppImageIntegration** (`src/main/AppImageIntegration.ts`):
+- On first AppImage launch, writes a `.desktop` file and calls `xdg-mime` to register the `figma://` URL scheme handler
 
 ### Renderer Process Structure
 
+**Preload Bridge** (`src/main/preload/bridge.ts`):
+- Exposes `window.figmaApi` via `contextBridge` — the only IPC surface for Panel and Settings
+- Three typed methods: `send(channel, ...args)`, `invoke(channel, ...args)`, `on(channel, listener)`
+- `SEND_CHANNELS`, `RECEIVE_CHANNELS`, `INVOKE_CHANNELS` act as an allowlist — see the file for the current list
+- **Adding a new IPC channel requires updating all three of: the allowlist in bridge.ts, the ipcRegistry in the relevant controller, and the renderer call site**
+
 **Panel** (`src/renderer/Panel/App.svelte`):
-- Top toolbar with left/tabs/right components
-- Svelte stores in `src/renderer/Panel/store`:
-  - `currentTab` - Active tab ID
-  - `tabs` - Collection of open tabs
-  - `panelZoom` - Panel scale factor
-- IPC listeners in `src/renderer/Panel/ipc.ts` for main process events
+- Top toolbar with frame-specific Left/Tabs/Right components
+- IPC listeners registered in `src/renderer/Panel/ipc.svelte.ts`
+- Svelte stores in `src/renderer/Panel/store/`: `currentTab`, `tabs`, `panelZoom`
 
 **Settings** (`src/renderer/Settings/`):
 - Modal dialog for app settings
-- Theme selection and Theme Creator UI
-- Settings saved via IPC to main process, which persists to disk
+- Settings saved via `window.figmaApi.send("closeSettingsView", settings)`
 
 **DesktopAPI** (`src/renderer/DesktopAPI/`):
-- `webBinding.ts` - Establishes two-way message channel with Figma web app
-- `ThemesApplier.ts` - Injects theme CSS into Figma's stylesheet
-- Exposes `window.__figmaDesktop` API to Figma
+- `webBinding.ts` — Establishes two-way MessageChannel with Figma web app; exposes `window.__figmaDesktop`
+- This is NOT the preload IPC bridge — messages come through the MessageChannel, not `window.figmaApi`
 
 ### IPC Communication
 
-**Main → Renderer** (using `ipcRenderer.on()`):
-- `loadCurrentTheme` - Apply theme
-- `didTabAdd` / `tabWasClosed` - Tab lifecycle events
-- `frameStyleChanged` - Window frame style updates
-- `syncThemesEnd` - Theme list updated
-
-**Renderer → Main**:
-
-Async handlers (`ipcMain.handle()`):
-- `getFonts` - Get system fonts
-- `getFontFile` - Get font file for rendering
-- `themesIsDisabled` - Check theme status
-
-Event handlers (`ipcMain.on()`):
-- `frontReady` - Renderer ready
-- `setClipboardData` - Write to clipboard (images, SVG, PDF)
-- `setFeatureFlags` - Toggle feature flags
-- `getSettings` - Synchronous settings getter
-- `relaunchApp` / `quitApp` - App control
+All IPC goes through `window.figmaApi` (renderer) ↔ `ipcRegistry` (main). The authoritative channel lists live in `src/main/preload/bridge.ts` (`SEND_CHANNELS`, `RECEIVE_CHANNELS`, `INVOKE_CHANNELS`).
 
 ### Path Aliases (tsconfig.json)
 
@@ -216,36 +240,7 @@ When adding new code, use these aliases instead of relative paths.
 
 ### Settings Structure
 
-Settings are stored in `~/.config/figma-linux-next/settings.json` with this structure:
-
-```typescript
-{
-  clientId: UUID,
-  userId: string,
-  app: {
-    logLevel: string,
-    panelHeight: number,
-    frameStyle: "windows" | "gnome" | "macos",
-    fontDirs: string[],
-    commandSwitches: { switch: string, value?: string }[],
-    windowsState: { [windowId]: WindowState },
-    lastOpenedTabs: { [tabId]: TabData },
-    savedExtensions: ExtensionData[],
-    featureFlags: { [flag]: boolean },
-    enableColorSpaceSrgb: boolean,
-    saveLastOpenedTabs: boolean
-  },
-  theme: {
-    currentTheme: string  // theme ID
-  },
-  ui: {
-    scalePanel: number,
-    scaleFigmaUI: number
-  }
-}
-```
-
-Default settings in `src/utils/Render/defaultSettings.ts`.
+Persisted at `~/.config/figma-linux-next/settings.json`. Authoritative source: `src/utils/Render/defaultSettings.ts` and `src/types/` interfaces.
 
 ## Extension System
 
@@ -294,18 +289,25 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | File | Purpose |
 |------|---------|
 | `vite.config.ts` | Vite build config (main + renderer) |
-| `src/main/index.ts` | App entry point, dependency injection |
-| `src/main/App.ts` | Main event orchestration, IPC handlers |
-| `src/main/Storage.ts` | Settings persistence & IPC bridge |
+| `src/main/index.ts` | App entry point; initializes storage, dialogs, dependencies |
+| `src/main/App.ts` | Lifecycle orchestration, Chromium switches, controller wiring |
+| `src/main/controllers/registry.ts` | IPC channel registry (seal-on-startup pattern) |
+| `src/main/controllers/` | IPC controllers: Settings, Auth, Font, Clipboard, File |
+| `src/main/preload/bridge.ts` | contextBridge → `window.figmaApi`; IPC channel allowlists |
+| `src/main/Storage.ts` | Settings persistence |
 | `src/main/Ui/WindowManager.ts` | Window lifecycle & routing |
+| `src/main/Ui/Window.ts` | Single window: BrowserWindow + TabManager + warm tab |
 | `src/main/Ui/TabManager.ts` | Tab management per window |
+| `src/main/Dialogs/index.ts` | Dialog provider (Native / Zenity) |
+| `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
+| `src/main/AppImageIntegration.ts` | AppImage figma:// URL handler registration |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/main/Ui/ThemeManager/index.ts` | Theme loading & management |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
-| `src/renderer/Panel/ipc.svelte` | Panel IPC handlers |
-| `src/renderer/DesktopAPI/webBinding.ts` | Figma web app bridge |
+| `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
+| `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop MessageChannel bridge |
 | `src/renderer/DesktopAPI/ThemesApplier.ts` | Theme injection |
-| `src/utils/Render/defaultSettings.ts` | Default settings definition |
+| `src/utils/Render/defaultSettings.ts` | Default settings — authoritative settings schema |
 | `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
 | `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
 | `config/builder.json` | electron-builder package config |
@@ -331,6 +333,15 @@ When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC *
 ### app.whenReady() not app.on('ready', ...)
 Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('ready', ...)` silently misses the event if registration is delayed (e.g. async startup). `app.whenReady()` resolves immediately if the app is already ready.
 
+### IpcRegistry seal pattern
+`ipcRegistry.seal()` is called in the `App` constructor after all controllers register. Any attempt to register an IPC handler after sealing throws immediately. This catches duplicate registrations and modules that try to add handlers too late. Never call `ipcMain` directly for new handlers — always go through `ipcRegistry`.
+
+### contextBridge channel allowlist
+`window.figmaApi` enforces channel allowlists at runtime. Any `send()`/`invoke()`/`on()` call with an unlisted channel silently no-ops or rejects. When adding a new IPC flow, update the allowlists in `src/main/preload/bridge.ts` (`SEND_CHANNELS`, `RECEIVE_CHANNELS`, or `INVOKE_CHANNELS`).
+
+### EPIPE guard in uncaughtException
+`src/main/index.ts` ignores `EPIPE` errors in the `uncaughtException` handler. Logging an EPIPE through the same broken pipe triggers another EPIPE → infinite loop. This guard is intentional — do not remove it.
+
 ### Branching strategy
 - `dev` — stable main branch, receives merges from `staging` only
 - `staging` — integration branch, all features/fixes target here first
@@ -349,13 +360,14 @@ When modifying the codebase:
    - Update Settings UI if user-configurable
 
 2. **Adding IPC handlers**:
-   - Async: Use `ipcMain.handle()` for request/response
-   - Event: Use `ipcMain.on()` for fire-and-forget
-   - Add renderer listener in appropriate `ipc.ts` file
+   - Create or update a controller in `src/main/controllers/`
+   - Register via `ipcRegistry.on()` or `ipcRegistry.handle()` (never `ipcMain` directly)
+   - Add the channel to the appropriate allowlist in `src/main/preload/bridge.ts`
+   - Call from renderer via `window.figmaApi.send()`, `.invoke()`, or `.on()`
 
 3. **Working with tabs**:
-   - TabManager handles lifecycle
-   - Each tab is a BrowserView
+   - TabManager handles lifecycle; each tab is a `WebContentsView`
+   - Always check `tabManager.getAll().has(id)` before `getById()` on dynamic IDs
    - URL changes propagate to main process for state saving
 
 4. **Modifying themes**:

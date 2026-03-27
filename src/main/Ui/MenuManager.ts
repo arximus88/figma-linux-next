@@ -233,7 +233,7 @@ export default class MenuManager {
   }
   private openExternal(label: string, url: string) {
     return {
-      label,
+      label: `${label} ↗`,
       click() {
         shell.openExternal(url);
       },
@@ -324,7 +324,6 @@ export default class MenuManager {
         this.openExternal("Help Page", LINKS.HELP_PAGE),
         this.openExternal("Plugins documentation", LINKS.PLUGINS_DOCS),
         this.openExternal("GitHub Discussions", LINKS.FIGMA_LINUX_COMMUNITY_FORUM),
-        this.openExternal("Figma Linux Themes", LINKS.THEMES_REPO),
         this.openExternal("Video Tutorials", LINKS.VIDEO_TUTORIALS),
         this.openExternal("Release Notes", LINKS.RELEASE_NOTES),
         this.openExternal("Legal Summary", LINKS.LEGAL_SUMMARY),

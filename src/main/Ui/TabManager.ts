@@ -258,6 +258,14 @@ export default class TabManager {
   public focusCommunityTab() {
     this.lastFocusedTab = this.communityTab.id;
   }
+  public setBoundsForActiveTab(bounds: Rectangle) {
+    this.mainTab.setBounds(bounds);
+    const active = this.getById(this.lastFocusedTab);
+    if (active && active !== this.mainTab) {
+      active.setBounds(bounds);
+    }
+  }
+
   public setBoundsForAllTab(bounds: Rectangle) {
     this.mainTab.setBounds(bounds);
 

@@ -39,7 +39,7 @@ export default class SettingsController {
 
   private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
     if (storage.settings.app.enableColorSpaceSrgb !== settings.app.enableColorSpaceSrgb) {
-      app.emit("enableColorSpaceSrgbWasChanged", true);
+      app.emit("enableColorSpaceSrgbWasChanged", settings.app.enableColorSpaceSrgb);
     }
     if (
       JSON.stringify(storage.settings.app.commandSwitches) !==
