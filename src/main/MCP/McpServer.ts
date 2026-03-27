@@ -23,13 +23,14 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import type { WebContentsView } from "electron";
+import { version as APP_VERSION } from "../../../package.json";
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
 const MCP_PORT = 3845;
 const MCP_HOST = "127.0.0.1";
 const SERVER_NAME = "figma-linux-next";
-const SERVER_VERSION = "0.13.0";
+const SERVER_VERSION = APP_VERSION;
 const PROTOCOL_VERSION = "2025-03-26";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ interface JsonRpcResponse {
 interface McpSession {
   id: string;
   createdAt: number;
+  lastActivity: number;
   sseResponse: http.ServerResponse | null;
   clientInfo?: { name: string; version: string };
 }
@@ -189,16 +191,19 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_variable_defs",
     description:
-      "Returns the variables and styles used in the current Figma selection — colors, " +
-      "spacing, typography tokens, and more. For each variable: name, resolved type, " +
-      "collection name, and values by mode (e.g. Light/Dark). For each style: name, " +
-      "type (PAINT/TEXT/EFFECT/GRID), and description. Supports Figma Design files.",
+      "Returns the variables and styles used in your Figma selection or the entire file. " +
+      "When a node is selected or nodeId is provided, returns only variables/styles bound " +
+      "to those nodes. When nothing is selected and no nodeId is given, returns ALL local " +
+      "variable collections and ALL local styles from the file. For each variable: name, " +
+      "resolved type, collection name, and values by mode (e.g. Light/Dark). For each " +
+      "style: name, type (PAINT/TEXT/EFFECT/GRID), and description. " +
+      "Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
         nodeId: {
           type: "string",
-          description: "Node ID in '1:2' format. Omit to use current selection.",
+          description: "Node ID in '1:2' format. Omit to use current selection or get all file variables.",
         },
       },
     },
@@ -303,6 +308,25 @@ const TOOLS: ToolDefinition[] = [
         },
       },
       required: ["mermaid"],
+    },
+  },
+  {
+    name: "search_design_system",
+    description:
+      "Searches local variables, styles, and components in the current Figma file " +
+      "by text query. Returns matching variables (with values by mode), styles " +
+      "(paint/text/effect/grid), and components. Use this to find existing design " +
+      "system elements before creating new ones. Results capped at 50 per category. " +
+      "Supports Figma Design files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Text to search for in variable, style, and component names.",
+        },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -546,23 +570,80 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 
-    let targetNodes;
+    let targetNodes = null;
+    let fileWideMode = false;
     ${nodeId ? `
       const target = figma.getNodeById("${nodeId}");
       if (!target) return { error: "Node not found: ${nodeId}" };
       targetNodes = [target];
     ` : `
-      targetNodes = figma.currentPage.selection;
-      if (!targetNodes || targetNodes.length === 0) {
-        return { error: "No nodes selected. Select a node in Figma or provide a nodeId." };
+      const sel = figma.currentPage.selection;
+      if (sel && sel.length > 0) {
+        targetNodes = sel;
+      } else {
+        fileWideMode = true;
       }
     `}
 
     const variables = {};
     const styles = {};
 
+    if (fileWideMode) {
+      // Collect ALL local variable collections from the file
+      try {
+        const collections = figma.variables.getLocalVariableCollections();
+        for (const coll of collections) {
+          for (const varId of coll.variableIds) {
+            try {
+              const v = figma.variables.getVariableById(varId);
+              if (v && !variables[v.id]) {
+                const values = {};
+                for (const mode of coll.modes) {
+                  try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+                }
+                variables[v.id] = {
+                  name: v.name,
+                  type: v.resolvedType,
+                  collection: coll.name,
+                  valuesByMode: values,
+                };
+              }
+            } catch(e) {}
+          }
+        }
+      } catch(e) {}
+
+      // Collect ALL local styles from the file
+      const styleFns = [
+        ['PAINT', 'getLocalPaintStyles'],
+        ['TEXT', 'getLocalTextStyles'],
+        ['EFFECT', 'getLocalEffectStyles'],
+        ['GRID', 'getLocalGridStyles'],
+      ];
+      for (const [type, fn] of styleFns) {
+        try {
+          const localStyles = figma[fn]();
+          for (const s of localStyles) {
+            if (!styles[s.id]) {
+              styles[s.id] = {
+                name: s.name,
+                type: type,
+                description: s.description || null,
+              };
+            }
+          }
+        } catch(e) {}
+      }
+
+      return {
+        variables: Object.values(variables),
+        styles: Object.values(styles),
+        source: 'file',
+      };
+    }
+
+    // Selection-based collection
     function collectVariables(node) {
-      // Collect bound variables
       if ('boundVariables' in node && node.boundVariables) {
         for (const [prop, binding] of Object.entries(node.boundVariables)) {
           try {
@@ -578,7 +659,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
                     collection: collection ? collection.name : null,
                     valuesByMode: {},
                   };
-                  // Get values for each mode
                   if (collection) {
                     for (const mode of collection.modes) {
                       try {
@@ -594,7 +674,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
         }
       }
 
-      // Collect applied styles
       const styleProps = ['fillStyleId', 'strokeStyleId', 'textStyleId', 'effectStyleId', 'gridStyleId'];
       for (const prop of styleProps) {
         if (prop in node && node[prop] && typeof node[prop] === 'string') {
@@ -611,7 +690,6 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
         }
       }
 
-      // Recurse
       if ('children' in node) {
         node.children.forEach(collectVariables);
       }
@@ -622,6 +700,7 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
     return {
       variables: Object.values(variables),
       styles: Object.values(styles),
+      source: 'selection',
       nodeCount: targetNodes.length,
     };
   } catch (e) {
@@ -792,21 +871,45 @@ const DESIGN_SYSTEM_RULES_SCRIPT = `
       }
     } catch(e) {}
 
-    // Collect local styles
+    // Collect local styles with full values
     const allStyles = [];
-    const styleTypes = ['PAINT', 'TEXT', 'EFFECT', 'GRID'];
-    for (const type of styleTypes) {
-      try {
-        const localStyles = figma.getLocalPaintStyles ? 
-          (type === 'PAINT' ? figma.getLocalPaintStyles() :
-           type === 'TEXT' ? figma.getLocalTextStyles() :
-           type === 'EFFECT' ? figma.getLocalEffectStyles() :
-           figma.getLocalGridStyles()) : [];
-        for (const s of localStyles) {
-          allStyles.push({ name: s.name, type: type, description: s.description || null });
-        }
-      } catch(e) {}
-    }
+    try {
+      const paintStyles = figma.getLocalPaintStyles ? figma.getLocalPaintStyles() : [];
+      for (const s of paintStyles) {
+        const entry = { name: s.name, type: 'PAINT', description: s.description || null };
+        try { entry.paints = JSON.parse(JSON.stringify(s.paints)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const textStyles = figma.getLocalTextStyles ? figma.getLocalTextStyles() : [];
+      for (const s of textStyles) {
+        const entry = { name: s.name, type: 'TEXT', description: s.description || null };
+        try { entry.fontSize = s.fontSize; } catch(e) {}
+        try { entry.fontName = JSON.parse(JSON.stringify(s.fontName)); } catch(e) {}
+        try { entry.lineHeight = JSON.parse(JSON.stringify(s.lineHeight)); } catch(e) {}
+        try { entry.letterSpacing = JSON.parse(JSON.stringify(s.letterSpacing)); } catch(e) {}
+        try { entry.textDecoration = s.textDecoration; } catch(e) {}
+        try { entry.textCase = s.textCase; } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const effectStyles = figma.getLocalEffectStyles ? figma.getLocalEffectStyles() : [];
+      for (const s of effectStyles) {
+        const entry = { name: s.name, type: 'EFFECT', description: s.description || null };
+        try { entry.effects = JSON.parse(JSON.stringify(s.effects)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
+    try {
+      const gridStyles = figma.getLocalGridStyles ? figma.getLocalGridStyles() : [];
+      for (const s of gridStyles) {
+        const entry = { name: s.name, type: 'GRID', description: s.description || null };
+        try { entry.layoutGrids = JSON.parse(JSON.stringify(s.layoutGrids)); } catch(e) {}
+        allStyles.push(entry);
+      }
+    } catch(e) {}
 
     // Collect component sets (variants)
     const components = [];
@@ -869,6 +972,317 @@ const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
 })()
 `;
 
+const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const q = "${query}".toLowerCase();
+    const results = { variables: [], styles: [], components: [] };
+
+    // Search local variables
+    try {
+      const collections = figma.variables.getLocalVariableCollections();
+      for (const coll of collections) {
+        for (const varId of coll.variableIds) {
+          try {
+            const v = figma.variables.getVariableById(varId);
+            if (v && v.name.toLowerCase().includes(q)) {
+              const values = {};
+              for (const mode of coll.modes) {
+                try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+              }
+              results.variables.push({ name: v.name, type: v.resolvedType, collection: coll.name, valuesByMode: values });
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // Search local styles
+    const styleFns = [
+      ['PAINT', 'getLocalPaintStyles'],
+      ['TEXT', 'getLocalTextStyles'],
+      ['EFFECT', 'getLocalEffectStyles'],
+      ['GRID', 'getLocalGridStyles'],
+    ];
+    for (const [type, fn] of styleFns) {
+      try {
+        const localStyles = figma[fn]();
+        for (const s of localStyles) {
+          if (s.name.toLowerCase().includes(q)) {
+            results.styles.push({ name: s.name, type: type, description: s.description || null });
+          }
+        }
+      } catch(e) {}
+    }
+
+    // Search components on current page
+    function findComponents(node) {
+      if (node.type === 'COMPONENT_SET' && node.name.toLowerCase().includes(q)) {
+        results.components.push({ name: node.name, id: node.id, type: 'COMPONENT_SET' });
+      } else if (node.type === 'COMPONENT' && (!node.parent || node.parent.type !== 'COMPONENT_SET') && node.name.toLowerCase().includes(q)) {
+        results.components.push({ name: node.name, id: node.id, type: 'COMPONENT' });
+      }
+      if ('children' in node && results.components.length < 50) node.children.forEach(findComponents);
+    }
+    figma.currentPage.children.forEach(findComponents);
+
+    results.variables = results.variables.slice(0, 50);
+    results.styles = results.styles.slice(0, 50);
+    results.components = results.components.slice(0, 50);
+
+    return results;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const USE_FIGMA_SCRIPT = (action: string, params: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const params = ${params};
+    const action = "${action}";
+
+    switch (action) {
+      case 'create_frame': {
+        const frame = figma.createFrame();
+        frame.name = params.name || 'New Frame';
+        if (params.x !== undefined) frame.x = params.x;
+        if (params.y !== undefined) frame.y = params.y;
+        if (params.cornerRadius !== undefined) frame.cornerRadius = params.cornerRadius;
+        // Resize BEFORE setting sizing modes — frame.resize() in Figma resets both sizing modes
+        // to FIXED, so it must run first; AUTO/FIXED assignments below then override correctly.
+        if (params.width && params.height) frame.resize(params.width, params.height);
+        // Auto-layout (sizing mode assignments come AFTER resize so they are not clobbered)
+        if (params.layoutMode) { try { frame.layoutMode = params.layoutMode; } catch(e) {} }
+        if (params.layoutMode && params.layoutMode !== 'NONE') {
+          if (params.paddingTop !== undefined) frame.paddingTop = params.paddingTop;
+          if (params.paddingBottom !== undefined) frame.paddingBottom = params.paddingBottom;
+          if (params.paddingLeft !== undefined) frame.paddingLeft = params.paddingLeft;
+          if (params.paddingRight !== undefined) frame.paddingRight = params.paddingRight;
+          if (params.itemSpacing !== undefined) frame.itemSpacing = params.itemSpacing;
+          if (params.primaryAxisAlignItems) { try { frame.primaryAxisAlignItems = params.primaryAxisAlignItems; } catch(e) {} }
+          if (params.counterAxisAlignItems) { try { frame.counterAxisAlignItems = params.counterAxisAlignItems; } catch(e) {} }
+          if (params.primaryAxisSizingMode) { try { frame.primaryAxisSizingMode = params.primaryAxisSizingMode; } catch(e) {} }
+          if (params.counterAxisSizingMode) { try { frame.counterAxisSizingMode = params.counterAxisSizingMode; } catch(e) {} }
+        }
+        if (params.parentNodeId) {
+          const parent = figma.getNodeById(params.parentNodeId);
+          if (parent && 'appendChild' in parent) parent.appendChild(frame);
+        }
+        // Apply fills/strokes after reparenting — appendChild resets fills to frame default
+        if (params.fills) { try { frame.fills = params.fills; } catch(e) {} }
+        if (params.strokes) { try { frame.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined) frame.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign) { try { frame.strokeAlign = params.strokeAlign; } catch(e) {} }
+        figma.currentPage.selection = [frame];
+        figma.viewport.scrollAndZoomIntoView([frame]);
+        return { success: true, nodeId: frame.id, name: frame.name, type: 'FRAME' };
+      }
+      case 'create_text': {
+        const text = figma.createText();
+        text.name = params.name || 'New Text';
+        if (params.x !== undefined) text.x = params.x;
+        if (params.y !== undefined) text.y = params.y;
+        const family = params.fontFamily || 'Inter';
+        const style = params.fontStyle || 'Regular';
+        // Always load Regular first — new text nodes start with the default Regular font.
+        // Without this, setting characters on a Bold node throws "Inter Regular unloaded".
+        const fontLoads = [figma.loadFontAsync({ family, style: 'Regular' })];
+        if (style !== 'Regular') fontLoads.push(figma.loadFontAsync({ family, style }));
+        return Promise.all(fontLoads).then(() => {
+          text.characters = params.characters || 'Text';
+          if (params.fontSize) text.fontSize = params.fontSize;
+          if (style !== 'Regular') { try { text.fontName = { family, style }; } catch(e) {} }
+          if (params.parentNodeId) {
+            const parent = figma.getNodeById(params.parentNodeId);
+            if (parent && 'appendChild' in parent) parent.appendChild(text);
+          }
+          // Apply fills after reparenting — appendChild resets fills
+          if (params.fills) { try { text.fills = params.fills; } catch(e) {} }
+          figma.currentPage.selection = [text];
+          return { success: true, nodeId: text.id, name: text.name, type: 'TEXT' };
+        });
+      }
+      case 'create_rectangle': {
+        const rect = figma.createRectangle();
+        rect.name = params.name || 'New Rectangle';
+        rect.resize(params.width || 100, params.height || 100);
+        if (params.x !== undefined) rect.x = params.x;
+        if (params.y !== undefined) rect.y = params.y;
+        if (params.cornerRadius !== undefined) rect.cornerRadius = params.cornerRadius;
+        if (params.parentNodeId) {
+          const parent = figma.getNodeById(params.parentNodeId);
+          if (parent && 'appendChild' in parent) parent.appendChild(rect);
+        }
+        // Apply fills/strokes after reparenting — appendChild resets fills to frame default
+        if (params.fills) { try { rect.fills = params.fills; } catch(e) {} }
+        if (params.strokes) { try { rect.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined) rect.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign) { try { rect.strokeAlign = params.strokeAlign; } catch(e) {} }
+        figma.currentPage.selection = [rect];
+        return { success: true, nodeId: rect.id, name: rect.name, type: 'RECTANGLE' };
+      }
+      case 'reparent_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        if (!params.parentNodeId) return { error: 'parentNodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        const parent = figma.getNodeById(params.parentNodeId);
+        if (!parent) return { error: 'Parent not found: ' + params.parentNodeId };
+        if (!('appendChild' in parent)) return { error: 'Parent cannot have children' };
+        parent.appendChild(node);
+        return { success: true, nodeId: node.id, name: node.name, parentId: parent.id };
+      }
+      case 'update_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        if (params.name !== undefined) node.name = params.name;
+        if (params.visible !== undefined) node.visible = params.visible;
+        if (params.opacity !== undefined && 'opacity' in node) node.opacity = params.opacity;
+        if (params.x !== undefined && 'x' in node) node.x = params.x;
+        if (params.y !== undefined && 'y' in node) node.y = params.y;
+        if (params.width !== undefined && params.height !== undefined && 'resize' in node) node.resize(params.width, params.height);
+        if (params.fills && 'fills' in node) { try { node.fills = params.fills; } catch(e) {} }
+        if (params.strokes && 'strokes' in node) { try { node.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined && 'strokeWeight' in node) node.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign && 'strokeAlign' in node) { try { node.strokeAlign = params.strokeAlign; } catch(e) {} }
+        if (params.cornerRadius !== undefined && 'cornerRadius' in node) node.cornerRadius = params.cornerRadius;
+        // Auto-layout (frames only)
+        if (node.type === 'FRAME') {
+          if (params.layoutMode) { try { node.layoutMode = params.layoutMode; } catch(e) {} }
+          if (params.paddingTop !== undefined) node.paddingTop = params.paddingTop;
+          if (params.paddingBottom !== undefined) node.paddingBottom = params.paddingBottom;
+          if (params.paddingLeft !== undefined) node.paddingLeft = params.paddingLeft;
+          if (params.paddingRight !== undefined) node.paddingRight = params.paddingRight;
+          if (params.itemSpacing !== undefined) node.itemSpacing = params.itemSpacing;
+          if (params.primaryAxisAlignItems) { try { node.primaryAxisAlignItems = params.primaryAxisAlignItems; } catch(e) {} }
+          if (params.counterAxisAlignItems) { try { node.counterAxisAlignItems = params.counterAxisAlignItems; } catch(e) {} }
+          if (params.primaryAxisSizingMode) { try { node.primaryAxisSizingMode = params.primaryAxisSizingMode; } catch(e) {} }
+          if (params.counterAxisSizingMode) { try { node.counterAxisSizingMode = params.counterAxisSizingMode; } catch(e) {} }
+        }
+        if (params.characters !== undefined && node.type === 'TEXT') {
+          return figma.loadFontAsync(node.fontName || { family: 'Inter', style: 'Regular' }).then(() => {
+            node.characters = params.characters;
+            return { success: true, nodeId: node.id, name: node.name };
+          });
+        }
+        return { success: true, nodeId: node.id, name: node.name };
+      }
+      case 'delete_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        const name = node.name;
+        node.remove();
+        return { success: true, deleted: params.nodeId, name: name };
+      }
+      case 'set_variable': {
+        if (!params.name || !params.collectionName) return { error: 'name and collectionName are required' };
+        let collection = null;
+        try {
+          const colls = figma.variables.getLocalVariableCollections();
+          collection = colls.find(c => c.name === params.collectionName);
+        } catch(e) {}
+        if (!collection) {
+          collection = figma.variables.createVariableCollection(params.collectionName);
+        }
+        const resolvedType = params.resolvedType || 'COLOR';
+        const variable = figma.variables.createVariable(params.name, collection, resolvedType);
+        if (params.value !== undefined) {
+          const modeId = collection.modes[0].modeId;
+          variable.setValueForMode(modeId, params.value);
+        }
+        return { success: true, variableId: variable.id, name: variable.name, collection: collection.name };
+      }
+      default:
+        return { error: 'Unknown action: ' + action };
+    }
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+const CREATE_PAGE_SCRIPT = (pageName: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available" };
+    const page = figma.createPage();
+    page.name = "${pageName}";
+    figma.currentPage = page;
+    return { success: true, pageId: page.id, pageName: page.name };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── Write Tool Definitions (gated by settings) ──────────────────────────────
+
+const WRITE_TOOLS: ToolDefinition[] = [
+  {
+    name: "use_figma",
+    description:
+      "General-purpose tool for creating, editing, or deleting objects in a Figma file. " +
+      "Accepts an action and params object. Supported actions: create_frame, create_text, " +
+      "create_rectangle, update_node, delete_node, set_variable, reparent_node. " +
+      "All create actions accept an optional parentNodeId to place the node inside a frame. " +
+      "create_text accepts fills to set text color at creation time. " +
+      "Use get_metadata first to discover node IDs before updating or deleting. " +
+      "⚠ This is a WRITE tool that modifies the file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          description:
+            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable, reparent_node.",
+          enum: ["create_frame", "create_text", "create_rectangle", "update_node", "delete_node", "set_variable", "reparent_node"],
+        },
+        params: {
+          type: "object",
+          description:
+            "Parameters for the action. " +
+            "For create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId; " +
+            "auto-layout: layoutMode (HORIZONTAL|VERTICAL), paddingTop/Bottom/Left/Right, itemSpacing, primaryAxisAlignItems (MIN|CENTER|MAX|SPACE_BETWEEN), counterAxisAlignItems (MIN|CENTER|MAX), primaryAxisSizingMode (FIXED|AUTO), counterAxisSizingMode (FIXED|AUTO). " +
+            "For create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
+            "For create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
+            "For update_node: nodeId (required), plus any: name, x, y, width, height, fills, strokes, strokeWeight, strokeAlign, cornerRadius, characters, opacity, visible, layoutMode, padding*, itemSpacing, primaryAxisAlignItems, counterAxisAlignItems, primaryAxisSizingMode, counterAxisSizingMode. " +
+            "For delete_node: nodeId (required). " +
+            "For reparent_node: nodeId (required), parentNodeId (required). " +
+            "For set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
+        },
+      },
+      required: ["action", "params"],
+    },
+  },
+  {
+    name: "create_new_file",
+    description:
+      "Creates a new page in the current Figma file and navigates to it. " +
+      "Note: the Figma Plugin API within the renderer cannot create separate files — " +
+      "this tool creates a new page as the closest equivalent. " +
+      "⚠ This is a WRITE tool that modifies the file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Name for the new page.",
+        },
+      },
+      required: ["name"],
+    },
+  },
+];
+
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
 export class McpServer {
@@ -879,6 +1293,8 @@ export class McpServer {
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private _isRunning = false;
+  private _sessionReaper: ReturnType<typeof setInterval> | null = null;
+  private _writeToolsEnabled = false;
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
@@ -892,6 +1308,26 @@ export class McpServer {
   public setViewProvider(provider: FigmaViewProvider): void {
     this.viewProvider = provider;
     this.log.info("View provider attached");
+  }
+
+  /** Enable or disable write tools and notify connected clients. */
+  public setWriteToolsEnabled(enabled: boolean): void {
+    if (this._writeToolsEnabled === enabled) return;
+    this._writeToolsEnabled = enabled;
+    this.log.info(`MCP write tools ${enabled ? "enabled" : "disabled"}`);
+
+    // Send tools/list_changed notification to all active SSE sessions
+    const notification = JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/tools/list_changed",
+    });
+    for (const [, session] of this.sessions) {
+      if (session.sseResponse && !session.sseResponse.destroyed) {
+        try {
+          session.sseResponse.write(`event: message\ndata: ${notification}\n\n`);
+        } catch { /* ignore */ }
+      }
+    }
   }
 
   /** Start the HTTP server. */
@@ -917,6 +1353,17 @@ export class McpServer {
       this.server.listen(port, host, () => {
         this._isRunning = true;
         this.log.info(`MCP server running at http://${host}:${port}/mcp`);
+        // Reap sessions idle for more than 30 minutes
+        this._sessionReaper = setInterval(() => {
+          const cutoff = Date.now() - 30 * 60 * 1000;
+          for (const [id, session] of this.sessions) {
+            if (session.lastActivity < cutoff) {
+              if (session.sseResponse) { try { session.sseResponse.end(); } catch { /* ignore */ } }
+              this.sessions.delete(id);
+              this.log.info("Session reaped (idle 30m):", id);
+            }
+          }
+        }, 5 * 60 * 1000);
         resolve({ didStart: true, port });
       });
     });
@@ -930,6 +1377,11 @@ export class McpServer {
         try { session.sseResponse.end(); } catch { /* ignore */ }
       }
       this.sessions.delete(id);
+    }
+
+    if (this._sessionReaper) {
+      clearInterval(this._sessionReaper);
+      this._sessionReaper = null;
     }
 
     if (this.server) {
@@ -960,18 +1412,6 @@ export class McpServer {
     if (req.method === "OPTIONS") {
       res.writeHead(204, this.cors());
       res.end();
-      return;
-    }
-
-    // OAuth discovery — tell clients no auth is required on this local server.
-    if (req.url === "/.well-known/oauth-authorization-server" || req.url === "/.well-known/oauth-protected-resource") {
-      this.sendJson(res, 200, {
-        issuer: `http://${MCP_HOST}:${MCP_PORT}`,
-        authorization_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/authorize`,
-        token_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/token`,
-        scopes_supported: [],
-        response_types_supported: [],
-      });
       return;
     }
 
@@ -1028,6 +1468,19 @@ export class McpServer {
       return;
     }
 
+    // DELETE → terminate session (MCP spec 2025-03-26)
+    if (req.method === "DELETE") {
+      if (sessionId && this.sessions.has(sessionId)) {
+        const s = this.sessions.get(sessionId)!;
+        if (s.sseResponse) { try { s.sseResponse.end(); } catch { /* ignore */ } }
+        this.sessions.delete(sessionId);
+        this.log.info("Session terminated by client:", sessionId);
+      }
+      res.writeHead(200, this.cors());
+      res.end();
+      return;
+    }
+
     if (req.method !== "POST") {
       res.writeHead(405, this.cors());
       res.end();
@@ -1058,9 +1511,11 @@ export class McpServer {
         return;
       }
       const newSessionId = crypto.randomUUID();
+      const now = Date.now();
       this.sessions.set(newSessionId, {
         id: newSessionId,
-        createdAt: Date.now(),
+        createdAt: now,
+        lastActivity: now,
         sseResponse: null,
         clientInfo: body.params?.clientInfo as any,
       });
@@ -1095,6 +1550,9 @@ export class McpServer {
       return;
     }
 
+    // Touch last-activity so the TTL reaper doesn't evict active sessions
+    this.sessions.get(sessionId)!.lastActivity = Date.now();
+
     const response = await this.handleJsonRpc(body);
     res.writeHead(200, { "Content-Type": "application/json", ...this.cors() });
     res.end(JSON.stringify(response));
@@ -1108,6 +1566,7 @@ export class McpServer {
     this.sessions.set(sessionId, {
       id: sessionId,
       createdAt: Date.now(),
+      lastActivity: Date.now(),
       sseResponse: res,
     });
 
@@ -1188,8 +1647,10 @@ export class McpServer {
           },
         };
 
-      case "tools/list":
-        return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
+      case "tools/list": {
+        const allTools = this._writeToolsEnabled ? [...TOOLS, ...WRITE_TOOLS] : TOOLS;
+        return { jsonrpc: "2.0", id, result: { tools: allTools } };
+      }
 
       case "tools/call": {
         const toolName = msg.params?.name as string;
@@ -1239,6 +1700,14 @@ export class McpServer {
           return await this.toolGetFigjam(args);
         case "generate_diagram":
           return await this.toolGenerateDiagram(args);
+        case "search_design_system":
+          return await this.toolSearchDesignSystem(args);
+        case "use_figma":
+          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          return await this.toolUseFigma(args);
+        case "create_new_file":
+          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          return await this.toolCreateNewFile(args);
         default:
           return this.toolError(`Unknown tool: ${name}`);
       }
@@ -1673,6 +2142,40 @@ export class McpServer {
     );
 
     return this.toolResult(lines.join("\n"));
+  }
+
+  // ── Tool: search_design_system ──────────────────────────────────────────
+
+  private async toolSearchDesignSystem(args: Record<string, unknown>) {
+    const query = (args.query as string) || "";
+    if (!query) return this.toolError("query is required");
+
+    const result = await this.viewProvider!.executeInBrowserView(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: use_figma (write) ─────────────────────────────────────────────
+
+  private async toolUseFigma(args: Record<string, unknown>) {
+    const action = args.action as string;
+    const params = args.params as Record<string, unknown>;
+    if (!action) return this.toolError("action is required");
+    if (!params) return this.toolError("params is required");
+
+    const paramsJson = JSON.stringify(params);
+    const result = await this.viewProvider!.executeInBrowserView(USE_FIGMA_SCRIPT(action, paramsJson));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
+  }
+
+  // ── Tool: create_new_file (create page, write) ──────────────────────────
+
+  private async toolCreateNewFile(args: Record<string, unknown>) {
+    const name = (args.name as string) || "Untitled Page";
+    const result = await this.viewProvider!.executeInBrowserView(CREATE_PAGE_SCRIPT(name));
+    if (result?.error) return this.toolError(result.error);
+    return this.toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Asset Serving ────────────────────────────────────────────────────────

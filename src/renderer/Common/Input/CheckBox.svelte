@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { text, checked = $bindable(), checkSize = "14px", checkWidth = "30px", checkBorder = "1px", description = "" } = $props();
+  let { text, checked = $bindable(), checkSize = "14px", checkWidth = "30px", checkBorder = "1px", description = "", badge = "" } = $props();
 </script>
 
 <div
@@ -11,7 +11,7 @@
 >
   <label>
     <input bind:checked type="checkbox" />
-    <span>{text}</span>
+    <span>{text}{#if badge} <span class="badge">{badge}</span>{/if}</span>
   </label>
   {#if description}
     <span class="info-icon" data-tooltip={description} aria-label={description}>i</span>
@@ -86,6 +86,20 @@
 
   div > label > input[type="checkbox"] {
     display: none;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    margin-left: 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background-color: var(--accent-muted, rgba(24, 160, 251, 0.15));
+    color: var(--accent, #18a0fb);
+    vertical-align: middle;
   }
 
   /* Info icon */

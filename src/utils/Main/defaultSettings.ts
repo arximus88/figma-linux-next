@@ -34,6 +34,11 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     savedExtensions: [],
     figmaTheme: "dark" as "dark" | "light",
   },
+  mcp: {
+    enableWriteTools: false,
+    cdpEnabled: false,
+    remoteDebugPort: 9222,
+  },
   ui: {
     scalePanel: 1,
     scaleFigmaUI: 1,

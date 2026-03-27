@@ -95,6 +95,7 @@ export default class App {
       },
     };
     this.mcpServer.setViewProvider(viewProvider);
+    this.mcpServer.setWriteToolsEnabled(!!storage.settings.mcp?.enableWriteTools);
     this.mcpServer.start();
 
     setTimeout(() => {
@@ -185,6 +186,7 @@ export default class App {
     } else {
       app.commandLine.appendSwitch("disable-color-correct-rendering");
     }
+
   }
 
   private applyDefaultOptimizations(isWayland: boolean, userForcesVulkan: boolean) {
@@ -272,5 +274,8 @@ export default class App {
     app.on("relaunchApp", this.relaunchApp.bind(this));
     app.on("signOut", () => this.authController.logout());
     app.on("quitApp", this.quitApp.bind(this));
+    app.on("mcpWriteToolsChanged", (enabled: boolean) => {
+      this.mcpServer.setWriteToolsEnabled(enabled);
+    });
   };
 }

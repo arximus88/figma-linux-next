@@ -102,6 +102,11 @@ declare namespace Types {
       lastExportDir?: string;
       figmaTheme?: "dark" | "light";
     };
+    mcp: {
+      enableWriteTools: boolean;
+      cdpEnabled: boolean;
+      remoteDebugPort: number;
+    };
     ui: {
       scalePanel: number;
       scaleFigmaUI: number;
