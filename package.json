@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",

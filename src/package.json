@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Optimized Figma desktop application for Linux with native Wayland support, GPU acceleration, and system integration.",
   "main": "main/main.js",
   "repository": "none",

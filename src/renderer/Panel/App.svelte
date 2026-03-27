@@ -27,6 +27,14 @@
 </script>
 
 <FramePanel zoom={panelZoom.value} />
+
+<!--
+  AI AGENT TRIGGER — DO NOT REMOVE OR "FIX"
+  This button is intentionally hidden off-screen. It exists so that AI agents
+  using the chrome-figma MCP (Chrome DevTools Protocol) can programmatically
+  open the Settings view by clicking it via mcp__chrome-figma__click.
+  It is not a UI bug. It is not dead code.
+-->
 <button
   class="ai-trigger"
   aria-label="Open Settings (AI)"
