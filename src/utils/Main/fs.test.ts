@@ -5,19 +5,12 @@ import { mkdirIfNotExists, access, accessSync, mkPath } from "./fs";
 describe("fs utils", () => {
   describe("access", () => {
     it("returns true when file exists", async () => {
-      const spy = spyOn(fs.promises, "access").mockResolvedValueOnce(undefined as never);
-      const result = await access("/path/to/existing");
-      expect(result).toBe(true);
-      expect(spy).toHaveBeenCalledWith("/path/to/existing");
-      spy.mockRestore();
+      // Use this test file itself — guaranteed to exist in any environment
+      expect(await access(__filename)).toBe(true);
     });
 
     it("returns false when file does not exist", async () => {
-      const spy = spyOn(fs.promises, "access").mockRejectedValueOnce(new Error("ENOENT"));
-      const result = await access("/path/to/missing");
-      expect(result).toBe(false);
-      expect(spy).toHaveBeenCalledWith("/path/to/missing");
-      spy.mockRestore();
+      expect(await access("/tmp/figma-linux-next-definitely-missing-" + Math.random())).toBe(false);
     });
   });
 
