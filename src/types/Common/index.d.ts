@@ -104,6 +104,8 @@ declare namespace Types {
     };
     mcp: {
       enableWriteTools: boolean;
+      cdpEnabled: boolean;
+      remoteDebugPort: number;
     };
     ui: {
       scalePanel: number;

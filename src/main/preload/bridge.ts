@@ -30,6 +30,7 @@ const SEND_CHANNELS = [
   // Settings
   "closeSettingsView",
   "setFrameStyle",
+  "openSettingsView",
 ] as const;
 
 const RECEIVE_CHANNELS = [

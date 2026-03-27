@@ -104,6 +104,25 @@
     }
   });
 
+  let copied = $state(false);
+
+  let mcpSnippet = $derived.by(() => {
+    const port = $settings.mcp.remoteDebugPort ?? 9222;
+    const cdpEnabled = $settings.mcp.cdpEnabled ?? false;
+    const cdpEntry =
+      cdpEnabled && port > 0
+        ? `,\n    "chrome-figma": {\n      "type": "stdio",\n      "command": "npx",\n      "args": ["chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:${port}"]\n    }`
+        : "";
+    return `{\n  "mcpServers": {\n    "figma-linux-next": {\n      "type": "http",\n      "url": "http://127.0.0.1:3845/mcp"\n    }${cdpEntry}\n  }\n}`;
+  });
+
+  function copyMcpSnippet() {
+    navigator.clipboard.writeText(mcpSnippet).then(() => {
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    });
+  }
+
   function onFrameStyleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const newStyle = target.value as Types.FrameStyle;
@@ -118,7 +137,7 @@
   }
 </script>
 
-<div style={`z-index: ${zIndex}; height: ${bodyHeight}px;`}>
+<div class="settings-root" style={`z-index: ${zIndex}; height: ${bodyHeight}px;`}>
   <Flex>
     <Flex der="column" width="-webkit-fill-available">
       <Label>Scale UI</Label>
@@ -161,16 +180,6 @@
       />
 
       <Flex height="16px" />
-      <Label>MCP Server</Label>
-      <CheckBox
-        bind:checked={$settings.mcp.enableWriteTools}
-        text="Enable MCP Write Tools"
-        description="Allow AI assistants to create and modify objects in your Figma files. Disabled by default — LLMs can make unintended changes. Requires MCP client reconnect."
-      />
-
-
-      <Flex height="16px" />
-      <Flex height="16px" />
       <Label>Window Frame Style</Label>
       <select
         class="frame-style-select"
@@ -181,6 +190,32 @@
           <option value={style.value} disabled={style.disabled}>{style.label}</option>
         {/each}
       </select>
+
+      <Flex height="16px" />
+      <Label>MCP Server</Label>
+      <CheckBox
+        bind:checked={$settings.mcp.enableWriteTools}
+        text="Enable MCP Write Tools"
+        badge="Experimental"
+        description="Allow AI assistants to create and modify objects in your Figma files. Disabled by default — LLMs can make unintended changes. Requires MCP client reconnect."
+      />
+      <CheckBox
+        bind:checked={$settings.mcp.cdpEnabled}
+        text="Enable Chrome DevTools Protocol (CDP)"
+        description="Enables remote debugging on the port below. Required for chrome-figma MCP in Claude Code. Requires restart."
+      />
+
+      <Flex height="12px" />
+      <div class="port-row">
+        <span class="port-label">CDP Port</span>
+        <input
+          class="port-input"
+          type="number"
+          min="1024"
+          max="65535"
+          bind:value={$settings.mcp.remoteDebugPort}
+        />
+      </div>
     </Flex>
     <Flex width="120px" />
     <Flex der="column" width="-webkit-fill-available">
@@ -198,6 +233,19 @@
       </Flex>
     </Flex>
   </Flex>
+
+  <Flex height="24px" />
+  <Label>Claude Code MCP — .mcp.json</Label>
+  <Flex height="8px" />
+  <div class="mcp-snippet">
+    <div class="mcp-snippet-header">
+      <span class="mcp-snippet-title">Copy into your project's .mcp.json → mcpServers</span>
+      <button class="copy-btn" onclick={copyMcpSnippet}>
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
+    <pre class="mcp-snippet-code">{mcpSnippet}</pre>
+  </div>
 
   <Flex height="50px" />
   <Line />
@@ -231,7 +279,7 @@
 </div>
 
 <style>
-  div {
+  .settings-root {
     position: absolute;
     background-color: var(--bg-panel);
     width: -webkit-fill-available;
@@ -270,5 +318,89 @@
     background-color: var(--bg-panel);
     color: var(--text);
     padding: 8px;
+  }
+
+  .port-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .port-label {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .port-input {
+    width: 110px;
+    padding: 6px 10px;
+    background-color: var(--bg-item, var(--bg-panel));
+    color: var(--text);
+    border: 1px solid var(--borders);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: "Inter", sans-serif;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .port-input:focus {
+    border-color: var(--accent, #18a0fb);
+    box-shadow: 0 0 0 2px var(--accent-transparent, rgba(24, 160, 251, 0.15));
+  }
+
+  .mcp-snippet {
+    margin-top: 12px;
+    border: 1px solid var(--borders);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .mcp-snippet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background-color: var(--bg-item, var(--bg-panel));
+    border-bottom: 1px solid var(--borders);
+  }
+
+  .mcp-snippet-title {
+    font-size: 11px;
+    color: var(--text-disabled);
+    font-family: "Inter", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .copy-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--borders);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-family: "Inter", sans-serif;
+    transition: background-color 0.15s ease;
+  }
+
+  .copy-btn:hover {
+    background-color: var(--bg-item-hover, rgba(255, 255, 255, 0.06));
+  }
+
+  .mcp-snippet-code {
+    margin: 0;
+    padding: 12px;
+    font-size: 11px;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    color: var(--text);
+    background-color: var(--bg-panel);
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    tab-size: 2;
   }
 </style>

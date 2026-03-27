@@ -209,6 +209,7 @@ export default class WindowManager {
     ipcRegistry.on("setTabFocus", this.setTabFocus.bind(this), "WindowManager");
     ipcRegistry.on("closeAllTab", this.closeAllTab.bind(this), "WindowManager");
     ipcRegistry.on("setLoading", this.setLoading.bind(this), "WindowManager");
+    ipcRegistry.on("openSettingsView", this.openSettingsView.bind(this), "WindowManager");
 
     // Community tab
     ipcRegistry.on("closeCommunityTab", this.closeCommunityTab.bind(this), "WindowManager");

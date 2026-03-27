@@ -23,13 +23,14 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import type { WebContentsView } from "electron";
+import { version as APP_VERSION } from "../../../package.json";
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
 const MCP_PORT = 3845;
 const MCP_HOST = "127.0.0.1";
 const SERVER_NAME = "figma-linux-next";
-const SERVER_VERSION = "0.13.0";
+const SERVER_VERSION = APP_VERSION;
 const PROTOCOL_VERSION = "2025-03-26";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ interface JsonRpcResponse {
 interface McpSession {
   id: string;
   createdAt: number;
+  lastActivity: number;
   sseResponse: http.ServerResponse | null;
   clientInfo?: { name: string; version: string };
 }
@@ -1049,12 +1051,34 @@ const USE_FIGMA_SCRIPT = (action: string, params: string) => `
       case 'create_frame': {
         const frame = figma.createFrame();
         frame.name = params.name || 'New Frame';
-        frame.resize(params.width || 400, params.height || 300);
         if (params.x !== undefined) frame.x = params.x;
         if (params.y !== undefined) frame.y = params.y;
-        if (params.fills) {
-          try { frame.fills = params.fills; } catch(e) {}
+        if (params.cornerRadius !== undefined) frame.cornerRadius = params.cornerRadius;
+        // Resize BEFORE setting sizing modes — frame.resize() in Figma resets both sizing modes
+        // to FIXED, so it must run first; AUTO/FIXED assignments below then override correctly.
+        if (params.width && params.height) frame.resize(params.width, params.height);
+        // Auto-layout (sizing mode assignments come AFTER resize so they are not clobbered)
+        if (params.layoutMode) { try { frame.layoutMode = params.layoutMode; } catch(e) {} }
+        if (params.layoutMode && params.layoutMode !== 'NONE') {
+          if (params.paddingTop !== undefined) frame.paddingTop = params.paddingTop;
+          if (params.paddingBottom !== undefined) frame.paddingBottom = params.paddingBottom;
+          if (params.paddingLeft !== undefined) frame.paddingLeft = params.paddingLeft;
+          if (params.paddingRight !== undefined) frame.paddingRight = params.paddingRight;
+          if (params.itemSpacing !== undefined) frame.itemSpacing = params.itemSpacing;
+          if (params.primaryAxisAlignItems) { try { frame.primaryAxisAlignItems = params.primaryAxisAlignItems; } catch(e) {} }
+          if (params.counterAxisAlignItems) { try { frame.counterAxisAlignItems = params.counterAxisAlignItems; } catch(e) {} }
+          if (params.primaryAxisSizingMode) { try { frame.primaryAxisSizingMode = params.primaryAxisSizingMode; } catch(e) {} }
+          if (params.counterAxisSizingMode) { try { frame.counterAxisSizingMode = params.counterAxisSizingMode; } catch(e) {} }
         }
+        if (params.parentNodeId) {
+          const parent = figma.getNodeById(params.parentNodeId);
+          if (parent && 'appendChild' in parent) parent.appendChild(frame);
+        }
+        // Apply fills/strokes after reparenting — appendChild resets fills to frame default
+        if (params.fills) { try { frame.fills = params.fills; } catch(e) {} }
+        if (params.strokes) { try { frame.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined) frame.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign) { try { frame.strokeAlign = params.strokeAlign; } catch(e) {} }
         figma.currentPage.selection = [frame];
         figma.viewport.scrollAndZoomIntoView([frame]);
         return { success: true, nodeId: frame.id, name: frame.name, type: 'FRAME' };
@@ -1064,9 +1088,22 @@ const USE_FIGMA_SCRIPT = (action: string, params: string) => `
         text.name = params.name || 'New Text';
         if (params.x !== undefined) text.x = params.x;
         if (params.y !== undefined) text.y = params.y;
-        return figma.loadFontAsync({ family: params.fontFamily || 'Inter', style: params.fontStyle || 'Regular' }).then(() => {
+        const family = params.fontFamily || 'Inter';
+        const style = params.fontStyle || 'Regular';
+        // Always load Regular first — new text nodes start with the default Regular font.
+        // Without this, setting characters on a Bold node throws "Inter Regular unloaded".
+        const fontLoads = [figma.loadFontAsync({ family, style: 'Regular' })];
+        if (style !== 'Regular') fontLoads.push(figma.loadFontAsync({ family, style }));
+        return Promise.all(fontLoads).then(() => {
           text.characters = params.characters || 'Text';
           if (params.fontSize) text.fontSize = params.fontSize;
+          if (style !== 'Regular') { try { text.fontName = { family, style }; } catch(e) {} }
+          if (params.parentNodeId) {
+            const parent = figma.getNodeById(params.parentNodeId);
+            if (parent && 'appendChild' in parent) parent.appendChild(text);
+          }
+          // Apply fills after reparenting — appendChild resets fills
+          if (params.fills) { try { text.fills = params.fills; } catch(e) {} }
           figma.currentPage.selection = [text];
           return { success: true, nodeId: text.id, name: text.name, type: 'TEXT' };
         });
@@ -1077,12 +1114,29 @@ const USE_FIGMA_SCRIPT = (action: string, params: string) => `
         rect.resize(params.width || 100, params.height || 100);
         if (params.x !== undefined) rect.x = params.x;
         if (params.y !== undefined) rect.y = params.y;
-        if (params.fills) {
-          try { rect.fills = params.fills; } catch(e) {}
-        }
         if (params.cornerRadius !== undefined) rect.cornerRadius = params.cornerRadius;
+        if (params.parentNodeId) {
+          const parent = figma.getNodeById(params.parentNodeId);
+          if (parent && 'appendChild' in parent) parent.appendChild(rect);
+        }
+        // Apply fills/strokes after reparenting — appendChild resets fills to frame default
+        if (params.fills) { try { rect.fills = params.fills; } catch(e) {} }
+        if (params.strokes) { try { rect.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined) rect.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign) { try { rect.strokeAlign = params.strokeAlign; } catch(e) {} }
         figma.currentPage.selection = [rect];
         return { success: true, nodeId: rect.id, name: rect.name, type: 'RECTANGLE' };
+      }
+      case 'reparent_node': {
+        if (!params.nodeId) return { error: 'nodeId is required' };
+        if (!params.parentNodeId) return { error: 'parentNodeId is required' };
+        const node = figma.getNodeById(params.nodeId);
+        if (!node) return { error: 'Node not found: ' + params.nodeId };
+        const parent = figma.getNodeById(params.parentNodeId);
+        if (!parent) return { error: 'Parent not found: ' + params.parentNodeId };
+        if (!('appendChild' in parent)) return { error: 'Parent cannot have children' };
+        parent.appendChild(node);
+        return { success: true, nodeId: node.id, name: node.name, parentId: parent.id };
       }
       case 'update_node': {
         if (!params.nodeId) return { error: 'nodeId is required' };
@@ -1095,7 +1149,23 @@ const USE_FIGMA_SCRIPT = (action: string, params: string) => `
         if (params.y !== undefined && 'y' in node) node.y = params.y;
         if (params.width !== undefined && params.height !== undefined && 'resize' in node) node.resize(params.width, params.height);
         if (params.fills && 'fills' in node) { try { node.fills = params.fills; } catch(e) {} }
+        if (params.strokes && 'strokes' in node) { try { node.strokes = params.strokes; } catch(e) {} }
+        if (params.strokeWeight !== undefined && 'strokeWeight' in node) node.strokeWeight = params.strokeWeight;
+        if (params.strokeAlign && 'strokeAlign' in node) { try { node.strokeAlign = params.strokeAlign; } catch(e) {} }
         if (params.cornerRadius !== undefined && 'cornerRadius' in node) node.cornerRadius = params.cornerRadius;
+        // Auto-layout (frames only)
+        if (node.type === 'FRAME') {
+          if (params.layoutMode) { try { node.layoutMode = params.layoutMode; } catch(e) {} }
+          if (params.paddingTop !== undefined) node.paddingTop = params.paddingTop;
+          if (params.paddingBottom !== undefined) node.paddingBottom = params.paddingBottom;
+          if (params.paddingLeft !== undefined) node.paddingLeft = params.paddingLeft;
+          if (params.paddingRight !== undefined) node.paddingRight = params.paddingRight;
+          if (params.itemSpacing !== undefined) node.itemSpacing = params.itemSpacing;
+          if (params.primaryAxisAlignItems) { try { node.primaryAxisAlignItems = params.primaryAxisAlignItems; } catch(e) {} }
+          if (params.counterAxisAlignItems) { try { node.counterAxisAlignItems = params.counterAxisAlignItems; } catch(e) {} }
+          if (params.primaryAxisSizingMode) { try { node.primaryAxisSizingMode = params.primaryAxisSizingMode; } catch(e) {} }
+          if (params.counterAxisSizingMode) { try { node.counterAxisSizingMode = params.counterAxisSizingMode; } catch(e) {} }
+        }
         if (params.characters !== undefined && node.type === 'TEXT') {
           return figma.loadFontAsync(node.fontName || { family: 'Inter', style: 'Regular' }).then(() => {
             node.characters = params.characters;
@@ -1162,7 +1232,9 @@ const WRITE_TOOLS: ToolDefinition[] = [
     description:
       "General-purpose tool for creating, editing, or deleting objects in a Figma file. " +
       "Accepts an action and params object. Supported actions: create_frame, create_text, " +
-      "create_rectangle, update_node, delete_node, set_variable. " +
+      "create_rectangle, update_node, delete_node, set_variable, reparent_node. " +
+      "All create actions accept an optional parentNodeId to place the node inside a frame. " +
+      "create_text accepts fills to set text color at creation time. " +
       "Use get_metadata first to discover node IDs before updating or deleting. " +
       "⚠ This is a WRITE tool that modifies the file.",
     inputSchema: {
@@ -1171,16 +1243,20 @@ const WRITE_TOOLS: ToolDefinition[] = [
         action: {
           type: "string",
           description:
-            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable.",
-          enum: ["create_frame", "create_text", "create_rectangle", "update_node", "delete_node", "set_variable"],
+            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable, reparent_node.",
+          enum: ["create_frame", "create_text", "create_rectangle", "update_node", "delete_node", "set_variable", "reparent_node"],
         },
         params: {
           type: "object",
           description:
-            "Parameters for the action. For create_frame/rectangle: name, width, height, x, y, fills, cornerRadius. " +
-            "For create_text: name, characters, fontFamily, fontStyle, fontSize, x, y. " +
-            "For update_node: nodeId (required), plus any properties to update. " +
+            "Parameters for the action. " +
+            "For create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId; " +
+            "auto-layout: layoutMode (HORIZONTAL|VERTICAL), paddingTop/Bottom/Left/Right, itemSpacing, primaryAxisAlignItems (MIN|CENTER|MAX|SPACE_BETWEEN), counterAxisAlignItems (MIN|CENTER|MAX), primaryAxisSizingMode (FIXED|AUTO), counterAxisSizingMode (FIXED|AUTO). " +
+            "For create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
+            "For create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
+            "For update_node: nodeId (required), plus any: name, x, y, width, height, fills, strokes, strokeWeight, strokeAlign, cornerRadius, characters, opacity, visible, layoutMode, padding*, itemSpacing, primaryAxisAlignItems, counterAxisAlignItems, primaryAxisSizingMode, counterAxisSizingMode. " +
             "For delete_node: nodeId (required). " +
+            "For reparent_node: nodeId (required), parentNodeId (required). " +
             "For set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
         },
       },
@@ -1217,6 +1293,7 @@ export class McpServer {
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private _isRunning = false;
+  private _sessionReaper: ReturnType<typeof setInterval> | null = null;
   private _writeToolsEnabled = false;
 
   constructor(log?: Logger) {
@@ -1276,6 +1353,17 @@ export class McpServer {
       this.server.listen(port, host, () => {
         this._isRunning = true;
         this.log.info(`MCP server running at http://${host}:${port}/mcp`);
+        // Reap sessions idle for more than 30 minutes
+        this._sessionReaper = setInterval(() => {
+          const cutoff = Date.now() - 30 * 60 * 1000;
+          for (const [id, session] of this.sessions) {
+            if (session.lastActivity < cutoff) {
+              if (session.sseResponse) { try { session.sseResponse.end(); } catch { /* ignore */ } }
+              this.sessions.delete(id);
+              this.log.info("Session reaped (idle 30m):", id);
+            }
+          }
+        }, 5 * 60 * 1000);
         resolve({ didStart: true, port });
       });
     });
@@ -1289,6 +1377,11 @@ export class McpServer {
         try { session.sseResponse.end(); } catch { /* ignore */ }
       }
       this.sessions.delete(id);
+    }
+
+    if (this._sessionReaper) {
+      clearInterval(this._sessionReaper);
+      this._sessionReaper = null;
     }
 
     if (this.server) {
@@ -1319,18 +1412,6 @@ export class McpServer {
     if (req.method === "OPTIONS") {
       res.writeHead(204, this.cors());
       res.end();
-      return;
-    }
-
-    // OAuth discovery — tell clients no auth is required on this local server.
-    if (req.url === "/.well-known/oauth-authorization-server" || req.url === "/.well-known/oauth-protected-resource") {
-      this.sendJson(res, 200, {
-        issuer: `http://${MCP_HOST}:${MCP_PORT}`,
-        authorization_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/authorize`,
-        token_endpoint: `http://${MCP_HOST}:${MCP_PORT}/oauth/token`,
-        scopes_supported: [],
-        response_types_supported: [],
-      });
       return;
     }
 
@@ -1387,6 +1468,19 @@ export class McpServer {
       return;
     }
 
+    // DELETE → terminate session (MCP spec 2025-03-26)
+    if (req.method === "DELETE") {
+      if (sessionId && this.sessions.has(sessionId)) {
+        const s = this.sessions.get(sessionId)!;
+        if (s.sseResponse) { try { s.sseResponse.end(); } catch { /* ignore */ } }
+        this.sessions.delete(sessionId);
+        this.log.info("Session terminated by client:", sessionId);
+      }
+      res.writeHead(200, this.cors());
+      res.end();
+      return;
+    }
+
     if (req.method !== "POST") {
       res.writeHead(405, this.cors());
       res.end();
@@ -1417,9 +1511,11 @@ export class McpServer {
         return;
       }
       const newSessionId = crypto.randomUUID();
+      const now = Date.now();
       this.sessions.set(newSessionId, {
         id: newSessionId,
-        createdAt: Date.now(),
+        createdAt: now,
+        lastActivity: now,
         sseResponse: null,
         clientInfo: body.params?.clientInfo as any,
       });
@@ -1454,6 +1550,9 @@ export class McpServer {
       return;
     }
 
+    // Touch last-activity so the TTL reaper doesn't evict active sessions
+    this.sessions.get(sessionId)!.lastActivity = Date.now();
+
     const response = await this.handleJsonRpc(body);
     res.writeHead(200, { "Content-Type": "application/json", ...this.cors() });
     res.end(JSON.stringify(response));
@@ -1467,6 +1566,7 @@ export class McpServer {
     this.sessions.set(sessionId, {
       id: sessionId,
       createdAt: Date.now(),
+      lastActivity: Date.now(),
       sseResponse: res,
     });
 

@@ -27,3 +27,22 @@
 </script>
 
 <FramePanel zoom={panelZoom.value} />
+<button
+  class="ai-trigger"
+  aria-label="Open Settings (AI)"
+  data-ai-action="open-settings"
+  onclick={() => window.figmaApi.send("openSettingsView")}
+></button>
+
+<style>
+  .ai-trigger {
+    position: fixed;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+</style>

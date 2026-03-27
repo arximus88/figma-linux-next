@@ -186,6 +186,7 @@ export default class App {
     } else {
       app.commandLine.appendSwitch("disable-color-correct-rendering");
     }
+
   }
 
   private applyDefaultOptimizations(isWayland: boolean, userForcesVulkan: boolean) {

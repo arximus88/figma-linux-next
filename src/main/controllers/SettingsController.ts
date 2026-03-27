@@ -53,6 +53,12 @@ export default class SettingsController {
     if (storage.settings.mcp?.enableWriteTools !== settings.mcp?.enableWriteTools) {
       app.emit("mcpWriteToolsChanged", !!settings.mcp?.enableWriteTools);
     }
+    if (
+      storage.settings.mcp?.cdpEnabled !== settings.mcp?.cdpEnabled ||
+      storage.settings.mcp?.remoteDebugPort !== settings.mcp?.remoteDebugPort
+    ) {
+      app.emit("chromiumFlagsChanged", true);
+    }
 
     storage.settings = settings;
     await storage.save();

@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
   },
   mcp: {
     enableWriteTools: false,
+    cdpEnabled: false,
+    remoteDebugPort: 9222,
   },
   ui: {
     scalePanel: 1,
