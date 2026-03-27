@@ -29,8 +29,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate release notes
-        run: perl scripts/generate_release_notes.pl --latest
+      - name: Generate release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d' | sed '1{/^---/d}' > release_notes
+          echo "--- release_notes preview ---"
+          cat release_notes
 
       - uses: actions/upload-artifact@v4
         with:
