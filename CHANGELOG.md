@@ -7,17 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.13.3] - 2026-03-27
+
 ### Added
 
+- **MCP: `use_figma` write tool** — create frames, text, and rectangles; update or delete nodes; create design token variables; reparent nodes — gated behind a new settings toggle
+  - Full auto-layout support: `layoutMode`, `padding*`, `itemSpacing`, `primaryAxisSizingMode` / `counterAxisSizingMode` (HUG/FIXED), `primaryAxisAlignItems` / `counterAxisAlignItems`
+  - Strokes on all create/update actions: `strokes`, `strokeWeight`, `strokeAlign`
+  - `parentNodeId` on all create actions — places new nodes inside a parent frame directly
+  - `reparent_node` action — move any existing node to a new parent
 - **MCP: `search_design_system` tool** — search local variables, styles, and components by text query; results include values by mode and are capped at 50 per category
-- **MCP: `use_figma` write tool** — create frames, text, rectangles; update or delete nodes; create design token variables — gated behind a new settings toggle
-- **MCP: `create_new_file` write tool** — creates a new page in the current file (Plugin API limitation: cannot create separate files) — gated behind write tools toggle
-- **MCP Write Tools toggle** — new "Enable MCP Write Tools" checkbox in Settings → General → MCP Server; disabled by default for safety; toggling sends `tools/list_changed` to connected MCP clients without requiring a full server restart
+- **MCP: `create_new_file` write tool** — creates a new page in the current file — gated behind write tools toggle
+- **MCP Write Tools toggle** — new "Enable MCP Write Tools" checkbox in Settings → General → MCP Server; disabled by default for safety; labeled **Experimental**
+- **MCP: Chrome DevTools Protocol (CDP) support** — new "Enable Chrome DevTools Protocol" toggle and port field in Settings → MCP Server; enables `chrome-figma` MCP server for AI agents to interact with the app via browser automation
+- **`.mcp.json`** — project-level MCP config with `chrome-figma` CDP server entry for Claude Code setup
 
 ### Improved
 
-- **MCP: `get_variable_defs`** — when nothing is selected and no `nodeId` is provided, now returns ALL local variable collections and ALL local styles from the entire file instead of erroring
-- **MCP: `create_design_system_rules`** — style extraction now includes full values: paint arrays (colors/gradients), text properties (fontSize, fontName, lineHeight, letterSpacing), effect definitions, and grid configurations
+- **MCP: `get_variable_defs`** — when nothing is selected, now returns ALL local variable collections and styles from the entire file
+- **MCP: `create_design_system_rules`** — style extraction now includes full values: paint arrays, text properties (fontSize, fontName, lineHeight, letterSpacing), effects, and grid configurations
+- **MCP: session stability** — `DELETE /mcp` handler added per MCP spec 2025-03-26; `lastActivity` tracking; 30-minute idle session reaper
+
+### Fixed
+
+- **MCP: "needs authentication" on connect** — removed dummy OAuth discovery endpoints that caused Claude Code to require auth
+- **MCP: auto-layout HUG sizing** — `frame.resize()` now runs before sizing mode assignments so `AUTO` (HUG) is not overridden to FIXED
+- **MCP: fills/strokes on reparented nodes** — fills and strokes now applied after `appendChild` (Figma Plugin API resets fills on reparent)
+- **MCP: font loading** — `Regular` style always loaded before non-Regular variants to prevent "font not loaded" errors on Bold/Medium text
+- **CI: flaky `fs.access` unit tests** — replaced `spyOn(fs.promises, "access")` mocks with real filesystem paths; deterministic in any environment
 
 ---
 
