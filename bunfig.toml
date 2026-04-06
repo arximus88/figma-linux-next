@@ -1,2 +1,2 @@
 [test]
-preload = ["./src/test/electron-preload.ts"]
+preload = ["./tests/unit/electron-preload.ts"]

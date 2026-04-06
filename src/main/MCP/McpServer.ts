@@ -183,7 +183,8 @@ const TOOLS: ToolDefinition[] = [
         },
         savePath: {
           type: "string",
-          description: "Optional path to save the PNG on disk (absolute or relative to cwd). E.g. 'assets/frame.png' or '/tmp/design.png'. If omitted, image is returned inline only.",
+          description:
+            "Optional path to save the PNG on disk (absolute or relative to cwd). E.g. 'assets/frame.png' or '/tmp/design.png'. If omitted, image is returned inline only.",
         },
       },
     },
@@ -203,7 +204,8 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         nodeId: {
           type: "string",
-          description: "Node ID in '1:2' format. Omit to use current selection or get all file variables.",
+          description:
+            "Node ID in '1:2' format. Omit to use current selection or get all file variables.",
         },
       },
     },
@@ -238,7 +240,8 @@ const TOOLS: ToolDefinition[] = [
         },
         codeConnectSrc: {
           type: "string",
-          description: "File path or URL of the code component (e.g., 'src/components/Button.tsx').",
+          description:
+            "File path or URL of the code component (e.g., 'src/components/Button.tsx').",
         },
         codeConnectName: {
           type: "string",
@@ -263,7 +266,8 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         techStack: {
           type: "string",
-          description: "Tech stack description (e.g., 'React + Tailwind CSS', 'Svelte + vanilla CSS').",
+          description:
+            "Tech stack description (e.g., 'React + Tailwind CSS', 'Svelte + vanilla CSS').",
         },
         componentLibraryPath: {
           type: "string",
@@ -304,7 +308,8 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         mermaid: {
           type: "string",
-          description: "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
+          description:
+            "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
         },
       },
       required: ["mermaid"],
@@ -429,16 +434,20 @@ const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
     }
 
     let targetNodes;
-    ${nodeId ? `
+    ${
+      nodeId
+        ? `
       const target = figma.getNodeById("${nodeId}");
       if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
       targetNodes = [target];
-    ` : `
+    `
+        : `
       targetNodes = figma.currentPage.selection;
       if (!targetNodes || targetNodes.length === 0) {
         return JSON.stringify({ error: "No nodes selected. Select a node in Figma or provide a nodeId." });
       }
-    `}
+    `
+    }
 
     const result = {
       fileName: figma.root.name,
@@ -541,14 +550,18 @@ const METADATA_XML_SCRIPT = (nodeId: string | null, depth: number) => `
     }
 
     let targetNodes;
-    ${nodeId ? `
+    ${
+      nodeId
+        ? `
       const target = figma.getNodeById("${nodeId}");
       if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
       targetNodes = [target];
-    ` : `
+    `
+        : `
       const sel = figma.currentPage.selection;
       targetNodes = (sel && sel.length > 0) ? sel : figma.currentPage.children;
-    `}
+    `
+    }
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\\n';
     xml += '<canvas name="' + esc(figma.currentPage.name) + '" file="' + esc(figma.root.name) + '">\\n';
@@ -572,18 +585,22 @@ const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
 
     let targetNodes = null;
     let fileWideMode = false;
-    ${nodeId ? `
+    ${
+      nodeId
+        ? `
       const target = figma.getNodeById("${nodeId}");
       if (!target) return { error: "Node not found: ${nodeId}" };
       targetNodes = [target];
-    ` : `
+    `
+        : `
       const sel = figma.currentPage.selection;
       if (sel && sel.length > 0) {
         targetNodes = sel;
       } else {
         fileWideMode = true;
       }
-    `}
+    `
+    }
 
     const variables = {};
     const styles = {};
@@ -757,14 +774,18 @@ const FIGJAM_SCRIPT = (nodeId: string | null) => `
     }
 
     var targetNodes;
-    ${nodeId ? `
+    ${
+      nodeId
+        ? `
       var target = figma.getNodeById("${nodeId}");
       if (!target) return { error: "Node not found: ${nodeId}" };
       targetNodes = [target];
-    ` : `
+    `
+        : `
       var sel = figma.currentPage.selection;
       targetNodes = (sel && sel.length > 0) ? sel : figma.currentPage.children;
-    `}
+    `
+    }
 
     var xml = '<?xml version="1.0" encoding="UTF-8"?>\\n<figjam fileName="' + figma.root.name + '" page="' + figma.currentPage.name + '">\\n';
     for (var i = 0; i < targetNodes.length; i++) {
@@ -944,14 +965,18 @@ const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
     if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 
     let target;
-    ${nodeId ? `
+    ${
+      nodeId
+        ? `
       target = figma.getNodeById("${nodeId}");
       if (!target) return { error: "Node not found: ${nodeId}" };
-    ` : `
+    `
+        : `
       const sel = figma.currentPage.selection;
       if (!sel || sel.length === 0) return { error: "No node selected" };
       target = sel[0];
-    `}
+    `
+    }
 
     // exportAsync returns a Uint8Array in Plugin API
     return target.exportAsync({
@@ -1244,7 +1269,15 @@ const WRITE_TOOLS: ToolDefinition[] = [
           type: "string",
           description:
             "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable, reparent_node.",
-          enum: ["create_frame", "create_text", "create_rectangle", "update_node", "delete_node", "set_variable", "reparent_node"],
+          enum: [
+            "create_frame",
+            "create_text",
+            "create_rectangle",
+            "update_node",
+            "delete_node",
+            "set_variable",
+            "reparent_node",
+          ],
         },
         params: {
           type: "object",
@@ -1325,7 +1358,9 @@ export class McpServer {
       if (session.sseResponse && !session.sseResponse.destroyed) {
         try {
           session.sseResponse.write(`event: message\ndata: ${notification}\n\n`);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
@@ -1354,16 +1389,25 @@ export class McpServer {
         this._isRunning = true;
         this.log.info(`MCP server running at http://${host}:${port}/mcp`);
         // Reap sessions idle for more than 30 minutes
-        this._sessionReaper = setInterval(() => {
-          const cutoff = Date.now() - 30 * 60 * 1000;
-          for (const [id, session] of this.sessions) {
-            if (session.lastActivity < cutoff) {
-              if (session.sseResponse) { try { session.sseResponse.end(); } catch { /* ignore */ } }
-              this.sessions.delete(id);
-              this.log.info("Session reaped (idle 30m):", id);
+        this._sessionReaper = setInterval(
+          () => {
+            const cutoff = Date.now() - 30 * 60 * 1000;
+            for (const [id, session] of this.sessions) {
+              if (session.lastActivity < cutoff) {
+                if (session.sseResponse) {
+                  try {
+                    session.sseResponse.end();
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                this.sessions.delete(id);
+                this.log.info("Session reaped (idle 30m):", id);
+              }
             }
-          }
-        }, 5 * 60 * 1000);
+          },
+          5 * 60 * 1000,
+        );
         resolve({ didStart: true, port });
       });
     });
@@ -1374,7 +1418,11 @@ export class McpServer {
     // Close all SSE connections
     for (const [id, session] of this.sessions) {
       if (session.sseResponse) {
-        try { session.sseResponse.end(); } catch { /* ignore */ }
+        try {
+          session.sseResponse.end();
+        } catch {
+          /* ignore */
+        }
       }
       this.sessions.delete(id);
     }
@@ -1445,7 +1493,10 @@ export class McpServer {
 
   // ── Streamable HTTP Transport (/mcp) ─────────────────────────────────────
 
-  private async handleMcpEndpoint(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async handleMcpEndpoint(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (req.method === "GET") {
@@ -1458,7 +1509,7 @@ export class McpServer {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         ...this.cors(),
       });
       session.sseResponse = res;
@@ -1472,7 +1523,13 @@ export class McpServer {
     if (req.method === "DELETE") {
       if (sessionId && this.sessions.has(sessionId)) {
         const s = this.sessions.get(sessionId)!;
-        if (s.sseResponse) { try { s.sseResponse.end(); } catch { /* ignore */ } }
+        if (s.sseResponse) {
+          try {
+            s.sseResponse.end();
+          } catch {
+            /* ignore */
+          }
+        }
         this.sessions.delete(sessionId);
         this.log.info("Session terminated by client:", sessionId);
       }
@@ -1520,8 +1577,12 @@ export class McpServer {
         clientInfo: body.params?.clientInfo as any,
       });
 
-      this.log.info("New session initialized:", newSessionId,
-        "client:", (body.params?.clientInfo as any)?.name);
+      this.log.info(
+        "New session initialized:",
+        newSessionId,
+        "client:",
+        (body.params?.clientInfo as any)?.name,
+      );
 
       const result: JsonRpcResponse = {
         jsonrpc: "2.0",
@@ -1573,7 +1634,7 @@ export class McpServer {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       ...this.cors(),
     });
 
@@ -1582,7 +1643,9 @@ export class McpServer {
 
     // Keep-alive ping every 30s
     const keepAlive = setInterval(() => {
-      try { res.write(":\n\n"); } catch {
+      try {
+        res.write(":\n\n");
+      } catch {
         clearInterval(keepAlive);
         this.sessions.delete(sessionId);
       }
@@ -1597,7 +1660,10 @@ export class McpServer {
     this.log.info("SSE session connected:", sessionId);
   }
 
-  private async handleSseMessage(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async handleSseMessage(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
     const url = new URL(req.url!, `http://${req.headers.host}`);
     const sessionId = url.searchParams.get("sessionId");
 
@@ -1703,10 +1769,16 @@ export class McpServer {
         case "search_design_system":
           return await this.toolSearchDesignSystem(args);
         case "use_figma":
-          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          if (!this._writeToolsEnabled)
+            return this.toolError(
+              "Write tools are disabled. Enable them in Settings → General → MCP Server.",
+            );
           return await this.toolUseFigma(args);
         case "create_new_file":
-          if (!this._writeToolsEnabled) return this.toolError("Write tools are disabled. Enable them in Settings → General → MCP Server.");
+          if (!this._writeToolsEnabled)
+            return this.toolError(
+              "Write tools are disabled. Enable them in Settings → General → MCP Server.",
+            );
           return await this.toolCreateNewFile(args);
         default:
           return this.toolError(`Unknown tool: ${name}`);
@@ -1739,7 +1811,9 @@ export class McpServer {
     try {
       result = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch {
-      return this.toolError("Failed to deserialize design context — the Figma scene graph may contain non-serializable objects");
+      return this.toolError(
+        "Failed to deserialize design context — the Figma scene graph may contain non-serializable objects",
+      );
     }
 
     if (result?.error) {
@@ -1820,11 +1894,14 @@ export class McpServer {
   }
 
   /** Build an MCP response with the image inline + optional disk save. */
-  private buildScreenshotResponse(base64: string, nodeId: string, nodeName: string, savePath: string | null) {
+  private buildScreenshotResponse(
+    base64: string,
+    nodeId: string,
+    nodeName: string,
+    savePath: string | null,
+  ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
-    const content: ContentItem[] = [
-      { type: "image", data: base64, mimeType: "image/png" },
-    ];
+    const content: ContentItem[] = [{ type: "image", data: base64, mimeType: "image/png" }];
 
     const meta: Record<string, unknown> = { nodeId, nodeName };
 
@@ -1850,7 +1927,12 @@ export class McpServer {
 
     const image = await view.webContents.capturePage();
     const buffer = image.toPNG();
-    return this.buildScreenshotResponse(buffer.toString("base64"), "", "canvas (capturePage fallback)", savePath);
+    return this.buildScreenshotResponse(
+      buffer.toString("base64"),
+      "",
+      "canvas (capturePage fallback)",
+      savePath,
+    );
   }
 
   // ── Tool: get_variable_defs ──────────────────────────────────────────────
@@ -1878,10 +1960,16 @@ export class McpServer {
       };
     }
 
-    return this.toolResult(JSON.stringify({
-      mappings: map,
-      count: this.codeConnectMap.size,
-    }, null, 2));
+    return this.toolResult(
+      JSON.stringify(
+        {
+          mappings: map,
+          count: this.codeConnectMap.size,
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   // ── Tool: get_figjam ─────────────────────────────────────────────────────
@@ -1909,13 +1997,15 @@ export class McpServer {
             setTimeout(() => this.assetStore.delete(assetId), 10 * 60 * 1000);
             screenshots[nid] = `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`;
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     }
 
-    let xml = result.xml ?? '';
+    let xml = result.xml ?? "";
     if (Object.keys(screenshots).length > 0) {
-      xml += '\n<!-- Node Screenshots -->\n';
+      xml += "\n<!-- Node Screenshots -->\n";
       for (const [nid, url] of Object.entries(screenshots)) {
         xml += `<!-- node="${nid}" screenshot="${url}" -->\n`;
       }
@@ -1937,7 +2027,10 @@ export class McpServer {
       return this.toolError("Could not parse any nodes from the Mermaid syntax.");
     }
 
-    const nodesWithEdges = nodes.map(n => ({ ...n, _edges: edges.filter(e => e.from === n.id) }));
+    const nodesWithEdges = nodes.map((n) => ({
+      ...n,
+      _edges: edges.filter((e) => e.from === n.id),
+    }));
     const nodesJson = JSON.stringify(nodesWithEdges);
     const script = GENERATE_DIAGRAM_SCRIPT(nodesJson);
     const result = await this.viewProvider!.executeInBrowserView(script);
@@ -1946,28 +2039,41 @@ export class McpServer {
       return this.toolError(result.error);
     }
 
-    return this.toolResult(JSON.stringify({
-      success: true,
-      nodesCreated: result.nodesCreated,
-      connectorsCreated: result.connectorsCreated,
-      message: `Created ${result.nodesCreated} nodes and ${result.connectorsCreated} connectors in FigJam.`,
-    }, null, 2));
+    return this.toolResult(
+      JSON.stringify(
+        {
+          success: true,
+          nodesCreated: result.nodesCreated,
+          connectorsCreated: result.connectorsCreated,
+          message: `Created ${result.nodesCreated} nodes and ${result.connectorsCreated} connectors in FigJam.`,
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   /** Parse Mermaid syntax into nodes and edges. */
-  private parseMermaid(src: string): { nodes: { id: string; label: string; shape: string }[]; edges: { from: string; to: string; label: string }[] } {
+  private parseMermaid(src: string): {
+    nodes: { id: string; label: string; shape: string }[];
+    edges: { from: string; to: string; label: string }[];
+  } {
     const nodes = new Map<string, { id: string; label: string; shape: string }>();
     const edges: { from: string; to: string; label: string }[] = [];
     // Pre-process: split on newlines + semicolons, strip directives, expand chains (A-->B-->C → A-->B, B-->C)
-    const NODE_PAT = '[\\w]+(?:\\[[^\\]]+\\]|\\([^)]+\\)|\\{[^}]+\\})?';
-    const ARROW_PAT = '(?:-->|==>|-\\.->|---)';
-    const EL_PAT = '(?:\\|[^|]*\\|)?';
+    const NODE_PAT = "[\\w]+(?:\\[[^\\]]+\\]|\\([^)]+\\)|\\{[^}]+\\})?";
+    const ARROW_PAT = "(?:-->|==>|-\\.->|---)";
+    const EL_PAT = "(?:\\|[^|]*\\|)?";
     const firstNodeRe = new RegExp(`^(${NODE_PAT})`);
     const contRe = new RegExp(`^\\s*(${ARROW_PAT})\\s*(${EL_PAT})\\s*(${NODE_PAT})`);
-    const directiveRe = /^(?:graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)\s*(?:TD|LR|TB|RL|BT)?\s*;?\s*(.*)/i;
+    const directiveRe =
+      /^(?:graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)\s*(?:TD|LR|TB|RL|BT)?\s*;?\s*(.*)/i;
 
     const lines: string[] = [];
-    for (const raw of src.split(/[\n;]/).map(l => l.trim()).filter(l => l && !l.startsWith('%%'))) {
+    for (const raw of src
+      .split(/[\n;]/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("%%"))) {
       const dm = raw.match(directiveRe);
       const stmt = dm ? dm[1].trim() : raw;
       if (!stmt) continue;
@@ -1993,11 +2099,17 @@ export class McpServer {
 
     for (const line of lines) {
       // Flowchart edges: A[Label] --> B[Label], A -->|label| B
-      const em = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?\s*(?:-->|==>|-.->|---)\s*(?:\|([^|]*)\|)?\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?/);
+      const em = line.match(
+        /^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?\s*(?:-->|==>|-.->|---)\s*(?:\|([^|]*)\|)?\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?/,
+      );
       if (em) {
-        const fId = em[1], fL = em[2]||em[3]||em[4]||em[1], eL = em[5]||'', tId = em[6], tL = em[7]||em[8]||em[9]||em[6];
-        const fS = em[4]?'DIAMOND':em[3]?'ELLIPSE':'ROUNDED_RECTANGLE';
-        const tS = em[9]?'DIAMOND':em[8]?'ELLIPSE':'ROUNDED_RECTANGLE';
+        const fId = em[1],
+          fL = em[2] || em[3] || em[4] || em[1],
+          eL = em[5] || "",
+          tId = em[6],
+          tL = em[7] || em[8] || em[9] || em[6];
+        const fS = em[4] ? "DIAMOND" : em[3] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
+        const tS = em[9] ? "DIAMOND" : em[8] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
         if (!nodes.has(fId)) nodes.set(fId, { id: fId, label: fL, shape: fS });
         if (!nodes.has(tId)) nodes.set(tId, { id: tId, label: tL, shape: tS });
         edges.push({ from: fId, to: tId, label: eL.trim() });
@@ -2007,8 +2119,9 @@ export class McpServer {
       // Standalone node: A["Label"]
       const nm = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})\s*$/);
       if (nm) {
-        const id = nm[1], label = nm[2]||nm[3]||nm[4]||id;
-        const shape = nm[4]?'DIAMOND':nm[3]?'ELLIPSE':'ROUNDED_RECTANGLE';
+        const id = nm[1],
+          label = nm[2] || nm[3] || nm[4] || id;
+        const shape = nm[4] ? "DIAMOND" : nm[3] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
         if (!nodes.has(id)) nodes.set(id, { id, label, shape });
         continue;
       }
@@ -2016,9 +2129,12 @@ export class McpServer {
       // Sequence diagram: Actor ->> Actor: message
       const sm = line.match(/^\s*([\w\s]+?)\s*(?:->>|-->>|->|-->)\s*([\w\s]+?)\s*:\s*(.+)$/);
       if (sm) {
-        const fId = sm[1].trim().replace(/\s+/g,'_'), tId = sm[2].trim().replace(/\s+/g,'_');
-        if (!nodes.has(fId)) nodes.set(fId, { id: fId, label: sm[1].trim(), shape: 'ROUNDED_RECTANGLE' });
-        if (!nodes.has(tId)) nodes.set(tId, { id: tId, label: sm[2].trim(), shape: 'ROUNDED_RECTANGLE' });
+        const fId = sm[1].trim().replace(/\s+/g, "_"),
+          tId = sm[2].trim().replace(/\s+/g, "_");
+        if (!nodes.has(fId))
+          nodes.set(fId, { id: fId, label: sm[1].trim(), shape: "ROUNDED_RECTANGLE" });
+        if (!nodes.has(tId))
+          nodes.set(tId, { id: tId, label: sm[2].trim(), shape: "ROUNDED_RECTANGLE" });
         edges.push({ from: fId, to: tId, label: sm[3].trim() });
         continue;
       }
@@ -2026,9 +2142,11 @@ export class McpServer {
       // State diagram: StateA --> StateB : event
       const stm = line.match(/^\s*([\w]+)\s*-->\s*([\w]+)\s*(?::\s*(.+))?$/);
       if (stm) {
-        if (!nodes.has(stm[1])) nodes.set(stm[1], { id: stm[1], label: stm[1], shape: 'ROUNDED_RECTANGLE' });
-        if (!nodes.has(stm[2])) nodes.set(stm[2], { id: stm[2], label: stm[2], shape: 'ROUNDED_RECTANGLE' });
-        edges.push({ from: stm[1], to: stm[2], label: (stm[3]||'').trim() });
+        if (!nodes.has(stm[1]))
+          nodes.set(stm[1], { id: stm[1], label: stm[1], shape: "ROUNDED_RECTANGLE" });
+        if (!nodes.has(stm[2]))
+          nodes.set(stm[2], { id: stm[2], label: stm[2], shape: "ROUNDED_RECTANGLE" });
+        edges.push({ from: stm[1], to: stm[2], label: (stm[3] || "").trim() });
       }
     }
     return { nodes: [...nodes.values()], edges };
@@ -2046,15 +2164,27 @@ export class McpServer {
     }
 
     this.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName });
-    this.log.info("Code Connect mapping added:", nodeId, "→", codeConnectName, `(${codeConnectSrc})`);
-
-    return this.toolResult(JSON.stringify({
-      success: true,
+    this.log.info(
+      "Code Connect mapping added:",
       nodeId,
-      codeConnectSrc,
+      "→",
       codeConnectName,
-      totalMappings: this.codeConnectMap.size,
-    }, null, 2));
+      `(${codeConnectSrc})`,
+    );
+
+    return this.toolResult(
+      JSON.stringify(
+        {
+          success: true,
+          nodeId,
+          codeConnectSrc,
+          codeConnectName,
+          totalMappings: this.codeConnectMap.size,
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   // ── Tool: create_design_system_rules ─────────────────────────────────────
@@ -2127,7 +2257,9 @@ export class McpServer {
       lines.push("## Code Connect Mappings", "");
       lines.push("| Figma Node ID | Component | File |", "|---------------|-----------|------|");
       for (const [_, entry] of this.codeConnectMap) {
-        lines.push(`| ${entry.nodeId} | \`${entry.codeConnectName}\` | \`${entry.codeConnectSrc}\` |`);
+        lines.push(
+          `| ${entry.nodeId} | \`${entry.codeConnectName}\` | \`${entry.codeConnectSrc}\` |`,
+        );
       }
       lines.push("");
     }
@@ -2150,7 +2282,9 @@ export class McpServer {
     const query = (args.query as string) || "";
     if (!query) return this.toolError("query is required");
 
-    const result = await this.viewProvider!.executeInBrowserView(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
+    const result = await this.viewProvider!.executeInBrowserView(
+      SEARCH_DESIGN_SYSTEM_SCRIPT(query),
+    );
     if (result?.error) return this.toolError(result.error);
     return this.toolResult(JSON.stringify(result, null, 2));
   }
@@ -2164,7 +2298,9 @@ export class McpServer {
     if (!params) return this.toolError("params is required");
 
     const paramsJson = JSON.stringify(params);
-    const result = await this.viewProvider!.executeInBrowserView(USE_FIGMA_SCRIPT(action, paramsJson));
+    const result = await this.viewProvider!.executeInBrowserView(
+      USE_FIGMA_SCRIPT(action, paramsJson),
+    );
     if (result?.error) return this.toolError(result.error);
     return this.toolResult(JSON.stringify(result, null, 2));
   }
@@ -2217,11 +2353,7 @@ export class McpServer {
     }
 
     // Allow only loopback addresses
-    return (
-      hostname === "127.0.0.1" ||
-      hostname === "::1" ||
-      hostname === "localhost"
-    );
+    return hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost";
   }
 
   private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
@@ -2277,4 +2409,3 @@ export class McpServer {
     };
   }
 }
-

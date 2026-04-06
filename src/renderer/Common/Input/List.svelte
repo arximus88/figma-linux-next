@@ -17,7 +17,7 @@
     <Item
       text={item.text}
       {...item.itemArgs}
-      bind:disabled={item.disabled}
+      disabled={item.disabled}
       onItemRemoveClick={() => {
         onItemRemoveClick(item);
       }}

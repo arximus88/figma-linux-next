@@ -30,6 +30,8 @@ jobs:
 
       - name: Clone AUR dev-git repo
         run: git clone ssh://aur@aur.archlinux.org/figma-linux-next-dev-git.git /tmp/aur-dev-git
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
 
       - name: Update pkgver (commit count)
         run: |
@@ -49,3 +51,5 @@ jobs:
           git add PKGBUILD .SRCINFO
           git diff --staged --quiet || git commit -m "Update to r$(git -C $GITHUB_WORKSPACE rev-list --count HEAD).$(git -C $GITHUB_WORKSPACE rev-parse --short HEAD)"
           git push
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts

@@ -208,6 +208,8 @@ export default class Tab {
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.view.webContents.session as any).setPermissionRequestHandler(this.permissionHandler.bind(this));
+    (this.view.webContents.session as any).setPermissionRequestHandler(
+      this.permissionHandler.bind(this),
+    );
   }
 }

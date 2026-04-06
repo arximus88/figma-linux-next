@@ -17,7 +17,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Updated Google Fonts support** — new fonts available: Google Sans, Google Sans Flex, Google Sans Code, etc
 - **Native window frame styles** — GNOME and Windows frame styles that match your DE (macOS and KDE TBD); no custom theming injections that break visual rendering
 - **Native Wayland** — works on GNOME Wayland, KDE Plasma, Sway, Hyprland
-- **Runs on arm64** — tested on Asahi Linux (Apple Silicon)
+- **Launched on different enviroments** — tested on Asahi Linux (Apple Silicon), Niri compositor ot OpenSuse.
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations
 
 ## Tech Stack

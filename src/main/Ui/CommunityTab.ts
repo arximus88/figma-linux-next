@@ -9,12 +9,7 @@ import {
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
-import {
-  isDev,
-  isFigmaRunUrl,
-  isRecentFilesLink,
-  isFigmaUrl,
-} from "Utils/Common";
+import { isDev, isFigmaRunUrl, isRecentFilesLink, isFigmaUrl } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
 

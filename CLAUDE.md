@@ -84,10 +84,10 @@ ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line li
 
 ```bash
 # Unit tests
-bun test
+bun run test:unit
 
 # E2E tests (Playwright)
-bunx playwright test
+bun run test:e2e
 ```
 
 Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
@@ -343,9 +343,18 @@ Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('
 `src/main/index.ts` ignores `EPIPE` errors in the `uncaughtException` handler. Logging an EPIPE through the same broken pipe triggers another EPIPE → infinite loop. This guard is intentional — do not remove it.
 
 ### Branching strategy
-- `dev` — stable main branch, receives merges from `staging` only
-- `staging` — integration branch, all features/fixes target here first
+- `staging` — integration branch, all features/fixes and version bumps happen here
+- `dev` — stable release branch, **protected**: no direct pushes, no force pushes, CI must pass; merges only via PR from `staging`
 - `.jules/` — local-only folder (gitignored) with task instructions for the Jules AI agent
+
+**Release flow** (version bump happens on `staging`, tag triggers CI/release):
+1. Commit all changes to `staging`, update `CHANGELOG.md`
+2. `perl scripts/bump_version.pl X.Y.Z` — creates version bump commit + tag on `staging`
+3. `git push origin staging && git push origin vX.Y.Z` — tag push triggers `release.yml`
+4. Open PR: `staging → dev` on GitHub, wait for CI green, merge
+5. AUR is updated automatically by `release.yml` on tag push — not on branch merge
+
+**`enforce_admins: false`** — owner can bypass protection in emergencies.
 
 ### bun test and electron mocking
 bun validates named ESM exports statically before mocks run. `src/utils/Main/net.ts` imports `{ net }` from electron, so any test that touches the `Utils/Main` import chain needs electron pre-mocked. The preload at `src/test/electron-preload.ts` (registered via `bunfig.toml`) handles this globally — do not add per-file electron mocks.

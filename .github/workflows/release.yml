@@ -25,19 +25,26 @@ jobs:
         run: bun run build
 
       - name: Package (deb, rpm, AppImage, zip — x64)
-        run: bunx electron-builder --config=config/builder.json -l deb rpm AppImage zip --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --config=config/builder.json --publish never -l deb rpm AppImage zip --x64
 
-      - name: Generate release notes
-        run: perl scripts/generate_release_notes.pl --latest
+      - name: Generate release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION_ESCAPED=$(printf '%s' "$VERSION" | sed 's/\./\\./g')
+          awk "/^## \[$VERSION_ESCAPED\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d' | sed '1{/^---/d}' > release_notes
+          echo "--- release_notes preview ---"
+          cat release_notes
 
       - uses: actions/upload-artifact@v4
         with:
           name: installers-x64
-          path: |
-            build/installers/figma-linux-next_*
-            release_notes
+          path: build/installers/figma-linux-next_*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes
 
   # Build deb, rpm, AppImage, zip for arm64 on native ARM runner
   build-arm64:
@@ -59,9 +66,7 @@ jobs:
         run: bun run build
 
       - name: Package (deb, rpm, AppImage, zip — arm64)
-        run: bunx electron-builder --config=config/builder.json -l deb rpm AppImage zip --arm64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --config=config/builder.json --publish never -l deb rpm AppImage zip --arm64
 
       - uses: actions/upload-artifact@v4
         with:
@@ -88,9 +93,7 @@ jobs:
         run: bun run build
 
       - name: Package (pacman)
-        run: bunx electron-builder --config=config/builder.json -l pacman
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --config=config/builder.json --publish never -l pacman
 
       - uses: actions/upload-artifact@v4
         with:
@@ -106,9 +109,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: 'install*'
+          pattern: 'installers-*'
           merge-multiple: true
           path: ./artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-pacman
+          path: ./artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ./
 
       - name: Compute SHA256SUMS
         working-directory: ./artifacts
@@ -117,7 +130,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: ./artifacts/release_notes
+          body_path: ./release_notes
           name: figma-linux-next ${{ github.ref_name }}
           files: |
             ./artifacts/figma-linux-next_*

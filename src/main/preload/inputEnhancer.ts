@@ -6,6 +6,12 @@
  * rendering engine to provide smoother interactions on Linux.
  */
 
+import { isDev } from "Utils/Common";
+
+const log = (message: string) => {
+  if (isDev) console.log("[Figma-Linux-Next] " + message);
+};
+
 // Track gesture state
 let isPinching = false;
 let lastPinchScale = 1.0;
@@ -105,7 +111,7 @@ function enhancePointerEvents(): void {
  * Initialize input enhancements
  */
 function initInputEnhancements(): void {
-  console.log("[Figma-Linux-Next] Initializing input enhancements for Wayland/Linux");
+  log("Initializing input enhancements for Wayland/Linux");
 
   // Intercept wheel events at capture phase for highest priority
   document.addEventListener("wheel", handleTrackpadGesture, {
@@ -121,7 +127,7 @@ function initInputEnhancements(): void {
     navigator.userAgent.includes("Wayland") || (window as any).DESKTOP_SESSION_TYPE === "wayland";
 
   if (isWayland) {
-    console.log("[Figma-Linux-Next] Wayland session detected - applying Wayland optimizations");
+    log("Wayland session detected - applying Wayland optimizations");
 
     // Set CSS for better rendering on Wayland
     document.documentElement.style.setProperty("will-change", "transform");
@@ -153,9 +159,7 @@ function initInputEnhancements(): void {
           });
 
           if (gl) {
-            console.log(
-              "[Figma-Linux-Next] WebGL2 context initialized with high-performance settings",
-            );
+            log("WebGL2 context initialized with high-performance settings");
           }
         }
       });
