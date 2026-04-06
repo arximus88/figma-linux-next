@@ -32,7 +32,7 @@ jobs:
       - name: Generate release notes from CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          VERSION_ESCAPED=$(printf '%s' "$VERSION" | sed 's/[][.*^$/\\]/\\&/g')
+          VERSION_ESCAPED=$(printf '%s' "$VERSION" | sed 's/\./\\./g')
           awk "/^## \[$VERSION_ESCAPED\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
             | sed '/^[[:space:]]*$/d' | sed '1{/^---/d}' > release_notes
           echo "--- release_notes preview ---"
