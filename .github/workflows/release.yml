@@ -25,7 +25,7 @@ jobs:
         run: bun run build
 
       - name: Package (deb, rpm, AppImage, zip — x64)
-        run: bunx electron-builder --config=config/builder.json -l deb rpm AppImage zip --x64
+        run: bunx electron-builder --config=config/builder.json --publish never -l deb rpm AppImage zip --x64
 
       - name: Generate release notes from CHANGELOG
         run: |
@@ -66,7 +66,7 @@ jobs:
         run: bun run build
 
       - name: Package (deb, rpm, AppImage, zip — arm64)
-        run: bunx electron-builder --config=config/builder.json -l deb rpm AppImage zip --arm64
+        run: bunx electron-builder --config=config/builder.json --publish never -l deb rpm AppImage zip --arm64
 
       - uses: actions/upload-artifact@v4
         with:
@@ -93,7 +93,7 @@ jobs:
         run: bun run build
 
       - name: Package (pacman)
-        run: bunx electron-builder --config=config/builder.json -l pacman
+        run: bunx electron-builder --config=config/builder.json --publish never -l pacman
 
       - uses: actions/upload-artifact@v4
         with:
