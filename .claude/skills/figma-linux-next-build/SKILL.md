@@ -87,15 +87,15 @@ staging  ←── all features, fixes, and daily work
 ```
 
 - **`dev`** is branch-protected: no direct pushes, no force pushes, CI required
-- **`staging`** is where all work happens, including version bumps and tags
-- Tags are created on `staging`, pushed after the PR merges to `dev`
+- **`staging`** is where all work happens, including version bumps
+- Tags are created on `staging` **locally**, but pushed to remote **only after** staging merges to dev
 - `enforce_admins: false` — owner can bypass in emergencies
 
 ---
 
 ## Release Flow (step by step)
 
-> **Rule:** version bump and tag happen on `staging`. The tag triggers CI/release, not the merge to `dev`.
+> **Rule:** tag push triggers the release. The tag must be pushed **after** staging is merged into dev — so release only goes out when dev is already updated.
 
 ### 1. Prepare staging
 ```bash
@@ -108,39 +108,37 @@ git push origin staging
 Add a `## [X.Y.Z]` section at the top with the new version's changes.
 Commit it: `git commit -m "chore(release): update CHANGELOG for vX.Y.Z"`
 
-### 3. Bump version on staging
+### 3. Bump version on staging (local tag only)
 ```bash
 perl scripts/bump_version.pl X.Y.Z
-# Creates: version bump commit + vX.Y.Z tag on staging
+# Creates: version bump commit + vX.Y.Z tag LOCALLY on staging
 # Verify package.json and src/package.json both show X.Y.Z
 ```
 
-### 4. Push staging + tag
+### 4. Push staging branch only (NOT the tag yet)
 ```bash
 git push origin staging
-git push origin vX.Y.Z
+# Do NOT push the tag here — release must not go out before dev is updated
 ```
-⚠️ **Pushing the tag triggers `release.yml` immediately** — make sure staging is ready.
 
 ### 5. Create PR: staging → dev
 ```bash
 gh pr create --base dev --head staging \
-  --title "Release vX.Y.Z" \
+  --title "chore(release): vX.Y.Z" \
   --body "Merge staging into dev for vX.Y.Z release."
 ```
-Or open in GitHub UI.
 
 ### 6. Wait for CI, merge PR
-CI runs `bun run check`, `bun run lint`, `bun test tests/unit/` on the PR.
-Once green — merge (no approval needed, you're the owner).
+CI runs unit tests on the PR. Once green — merge.
 
-### 7. Release is already running
-`release.yml` was triggered in step 4 by the tag push. It:
+### 7. Push the tag — this triggers the release
+```bash
+git push origin vX.Y.Z
+```
+⚠️ **Only now** does `release.yml` trigger. At this point dev is already updated.
 - Builds all 9 packages (deb×2, rpm×2, AppImage×2, zip×2, pacman×1)
 - Creates GitHub Release with release notes from CHANGELOG.md
 - Pushes updated PKGBUILD to AUR
-
-AUR is **only updated via tag push** — not on branch merge.
 
 ---
 

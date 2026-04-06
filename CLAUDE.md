@@ -347,12 +347,14 @@ Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('
 - `dev` — stable release branch, **protected**: no direct pushes, no force pushes, CI must pass; merges only via PR from `staging`
 - `.jules/` — local-only folder (gitignored) with task instructions for the Jules AI agent
 
-**Release flow** (version bump happens on `staging`, tag triggers CI/release):
+**Release flow** (tag push triggers CI/release — push tag ONLY after staging merges into dev):
 1. Commit all changes to `staging`, update `CHANGELOG.md`
-2. `perl scripts/bump_version.pl X.Y.Z` — creates version bump commit + tag on `staging`
-3. `git push origin staging && git push origin vX.Y.Z` — tag push triggers `release.yml`
+2. `perl scripts/bump_version.pl X.Y.Z` — creates version bump commit + tag **locally** on `staging`
+3. `git push origin staging` — push branch only, **do NOT push the tag yet**
 4. Open PR: `staging → dev` on GitHub, wait for CI green, merge
-5. AUR is updated automatically by `release.yml` on tag push — not on branch merge
+5. `git push origin vX.Y.Z` — push tag **after merge** → triggers `release.yml` → GitHub Release + AUR update
+
+⚠️ Never push the tag before the PR is merged — that would release before dev is updated, defeating branch protection.
 
 **`enforce_admins: false`** — owner can bypass protection in emergencies.
 
