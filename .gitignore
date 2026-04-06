@@ -45,3 +45,4 @@ release_notes
 .gemini/settings.*
 .agent/skills
 .jules/
+tsconfig.tsbuildinfo
