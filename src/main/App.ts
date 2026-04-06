@@ -186,7 +186,6 @@ export default class App {
     } else {
       app.commandLine.appendSwitch("disable-color-correct-rendering");
     }
-
   }
 
   private applyDefaultOptimizations(isWayland: boolean, userForcesVulkan: boolean) {
@@ -214,6 +213,11 @@ export default class App {
       logger.info("Wayland session detected - enabling native Wayland support");
       app.commandLine.appendSwitch("ozone-platform-hint", "auto");
       features.push("WaylandWindowDecorations", "UseOzonePlatform");
+    } else {
+      // DirectRenderingDisplayCompositor moves the display compositor onto the GPU
+      // process thread, reducing frame-delivery latency. X11-only — incompatible
+      // with Wayland's own compositor scheduling.
+      features.push("DirectRenderingDisplayCompositor");
     }
 
     // Enable modern rendering features

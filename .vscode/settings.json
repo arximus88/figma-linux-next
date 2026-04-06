@@ -26,5 +26,8 @@
   "prettier.singleQuote": false,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
-  }
+  },
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/release.yml"
+  ]
 }

@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -28,4 +26,4 @@ jobs:
         run: bun run lint
 
       - name: Unit tests
-        run: bun test src/
+        run: bun test tests/unit/

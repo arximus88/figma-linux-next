@@ -1,17 +1,25 @@
 <script lang="ts">
-  let { item, onItemRemoveClick = () => {} } = $props();
   import { ButtonTool, Trash, Flex, FlexItem } from "Common";
   import { InputText } from "Common/Input";
 
+  let { item, onItemRemoveClick = () => {} } = $props();
+
+  let sw = $state(item.switch);
+  let val = $state(item.value ?? "");
+
+  $effect(() => {
+    item.switch = sw;
+    item.value = val;
+  });
 </script>
 
 <div>
   <FlexItem grow={1}>
-    <InputText bind:value={item.switch} />
+    <InputText bind:value={sw} />
   </FlexItem>
   <Flex width="20px" />
   <FlexItem grow={1}>
-    <InputText bind:value={item.value} />
+    <InputText bind:value={val} />
   </FlexItem>
   <Flex width="20px" />
   <ButtonTool normalBgColor="tarsparent" onButtonClick={onItemRemoveClick}>

@@ -8,22 +8,26 @@ import { logger } from "./Logger";
 const DESKTOP_FILENAME = "figma-linux-next-appimage.desktop";
 
 function buildDesktopEntry(appImagePath: string): string {
-  return [
-    "[Desktop Entry]",
-    "Name=Figma Linux Next",
-    "Comment=Unofficial Figma desktop app for Linux",
-    `Exec=${appImagePath} %U`,
-    "Terminal=false",
-    "Type=Application",
-    "Icon=figma-linux-next",
-    "StartupWMClass=figma-linux-next",
-    "Categories=Graphics;",
-    "MimeType=application/figma;x-scheme-handler/figma;",
-  ].join("\n") + "\n";
+  return (
+    [
+      "[Desktop Entry]",
+      "Name=Figma Linux Next",
+      "Comment=Unofficial Figma desktop app for Linux",
+      `Exec=${appImagePath} %U`,
+      "Terminal=false",
+      "Type=Application",
+      "Icon=figma-linux-next",
+      "StartupWMClass=figma-linux-next",
+      "Categories=Graphics;",
+      "MimeType=application/figma;x-scheme-handler/figma;",
+    ].join("\n") + "\n"
+  );
 }
 
 function isAlreadyRegistered(): boolean {
-  const result = spawnSync("xdg-mime", ["query", "default", "x-scheme-handler/figma"], { encoding: "utf8" });
+  const result = spawnSync("xdg-mime", ["query", "default", "x-scheme-handler/figma"], {
+    encoding: "utf8",
+  });
   return result.stdout?.trim() === DESKTOP_FILENAME;
 }
 

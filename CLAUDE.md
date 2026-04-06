@@ -84,10 +84,10 @@ ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line li
 
 ```bash
 # Unit tests
-bun test
+bun run test:unit
 
 # E2E tests (Playwright)
-bunx playwright test
+bun run test:e2e
 ```
 
 Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
