@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.4] - 2026-04-06
+
+### Added
+
+- **GPU: `DirectRenderingDisplayCompositor`** — enabled on X11 sessions; moves the display compositor onto the GPU process thread, reducing frame-delivery latency; disabled on Wayland to avoid compositor conflicts
+
+### Fixed
+
+- **Settings: Chromium switches editor** — `SwitchListItem` inputs now use local `$state` + `$effect` for Svelte 5 compatibility; values correctly sync back to the settings store
+- **Settings: list item disabled prop** — removed `bind:disabled` in `List.svelte` (was a non-reactive Svelte 5 binding producing console warnings)
+- **inputEnhancer: production log noise** — replaced bare `console.log` calls with an `isDev` log helper; init/Wayland/WebGL messages are now suppressed in production builds
+- **`local:install` script** — was installing to `/opt/figma-linux` (original project path); fixed to `/opt/figma-linux-next`
+- **`src/package.json` metadata** — `repository` and `homepage` fields were placeholder `"none"`; now point to the correct GitHub URL
+
+### CI/CD
+
+- **Branch protection on `dev`** — direct pushes blocked; merges require a PR from `staging` with CI passing; release flow updated: version bump and tag happen on `staging`, tag push triggers `release.yml`
+- **Deleted dead workflows** — `update_assets.yml`, `update_amd64_assets.yml` (Docker/old-author artifacts), `manualrun_aur.yml`, `manualrun_launchpad.yml` (referenced non-existent reusable workflows)
+- **`ci.yml`** — fixed unit test target: `bun test src/` → `bun test tests/unit/` (tests migrated); removed misplaced `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env
+- **`push_aur_dev_git.yml`** — added `GIT_SSH_COMMAND` to clone and push steps for consistency with `release.yml`
+
+### Removed
+
+- **Old-project artifacts** — deleted desktop files referencing `figma-linux-test` (`figma-linux.desktop`, `figma-linux-dev.desktop`, `figma-linux-snap.desktop`)
+- **Dead scripts** — `scripts/appimage.sh` (replaced by electron-builder), `scripts/build-snap.sh`, `scripts/build_ppa.sh`, `scripts/build_artefacts.sh` (Docker-based), `scripts/update_rev_changelog.pl`
+- **`scripts/debian/`** — entire directory removed (Launchpad PPA dropped); `bump_version.pl` no longer generates Debian changelogs
+
+### Refactor
+
+- **Test infrastructure** — unit tests migrated from `src/**/*.test.ts` to `tests/unit/`; `bunfig.toml` preload path updated; `tsconfig.json` includes `tests/**`
+- **`bump_version.pl`** — removed PPA/Debian changelog section; commit message now follows conventional commits format
+
+### Dependencies
+
+- `electron` 41.0.3 → 41.1.1
+- `vite` 8.0.2 → 8.0.4
+- `svelte` 5.55.0 → 5.55.1
+- `svelte-check` 4.4.5 → 4.4.6
+- `adm-zip` 0.5.16 → 0.5.17 (synced in `src/package.json`)
+- `@playwright/test` 1.58.2 → 1.59.1
+- `dotenv` 17.3.1 → 17.4.1
+- `eslint` 10.1.0 → 10.2.0
+- `@typescript-eslint/*` 8.57.2 → 8.58.0
+- `@types/node` 25.5.0 → 25.5.2
+
+---
+
 ## [0.13.3] - 2026-03-27
 
 ### Added

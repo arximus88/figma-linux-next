@@ -2,7 +2,7 @@
 name: figma-linux-next-build
 description: |
   Build, packaging, and release skill for the figma-linux-next project.
-  Use this skill when working on: creating releases, bumping versions, building packages (deb/rpm/pacman/AppImage/zip/flatpak/snap), CI/CD workflows (.github/workflows/), AUR packages, Launchpad PPA, or any publishing/distribution task. Also use when asked to "build", "release", "package", "publish", or "ship" figma-linux-next.
+  Use this skill when working on: creating releases, bumping versions, building packages (deb/rpm/pacman/AppImage/zip), CI/CD workflows (.github/workflows/), AUR packages, or any publishing/distribution task. Also use when asked to "build", "release", "package", "publish", or "ship" figma-linux-next.
 ---
 
 # figma-linux-next Build & Release Reference
@@ -17,16 +17,16 @@ bun run builder        # electron-builder only (skips Vite build)
 bun run local:install  # Install to /opt/figma-linux-next for manual testing
 bun run cln            # Clean dist/
 
-# Release prep
-perl scripts/bump_version.pl 0.13.1   # bump version + tag + commit
+# Release prep (run on staging, NOT on dev)
+perl scripts/bump_version.pl 0.13.4   # bump version + commit + tag on staging
 # NOTE: bump_version.pl reads current version from latest git tag (not package.json)
-# After running, manually verify package.json and src/package.json have correct version
-# If they don't match (tag was alpha), fix manually:
+# After running, verify package.json and src/package.json have correct version
+# If they don't match, fix manually:
 #   sed -i 's/"version": "OLD"/"version": "NEW"/' package.json src/package.json
 #   git add package.json src/package.json && git commit --amend --no-edit
 #   git tag -d vNEW && git tag -a vNEW -m "Publish vNEW release"
 
-perl scripts/generate_release_notes.pl --latest        # markdown
+perl scripts/generate_release_notes.pl --latest        # markdown preview
 perl scripts/generate_release_notes.pl --latest --html # Flathub HTML format
 ```
 
@@ -78,14 +78,83 @@ When bumping a runtime dep version: update **both**. Dev-only deps (vite, eslint
 
 ---
 
+## Branching Strategy
+
+```
+staging  ←── all features, fixes, and daily work
+   ↓ PR (CI must pass, 0 approvals required)
+  dev     ←── stable, protected — merge only via PR from staging
+```
+
+- **`dev`** is branch-protected: no direct pushes, no force pushes, CI required
+- **`staging`** is where all work happens, including version bumps and tags
+- Tags are created on `staging`, pushed after the PR merges to `dev`
+- `enforce_admins: false` — owner can bypass in emergencies
+
+---
+
+## Release Flow (step by step)
+
+> **Rule:** version bump and tag happen on `staging`. The tag triggers CI/release, not the merge to `dev`.
+
+### 1. Prepare staging
+```bash
+# Ensure staging is clean and all changes are committed
+git status
+git push origin staging
+```
+
+### 2. Update CHANGELOG.md
+Add a `## [X.Y.Z]` section at the top with the new version's changes.
+Commit it: `git commit -m "chore(release): update CHANGELOG for vX.Y.Z"`
+
+### 3. Bump version on staging
+```bash
+perl scripts/bump_version.pl X.Y.Z
+# Creates: version bump commit + vX.Y.Z tag on staging
+# Verify package.json and src/package.json both show X.Y.Z
+```
+
+### 4. Push staging + tag
+```bash
+git push origin staging
+git push origin vX.Y.Z
+```
+⚠️ **Pushing the tag triggers `release.yml` immediately** — make sure staging is ready.
+
+### 5. Create PR: staging → dev
+```bash
+gh pr create --base dev --head staging \
+  --title "Release vX.Y.Z" \
+  --body "Merge staging into dev for vX.Y.Z release."
+```
+Or open in GitHub UI.
+
+### 6. Wait for CI, merge PR
+CI runs `bun run check`, `bun run lint`, `bun test tests/unit/` on the PR.
+Once green — merge (no approval needed, you're the owner).
+
+### 7. Release is already running
+`release.yml` was triggered in step 4 by the tag push. It:
+- Builds all 9 packages (deb×2, rpm×2, AppImage×2, zip×2, pacman×1)
+- Creates GitHub Release with release notes from CHANGELOG.md
+- Pushes updated PKGBUILD to AUR
+
+AUR is **only updated via tag push** — not on branch merge.
+
+---
+
 ## Release Checklist
 
-1. `bun test src/` — all tests pass
-2. `bun run package` — all 8 build targets succeed locally
-3. `perl scripts/bump_version.pl X.Y.Z` — creates commit + tag
-4. Verify `package.json` and `src/package.json` have correct version (fix + amend if needed)
-5. Validate workflow before pushing: `/home/arx/go/bin/actionlint .github/workflows/release.yml`
-6. `git push origin dev && git push origin vX.Y.Z`
+- [ ] All changes committed and pushed to staging
+- [ ] CHANGELOG.md updated with `## [X.Y.Z]` section
+- [ ] `perl scripts/bump_version.pl X.Y.Z` — verify both package.json files
+- [ ] `git push origin staging && git push origin vX.Y.Z`
+- [ ] PR created: staging → dev
+- [ ] CI green on PR
+- [ ] PR merged
+- [ ] GitHub Release visible at `github.com/arximus88/figma-linux-next/releases`
+- [ ] AUR updated: `https://aur.archlinux.org/packages/figma-linux-next`
 
 ---
 
@@ -93,29 +162,31 @@ When bumping a runtime dep version: update **both**. Dev-only deps (vite, eslint
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `release.yml` | Tag `v*.*.*` | Build all packages, GitHub Release, AUR push |
-| `ci.yml` | Push to `dev`/`staging` | Runs `bun test src/` |
-| `push_aur_dev_git.yml` | **Manual only** (`workflow_dispatch`) | Updates `figma-linux-next-dev-git` AUR |
-| `manualrun_aur.yml` | Manual | Push all AUR packages |
-| `manualrun_flathub.yml` | Manual | Publish to Flathub |
-| `manualrun_launchpad.yml` | Manual | Upload to Launchpad (with revision input) |
+| `release.yml` | Tag `v*.*.*` pushed | Build all 9 packages, GitHub Release, AUR push |
+| `ci.yml` | Push/PR to `dev`/`staging` | Type check, lint, unit tests |
+| `push_aur_dev_git.yml` | Manual (`workflow_dispatch`) | Updates `figma-linux-next-dev-git` AUR |
 | `remove_artefacts.yml` | Manual | Clean up old CI artifacts |
 
 ### release.yml jobs
 
 ```
-build (ubuntu-latest)
+build-x64 (ubuntu-latest)
   apt: rpm fakeroot
-  bunx electron-builder → deb, rpm, AppImage, zip (x64 + arm64)
+  bunx electron-builder → deb, rpm, AppImage, zip (x64)
+
+build-arm64 (ubuntu-24.04-arm)
+  apt: rpm fakeroot
+  bunx electron-builder → deb, rpm, AppImage, zip (arm64)
 
 build-pacman (archlinux container)
   pacman: bun nodejs base-devel fakeroot libxcrypt-compat
   bunx electron-builder → .pacman (x64 only)
 
-release
+release (needs all build-* jobs)
   merge artifacts → SHA256SUMS → softprops/action-gh-release@v2
+  release notes extracted from CHANGELOG.md
 
-aur (archlinux container)
+aur (needs release, archlinux container)
   SSH key from ID_RSA secret → git clone aur.archlinux.org/figma-linux-next
   update PKGBUILD (pkgver + sha256 via scripts/update_pkgbuild_sha256.py)
   makepkg --printsrcinfo → .SRCINFO (runs as non-root 'builder' user)
@@ -129,7 +200,7 @@ aur (archlinux container)
 Local AUR repo: `/home/arx/aur/figma-linux-next/`
 Remote: `ssh://aur@aur.archlinux.org/figma-linux-next.git`
 
-CI updates AUR automatically on release. Manual update:
+CI updates AUR automatically on tag push. Manual update:
 ```bash
 cd /home/arx/aur/figma-linux-next
 # edit PKGBUILD (pkgver, sha256sums)
@@ -205,10 +276,9 @@ build/installers/
 | `vite.config.ts` | Vite build config (main + renderer bundles) |
 | `package.json` / `src/package.json` | Dev / production manifests |
 | `/home/arx/aur/figma-linux-next/PKGBUILD` | AUR package definition (separate repo) |
-| `scripts/bump_version.pl` | Version bump + tag automation |
-| `scripts/generate_release_notes.pl` | Changelog from git log |
+| `scripts/bump_version.pl` | Version bump + tag automation (run on staging) |
+| `scripts/generate_release_notes.pl` | Changelog from git log (preview only) |
 | `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
-| `scripts/debian/` | Debian control files for PPA |
 | `.github/workflows/` | All CI/CD automation |
 | `resources/AppRun` | AppImage entry point |
 | `resources/icons/` | Multi-size icons (16–512px) |
