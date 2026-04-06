@@ -1,5 +1,6 @@
 {
   "appId": "com.figma.FigmaLinuxNext",
+  "publish": null,
   "productName": "figma-linux-next",
   "extraMetadata": {
     "main": "main/main.js"
