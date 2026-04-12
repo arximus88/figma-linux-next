@@ -26,18 +26,6 @@ export const REGEXP_APP_AUTH_GRANT = /^\/{0,2}app_auth\/[^/]+\/grant/;
 
 export const FIGMA_SESSION_COOKIE_NAME = "figma.session";
 
-export const FILE_WHITE_LIST = [".gitignore"];
-export const FILE_EXTENSION_WHITE_LIST = [
-  ".css",
-  ".html",
-  ".js",
-  ".json",
-  ".jsx",
-  ".md",
-  ".ts",
-  ".tsx",
-];
-
 export const NEW_FILE_TAB_TITLE = "New file";
 
 export const LINKS = {
