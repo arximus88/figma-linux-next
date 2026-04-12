@@ -8,7 +8,7 @@ import * as Chokidar from "chokidar";
 import { dialogs } from "./Dialogs";
 import { storage } from "Storage";
 import { logger } from "./Logger";
-import { FILE_EXTENSION_WHITE_LIST, FILE_WHITE_LIST, MANIFEST_FILE_NAME } from "Const";
+import { MANIFEST_FILE_NAME } from "Const";
 import { ALLOW_CODE_FILES, ALLOW_EXT_FILES, ALLOW_UI_FILES } from "Utils/Common";
 import { access, mkPath } from "Utils/Main";
 
@@ -435,15 +435,6 @@ export default class ExtensionManager {
     }
     return id;
   }
-  private validateFileName(file: WebApi.WriteNewExtensionDirectoryToDiskFile) {
-    if (
-      !FILE_WHITE_LIST.includes(file.name) &&
-      (!FILE_EXTENSION_WHITE_LIST.includes(extname(file.name)) ||
-        !/^[\w\/]+(?:.\w+)*\.\w+/.test(file.name))
-    ) {
-      throw new Error(`Filename "${file.name}" not allowed`);
-    }
-  }
   private validateManidestFile(file: WebApi.WriteNewExtensionDirectoryToDiskFile) {
     if (typeof file.content !== "string") {
       throw new Error("Manifest must be a string");
@@ -463,17 +454,13 @@ export default class ExtensionManager {
     let manifestFile = null;
 
     for (const file of files) {
-      this.validateFileName(file);
-
       if (file.name === MANIFEST_FILE_NAME) {
         this.validateManidestFile(file);
 
         manifestFile = file;
       }
 
-      if (ALLOW_EXT_FILES.test(file.name)) {
-        observeFiles.add(file.name);
-      }
+      observeFiles.add(file.name);
     }
 
     if (!manifestFile) {
