@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.5] - 2026-04-14
+
+### Fixed
+
+- **Extensions: file type whitelist removed** — plugins can now use any file type (`.txt`, `.wasm`, etc.); path traversal guard added to prevent writes outside extension directory ([#23](https://github.com/arximus88/figma-linux-next/pull/23))
+- **MainTab: Google SSO popup** — `window.open` for Google SSO URLs now allowed instead of blocked
+- **MainTab: external URLs** — non-Figma URLs opened via `shell.openExternal` instead of loading in-app
+
+### Added
+
+- **AUR: `figma-linux-next-bin` package** — prebuilt binary package with bundled Electron for Arch/CachyOS users who want version parity without depending on system Electron
+
+### CI/CD
+
+- **`release.yml`: `aur-bin` job** — automatically updates `figma-linux-next-bin` AUR package on tag push (runs in parallel with existing `aur` job)
+- **Removed `push_aur_dev_git.yml`** — targeted non-existent `figma-linux-next-dev-git` AUR package
+
+---
+
 ## [0.13.4] - 2026-04-06
 
 ### Added
