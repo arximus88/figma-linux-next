@@ -2,13 +2,13 @@ import { app, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 import * as fs from "fs";
 import * as os from "os";
-import { resolve, relative, extname, join, basename, parse } from "path";
+import { resolve, relative, join, basename, parse } from "path";
 import * as cp from "child_process";
 import * as Chokidar from "chokidar";
 import { dialogs } from "./Dialogs";
 import { storage } from "Storage";
 import { logger } from "./Logger";
-import { FILE_EXTENSION_WHITE_LIST, FILE_WHITE_LIST, MANIFEST_FILE_NAME } from "Const";
+import { MANIFEST_FILE_NAME } from "Const";
 import { ALLOW_CODE_FILES, ALLOW_EXT_FILES, ALLOW_UI_FILES } from "Utils/Common";
 import { access, mkPath } from "Utils/Main";
 
@@ -384,7 +384,7 @@ export default class ExtensionManager {
   }
   private async addExtension(path: string, files: WebApi.WriteNewExtensionDirectoryToDiskFile[]) {
     const id = this.generateFileId();
-    const observeFiles = this.validateExtensionFiles(files);
+    const observeFiles = this.validateExtensionFiles(files, path);
     const manifest = this.getManifestFromFiles(files);
 
     await this.saveExtensionFiles(path, files);
@@ -435,12 +435,9 @@ export default class ExtensionManager {
     }
     return id;
   }
-  private validateFileName(file: WebApi.WriteNewExtensionDirectoryToDiskFile) {
-    if (
-      !FILE_WHITE_LIST.includes(file.name) &&
-      (!FILE_EXTENSION_WHITE_LIST.includes(extname(file.name)) ||
-        !/^[\w\/]+(?:.\w+)*\.\w+/.test(file.name))
-    ) {
+  private validateFileName(file: WebApi.WriteNewExtensionDirectoryToDiskFile, basePath: string) {
+    const resolved = resolve(basePath, file.name);
+    if (!resolved.startsWith(resolve(basePath) + "/")) {
       throw new Error(`Filename "${file.name}" not allowed`);
     }
   }
@@ -458,12 +455,15 @@ export default class ExtensionManager {
       throw new Error(`Manifest 'build' value "${manifest.build}" not allowed`);
     }
   }
-  private validateExtensionFiles(files: WebApi.WriteNewExtensionDirectoryToDiskFile[]): string[] {
+  private validateExtensionFiles(
+    files: WebApi.WriteNewExtensionDirectoryToDiskFile[],
+    basePath: string,
+  ): string[] {
     const observeFiles = new Set<string>();
     let manifestFile = null;
 
     for (const file of files) {
-      this.validateFileName(file);
+      this.validateFileName(file, basePath);
 
       if (file.name === MANIFEST_FILE_NAME) {
         this.validateManidestFile(file);
