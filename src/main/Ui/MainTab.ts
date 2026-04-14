@@ -172,6 +172,10 @@ export default class MainTab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
+    if (/start_google_sso/.test(url)) {
+      return { action: "allow" as const };
+    }
+
     if (isFileBrowserUrl(url)) {
       // Team/project/recent browsing — navigate within the main tab, not a new tab
       this.view.webContents.loadURL(url);
@@ -180,10 +184,11 @@ export default class MainTab {
 
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
-      return { action: "deny" as const };
     } else {
-      return { action: "allow" as const };
+      shell.openExternal(url);
     }
+
+    return { action: "deny" as const };
   }
 
   private registerEvents() {
