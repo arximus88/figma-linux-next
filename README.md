@@ -1,4 +1,4 @@
-# <img src="resources/icons/128x128.png" width="32"> Figma Linux Next (unofficial)
+# <img src="resources/icons/128x128.png" width="32"> Figma Linux Next
 
 Unofficial [Electron](http://electron.atom.io)-based browser wrapper for the [Figma](https://figma.com) web app on Linux.
 Loads figma.com directly — no private APIs, no data scraping, no account sharing.
