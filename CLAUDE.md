@@ -358,6 +358,33 @@ Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('
 
 **`enforce_admins: false`** — owner can bypass protection in emergencies.
 
+### CI/CD automation (`release.yml`)
+
+Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**:
+
+1. **`build-x64`** — builds deb, rpm, AppImage, zip on Ubuntu (electron-builder bundles Electron)
+2. **`build-arm64`** — same formats on native ARM runner
+3. **`build-pacman`** — builds `.pacman` in Arch container (electron-builder bundles Electron)
+4. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`
+5. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
+
+Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`.
+
+Other workflows:
+- `ci.yml` — runs on PRs to `dev`
+- `remove_artefacts.yml` — cleanup
+
+### AUR packages
+
+| Package | Electron | Auto-updated | Repo |
+|---------|----------|-------------|------|
+| `figma-linux-next` | System (whatever `pacman -S electron` gives) | Yes — `release.yml` `aur` job | `ssh://aur@aur.archlinux.org/figma-linux-next.git` |
+| `figma-linux-next-bin` | Bundled (from GitHub Release zip) | Yes — `release.yml` `aur-bin` job | `ssh://aur@aur.archlinux.org/figma-linux-next-bin.git` |
+
+Local AUR repos: `/home/arx/aur/figma-linux-next/`, `/home/arx/aur/figma-linux-next-bin/`
+
+**Pacman uses system Electron** — version may lag behind project's Electron. `-bin` package bundles Electron from the release zip for version parity.
+
 ### bun test and electron mocking
 bun validates named ESM exports statically before mocks run. `src/utils/Main/net.ts` imports `{ net }` from electron, so any test that touches the `Utils/Main` import chain needs electron pre-mocked. The preload at `src/test/electron-preload.ts` (registered via `bunfig.toml`) handles this globally — do not add per-file electron mocks.
 

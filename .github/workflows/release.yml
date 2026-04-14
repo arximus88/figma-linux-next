@@ -136,7 +136,7 @@ jobs:
             ./artifacts/figma-linux-next_*
             ./artifacts/SHA256SUMS
 
-  # Push updated PKGBUILD to AUR
+  # Push updated PKGBUILD to AUR (both packages in parallel)
   aur:
     needs: release
     runs-on: ubuntu-latest
@@ -186,6 +186,61 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           git config --global --add safe.directory /tmp/aur-pkg
           cd /tmp/aur-pkg
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || git commit -m "Update to v${VERSION}"
+          git push
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
+
+  aur-bin:
+    needs: release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: pacman -Sy --noconfirm git openssh pacman python curl
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p /root/.ssh
+          echo "${{ secrets.ID_RSA }}" | base64 -d > /root/.ssh/id_rsa
+          ssh-keyscan aur.archlinux.org >> /root/.ssh/known_hosts
+          chmod 700 /root/.ssh
+          chmod 600 /root/.ssh/id_rsa
+
+      - name: Clone AUR repo
+        run: git clone ssh://aur@aur.archlinux.org/figma-linux-next-bin.git /tmp/aur-bin
+        env:
+          GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
+
+      - name: Update PKGBUILD
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          ZIP_URL="https://github.com/arximus88/figma-linux-next/releases/download/v${VERSION}/figma-linux-next_${VERSION}_linux_x64.zip"
+          SHA256=$(curl -sL "$ZIP_URL" | sha256sum | cut -d' ' -f1)
+
+          cd /tmp/aur-bin
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          python3 $GITHUB_WORKSPACE/scripts/update_pkgbuild_sha256.py "$SHA256" PKGBUILD
+
+      - name: Generate .SRCINFO
+        run: |
+          cd /tmp/aur-bin
+          git config user.name "${{ secrets.USER_NAME }}"
+          git config user.email "${{ secrets.EMAIL }}"
+          useradd -m builder
+          chown -R builder:builder /tmp/aur-bin
+          su builder -c "cd /tmp/aur-bin && makepkg --printsrcinfo > .SRCINFO"
+
+      - name: Commit and push to AUR
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          git config --global --add safe.directory /tmp/aur-bin
+          cd /tmp/aur-bin
           git add PKGBUILD .SRCINFO
           git diff --staged --quiet || git commit -m "Update to v${VERSION}"
           git push
