@@ -117,25 +117,35 @@ export default class App {
   };
 
   private secondInstance(event: Event, argv: string[]) {
-    let projectLink = "";
     logger.debug("second-instance, argv: ", argv);
 
-    const paramIndex = argv.findIndex((i) => isValidProjectLink(i));
     const hasAppAuthorization = argv.find((i) => isAppAuthLink(i));
-
-    logger.debug("second-instance, hasAppAuthorization: ", hasAppAuthorization);
-
     if (this.windowManager.tryHandleAppAuthRedeemUrl(hasAppAuthorization)) {
       return;
     }
 
-    if (paramIndex !== -1) {
-      projectLink = argv[paramIndex];
+    // Guard: Args() will process.exit() on -v/-h — drop those flags from a
+    // second invocation so the running app isn't killed by a help request.
+    const safeArgv = argv.filter((a) => a !== "-v" && a !== "--version" && a !== "-h" && a !== "--help");
+    const { figmaUrl, newWindow } = Args(safeArgv);
+
+    if (newWindow) {
+      this.windowManager.newWindow();
+      return;
     }
 
-    if (projectLink !== "") {
+    // Covers --new-file=<type> (figmaUrl is /file/new?editor_type=...) and
+    // direct figma:// or https://figma.com/... URLs passed on the command line.
+    if (figmaUrl) {
       this.windowManager.focusLastWindow();
-      this.windowManager.openUrl(projectLink);
+      this.windowManager.openUrl(figmaUrl);
+      return;
+    }
+
+    const projectLinkIdx = argv.findIndex((i) => isValidProjectLink(i));
+    if (projectLinkIdx !== -1) {
+      this.windowManager.focusLastWindow();
+      this.windowManager.openUrl(argv[projectLinkIdx]);
     }
   }
 

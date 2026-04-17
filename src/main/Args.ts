@@ -4,11 +4,10 @@ const { version } = require("./../package.json");
 export interface AppArgs {
   figmaUrl: string;
   newFileType?: "design" | "figjam";
+  newWindow: boolean;
 }
 
-export default (): AppArgs => {
-  const argv = process.argv;
-
+export default (argv: string[] = process.argv): AppArgs => {
   let figmaUrl = "";
   let newFileType: "design" | "figjam" | undefined;
 
@@ -26,6 +25,8 @@ export default (): AppArgs => {
       figmaUrl = `https://www.figma.com/file/new?editor_type=${fileType}`;
     }
   }
+
+  const newWindow = argv.includes("--new-window");
 
   const urlIndex = argv.findIndex((i) => /^(figma:\/\/|https?:\/\/w{0,3}?\.?figma\.com)/.test(i));
   if (urlIndex !== -1) {
@@ -65,5 +66,6 @@ For more information, visit: https://github.com/arximus88/figma-linux-next
   return {
     figmaUrl,
     newFileType,
+    newWindow,
   };
 };
