@@ -2,6 +2,7 @@
   "extends": "@tsconfig/svelte/tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist",
+    "rootDir": "..",
     "useUnknownInCatchVariables": false,
     "allowArbitraryExtensions": true,
     "noImplicitAny": true,
@@ -40,8 +41,8 @@
       "Common/*": ["../renderer/Common/*"],
       "Containers": ["../renderer/Common/Containers"],
       "Containers/*": ["../renderer/Common/Containers/*"],
-      "DesktopAPI": ["DesktopAPI"],
-      "DesktopAPI/*": ["DesktopAPI/*"],
+      "DesktopAPI": ["./DesktopAPI"],
+      "DesktopAPI/*": ["./DesktopAPI/*"],
       "Const": ["../constants"],
       "Utils": ["../utils"],
       "Utils/*": ["../utils/*"],
