@@ -49,9 +49,11 @@ Options:
     -h, --help             Show this help message
     -v, --version          Show application version
     --new-file=TYPE        Create a new file (TYPE: design or figjam)
+    --new-window           Open a new application window
 
 Examples:
     figma-linux-next                                    # Launch application
+    figma-linux-next --new-window                       # Open a new window
     figma-linux-next --new-file=design                  # Create new design file
     figma-linux-next figma://file/abc123                # Open specific file
     figma-linux-next https://www.figma.com/file/xyz     # Open from URL
