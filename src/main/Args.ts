@@ -4,11 +4,10 @@ const { version } = require("./../package.json");
 export interface AppArgs {
   figmaUrl: string;
   newFileType?: "design" | "figjam";
+  newWindow: boolean;
 }
 
-export default (): AppArgs => {
-  const argv = process.argv;
-
+export default (argv: string[] = process.argv): AppArgs => {
   let figmaUrl = "";
   let newFileType: "design" | "figjam" | undefined;
 
@@ -26,6 +25,8 @@ export default (): AppArgs => {
       figmaUrl = `https://www.figma.com/file/new?editor_type=${fileType}`;
     }
   }
+
+  const newWindow = argv.includes("--new-window");
 
   const urlIndex = argv.findIndex((i) => /^(figma:\/\/|https?:\/\/w{0,3}?\.?figma\.com)/.test(i));
   if (urlIndex !== -1) {
@@ -48,9 +49,11 @@ Options:
     -h, --help             Show this help message
     -v, --version          Show application version
     --new-file=TYPE        Create a new file (TYPE: design or figjam)
+    --new-window           Open a new application window
 
 Examples:
     figma-linux-next                                    # Launch application
+    figma-linux-next --new-window                       # Open a new window
     figma-linux-next --new-file=design                  # Create new design file
     figma-linux-next figma://file/abc123                # Open specific file
     figma-linux-next https://www.figma.com/file/xyz     # Open from URL
@@ -65,5 +68,6 @@ For more information, visit: https://github.com/arximus88/figma-linux-next
   return {
     figmaUrl,
     newFileType,
+    newWindow,
   };
 };

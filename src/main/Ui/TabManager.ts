@@ -132,6 +132,20 @@ export default class TabManager {
     this.tabs.forEach((t) => t.updateScale(scale));
   }
 
+  public getNextTabId(currentId: Types.TabIdType | undefined): number | undefined {
+    const ids = [...this.tabs.keys()];
+    if (ids.length === 0) return undefined;
+    const idx = typeof currentId === "number" ? ids.indexOf(currentId) : -1;
+    return ids[(idx + 1) % ids.length];
+  }
+
+  public getPrevTabId(currentId: Types.TabIdType | undefined): number | undefined {
+    const ids = [...this.tabs.keys()];
+    if (ids.length === 0) return undefined;
+    const idx = typeof currentId === "number" ? ids.indexOf(currentId) : 0;
+    return ids[(idx - 1 + ids.length) % ids.length];
+  }
+
   public getTabByIndex(index: number) {
     let i = 0;
     let foundTab: Types.Tab | undefined;

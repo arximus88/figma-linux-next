@@ -1,5 +1,11 @@
 import { describe, test, expect } from "bun:test";
-import { normalizeUrl, getFileKeyFromUrl, isFigmaRunUrl, isFileBrowserUrl } from "Utils/Common/url";
+import {
+  normalizeUrl,
+  getFileKeyFromUrl,
+  getTabDedupKey,
+  isFigmaRunUrl,
+  isFileBrowserUrl,
+} from "Utils/Common/url";
 import { HOMEPAGE } from "Const";
 
 describe("normalizeUrl", () => {
@@ -60,6 +66,39 @@ describe("getFileKeyFromUrl", () => {
   test("returns null for invalid URL", () => {
     expect(getFileKeyFromUrl("not-a-url")).toBeNull();
     expect(getFileKeyFromUrl("")).toBeNull();
+  });
+});
+
+describe("getTabDedupKey", () => {
+  test("returns 'doc:<key>' for file/design/board URLs", () => {
+    expect(getTabDedupKey("https://www.figma.com/file/ABC123/x")).toBe("doc:ABC123");
+    expect(getTabDedupKey("https://www.figma.com/design/ABC123/x")).toBe("doc:ABC123");
+    expect(getTabDedupKey("https://www.figma.com/board/ABC123/x")).toBe("doc:ABC123");
+  });
+
+  test("returns 'proto:<key>' for prototype URLs", () => {
+    expect(getTabDedupKey("https://www.figma.com/proto/ABC123/x")).toBe("proto:ABC123");
+    expect(getTabDedupKey("https://www.figma.com/proto/ABC123?node-id=1-2")).toBe("proto:ABC123");
+  });
+
+  test("file and proto URLs for the same key produce different dedup keys", () => {
+    expect(getTabDedupKey("https://www.figma.com/file/SAME/a")).not.toBe(
+      getTabDedupKey("https://www.figma.com/proto/SAME/b"),
+    );
+  });
+
+  test("file, design and board with the same key dedupe together", () => {
+    const a = getTabDedupKey("https://www.figma.com/file/SAME/a");
+    const b = getTabDedupKey("https://www.figma.com/design/SAME/b");
+    const c = getTabDedupKey("https://www.figma.com/board/SAME/c");
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+
+  test("returns null for non-figma and malformed URLs", () => {
+    expect(getTabDedupKey("https://www.figma.com/community/file/ABC")).toBeNull();
+    expect(getTabDedupKey("not-a-url")).toBeNull();
+    expect(getTabDedupKey("")).toBeNull();
   });
 });
 

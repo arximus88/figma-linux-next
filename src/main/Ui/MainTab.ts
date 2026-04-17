@@ -172,7 +172,7 @@ export default class MainTab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
-    if (/start_google_sso/.test(url)) {
+    if (url.startsWith("https://accounts.google.com/") && /start_google_sso/.test(url)) {
       return { action: "allow" as const };
     }
 
@@ -184,7 +184,7 @@ export default class MainTab {
 
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
-    } else {
+    } else if (url.startsWith("https://") || url.startsWith("http://")) {
       shell.openExternal(url);
     }
 

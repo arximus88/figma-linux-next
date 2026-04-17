@@ -11,10 +11,14 @@ Categories=Graphics;Design;VectorGraphics;
 MimeType=x-scheme-handler/figma;application/x-figma;
 Keywords=design;figma;ui;ux;interface;prototype;vector;
 StartupNotify=true
-Actions=NewFile;NewFigJam;
+Actions=NewWindow;NewFile;NewFigJam;
 
 # Native Wayland support hint
 X-GNOME-UsesNotifications=true
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=figma-linux-next --new-window
 
 [Desktop Action NewFile]
 Name=New Design File
