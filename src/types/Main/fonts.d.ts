@@ -58,6 +58,7 @@ declare namespace Fonts {
     variationAxes?: IndexFontVariationAxis[];
     variationAxisValues?: IndexFontVariationAxisValue[];
     useFontOpticalSize?: boolean;
+    user_installed?: boolean;
   }
 
   interface IFonts {

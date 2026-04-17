@@ -111,6 +111,7 @@ export default class FontManager {
           weight: fcWeightToCSS(fcWeight),
           stretch: fcWidthToStretch(isNaN(fcWidth) ? 100 : fcWidth),
           italic: slant > 0,
+          user_installed: true,
         };
 
         if (!result[filePath]) result[filePath] = [];
@@ -157,6 +158,7 @@ export default class FontManager {
                   weight,
                   stretch: 5,
                   italic: isItalic,
+                  user_installed: true,
                 };
 
                 // Extract variable metadata immediately for custom fonts
