@@ -110,3 +110,17 @@ export const getFileKeyFromUrl = (url: string): string | null => {
 
   return null;
 };
+
+/** Dedup key for "is this URL already open in a tab?" — separates the prototype
+ *  viewer (/proto/<key>) from the editor (/file|design|board/<key>) so both
+ *  can coexist as distinct tabs for the same document. */
+export const getTabDedupKey = (url: string): string | null => {
+  const parsed = parseURL(url);
+  if (!parsed) return null;
+
+  const match = parsed.pathname.match(/^\/(file|design|board|proto)\/([a-zA-Z0-9]+)/);
+  if (!match) return null;
+
+  const [, type, key] = match;
+  return type === "proto" ? `proto:${key}` : `doc:${key}`;
+};

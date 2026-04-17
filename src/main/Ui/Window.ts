@@ -14,7 +14,7 @@ import {
   isFileBrowserUrl,
   normalizeUrl,
   parseURL,
-  getFileKeyFromUrl,
+  getTabDedupKey,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
@@ -201,20 +201,21 @@ export default class Window {
     }
   }
 
-  /** Find an already-open tab for the same Figma file key (checks both stored and live URLs). */
-  private findTabByFileKey(url: string): Tab | undefined {
-    const key = getFileKeyFromUrl(url);
+  /** Find an already-open tab matching this URL's dedup key. Prototype and editor
+   *  URLs for the same file have different dedup keys and therefore coexist. */
+  private findTabForUrl(url: string): Tab | undefined {
+    const key = getTabDedupKey(url);
     if (!key) return undefined;
     for (const tab of this.tabManager.getAll().values()) {
-      const storedKey = tab.url ? getFileKeyFromUrl(tab.url) : null;
-      const liveKey = getFileKeyFromUrl(tab.getUrl());
+      const storedKey = tab.url ? getTabDedupKey(tab.url) : null;
+      const liveKey = getTabDedupKey(tab.getUrl());
       if (storedKey === key || liveKey === key) return tab;
     }
     return undefined;
   }
 
   public openUrlFromCommunity(url: string) {
-    const existing = this.findTabByFileKey(url);
+    const existing = this.findTabForUrl(url);
     if (existing) {
       this.setTabFocus(existing.id);
       return;
@@ -235,7 +236,7 @@ export default class Window {
       this.setFocusToMainTab();
     } else if (/figma:\/\//.test(url)) {
       const httpUrl = url.replace(/figma:\//, HOMEPAGE);
-      const existing = this.findTabByFileKey(httpUrl);
+      const existing = this.findTabForUrl(httpUrl);
       if (existing) {
         this.setTabFocus(existing.id);
         return;
@@ -243,7 +244,7 @@ export default class Window {
       const tab = this.addTab(httpUrl);
       if (tab) this.setTabFocus(tab.id);
     } else if (/https?:\/\//.test(url)) {
-      const existing = this.findTabByFileKey(url);
+      const existing = this.findTabForUrl(url);
       if (existing) {
         this.setTabFocus(existing.id);
         return;
@@ -697,7 +698,7 @@ export default class Window {
       return;
     }
 
-    const existing = this.findTabByFileKey(url);
+    const existing = this.findTabForUrl(url);
     if (existing) {
       this.closeNewFileTab();
       this.setTabFocus(existing.id);
