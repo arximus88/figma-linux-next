@@ -1,16 +1,66 @@
 declare namespace Fonts {
+  interface FontKitFontBase {
+    type: string;
+    postscriptName: string;
+    familyName: string;
+    subfamilyName: string;
+    italicAngle: number;
+    variationAxes?: Record<
+      string,
+      {
+        name: string;
+        min: number;
+        default: number;
+        max: number;
+      }
+    >;
+    namedVariations?: Record<string, Record<string, number>>;
+    "OS/2"?: {
+      usWeightClass: number;
+    };
+  }
+
+  type FontKitFont = FontKitFontBase & {
+    fonts?: undefined;
+  };
+
+  type FontKitCollection = FontKitFontBase & {
+    type: "TTC";
+    fonts: FontKitFont[];
+  };
+
+  type FontKitResult = FontKitFont | FontKitCollection;
+
+  interface IndexFontVariationAxis {
+    tag: string;
+    name: string;
+    min: number;
+    max: number;
+    default: number;
+    value?: number;
+  }
+
+  interface IndexFontVariationAxisValue {
+    tag: string;
+    value: number;
+  }
+
   interface IFontsFigmaItem {
     postscript: string;
     family: string;
     id: string;
     style: string;
+    name?: string;
     weight: number;
     stretch: number;
     italic: boolean;
+    variationAxes?: IndexFontVariationAxis[];
+    variationAxisValues?: IndexFontVariationAxisValue[];
+    useFontOpticalSize?: boolean;
   }
 
   interface IFonts {
-    [path: string]: Array<IFontsFigmaItem>;
+    [path: string]: IFontsFigmaItem[];
   }
 
   interface NameTableResult {
