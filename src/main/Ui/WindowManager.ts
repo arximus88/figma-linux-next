@@ -138,9 +138,12 @@ export default class WindowManager {
 
   public saveState() {
     storage.settings.app.windowsState = {};
+    const keepTabs = storage.settings.app.saveLastOpenedTabs;
 
     for (const [_, window] of this.windows) {
       const { windowId, ...state } = window.getState();
+
+      if (!keepTabs) state.tabs = [];
 
       storage.settings.app.windowsState[windowId] = state;
     }

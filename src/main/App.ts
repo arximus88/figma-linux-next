@@ -265,7 +265,11 @@ export default class App {
   }
 
   private onWindowAllClosed() {
-    app.quit();
+    // Persist window/tab state before the app exits — X-button close goes
+    // through this path, not through the "Quit" menu, so without this the
+    // "save last opened tabs" setting would never actually persist anything.
+    this.windowManager.saveState();
+    storage.save().finally(() => app.quit());
   }
 
   private relaunchApp() {
