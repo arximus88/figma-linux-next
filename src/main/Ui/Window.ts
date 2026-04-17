@@ -659,6 +659,14 @@ export default class Window {
 
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
   }
+  public focusNextTab() {
+    const nextId = this.tabManager.getNextTabId(this.tabManager.lastFocusedTab);
+    if (nextId !== undefined) this.setTabFocus(nextId);
+  }
+  public focusPrevTab() {
+    const prevId = this.tabManager.getPrevTabId(this.tabManager.lastFocusedTab);
+    if (prevId !== undefined) this.setTabFocus(prevId);
+  }
   public setTabTitle(event: IpcMainEvent, title: string) {
     // Ignore title updates from the warm tab (not yet promoted to active tab)
     if (this.warmTab && event.sender.id === this.warmTab.id) return;

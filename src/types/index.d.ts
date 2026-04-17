@@ -17,6 +17,8 @@ declare namespace Electron {
     on(event: "reloadTab", listener: (tabId: number) => void): this;
     on(event: "closeTab", listener: (windowId: number, tabId: number) => void): this;
     on(event: "closeCurrentTab", listener: (windowId: number) => void): this;
+    on(event: "focusNextTab", listener: (windowId: number) => void): this;
+    on(event: "focusPrevTab", listener: (windowId: number) => void): this;
     on(event: "reopenClosedTab", listener: (windowId: number) => void): this;
     on(event: "closeCurrentWindow", listener: (windowId: number) => void): this;
     on(event: "toggleWindowFullscreen", listener: (windowId: number) => void): this;

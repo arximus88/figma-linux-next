@@ -316,6 +316,14 @@ export default class WindowManager {
 
     this.handleCloseTab(window, tabId);
   }
+  private focusNextTabFromMenu(windowId: number) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.focusNextTab();
+  }
+  private focusPrevTabFromMenu(windowId: number) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.focusPrevTab();
+  }
   private closeCurrentTabFromMenu(windowId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
     const tabId = window.getLatestFocusedTabId();
@@ -631,6 +639,8 @@ export default class WindowManager {
     app.on("newWindow", this.newWindowFromMenu.bind(this));
     app.on("reloadTab", this.reloadTabFromMenu.bind(this));
     app.on("closeTab", this.closeTabFromMenu.bind(this));
+    app.on("focusNextTab", this.focusNextTabFromMenu.bind(this));
+    app.on("focusPrevTab", this.focusPrevTabFromMenu.bind(this));
     app.on("closeCurrentTab", this.closeCurrentTabFromMenu.bind(this));
     app.on("reopenClosedTab", this.reopenClosedTabFromMenu.bind(this));
     app.on("closeCurrentWindow", this.closeCurrentWindowFromMenu.bind(this));

@@ -24,6 +24,8 @@ export default class MenuManager {
       this.item("Reopen Closed Tab", "reopenClosedTab", "Ctrl+Shift+T"),
       // hidden items
       this.item("Fullscreen", "toggleWindowFullscreen", "F11", true, false),
+      this.item("Next Tab", "focusNextTab", "Ctrl+Tab", true, false),
+      this.item("Previous Tab", "focusPrevTab", "Ctrl+Shift+Tab", true, false),
     ];
 
     if (state?.recentClosedTabsMenuData?.length > 0) {
