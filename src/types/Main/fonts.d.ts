@@ -51,6 +51,7 @@ declare namespace Fonts {
     id: string;
     style: string;
     name?: string;
+    index?: number;
     weight: number;
     stretch: number;
     italic: boolean;

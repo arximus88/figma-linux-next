@@ -81,9 +81,10 @@ export default class FontManager {
         if (!line.trim()) continue;
 
         const parts = line.split("\t");
-        if (parts.length < 7) continue;
+        if (parts.length < 8) continue;
 
-        const [filePath, family, style, postscript, weightStr, slantStr, widthStr] = parts;
+        const [filePath, family, style, postscript, weightStr, slantStr, widthStr, indexStr] =
+          parts;
         if (!filePath || !family) continue;
 
         // Mark variable-font "range" entries (e.g. weight="[0 215]") for Phase 3 enhancement.
@@ -98,6 +99,7 @@ export default class FontManager {
         const slant = parseInt(slantStr, 10);
         if (isNaN(fcWeight)) continue;
 
+        const fontIndex = indexStr ? parseInt(indexStr, 10) : undefined;
         const styleName = (style || "Regular").trim();
         const item: Fonts.IFontsFigmaItem = {
           postscript: postscript || `${family.replace(/ /g, "")}-${styleName.replace(/ /g, "")}`,
@@ -105,6 +107,7 @@ export default class FontManager {
           id: postscript || family,
           style: styleName,
           name: styleName,
+          index: isNaN(fontIndex!) ? undefined : fontIndex,
           weight: fcWeightToCSS(fcWeight),
           stretch: fcWidthToStretch(isNaN(fcWidth) ? 100 : fcWidth),
           italic: slant > 0,
@@ -188,9 +191,17 @@ export default class FontManager {
           for (const font of fonts) {
             if (font.variationAxes && Object.keys(font.variationAxes).length > 0) {
               for (const style of styles) {
-                // If it's a TTC, match the specific font face by postscript name
-                if (fonts.length > 1 && style.postscript !== font.postscriptName) continue;
-                this.enhanceWithVariableMetadata(style, font as Fonts.FontKitFont);
+                // Match by index if available (more reliable than PostScript for TTCs)
+                // Otherwise fall back to PostScript matching for non-TTC files
+                let matched = false;
+                if (style.index !== undefined && style.index < fonts.length) {
+                  this.enhanceWithVariableMetadata(style, fonts[style.index] as Fonts.FontKitFont);
+                  matched = true;
+                } else if (fonts.length === 1 || style.postscript === font.postscriptName) {
+                  this.enhanceWithVariableMetadata(style, font as Fonts.FontKitFont);
+                  matched = true;
+                }
+                if (matched && fonts.length > 1) break; // only match once per style
               }
             }
           }
@@ -255,7 +266,7 @@ export default class FontManager {
     return new Promise((resolve, reject) => {
       // %{family[0]} picks the first (English) family name from comma-separated list
       const format =
-        "%{file}\t%{family[0]}\t%{style[0]}\t%{postscriptname}\t%{weight}\t%{slant}\t%{width}\n";
+        "%{file}\t%{family[0]}\t%{style[0]}\t%{postscriptname}\t%{weight}\t%{slant}\t%{width}\t%{index}\n";
       const fc = spawn("fc-list", [`--format=${format}`]);
       let stdout = "";
       let stderr = "";
