@@ -227,6 +227,11 @@ export default class Window {
   }
 
   public openUrl(url: string) {
+    if (isFileBrowserUrl(url)) {
+      this.tabManager.loadUrlInMainTab(url);
+      this.setFocusToMainTab();
+      return;
+    }
     if (isAppAuthRedeem(url)) {
       const normalizedUrl = normalizeUrl(url);
 
