@@ -9,9 +9,7 @@ import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import {
   isDev,
   isCommunityUrl,
-  isAppAuthRedeem,
   isFileBrowserUrl,
-  normalizeUrl,
   parseURL,
   getTabDedupKey,
 } from "Utils/Common";
@@ -26,6 +24,8 @@ export default class Window {
 
   private _userId: string;
   private settingsViewOpen = false;
+  private shown = false;
+  private static readonly SHOW_FALLBACK_MS = 3000;
 
   // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
   private warmTab: Tab | null = null;
@@ -54,6 +54,19 @@ export default class Window {
     this.window.loadURL(isDev ? panelUrlDev : panelUrlProd);
     isDev && toggleDetachedDevTools(this.window.webContents);
     this.applyState();
+
+    // Hide-until-ready: keep the BrowserWindow hidden until the Panel renderer
+    // signals frontReady (see handleFrontReady). ready-to-show fires too early —
+    // it lands on Vite's empty HTML before Svelte mounts, producing a flash of
+    // a white top strip. The fallback timer guards against a broken renderer
+    // leaving the window hidden forever.
+    setTimeout(() => this.revealIfHidden(), Window.SHOW_FALLBACK_MS);
+  }
+
+  private revealIfHidden() {
+    if (this.shown || this.window.isDestroyed()) return;
+    this.shown = true;
+    this.window.show();
   }
 
   public get id() {
@@ -244,11 +257,7 @@ export default class Window {
       this.setFocusToMainTab();
       return;
     }
-    if (isAppAuthRedeem(url)) {
-      const normalizedUrl = normalizeUrl(url);
-
-      this.tabManager.loadUrlInMainTab(normalizedUrl);
-    } else if (isCommunityUrl(url)) {
+    if (isCommunityUrl(url)) {
       const parsed = parseURL(url);
       this.handleUrl(`${parsed.pathname}${parsed.search}`);
       this.setFocusToMainTab();
@@ -330,10 +339,6 @@ export default class Window {
   public loadLoginPageAllWindows() {
     this.tabManager.loadLoginPage();
   }
-  public redeemAppAuth(secret: string) {
-    this.tabManager.redeemAppAuth(secret);
-  }
-
   public newProject() {
     if (this.tabManager.hasOpenedNewFileTab) {
       return;
@@ -765,6 +770,7 @@ export default class Window {
   public handleFrontReady() {
     this.window.webContents.send("loadSettings", storage.settings);
     this.showHandler(null);
+    this.revealIfHidden();
   }
 
   public close() {

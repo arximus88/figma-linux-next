@@ -166,10 +166,6 @@ const initWebBindings = (): void => {
     });
   });
 
-  E.ipcRenderer.on("redeemAppAuth", (event: IpcRendererEvent, gSecret: string) => {
-    webPort.postMessage({ name: "redeemAppAuth", args: { gSecret } });
-  });
-
   E.ipcRenderer.on("handlePluginMenuAction", (event: IpcRendererEvent, pluginMenuAction: any) => {
     webPort.postMessage({ name: "handlePluginMenuAction", args: { pluginMenuAction } });
   });

@@ -6,9 +6,9 @@ import Window from "./Window";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { dialogs } from "Main/Dialogs";
-import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
+import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem, parseURL } from "Utils/Common";
+import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem } from "Utils/Common";
 import { mkPath } from "Utils/Main";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
@@ -109,24 +109,18 @@ export default class WindowManager {
   }
 
   public tryHandleAppAuthRedeemUrl = (url: string): boolean => {
-    if (isAppAuthRedeem(url)) {
-      const parsedUrl = parseURL(normalizeUrl(url));
+    if (!isAppAuthRedeem(url)) return false;
 
-      const secret = parsedUrl.searchParams.get("g_secret");
-      if (secret) {
-        for (const [_, window] of this.windows) {
-          window.redeemAppAuth(secret);
-          setTimeout(() => {
-            window.loadUrlMainTab(RECENT_FILES);
-          }, 1000);
-        }
-        return true;
-      }
-
-      return true;
-    }
-
-    return false;
+    // Navigate MainTab to https://www.figma.com/app_auth/redeem?g_secret=...
+    // Server validates the secret, sets figma_session via Set-Cookie, and 302s
+    // to /files/recent. The legacy IPC path (forward g_secret over webPort) is
+    // unreliable because the /login page doesn't establish the __figmaDesktop
+    // bridge, so webPort is undefined and the message is silently dropped.
+    const normalized = normalizeUrl(url);
+    const window =
+      this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
+    window?.loadUrlMainTab(normalized);
+    return true;
   };
 
   public focusLastWindow() {
