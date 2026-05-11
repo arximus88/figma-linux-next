@@ -11,6 +11,7 @@ import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem, parseURL } from "Utils/Common";
 import { mkPath } from "Utils/Main";
 import { ipcRegistry } from "Main/controllers/registry";
+import { logger } from "Main/Logger";
 
 export default class WindowManager {
   private menuManager: MenuManager;
@@ -141,11 +142,17 @@ export default class WindowManager {
     const keepTabs = storage.settings.app.saveLastOpenedTabs;
 
     for (const [_, window] of this.windows) {
-      const { windowId, ...state } = window.getState();
+      try {
+        const { windowId, ...state } = window.getState();
 
-      if (!keepTabs) state.tabs = [];
+        if (!keepTabs) state.tabs = [];
 
-      storage.settings.app.windowsState[windowId] = state;
+        storage.settings.app.windowsState[windowId] = state;
+      } catch (error) {
+        // A single dead window must not abort the rest of state save or
+        // prevent app.quit() in the window-all-closed path.
+        logger.warn("saveState: failed to snapshot window, skipping", error);
+      }
     }
   }
 
