@@ -1,4 +1,3 @@
-import { parse } from "url";
 import { app, BrowserWindow, IpcMainEvent, Rectangle, Menu } from "electron";
 import { storage } from "Main/Storage";
 import SettingsView from "./SettingsView";
@@ -237,7 +236,8 @@ export default class Window {
 
       this.tabManager.loadUrlInMainTab(normalizedUrl);
     } else if (isCommunityUrl(url)) {
-      this.handleUrl(parse(url).path);
+      const parsed = parseURL(url);
+      this.handleUrl(`${parsed.pathname}${parsed.search}`);
       this.setFocusToMainTab();
     } else if (/figma:\/\//.test(url)) {
       const httpUrl = url.replace(/figma:\//, HOMEPAGE);
@@ -480,7 +480,7 @@ export default class Window {
 
     this.window.webContents.send("setLoading", tabId, args.loading);
   }
-  public windowMinimize(event: IpcMainEvent) {
+  public windowMinimize(_: IpcMainEvent) {
     this.window.minimize();
   }
   public windowMaximize(event: IpcMainEvent) {
@@ -694,8 +694,6 @@ export default class Window {
     if (args[2]) {
       url = `${url}${args[2]}`;
     }
-
-    const openedFromNewFileTab = this.tabManager.isNewFileTab(event?.sender?.id);
 
     if (event?.sender?.id === this.tabManager.mainTabWebContentId && isFileBrowserUrl(url)) {
       this.loadUrlMainTab(url);
