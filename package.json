@@ -19,7 +19,7 @@
     "package": "rm -rf build/installers && bun run build && electron-builder --config=config/builder.json -l",
     "local:install": "sudo rm -rf /opt/figma-linux-next && sudo mkdir -p /opt/figma-linux-next && sudo cp -rf ./build/installers/linux-unpacked/* /opt/figma-linux-next/",
     "test:unit": "bun test tests/unit/",
-    "test:e2e": "playwright test",
+    "test:e2e": "ELECTRON_RUN_AS_NODE= ELECTRON_NO_ATTACH_CONSOLE= playwright test",
     "//": "bun test (combined) conflicts with e2e due to electron preload - use test:unit && test:e2e separately",
     "check": "svelte-check",
     "lp": "bun run lint & bun run prettier",
