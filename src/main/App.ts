@@ -6,7 +6,6 @@ import Args from "./Args";
 import { registerAppImageUrlHandler } from "./AppImageIntegration";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
-import ExtensionManager from "./ExtensionManager";
 
 import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
@@ -116,7 +115,7 @@ export default class App {
     });
   };
 
-  private secondInstance(event: Event, argv: string[]) {
+  private secondInstance(_event: Event, argv: string[]) {
     logger.debug("second-instance, argv: ", argv);
 
     const hasAppAuthorization = argv.find((i) => isAppAuthLink(i));
@@ -146,12 +145,6 @@ export default class App {
     if (projectLinkIdx !== -1) {
       this.windowManager.focusLastWindow();
       this.windowManager.openUrl(argv[projectLinkIdx]);
-    }
-  }
-
-  private frontReady() {
-    if (!this.session.hasFigmaSession) {
-      app.emit("closeAllTab");
     }
   }
 
@@ -268,6 +261,10 @@ export default class App {
     // Persist window/tab state before the app exits — X-button close goes
     // through this path, not through the "Quit" menu, so without this the
     // "save last opened tabs" setting would never actually persist anything.
+    // The MCP server must also be stopped here; otherwise its HTTP listener
+    // on port 3845 keeps the event loop alive and the process hangs after
+    // window close, blocking subsequent launches via the single-instance lock.
+    this.mcpServer.stop();
     this.windowManager.saveState();
     storage.save().finally(() => app.quit());
   }
