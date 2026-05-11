@@ -1,4 +1,3 @@
-import { parse } from "url";
 import {
   app,
   shell,
@@ -8,18 +7,16 @@ import {
   BrowserWindow,
   HandlerDetails,
   DidCreateWindowDetails,
-  WebContentsViewConstructorOptions,
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
 import {
   isDev,
-  isFigmaUrl,
   isFigmaRunUrl,
-  isPrototypeUrl,
   isAppAuthRedeem,
   isFigmaDocLink,
   isFileBrowserUrl,
+  parseURL,
 } from "Utils/Common";
 import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
@@ -108,19 +105,19 @@ export default class Tab {
       return;
     }
 
-    const from = parse(currentUrl);
-    const to = parse(newUrl);
+    const from = parseURL(currentUrl);
+    const to = parseURL(newUrl);
 
-    if (from.pathname === "/login") {
+    if (from?.pathname === "/login") {
       event.preventDefault();
       return;
     }
 
-    if (to.pathname === "/logout") {
+    if (to?.pathname === "/logout") {
       app.emit("signOut");
     }
 
-    if (to.search && to.search.match(/[\?\&]redirected=1/)) {
+    if (to?.search && to.search.match(/[\?\&]redirected=1/)) {
       event.preventDefault();
       return;
     }
@@ -142,7 +139,7 @@ export default class Tab {
   }
 
   private permissionHandler(
-    webContents: WebContents,
+    _webContents: WebContents,
     permission:
       | "clipboard-read"
       | "clipboard-sanitized-write"
