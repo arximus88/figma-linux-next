@@ -19,6 +19,7 @@ import {
   isPrototypeUrl,
   isAppAuthRedeem,
   isFigmaDocLink,
+  isFileBrowserUrl,
 } from "Utils/Common";
 import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
@@ -70,6 +71,17 @@ export default class Tab {
     this.view.webContents.setZoomFactor(scale);
   }
   private onDomReady(_event: any) {}
+  private onDidNavigateInPage(_event: any, newUrl: string, isMainFrame: boolean) {
+    if (!isMainFrame) return;
+    // Figma performs SPA navigations via history.pushState which bypass
+    // will-navigate. If a non-MainTab tab ends up at a /files/ URL (the home
+    // file browser), route it to MainTab — those URLs belong on MainTab,
+    // and rendering them inside a design-file Tab leaves the page stuck in
+    // a skeleton state.
+    if (isFileBrowserUrl(newUrl)) {
+      app.emit("openUrlInNewTab", newUrl);
+    }
+  }
   private onMainWindowWillNavigate(event: any, newUrl: string) {
     if (!event.sender || event.sender.isDestroyed()) return;
     const currentUrl = event.sender.getURL();
@@ -203,6 +215,8 @@ export default class Tab {
     (this.view.webContents as any).setWindowOpenHandler(this.windowOpenHandler.bind(this));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.view.webContents as any).on("will-navigate", this.onMainWindowWillNavigate.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("did-navigate-in-page", this.onDidNavigateInPage.bind(this));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.view.webContents as any).on("dom-ready", this.onDomReady.bind(this));
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
