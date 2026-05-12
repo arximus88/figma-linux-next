@@ -31,6 +31,10 @@ const SEND_CHANNELS = [
   "closeSettingsView",
   "setFrameStyle",
   "openSettingsView",
+  // Changelog
+  "openChangelogView",
+  "closeChangelogView",
+  "openExternal",
 ] as const;
 
 const RECEIVE_CHANNELS = [

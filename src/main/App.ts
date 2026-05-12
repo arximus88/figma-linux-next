@@ -2,6 +2,7 @@ import { app, net, Event, protocol } from "electron";
 
 import * as Const from "Const";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
+import { readAppVersion } from "Utils/Main";
 import Args from "./Args";
 import { registerAppImageUrlHandler } from "./AppImageIntegration";
 import { logger } from "./Logger";
@@ -16,6 +17,7 @@ import type { FigmaViewProvider } from "./MCP";
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
 import SettingsController from "./controllers/SettingsController";
+import ChangelogController from "./controllers/ChangelogController";
 import FontController from "./controllers/FontController";
 import ClipboardController from "./controllers/ClipboardController";
 import AuthController from "./controllers/AuthController";
@@ -50,6 +52,7 @@ export default class App {
 
     // Initialize controllers — registers all IPC handlers through the registry
     new SettingsController(this.windowManager);
+    new ChangelogController(this.windowManager);
     new FontController(this.fontManager);
     new ClipboardController();
     this.authController = new AuthController(this.windowManager);
@@ -103,6 +106,14 @@ export default class App {
       }
     }, Const.STARTUP_DELAY_MS);
 
+    setTimeout(() => {
+      const current = readAppVersion();
+      const lastSeen = storage.settings.app.lastSeenChangelogVersion ?? "";
+      if (lastSeen !== current) {
+        this.windowManager.openChangelogViewForLastWindow();
+      }
+    }, Const.STARTUP_DELAY_MS + 400);
+
     protocol.handle(Const.PROTOCOL, (req: GlobalRequest) => {
       logger.info("protocol.handle, req.url: ", req.url);
       if (this.windowManager.tryHandleAppAuthRedeemUrl(req.url)) {
@@ -125,7 +136,9 @@ export default class App {
 
     // Guard: Args() will process.exit() on -v/-h — drop those flags from a
     // second invocation so the running app isn't killed by a help request.
-    const safeArgv = argv.filter((a) => a !== "-v" && a !== "--version" && a !== "-h" && a !== "--help");
+    const safeArgv = argv.filter(
+      (a) => a !== "-v" && a !== "--version" && a !== "-h" && a !== "--help",
+    );
     const { figmaUrl, newWindow } = Args(safeArgv);
 
     if (newWindow) {

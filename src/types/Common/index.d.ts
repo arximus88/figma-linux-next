@@ -101,6 +101,7 @@ declare namespace Types {
       lastSavedPluginDir?: string;
       lastExportDir?: string;
       figmaTheme?: "dark" | "light";
+      lastSeenChangelogVersion?: string;
     };
     mcp: {
       enableWriteTools: boolean;

@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     savedExtensions: [],
     frameStyle: "gnome",
     figmaTheme: "dark" as "dark" | "light",
+    lastSeenChangelogVersion: "",
   },
   mcp: {
     enableWriteTools: false,

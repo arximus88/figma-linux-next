@@ -53,16 +53,6 @@ export default class MenuManager {
       template.push(this.pluginsMenu());
     }
 
-    // TODO: will complete this when the Figma develop's team will complete the desktop API for widgets
-    // if (state?.widgetMenuData?.length > 0) {
-    //   template.push({
-    //     label: "Widgets",
-    //     submenu: this.parseFigmaMenu(state.widgetMenuData),
-    //   });
-    // } else {
-    //   template.push(this.widgetsMenu());
-    // }
-
     template.push({ type: "separator" });
 
     template.push(this.item("Settings", "openSettingsView"));
@@ -306,19 +296,6 @@ export default class MenuManager {
       ],
     };
   }
-  private widgetsMenu(): MenuItemConstructorOptions {
-    return {
-      label: "Widgets",
-      submenu: [
-        {
-          label: "Manage widgets...",
-          click() {
-            app.emit("handleWidgetManageAction");
-          },
-        },
-      ],
-    };
-  }
   private helpMenu(): MenuItemConstructorOptions {
     return {
       role: "help",
@@ -327,7 +304,7 @@ export default class MenuManager {
         this.openExternal("Plugins documentation", LINKS.PLUGINS_DOCS),
         this.openExternal("GitHub Discussions", LINKS.FIGMA_LINUX_COMMUNITY_FORUM),
         this.openExternal("Video Tutorials", LINKS.VIDEO_TUTORIALS),
-        this.openExternal("Release Notes", LINKS.RELEASE_NOTES),
+        this.item("Release Notes", "openChangelogView"),
         this.openExternal("Legal Summary", LINKS.LEGAL_SUMMARY),
         { type: "separator" },
         this.item("Sign Out", "signOut"),

@@ -1,15 +1,11 @@
-import * as fs from "fs";
-import * as path from "path";
-import { app, shell, clipboard, IpcMainEvent, WebContents } from "electron";
+import { app, clipboard, IpcMainEvent, WebContents } from "electron";
 
 import Window from "./Window";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
-import { dialogs } from "Main/Dialogs";
-import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
+import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem } from "Utils/Common";
-import { mkPath } from "Utils/Main";
+import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
 
@@ -65,6 +61,20 @@ export default class WindowManager {
     }
   }
 
+  public openChangelogViewForLastWindow() {
+    const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
+    if (window) {
+      window.openChangelogView();
+    }
+  }
+
+  public closeChangelogViewForLastWindow() {
+    const window = this.windows.get(this.lastFocusedwindowId);
+    if (window) {
+      window.closeChangelogView();
+    }
+  }
+
   public updatePanelScaleAllWindows(scale: number) {
     for (const [_, window] of this.windows) {
       window.updatePanelScale(null, scale);
@@ -117,8 +127,7 @@ export default class WindowManager {
     // unreliable because the /login page doesn't establish the __figmaDesktop
     // bridge, so webPort is undefined and the message is silently dropped.
     const normalized = normalizeUrl(url);
-    const window =
-      this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
+    const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
     window?.loadUrlMainTab(normalized);
     return true;
   };
@@ -152,7 +161,7 @@ export default class WindowManager {
 
   // ── State Management ──────────────────────────────────────────────
 
-  public newWindowFromMenu(windowId: number) {
+  public newWindowFromMenu(_windowId: number) {
     this.newWindow();
   }
 
@@ -214,6 +223,7 @@ export default class WindowManager {
     ipcRegistry.on("closeAllTab", this.closeAllTab.bind(this), "WindowManager");
     ipcRegistry.on("setLoading", this.setLoading.bind(this), "WindowManager");
     ipcRegistry.on("openSettingsView", this.openSettingsView.bind(this), "WindowManager");
+    ipcRegistry.on("openChangelogView", this.openChangelogView.bind(this), "WindowManager");
 
     // Community tab
     ipcRegistry.on("closeCommunityTab", this.closeCommunityTab.bind(this), "WindowManager");
@@ -526,17 +536,17 @@ export default class WindowManager {
 
     window.handlePluginMenuAction(pluginMenuAction);
   }
-  private toggleSettingsDevTools(windowId: number, webContentId: number) {
+  private toggleSettingsDevTools(windowId: number, _webContentId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleSettingsDevTools();
   }
-  private toggleCurrentTabDevTools(windowId: number, webContentsId: number) {
+  private toggleCurrentTabDevTools(windowId: number, _webContentsId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleCurrentTabDevTools();
   }
-  private toggleCurrentWindowDevTools(windowId: number, webContentId: number) {
+  private toggleCurrentWindowDevTools(windowId: number, _webContentId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleDevTools();
@@ -610,6 +620,9 @@ export default class WindowManager {
 
     window.openSettingsView();
   }
+  private openChangelogView() {
+    this.openChangelogViewForLastWindow();
+  }
   private handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
     const window = this.getWindowByWebContentsId(webContentsId);
 
@@ -656,6 +669,7 @@ export default class WindowManager {
     app.on("openFileBrowser", this.openFileBrowser.bind(this));
     app.on("restoreClosedTab", this.restoreClosedTab.bind(this));
     app.on("openSettingsView", this.openSettingsView.bind(this));
+    app.on("openChangelogView", this.openChangelogView.bind(this));
     // End events from main menu
 
     app.on("focusLastWindow", this.focusLastWindow.bind(this));
