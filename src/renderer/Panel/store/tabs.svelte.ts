@@ -5,8 +5,10 @@ function addTab(data: Types.AddTabProps) {
     ...tabList,
     {
       id: data.id,
-      title: data.title ?? "Figma",
+      title: data.title,
       url: data.url,
+      editorType: data.editorType,
+      isLibrary: data.isLibrary ?? false,
       moves: false,
       order: data.order ?? tabList.length + 1,
       focused: data.focused,

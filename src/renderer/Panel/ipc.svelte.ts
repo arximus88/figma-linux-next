@@ -19,9 +19,10 @@ export function initIpc() {
     tabs.addTab({
       id: data.id,
       url: data.url,
-      title: data.title ?? "Recent Files",
+      title: data.title,
       focused: data.focused,
       order: data.title === NEW_FILE_TAB_TITLE ? 0 : undefined,
+      editorType: data.editorType,
     });
 
     if (data.focused) {
@@ -33,8 +34,17 @@ export function initIpc() {
       window.figmaApi.send("setTabFocus", data.id);
     }
   });
+  window.figmaApi.on("setTabType", (data: any) => {
+    tabs.updateTab({
+      id: data.id,
+      editorType: data.editorType,
+      isLibrary: data.isLibrary,
+    });
+  });
   window.figmaApi.on("setTitle", (data: any) => {
-    if (data.title === "New Tab") {
+    // Figma fires these as transient titles while the new-file picker is loading;
+    // we keep showing the skeleton until a real document title arrives.
+    if (data.title === "New Tab" || data.title === "Recent Files") {
       return;
     }
 

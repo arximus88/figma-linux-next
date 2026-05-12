@@ -17,6 +17,7 @@ import {
   isFigmaDocLink,
   isFileBrowserUrl,
   parseURL,
+  getEditorTypeFromUrl,
 } from "Utils/Common";
 import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
@@ -32,13 +33,52 @@ export default class Tab {
   public isInVoiceCall?: boolean;
   public view: WebContentsView;
 
+  private _editorType: Types.EditorType | undefined;
+  private _isLibrary = false;
+
   constructor(private windowId: number) {
     this.initTab();
     this.registerEvents();
   }
 
+  public get editorType() {
+    return this._editorType;
+  }
+  public get isLibrary() {
+    return this._isLibrary;
+  }
+
+  public setEditorType(t: Types.EditorType) {
+    if (this._editorType === t) return;
+    this._editorType = t;
+    this.sendTabTypeToPanel();
+  }
+  public updateUrlAndDeriveType(newUrl: string) {
+    if (this.url === newUrl) return;
+    this.url = newUrl;
+    const derived = getEditorTypeFromUrl(newUrl);
+    if (derived) this.setEditorType(derived);
+  }
+  public setIsLibrary(b: boolean) {
+    if (this._isLibrary === b) return;
+    this._isLibrary = b;
+    this.sendTabTypeToPanel();
+  }
+
+  private sendTabTypeToPanel() {
+    const win = BrowserWindow.fromId(this.windowId);
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send("setTabType", {
+      id: this.id,
+      editorType: this._editorType,
+      isLibrary: this._isLibrary,
+    });
+  }
+
   public loadUrl(url: string) {
     this.url = url;
+    const derived = getEditorTypeFromUrl(url);
+    if (derived) this.setEditorType(derived);
     this.view.webContents.loadURL(url);
   }
   public getUrl() {

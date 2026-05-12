@@ -430,6 +430,7 @@ export default class Window {
       id: tab.id,
       url,
       title,
+      editorType: tab.editorType,
     });
 
     return tab;

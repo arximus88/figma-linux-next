@@ -111,6 +111,44 @@ export const getFileKeyFromUrl = (url: string): string | null => {
   return null;
 };
 
+/** Map Figma's editor-type strings (often internal codenames) to our canonical
+ *  EditorType. Confirmed codenames observed in production payloads (2026-05):
+ *    cooper  = Buzz
+ *    figmake = Make
+ *    sites   = Site (Figma uses plural in some payloads)
+ *  Returns null for unknown values so the caller can log them. */
+export const normalizeEditorType = (raw: string): Types.EditorType | null => {
+  if (typeof raw !== "string") return null;
+  const v = raw.toLowerCase().trim();
+  if (v === "design" || v === "design_file" || v === "file") return "design";
+  if (v === "figjam" || v === "whiteboard" || v === "jam" || v === "board") return "figjam";
+  if (v === "slides" || v === "deck" || v === "slide" || v === "presentation" || v === "figslides")
+    return "slides";
+  if (v === "buzz" || v === "cooper" || v === "marketing") return "buzz";
+  if (v === "site" || v === "sites" || v === "weave" || v === "figsite" || v === "figma_site")
+    return "site";
+  if (v === "make" || v === "figmake" || v === "code" || v === "figma_make") return "make";
+  if (v === "proto" || v === "prototype") return "prototype";
+  return null;
+};
+
+/** Derive a tab's editor type from its URL. Returns null for non-Figma URLs
+ *  (e.g. the home/files browser). Library vs. design-file cannot be inferred
+ *  from the URL — Figma signals that separately via `setIsLibrary`. */
+export const getEditorTypeFromUrl = (url: string): Types.EditorType | null => {
+  const parsed = parseURL(url);
+  if (!parsed) return null;
+  const p = parsed.pathname;
+  if (/^\/(design|file)\//.test(p)) return "design";
+  if (/^\/(board|jam)\//.test(p)) return "figjam";
+  if (/^\/slides\//.test(p)) return "slides";
+  if (/^\/buzz\//.test(p)) return "buzz";
+  if (/^\/site\//.test(p)) return "site";
+  if (/^\/make\//.test(p)) return "make";
+  if (/^\/proto\//.test(p)) return "prototype";
+  return null;
+};
+
 /** Dedup key for "is this URL already open in a tab?" — separates the prototype
  *  viewer (/proto/<key>) from the editor (/file|design|board/<key>) so both
  *  can coexist as distinct tabs for the same document. */

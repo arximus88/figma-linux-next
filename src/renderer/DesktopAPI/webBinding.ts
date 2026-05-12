@@ -3,7 +3,12 @@ import * as E from "electron";
 
 import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render/webBindingsHelpers";
 
-import { isPrototypeUrl, isValidFigjamLink, isValidProjectLink } from "Utils/Common";
+import {
+  isPrototypeUrl,
+  isValidFigjamLink,
+  isValidProjectLink,
+  normalizeEditorType,
+} from "Utils/Common";
 
 interface IntiApiOptions {
   version: number;
@@ -186,6 +191,11 @@ const publicAPI: any = {
     sendMsgToMain("setTitle", args.title);
   },
 
+  setUrl(args: any) {
+    const url = typeof args === "string" ? args : args?.url ?? args?.href;
+    if (typeof url === "string" && url.length) sendMsgToMain("setTabUrl", url);
+  },
+
   setUser(args: WebApi.SetUser) {
     sendMsgToMain("setUser", args.id);
   },
@@ -298,7 +308,15 @@ const publicAPI: any = {
   // Fire-and-forget messages that don't need main-process handling yet.
   // In dev mode they log args so you can inspect the payload for future feature implementation.
   setEditorType(args: any) {
-    if (import.meta.env.DEV) console.debug("[stub] setEditorType", args);
+    if (import.meta.env.DEV) console.debug("[setEditorType]", args);
+    const raw = typeof args === "string" ? args : args?.editorType ?? args?.type ?? args?.value;
+    if (typeof raw !== "string") return;
+    const normalized = normalizeEditorType(raw);
+    if (normalized) {
+      sendMsgToMain("setTabEditorType", normalized);
+    } else {
+      sendMsgToMain("logWarn", "[editor-type] unknown value from Figma:", raw);
+    }
   },
   setRealtimeToken(args: any) {
     if (import.meta.env.DEV) console.debug("[stub] setRealtimeToken", args);
@@ -310,7 +328,10 @@ const publicAPI: any = {
     if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args);
   },
   setIsLibrary(args: any) {
-    if (import.meta.env.DEV) console.debug("[stub] setIsLibrary", args);
+    if (import.meta.env.DEV) console.debug("[setIsLibrary]", args);
+    const isLibrary =
+      typeof args === "boolean" ? args : Boolean(args?.isLibrary ?? args?.is_library ?? args);
+    sendMsgToMain("setTabIsLibrary", isLibrary);
   },
   setIsTeamTemplate(args: any) {
     if (import.meta.env.DEV) console.debug("[stub] setIsTeamTemplate", args);

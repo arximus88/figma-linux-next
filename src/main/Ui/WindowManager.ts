@@ -1,6 +1,7 @@
 import { app, clipboard, IpcMainEvent, WebContents } from "electron";
 
 import Window from "./Window";
+import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
@@ -246,6 +247,9 @@ export default class WindowManager {
     // Tab content events (from Figma web app via DesktopAPI)
     ipcRegistry.on("setFigmaTheme", this.setFigmaTheme.bind(this), "WindowManager");
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
+    ipcRegistry.on("setTabEditorType", this.setTabEditorType.bind(this), "WindowManager");
+    ipcRegistry.on("setTabIsLibrary", this.setTabIsLibrary.bind(this), "WindowManager");
+    ipcRegistry.on("setTabUrl", this.setTabUrl.bind(this), "WindowManager");
     ipcRegistry.on("openFile", this.openFile.bind(this), "WindowManager");
     ipcRegistry.on("openCommunity", this.openCommunity.bind(this), "WindowManager");
     ipcRegistry.on(
@@ -583,6 +587,27 @@ export default class WindowManager {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
     window.setTabTitle(event, title);
+  }
+  private setTabEditorType(event: IpcMainEvent, type: Types.EditorType) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) {
+      logger.info(`[editor-type] tab ${tab.id} url=${tab.url ?? "?"} type=${type}`);
+      tab.setEditorType(type);
+    }
+  }
+  private setTabIsLibrary(event: IpcMainEvent, isLibrary: boolean) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) tab.setIsLibrary(isLibrary);
+  }
+  private setTabUrl(event: IpcMainEvent, url: string) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) tab.updateUrlAndDeriveType(url);
   }
   private openFile(event: IpcMainEvent, ...args: string[]) {
     const window = this.getWindowByWebContentsId(event.sender.id);

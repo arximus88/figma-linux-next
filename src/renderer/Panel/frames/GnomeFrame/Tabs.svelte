@@ -132,12 +132,16 @@
     min-width: 60px;
     max-width: 200px;
     align-items: center;
+    gap: 6px;
     user-select: none;
-    padding: 0 0 0 14px;
+    padding: 0 0 0 10px;
     color: rgba(255, 255, 255, 0.7);
     font-size: var(--text-size-tab, 13px);
     font-weight: 600;
     outline: none !important;
+  }
+  :global(.g-tab-text > svg) {
+    flex-shrink: 0;
   }
   :global(.g-tab-text:focus-visible) { outline: none !important; }
   :global(.g-tab-text span) {

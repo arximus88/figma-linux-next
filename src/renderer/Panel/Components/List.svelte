@@ -6,6 +6,7 @@
   import { Loader } from "Icons";
   import { Spiner } from "Common";
   import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
+  import TabIcon from "./TabIcon.svelte";
 
   let {
     currentTabId,
@@ -93,7 +94,18 @@
       {/if}
       <div class="{tabClass} {currentTabId === item.id ? tabActiveClass : ''}">
         <div role="button" tabindex="0" class={tabTextClass} onmouseup={(e) => onClickTitle(e, item.id)}>
-          <span>{item.title}</span>
+          {#if (item.loading || !item.title) && item.title !== NEW_FILE_TAB_TITLE}
+            <span class="tab-skeleton-icon"></span>
+            <span class="tab-skeleton-title"></span>
+          {:else}
+            <TabIcon
+              editorType={item.editorType}
+              isLibrary={item.isLibrary}
+              active={currentTabId === item.id}
+              title={item.title}
+            />
+            <span>{item.title}</span>
+          {/if}
         </div>
         <ButtonTool
           padding="0"
@@ -130,5 +142,26 @@
     overflow: hidden !important;
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  :global(.tab-skeleton-icon) {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: #5a5a5c;
+    flex-shrink: 0;
+  }
+  :global(.tab-skeleton-title) {
+    display: inline-block;
+    width: 100px;
+    height: 10px;
+    border-radius: 3px;
+    background: #5a5a5c;
+    animation: tab-skeleton-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes tab-skeleton-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
   }
 </style>
