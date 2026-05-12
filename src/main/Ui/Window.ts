@@ -13,6 +13,10 @@ import Tab from "./Tab";
 
 export default class Window {
   private window: BrowserWindow;
+  // Cached window id captured before destruction. `this.window.id` throws
+  // "Object has been destroyed" on a destroyed BrowserWindow, so the
+  // destroyed-fallback path in getState() can't read it from this.window.
+  private readonly windowId: number;
   private tabManager: TabManager;
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
@@ -39,6 +43,7 @@ export default class Window {
         ...(state as any).webPreferences,
       },
     });
+    this.windowId = this.window.id;
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
@@ -137,7 +142,7 @@ export default class Window {
     // window-all-closed — getBounds()/isMaximized() throw on a destroyed
     // BrowserWindow. Fall back to the last cached state captured on close.
     if (this.window.isDestroyed()) {
-      return { ...this.state, windowId: this.id };
+      return { ...this.state, windowId: this.windowId };
     }
 
     const tabs: Types.SavedTab[] = [];

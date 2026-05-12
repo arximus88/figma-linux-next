@@ -129,7 +129,8 @@ export default class WindowManager {
     // bridge, so webPort is undefined and the message is silently dropped.
     const normalized = normalizeUrl(url);
     const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
-    window?.loadUrlMainTab(normalized);
+    if (!window) return false;
+    window.loadUrlMainTab(normalized);
     return true;
   };
 
