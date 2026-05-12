@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.6] - 2026-04-17
+
+### Added
+
+- **Tab cycling shortcuts** — `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle through open tabs in insertion order, wrapping around ([#25](https://github.com/arximus88/figma-linux-next/issues/25))
+- **.desktop: "New Window" launcher action** — right-click the dock/taskbar icon to spawn a new window alongside existing ones; `--new-window` CLI flag added
+
+### Fixed
+
+- **Fonts: "Installed by you" list populated** — added snake-case `user_installed` field to the font payload that Figma's indexer classifies on (matches `neetly/figma-agent-linux` shape); local fonts now appear under the filter instead of the unclassified pool
+- **Prototype tab collapsed into editor tab** — `/proto/<key>` and `/file/<key>` now produce distinct dedup keys, so clicking "Open in presentation view" while an editor tab is open spawns a separate prototype tab instead of doing nothing (or vice versa when proto opens first)
+- **Dock actions ignored while app running** — `second-instance` handler now parses `--new-file=<type>` and `--new-window`; previously "New Design File" / "New FigJam" from the launcher only worked on cold start
+- **"Save last opened tabs" persistence** — `onWindowAllClosed` now flushes state before quit (previously only the menu "Quit" path saved), and `saveState` drops the tabs array when the toggle is off to avoid stale restores
+- **Renderer tsconfig TS6/TS5090 errors** — set `rootDir: ".."` and prefixed `DesktopAPI` path aliases with `./` after the TypeScript 6 upgrade tightened non-relative path handling
+
+---
+
 ## [0.13.5] - 2026-04-14
 
 ### Fixed

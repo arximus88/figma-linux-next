@@ -70,6 +70,18 @@ export default class FontManager {
    * 2. style.variationAxisValues: [{tag, value}]
    * 3. style.useFontOpticalSize: boolean (true if 'opsz' axis exists)
    */
+  /** True for fonts in the standard Linux user font directories. Used to flag
+   *  entries as `user_installed` so they appear under Figma's "Installed by you"
+   *  filter — system fonts in /usr/share/fonts stay out of that bucket. */
+  private isUserInstalledPath(filePath: string): boolean {
+    const home = process.env.HOME;
+    if (!home) return false;
+    return (
+      filePath.startsWith(`${home}/.local/share/fonts/`) ||
+      filePath.startsWith(`${home}/.fonts/`)
+    );
+  }
+
   private async loadFonts(dirs: Array<string>) {
     const result: Fonts.IFonts = {};
     const suspectedVariableFiles = new Set<string>();
@@ -111,7 +123,7 @@ export default class FontManager {
           weight: fcWeightToCSS(fcWeight),
           stretch: fcWidthToStretch(isNaN(fcWidth) ? 100 : fcWidth),
           italic: slant > 0,
-          user_installed: true,
+          user_installed: this.isUserInstalledPath(filePath),
         };
 
         if (!result[filePath]) result[filePath] = [];
