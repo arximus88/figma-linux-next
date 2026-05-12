@@ -132,13 +132,16 @@ jobs:
         with:
           body_path: ./release_notes
           name: figma-linux-next ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') }}
           files: |
             ./artifacts/figma-linux-next_*
             ./artifacts/SHA256SUMS
 
   # Push updated PKGBUILD to AUR (both packages in parallel)
+  # Skipped on pre-release tags (-rc, -alpha, -beta) so dry-runs don't publish to AUR.
   aur:
     needs: release
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
@@ -194,6 +197,7 @@ jobs:
 
   aur-bin:
     needs: release
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
