@@ -1,8 +1,7 @@
-import { app, ipcMain, IpcMainEvent, Rectangle } from "electron";
-import * as URL from "url";
+import { Rectangle } from "electron";
 
 import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
-import { storage } from "Main/Storage";
+import { parseURL } from "Utils/Common";
 import CommunityTab from "./CommunityTab";
 import MainTab from "./MainTab";
 import Tab from "./Tab";
@@ -191,9 +190,6 @@ export default class TabManager {
   public loadLoginPage() {
     this.mainTab.loadLoginPage();
   }
-  public redeemAppAuth(secret: string) {
-    this.mainTab.redeemAppAuth(secret);
-  }
   public handleUrl(path: string) {
     this.mainTab.handleUrl(path);
   }
@@ -233,7 +229,8 @@ export default class TabManager {
     let foundTab: Tab | undefined;
 
     this.tabs.forEach((tab) => {
-      const pathname = URL.parse(tab.url ?? tab.getUrl()).pathname;
+      const pathname = parseURL(tab.url ?? tab.getUrl())?.pathname;
+      if (!pathname) return;
       const reg = new RegExp(pathname);
       if (reg.test(path)) {
         foundTab = tab;
@@ -341,7 +338,7 @@ export default class TabManager {
     if (!tab) return "";
     const tabUri = tab.view.webContents.getURL();
 
-    return URL.parse(tabUri).pathname;
+    return parseURL(tabUri)?.pathname ?? "";
   }
 
   private registerEvents() {}

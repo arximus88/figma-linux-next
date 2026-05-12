@@ -1,10 +1,14 @@
 declare namespace Types {
+  type EditorType = "design" | "figjam" | "slides" | "buzz" | "site" | "make" | "prototype";
+
   interface Tab {
     id: number;
     title?: string;
     url?: string;
     moves?: boolean;
     fileKey?: string;
+    editorType?: EditorType;
+    isLibrary?: boolean;
     order?: number;
     focused?: boolean;
     isUsingMicrophone?: boolean;
@@ -16,7 +20,15 @@ declare namespace Types {
   type TabIdType = number | "mainTab" | "communityTab";
   type TabFront = Pick<
     Tab,
-    "id" | "title" | "order" | "isUsingMicrophone" | "isInVoiceCall" | "loading"
+    | "id"
+    | "title"
+    | "url"
+    | "editorType"
+    | "isLibrary"
+    | "order"
+    | "isUsingMicrophone"
+    | "isInVoiceCall"
+    | "loading"
   >;
 
   interface AddTabProps {
@@ -25,6 +37,8 @@ declare namespace Types {
     title?: string;
     focused?: boolean;
     order?: number;
+    editorType?: EditorType;
+    isLibrary?: boolean;
   }
 
   interface TabData {
@@ -101,6 +115,7 @@ declare namespace Types {
       lastSavedPluginDir?: string;
       lastExportDir?: string;
       figmaTheme?: "dark" | "light";
+      lastSeenChangelogVersion?: string;
     };
     mcp: {
       enableWriteTools: boolean;

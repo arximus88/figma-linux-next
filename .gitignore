@@ -40,6 +40,9 @@ playwright-report
 # Generated release notes (CI artifact)
 release_notes
 
+# Auto-generated changelog data baked at build time
+src/renderer/Changelog/_data.ts
+
 # Agents
 .agent
 .gemini/settings.*

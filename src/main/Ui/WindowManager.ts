@@ -1,16 +1,14 @@
-import * as fs from "fs";
-import * as path from "path";
-import { app, shell, clipboard, IpcMainEvent, WebContents } from "electron";
+import { app, clipboard, IpcMainEvent, WebContents } from "electron";
 
 import Window from "./Window";
+import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
-import { dialogs } from "Main/Dialogs";
-import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
+import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { normalizeUrl, isAppAuthGrandLink, isAppAuthRedeem, parseURL } from "Utils/Common";
-import { mkPath } from "Utils/Main";
+import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { ipcRegistry } from "Main/controllers/registry";
+import { logger } from "Main/Logger";
 
 export default class WindowManager {
   private menuManager: MenuManager;
@@ -64,6 +62,20 @@ export default class WindowManager {
     }
   }
 
+  public openChangelogViewForLastWindow() {
+    const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
+    if (window) {
+      window.openChangelogView();
+    }
+  }
+
+  public closeChangelogViewForLastWindow() {
+    const window = this.windows.get(this.lastFocusedwindowId);
+    if (window) {
+      window.closeChangelogView();
+    }
+  }
+
   public updatePanelScaleAllWindows(scale: number) {
     for (const [_, window] of this.windows) {
       window.updatePanelScale(null, scale);
@@ -108,24 +120,17 @@ export default class WindowManager {
   }
 
   public tryHandleAppAuthRedeemUrl = (url: string): boolean => {
-    if (isAppAuthRedeem(url)) {
-      const parsedUrl = parseURL(normalizeUrl(url));
+    if (!isAppAuthRedeem(url)) return false;
 
-      const secret = parsedUrl.searchParams.get("g_secret");
-      if (secret) {
-        for (const [_, window] of this.windows) {
-          window.redeemAppAuth(secret);
-          setTimeout(() => {
-            window.loadUrlMainTab(RECENT_FILES);
-          }, 1000);
-        }
-        return true;
-      }
-
-      return true;
-    }
-
-    return false;
+    // Navigate MainTab to https://www.figma.com/app_auth/redeem?g_secret=...
+    // Server validates the secret, sets figma_session via Set-Cookie, and 302s
+    // to /files/recent. The legacy IPC path (forward g_secret over webPort) is
+    // unreliable because the /login page doesn't establish the __figmaDesktop
+    // bridge, so webPort is undefined and the message is silently dropped.
+    const normalized = normalizeUrl(url);
+    const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
+    window?.loadUrlMainTab(normalized);
+    return true;
   };
 
   public focusLastWindow() {
@@ -141,17 +146,23 @@ export default class WindowManager {
     const keepTabs = storage.settings.app.saveLastOpenedTabs;
 
     for (const [_, window] of this.windows) {
-      const { windowId, ...state } = window.getState();
+      try {
+        const { windowId, ...state } = window.getState();
 
-      if (!keepTabs) state.tabs = [];
+        if (!keepTabs) state.tabs = [];
 
-      storage.settings.app.windowsState[windowId] = state;
+        storage.settings.app.windowsState[windowId] = state;
+      } catch (error) {
+        // A single dead window must not abort the rest of state save or
+        // prevent app.quit() in the window-all-closed path.
+        logger.warn("saveState: failed to snapshot window, skipping", error);
+      }
     }
   }
 
   // ── State Management ──────────────────────────────────────────────
 
-  public newWindowFromMenu(windowId: number) {
+  public newWindowFromMenu(_windowId: number) {
     this.newWindow();
   }
 
@@ -213,6 +224,7 @@ export default class WindowManager {
     ipcRegistry.on("closeAllTab", this.closeAllTab.bind(this), "WindowManager");
     ipcRegistry.on("setLoading", this.setLoading.bind(this), "WindowManager");
     ipcRegistry.on("openSettingsView", this.openSettingsView.bind(this), "WindowManager");
+    ipcRegistry.on("openChangelogView", this.openChangelogView.bind(this), "WindowManager");
 
     // Community tab
     ipcRegistry.on("closeCommunityTab", this.closeCommunityTab.bind(this), "WindowManager");
@@ -235,6 +247,9 @@ export default class WindowManager {
     // Tab content events (from Figma web app via DesktopAPI)
     ipcRegistry.on("setFigmaTheme", this.setFigmaTheme.bind(this), "WindowManager");
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
+    ipcRegistry.on("setTabEditorType", this.setTabEditorType.bind(this), "WindowManager");
+    ipcRegistry.on("setTabIsLibrary", this.setTabIsLibrary.bind(this), "WindowManager");
+    ipcRegistry.on("setTabUrl", this.setTabUrl.bind(this), "WindowManager");
     ipcRegistry.on("openFile", this.openFile.bind(this), "WindowManager");
     ipcRegistry.on("openCommunity", this.openCommunity.bind(this), "WindowManager");
     ipcRegistry.on(
@@ -525,17 +540,17 @@ export default class WindowManager {
 
     window.handlePluginMenuAction(pluginMenuAction);
   }
-  private toggleSettingsDevTools(windowId: number, webContentId: number) {
+  private toggleSettingsDevTools(windowId: number, _webContentId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleSettingsDevTools();
   }
-  private toggleCurrentTabDevTools(windowId: number, webContentsId: number) {
+  private toggleCurrentTabDevTools(windowId: number, _webContentsId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleCurrentTabDevTools();
   }
-  private toggleCurrentWindowDevTools(windowId: number, webContentId: number) {
+  private toggleCurrentWindowDevTools(windowId: number, _webContentId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
     window.toggleDevTools();
@@ -573,6 +588,27 @@ export default class WindowManager {
     if (!window) return;
     window.setTabTitle(event, title);
   }
+  private setTabEditorType(event: IpcMainEvent, type: Types.EditorType) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) {
+      logger.info(`[editor-type] tab ${tab.id} url=${tab.url ?? "?"} type=${type}`);
+      tab.setEditorType(type);
+    }
+  }
+  private setTabIsLibrary(event: IpcMainEvent, isLibrary: boolean) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) tab.setIsLibrary(isLibrary);
+  }
+  private setTabUrl(event: IpcMainEvent, url: string) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (tab instanceof Tab) tab.updateUrlAndDeriveType(url);
+  }
   private openFile(event: IpcMainEvent, ...args: string[]) {
     const window = this.getWindowByWebContentsId(event.sender.id);
 
@@ -608,6 +644,9 @@ export default class WindowManager {
     const window = this.windows.get(this.lastFocusedwindowId);
 
     window.openSettingsView();
+  }
+  private openChangelogView() {
+    this.openChangelogViewForLastWindow();
   }
   private handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
     const window = this.getWindowByWebContentsId(webContentsId);
@@ -655,6 +694,7 @@ export default class WindowManager {
     app.on("openFileBrowser", this.openFileBrowser.bind(this));
     app.on("restoreClosedTab", this.restoreClosedTab.bind(this));
     app.on("openSettingsView", this.openSettingsView.bind(this));
+    app.on("openChangelogView", this.openChangelogView.bind(this));
     // End events from main menu
 
     app.on("focusLastWindow", this.focusLastWindow.bind(this));

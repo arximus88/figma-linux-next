@@ -15,6 +15,7 @@ export const WINDOW_DEFAULT_OPTIONS: BrowserWindowConstructorOptions = {
   frame: false,
   resizable: true,
   roundedCorners: true,
+  show: false,
   webPreferences: {
     sandbox: false,
     zoomFactor: 1,

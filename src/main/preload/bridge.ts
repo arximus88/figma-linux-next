@@ -31,6 +31,14 @@ const SEND_CHANNELS = [
   "closeSettingsView",
   "setFrameStyle",
   "openSettingsView",
+  // Changelog
+  "openChangelogView",
+  "closeChangelogView",
+  "openExternal",
+  // Tab metadata (from Figma web app via DesktopAPI relay)
+  "setTabEditorType",
+  "setTabIsLibrary",
+  "setTabUrl",
 ] as const;
 
 const RECEIVE_CHANNELS = [
@@ -38,6 +46,7 @@ const RECEIVE_CHANNELS = [
   "closeAllTabs",
   "didTabAdd",
   "setTitle",
+  "setTabType",
   "tabWasClosed",
   "focusTab",
   "newFileBtnVisible",

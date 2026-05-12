@@ -1,21 +1,13 @@
-import { parse } from "url";
 import { app, BrowserWindow, IpcMainEvent, Rectangle, Menu } from "electron";
 import { storage } from "Main/Storage";
 import SettingsView from "./SettingsView";
+import ChangelogView from "./ChangelogView";
 import TabManager from "./TabManager";
 import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import {
-  isDev,
-  isCommunityUrl,
-  isAppAuthRedeem,
-  isFileBrowserUrl,
-  normalizeUrl,
-  parseURL,
-  getTabDedupKey,
-} from "Utils/Common";
+import { isDev, isCommunityUrl, isFileBrowserUrl, parseURL, getTabDedupKey } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
 
@@ -23,10 +15,14 @@ export default class Window {
   private window: BrowserWindow;
   private tabManager: TabManager;
   private settingsView: SettingsView;
+  private changelogView: ChangelogView;
   private state: Types.WindowState;
 
   private _userId: string;
   private settingsViewOpen = false;
+  private changelogViewOpen = false;
+  private shown = false;
+  private static readonly SHOW_FALLBACK_MS = 3000;
 
   // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
   private warmTab: Tab | null = null;
@@ -45,6 +41,7 @@ export default class Window {
     });
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
+    this.changelogView = new ChangelogView();
     this.state = state;
 
     this.window.contentView.addChildView(this.tabManager.mainTab.view);
@@ -55,6 +52,19 @@ export default class Window {
     this.window.loadURL(isDev ? panelUrlDev : panelUrlProd);
     isDev && toggleDetachedDevTools(this.window.webContents);
     this.applyState();
+
+    // Hide-until-ready: keep the BrowserWindow hidden until the Panel renderer
+    // signals frontReady (see handleFrontReady). ready-to-show fires too early —
+    // it lands on Vite's empty HTML before Svelte mounts, producing a flash of
+    // a white top strip. The fallback timer guards against a broken renderer
+    // leaving the window hidden forever.
+    setTimeout(() => this.revealIfHidden(), Window.SHOW_FALLBACK_MS);
+  }
+
+  private revealIfHidden() {
+    if (this.shown || this.window.isDestroyed()) return;
+    this.shown = true;
+    this.window.show();
   }
 
   public get id() {
@@ -65,6 +75,9 @@ export default class Window {
   }
   public get settingsViewId() {
     return this.settingsView.view.webContents.id;
+  }
+  public get changelogViewId() {
+    return this.changelogView.view.webContents.id;
   }
   public get mainTabInfo() {
     return {
@@ -90,6 +103,7 @@ export default class Window {
     const ids = new Set<number>([
       this.webContentId,
       this.settingsViewId,
+      this.changelogViewId,
       this.tabManager.mainTabWebContentId,
       ...this.tabs.keys(),
     ]);
@@ -119,6 +133,13 @@ export default class Window {
     this.tabManager.sortTabs(tabs);
   }
   public getState(): Types.WindowState & { windowId: number } {
+    // Window may already be destroyed by the time saveState() runs from
+    // window-all-closed — getBounds()/isMaximized() throw on a destroyed
+    // BrowserWindow. Fall back to the last cached state captured on close.
+    if (this.window.isDestroyed()) {
+      return { ...this.state, windowId: this.id };
+    }
+
     const tabs: Types.SavedTab[] = [];
 
     for (const [_, tab] of this.tabs) {
@@ -139,6 +160,12 @@ export default class Window {
       userId: this._userId,
       tabs,
     };
+  }
+
+  private cacheStateBeforeClose() {
+    if (this.window.isDestroyed()) return;
+    const { windowId: _, ...snapshot } = this.getState();
+    this.state = snapshot;
   }
   public restoreTabs(list?: Types.SavedTab[]) {
     const tabs =
@@ -227,12 +254,14 @@ export default class Window {
   }
 
   public openUrl(url: string) {
-    if (isAppAuthRedeem(url)) {
-      const normalizedUrl = normalizeUrl(url);
-
-      this.tabManager.loadUrlInMainTab(normalizedUrl);
-    } else if (isCommunityUrl(url)) {
-      this.handleUrl(parse(url).path);
+    if (isFileBrowserUrl(url)) {
+      this.tabManager.loadUrlInMainTab(url);
+      this.setFocusToMainTab();
+      return;
+    }
+    if (isCommunityUrl(url)) {
+      const parsed = parseURL(url);
+      this.handleUrl(`${parsed.pathname}${parsed.search}`);
       this.setFocusToMainTab();
     } else if (/figma:\/\//.test(url)) {
       const httpUrl = url.replace(/figma:\//, HOMEPAGE);
@@ -289,6 +318,9 @@ export default class Window {
     if (this.settingsViewOpen) {
       this.settingsView.updateProps(this.window.getBounds());
     }
+    if (this.changelogViewOpen) {
+      this.changelogView.updateProps(this.window.getBounds());
+    }
   }
 
   public updateAllTabsBounds() {
@@ -296,6 +328,9 @@ export default class Window {
     this.tabManager.setBoundsForAllTab(bounds);
     if (this.settingsViewOpen) {
       this.settingsView.updateProps(this.window.getBounds());
+    }
+    if (this.changelogViewOpen) {
+      this.changelogView.updateProps(this.window.getBounds());
     }
   }
   public closeAllTab(_: IpcMainEvent) {
@@ -312,10 +347,6 @@ export default class Window {
   public loadLoginPageAllWindows() {
     this.tabManager.loadLoginPage();
   }
-  public redeemAppAuth(secret: string) {
-    this.tabManager.redeemAppAuth(secret);
-  }
-
   public newProject() {
     if (this.tabManager.hasOpenedNewFileTab) {
       return;
@@ -399,6 +430,7 @@ export default class Window {
       id: tab.id,
       url,
       title,
+      editorType: tab.editorType,
     });
 
     return tab;
@@ -428,6 +460,29 @@ export default class Window {
     this.window.contentView.removeChildView(this.settingsView.view);
 
     this.settingsView.postClose();
+  }
+
+  public openChangelogView() {
+    if (this.changelogViewOpen) return;
+    this.changelogViewOpen = true;
+
+    const bounds = this.window.getBounds();
+    this.changelogView.updateProps(bounds);
+
+    this.window.contentView.addChildView(this.changelogView.view);
+
+    setTimeout(() => {
+      this.changelogView.updateProps(bounds);
+    }, 100);
+  }
+  public closeChangelogView() {
+    if (!this.changelogViewOpen) return;
+    this.changelogViewOpen = false;
+    this.changelogView.closeDevTools();
+    this.window.contentView.removeChildView(this.changelogView.view);
+  }
+  public get isChangelogViewOpen() {
+    return this.changelogViewOpen;
   }
   public toggleFullScreen() {
     if (this.window.isFullScreen()) {
@@ -475,7 +530,7 @@ export default class Window {
 
     this.window.webContents.send("setLoading", tabId, args.loading);
   }
-  public windowMinimize(event: IpcMainEvent) {
+  public windowMinimize(_: IpcMainEvent) {
     this.window.minimize();
   }
   public windowMaximize(event: IpcMainEvent) {
@@ -690,8 +745,6 @@ export default class Window {
       url = `${url}${args[2]}`;
     }
 
-    const openedFromNewFileTab = this.tabManager.isNewFileTab(event?.sender?.id);
-
     if (event?.sender?.id === this.tabManager.mainTabWebContentId && isFileBrowserUrl(url)) {
       this.loadUrlMainTab(url);
       this.setFocusToMainTab();
@@ -749,6 +802,7 @@ export default class Window {
   public handleFrontReady() {
     this.window.webContents.send("loadSettings", storage.settings);
     this.showHandler(null);
+    this.revealIfHidden();
   }
 
   public close() {
@@ -757,6 +811,7 @@ export default class Window {
     }
     this.warmTab = null;
     this.settingsView.destroy();
+    this.changelogView.destroy();
     this.tabManager.closeAll();
     this.window.close();
   }
@@ -805,6 +860,7 @@ export default class Window {
   private registerEvents() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.window as any).on("show", this.showHandler.bind(this));
+    this.window.on("close", this.cacheStateBeforeClose.bind(this));
     this.window.on("resize", this.updateTabsBounds.bind(this));
     this.window.on("maximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));
     this.window.on("unmaximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));

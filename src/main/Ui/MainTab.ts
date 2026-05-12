@@ -1,4 +1,3 @@
-import { parse } from "url";
 import {
   app,
   shell,
@@ -21,12 +20,11 @@ import {
   isDev,
   isFigmaRunUrl,
   isFileBrowserUrl,
-  isValidProjectLink,
-  isPrototypeUrl,
   isAppAuthRedeem,
   isFigmaDocLink,
   isFigmaBoardLink,
   isFigmaDesignLink,
+  parseURL,
 } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
@@ -67,9 +65,6 @@ export default class MainTab {
   }
   public loadLoginPage() {
     this.view.webContents.loadURL(LOGIN_PAGE);
-  }
-  public redeemAppAuth(secret: string) {
-    this.view.webContents.send("redeemAppAuth", secret);
   }
   public handleUrl(path: string) {
     this.view.webContents.send("handleUrl", path);
@@ -115,21 +110,19 @@ export default class MainTab {
         return;
       }
 
-      const from = parse(currentUrl);
-      const to = parse(url);
+      const from = parseURL(currentUrl);
+      const to = parseURL(url);
 
-      if (from.pathname === "/login") {
-        // this.tabManager.reloadAll();
-
+      if (from?.pathname === "/login") {
         event.preventDefault();
         return;
       }
 
-      if (to.pathname === "/logout") {
+      if (to?.pathname === "/logout") {
         app.emit("signOut");
       }
 
-      if (to.search && to.search.match(/[\?\&]redirected=1/)) {
+      if (to?.search && to.search.match(/[\?\&]redirected=1/)) {
         event.preventDefault();
         return;
       }

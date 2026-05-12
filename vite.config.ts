@@ -2,6 +2,25 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import electron from "vite-plugin-electron";
 import path from "path";
+import { generateChangelogData } from "./scripts/generate-changelog-data";
+
+const CHANGELOG_PATH = path.resolve(__dirname, "CHANGELOG.md");
+const PKG_PATH = path.resolve(__dirname, "package.json");
+
+const changelogDataPlugin = {
+  name: "changelog-data",
+  buildStart() {
+    generateChangelogData(__dirname);
+  },
+  configureServer(server: any) {
+    generateChangelogData(__dirname);
+    server.watcher.add(CHANGELOG_PATH);
+    server.watcher.add(PKG_PATH);
+    server.watcher.on("change", (changed: string) => {
+      if (changed === CHANGELOG_PATH || changed === PKG_PATH) generateChangelogData(__dirname);
+    });
+  },
+};
 
 export default defineConfig({
   plugins: [
@@ -125,6 +144,7 @@ export default defineConfig({
         },
       },
     ]),
+    changelogDataPlugin,
   ],
   root: "src",
   base: "./",
@@ -135,6 +155,7 @@ export default defineConfig({
       input: {
         app: path.resolve(__dirname, "src/index.html"),
         settings: path.resolve(__dirname, "src/settings.html"),
+        changelog: path.resolve(__dirname, "src/changelog.html"),
       },
       // NOTE: No Node.js modules here! This builds for the browser (renderer with contextIsolation).
       // Only the electron plugin entries (main, preloads) should have Node.js externals.

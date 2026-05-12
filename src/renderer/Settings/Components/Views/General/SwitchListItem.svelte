@@ -3,23 +3,15 @@
   import { InputText } from "Common/Input";
 
   let { item, onItemRemoveClick = () => {} } = $props();
-
-  let sw = $state(item.switch);
-  let val = $state(item.value ?? "");
-
-  $effect(() => {
-    item.switch = sw;
-    item.value = val;
-  });
 </script>
 
 <div>
   <FlexItem grow={1}>
-    <InputText bind:value={sw} />
+    <InputText bind:value={item.switch} />
   </FlexItem>
   <Flex width="20px" />
   <FlexItem grow={1}>
-    <InputText bind:value={val} />
+    <InputText bind:value={item.value} />
   </FlexItem>
   <Flex width="20px" />
   <ButtonTool normalBgColor="tarsparent" onButtonClick={onItemRemoveClick}>

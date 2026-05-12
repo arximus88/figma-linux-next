@@ -1,4 +1,3 @@
-import { parse } from "url";
 import {
   app,
   shell,
@@ -8,17 +7,17 @@ import {
   BrowserWindow,
   HandlerDetails,
   DidCreateWindowDetails,
-  WebContentsViewConstructorOptions,
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
 import {
   isDev,
-  isFigmaUrl,
   isFigmaRunUrl,
-  isPrototypeUrl,
   isAppAuthRedeem,
   isFigmaDocLink,
+  isFileBrowserUrl,
+  parseURL,
+  getEditorTypeFromUrl,
 } from "Utils/Common";
 import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
@@ -34,13 +33,52 @@ export default class Tab {
   public isInVoiceCall?: boolean;
   public view: WebContentsView;
 
+  private _editorType: Types.EditorType | undefined;
+  private _isLibrary = false;
+
   constructor(private windowId: number) {
     this.initTab();
     this.registerEvents();
   }
 
+  public get editorType() {
+    return this._editorType;
+  }
+  public get isLibrary() {
+    return this._isLibrary;
+  }
+
+  public setEditorType(t: Types.EditorType) {
+    if (this._editorType === t) return;
+    this._editorType = t;
+    this.sendTabTypeToPanel();
+  }
+  public updateUrlAndDeriveType(newUrl: string) {
+    if (this.url === newUrl) return;
+    this.url = newUrl;
+    const derived = getEditorTypeFromUrl(newUrl);
+    if (derived) this.setEditorType(derived);
+  }
+  public setIsLibrary(b: boolean) {
+    if (this._isLibrary === b) return;
+    this._isLibrary = b;
+    this.sendTabTypeToPanel();
+  }
+
+  private sendTabTypeToPanel() {
+    const win = BrowserWindow.fromId(this.windowId);
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send("setTabType", {
+      id: this.id,
+      editorType: this._editorType,
+      isLibrary: this._isLibrary,
+    });
+  }
+
   public loadUrl(url: string) {
     this.url = url;
+    const derived = getEditorTypeFromUrl(url);
+    if (derived) this.setEditorType(derived);
     this.view.webContents.loadURL(url);
   }
   public getUrl() {
@@ -70,6 +108,17 @@ export default class Tab {
     this.view.webContents.setZoomFactor(scale);
   }
   private onDomReady(_event: any) {}
+  private onDidNavigateInPage(_event: any, newUrl: string, isMainFrame: boolean) {
+    if (!isMainFrame) return;
+    // Figma performs SPA navigations via history.pushState which bypass
+    // will-navigate. If a non-MainTab tab ends up at a /files/ URL (the home
+    // file browser), route it to MainTab — those URLs belong on MainTab,
+    // and rendering them inside a design-file Tab leaves the page stuck in
+    // a skeleton state.
+    if (isFileBrowserUrl(newUrl)) {
+      app.emit("openUrlInNewTab", newUrl);
+    }
+  }
   private onMainWindowWillNavigate(event: any, newUrl: string) {
     if (!event.sender || event.sender.isDestroyed()) return;
     const currentUrl = event.sender.getURL();
@@ -96,19 +145,19 @@ export default class Tab {
       return;
     }
 
-    const from = parse(currentUrl);
-    const to = parse(newUrl);
+    const from = parseURL(currentUrl);
+    const to = parseURL(newUrl);
 
-    if (from.pathname === "/login") {
+    if (from?.pathname === "/login") {
       event.preventDefault();
       return;
     }
 
-    if (to.pathname === "/logout") {
+    if (to?.pathname === "/logout") {
       app.emit("signOut");
     }
 
-    if (to.search && to.search.match(/[\?\&]redirected=1/)) {
+    if (to?.search && to.search.match(/[\?\&]redirected=1/)) {
       event.preventDefault();
       return;
     }
@@ -130,7 +179,7 @@ export default class Tab {
   }
 
   private permissionHandler(
-    webContents: WebContents,
+    _webContents: WebContents,
     permission:
       | "clipboard-read"
       | "clipboard-sanitized-write"
@@ -203,6 +252,8 @@ export default class Tab {
     (this.view.webContents as any).setWindowOpenHandler(this.windowOpenHandler.bind(this));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.view.webContents as any).on("will-navigate", this.onMainWindowWillNavigate.bind(this));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.view.webContents as any).on("did-navigate-in-page", this.onDidNavigateInPage.bind(this));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.view.webContents as any).on("dom-ready", this.onDomReady.bind(this));
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));

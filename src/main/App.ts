@@ -2,11 +2,11 @@ import { app, net, Event, protocol } from "electron";
 
 import * as Const from "Const";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
+import { readAppVersion } from "Utils/Main";
 import Args from "./Args";
 import { registerAppImageUrlHandler } from "./AppImageIntegration";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
-import ExtensionManager from "./ExtensionManager";
 
 import WindowManager from "./Ui/WindowManager";
 import Session from "./Session";
@@ -17,6 +17,7 @@ import type { FigmaViewProvider } from "./MCP";
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
 import SettingsController from "./controllers/SettingsController";
+import ChangelogController from "./controllers/ChangelogController";
 import FontController from "./controllers/FontController";
 import ClipboardController from "./controllers/ClipboardController";
 import AuthController from "./controllers/AuthController";
@@ -51,6 +52,7 @@ export default class App {
 
     // Initialize controllers — registers all IPC handlers through the registry
     new SettingsController(this.windowManager);
+    new ChangelogController(this.windowManager);
     new FontController(this.fontManager);
     new ClipboardController();
     this.authController = new AuthController(this.windowManager);
@@ -104,6 +106,14 @@ export default class App {
       }
     }, Const.STARTUP_DELAY_MS);
 
+    setTimeout(() => {
+      const current = readAppVersion();
+      const lastSeen = storage.settings.app.lastSeenChangelogVersion ?? "";
+      if (lastSeen !== current) {
+        this.windowManager.openChangelogViewForLastWindow();
+      }
+    }, Const.STARTUP_DELAY_MS + 400);
+
     protocol.handle(Const.PROTOCOL, (req: GlobalRequest) => {
       logger.info("protocol.handle, req.url: ", req.url);
       if (this.windowManager.tryHandleAppAuthRedeemUrl(req.url)) {
@@ -116,7 +126,7 @@ export default class App {
     });
   };
 
-  private secondInstance(event: Event, argv: string[]) {
+  private secondInstance(_event: Event, argv: string[]) {
     logger.debug("second-instance, argv: ", argv);
 
     const hasAppAuthorization = argv.find((i) => isAppAuthLink(i));
@@ -126,7 +136,9 @@ export default class App {
 
     // Guard: Args() will process.exit() on -v/-h — drop those flags from a
     // second invocation so the running app isn't killed by a help request.
-    const safeArgv = argv.filter((a) => a !== "-v" && a !== "--version" && a !== "-h" && a !== "--help");
+    const safeArgv = argv.filter(
+      (a) => a !== "-v" && a !== "--version" && a !== "-h" && a !== "--help",
+    );
     const { figmaUrl, newWindow } = Args(safeArgv);
 
     if (newWindow) {
@@ -146,12 +158,6 @@ export default class App {
     if (projectLinkIdx !== -1) {
       this.windowManager.focusLastWindow();
       this.windowManager.openUrl(argv[projectLinkIdx]);
-    }
-  }
-
-  private frontReady() {
-    if (!this.session.hasFigmaSession) {
-      app.emit("closeAllTab");
     }
   }
 
@@ -268,6 +274,10 @@ export default class App {
     // Persist window/tab state before the app exits — X-button close goes
     // through this path, not through the "Quit" menu, so without this the
     // "save last opened tabs" setting would never actually persist anything.
+    // The MCP server must also be stopped here; otherwise its HTTP listener
+    // on port 3845 keeps the event loop alive and the process hangs after
+    // window close, blocking subsequent launches via the single-instance lock.
+    this.mcpServer.stop();
     this.windowManager.saveState();
     storage.save().finally(() => app.quit());
   }

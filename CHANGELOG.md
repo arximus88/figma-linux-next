@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.7] - 2026-05-12
+
+### Added
+
+- **File-type icons in the tab strip** — each tab now shows a colored editor-type icon (design, FigJam, Slides, Buzz, Sites, Make, library, prototype) with a grey monochrome variant for inactive tabs; a skeleton (grey icon + pulsing title bar) renders while the tab is loading; the New File picker tab gets a dedicated placeholder. Icons stay in sync via Figma's `setEditorType` / `setIsLibrary` signals, with URL-based seeding before the codename arrives.
+- **In-app "What's new" overlay** — Help → Release Notes now opens a built-in overlay rendered from `CHANGELOG.md` (previously linked to GitHub). Auto-shows once after a version bump; `lastSeenChangelogVersion` is persisted in settings. The changelog HTML is generated at build time by a Vite plugin (no runtime parsing, no IPC roundtrip for content).
+
+### Fixed
+
+- **Zombie process after closing the last window** — the X-button close path no longer leaves a hung process holding the single-instance lock (which silently broke the next launch). `Window.getState()` short-circuits when the BrowserWindow is destroyed, state is snapshotted on `close` before destroy, and `WindowManager.saveState()` is now exception-safe per window.
+- **MCP server kept the process alive on quit** — the MCP HTTP server on port 3845 is now stopped on `window-all-closed`, not only on the menu Quit path. Its open socket was preventing the event loop from exiting after the last window closed.
+- **Login redeem silently failed on first open** — `app_auth/redeem` now navigates MainTab directly to the redeem URL so Figma's server sets the `figma_session` cookie reliably. The old IPC-via-webPort path was unreliable on `/login`, where the `__figmaDesktop` bridge hadn't been established yet, and the 1-second fallback bounced through a redirect loop back to `/login`.
+- **`/files/` links from the New File tab opened a redirect-looping tab** — clicking "Browse more recent files" (or any file-browser URL) no longer creates a broken design-file tab. SPA navigations to `/files/…` on non-MainTab WebContents are intercepted via `did-navigate-in-page` and re-routed to MainTab, which also closes the originating New File tab — matching macOS behavior.
+- **White-strip flash on `bun run dev`** — the BrowserWindow now stays hidden until the Panel renderer signals `frontReady` (with a 3s safety fallback), so Vite's empty HTML never flashes before Svelte mounts.
+
+### Changed
+
+- **Electron** `41.1.1` → `42.0.1` (Chromium 148, Node 24.15, V8 14.8 — includes 10 CVE backports). Breaking changes audited: `Session.clearStorageData()` `'quotas'` removal — we call it without args; macOS notification code-signing — N/A on Linux; OSR scale factor — we don't use offscreen rendering; postinstall binary download removed (replaced by the new `install-electron` CLI) — packaged builds are unaffected because electron-builder bundles its own runtime; `ELECTRON_INSTALL_PLATFORM` now respected, improving arm64 cross-build in CI.
+- **lint-staged** `16.4.0` → `17.0.4` (requires Node 22.22+ / Git 2.32+ — both already satisfied).
+- Minor/patch bumps across vite, svelte, typescript, eslint, prettier, and related tooling.
+
+### Refactor
+
+- Replaced deprecated `url.parse()` with `parseURL()` + WHATWG `URL` across `Tab`, `MainTab`, `TabManager`, and `Window` (silences Node DEP0169).
+- `SwitchListItem` binds directly to the deep-reactive settings store item instead of via intermediate `$state` + write-back `$effect` — clears two svelte-check warnings about `$state` capturing only the initial prop value.
+- Cleaned ~10 stale diagnostics in `WindowManager.ts` (unused imports/params) and removed dead `App.frontReady` and `MenuManager.widgetsMenu()`.
+
+### Tests
+
+- **E2E launcher** — `ELECTRON_RUN_AS_NODE` and `ELECTRON_NO_ATTACH_CONSOLE` are cleared inline before Playwright launches Electron. VSCode and the Claude Code extension propagate these to child shells, which made every spec fail with "bad option: --remote-debugging-port=0".
+- **Unit** — 20 new tests cover `normalizeEditorType` (confirmed codenames, case-insensitivity, unknown values, non-string input) and a per-type fixture verifying URL + codename both resolve to the same canonical editor type.
+
+---
+
 ## [0.13.6] - 2026-04-17
 
 ### Added
