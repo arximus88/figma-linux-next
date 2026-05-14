@@ -118,11 +118,14 @@
 
   :global(.w-tab-text) {
     display: flex;
+    flex: 1;
+    align-self: stretch;
     min-width: 60px;
     max-width: 200px;
     align-items: center;
     gap: 6px;
     user-select: none;
+    cursor: pointer;
     padding: 0 0 0 10px;
     color: var(--fg-tab, rgba(255, 255, 255, 0.8));
     font-size: var(--text-size-tab, 14px);
