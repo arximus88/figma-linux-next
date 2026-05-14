@@ -17,6 +17,10 @@ export default class Window {
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
   private state: Types.WindowState;
+  // Single-shot guard so the explicit pre-closeAll snapshot in close() is
+  // not overwritten by the BrowserWindow `close` event firing later with
+  // an already-cleared tabs map.
+  private stateCached = false;
 
   private _userId: string;
   private settingsViewOpen = false;
@@ -163,9 +167,11 @@ export default class Window {
   }
 
   private cacheStateBeforeClose() {
+    if (this.stateCached) return;
     if (this.window.isDestroyed()) return;
     const { windowId: _, ...snapshot } = this.getState();
     this.state = snapshot;
+    this.stateCached = true;
   }
   public restoreTabs(list?: Types.SavedTab[]) {
     const tabs =
@@ -806,6 +812,13 @@ export default class Window {
   }
 
   public close() {
+    // Snapshot state while tabs are still alive. tabManager.closeAll()
+    // below clears the tabs map; without this explicit call the snapshot
+    // taken by the `close` event handler would see tabs:[] and overwrite
+    // any previously persisted "saveLastOpenedTabs" payload with an empty
+    // list. The stateCached guard then makes the event-driven call a no-op.
+    this.cacheStateBeforeClose();
+
     if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
       this.warmTab.view.webContents.destroy();
     }
