@@ -143,6 +143,13 @@ export default class WindowManager {
   }
 
   public saveState() {
+    if (this.windows.size === 0) {
+      // Nothing to snapshot. Preserve whatever was last persisted —
+      // windowClose() snapshots the closing window's state before
+      // removing it from the map, and we must not wipe that with an
+      // empty reset on the follow-up call from quitApp / window-all-closed.
+      return;
+    }
     storage.settings.app.windowsState = {};
     const keepTabs = storage.settings.app.saveLastOpenedTabs;
 
@@ -451,6 +458,15 @@ export default class WindowManager {
     const window = this.windows.get(windowId);
 
     window.close();
+
+    if (this.windows.size === 1) {
+      // Snapshot state while the closing window is still in the map.
+      // app.emit("quitApp") below triggers App.quitApp → saveState(),
+      // which iterates this.windows; if we deleted first, the only
+      // window would be gone and windowsState would persist as {},
+      // defeating the "saveLastOpenedTabs" setting.
+      this.saveState();
+    }
 
     this.windows.delete(windowId);
 
