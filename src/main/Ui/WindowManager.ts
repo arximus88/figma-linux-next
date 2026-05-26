@@ -664,7 +664,7 @@ export default class WindowManager {
   private openChangelogView() {
     this.openChangelogViewForLastWindow();
   }
-  private handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
+  private handleCallbackForTab(webContentsId: number, cbId: number, args: unknown) {
     const window = this.getWindowByWebContentsId(webContentsId);
 
     window.handleCallbackForTab(webContentsId, cbId, args);

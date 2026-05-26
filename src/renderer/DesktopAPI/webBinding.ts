@@ -38,6 +38,7 @@ const onWebMessage = (event: MessageEvent) => {
     mainProcessCancelCallbacks.delete(msg.cancelCallbackID);
     return;
   }
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
   if (!msg.name || !(msg.name in publicAPI)) {
     sendMsgToMain("logWarn", "[desktop] Unhandled message", msg.name);
     return;
@@ -46,6 +47,7 @@ const onWebMessage = (event: MessageEvent) => {
   let resultPromise = undefined;
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
     resultPromise = msg.name && publicAPI && publicAPI[msg.name](msg.args);
   } catch (e) {
     console.error("onWebMessage, err: ", msg.name, e);
@@ -101,14 +103,14 @@ const initWebApi = (props: IntiApiOptions) => {
         channel.port1.postMessage({ cancelCallbackID: id });
       };
     },
-    promiseMessage: function (name, args, transferList) {
+    promiseMessage: function (name, args, _transferList) {
       return new Promise((resolve, reject) => {
         const id = nextPromiseID++;
         pendingPromises.set(id, { resolve, reject });
         channel.port1.postMessage({ name, args, promiseID: id });
       });
     },
-    setMessageHandler: function (handler: () => void): void {
+    setMessageHandler: function (handler: (msg: unknown) => void): void {
       messageHandler = handler;
     },
   };
@@ -211,18 +213,18 @@ const publicAPI: any = {
     console.log("Method addTabAnalyticsMetadata not implemented, args: ", args);
   },
   async requestMicrophonePermission() {
-    let granted = false;
+    let granted: boolean;
 
     try {
       await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
       granted = true;
-    } catch (_) {
+    } catch {
       granted = false;
     }
 
     return { data: granted };
   },
-  async setMediaEnabled(args: any) {
+  async setMediaEnabled(_args: any) {
     return true;
   },
 
@@ -457,17 +459,17 @@ const publicAPI: any = {
     return { data: isOpened };
   },
 
-  async getFonts(args: WebApi.GetFonts) {
+  async getFonts(_args: WebApi.GetFonts) {
     const fonts = await E.ipcRenderer.invoke("getFonts");
     return { data: fonts };
   },
 
-  async getModifiedFonts(args: WebApi.GetFonts) {
+  async getModifiedFonts(_args: WebApi.GetFonts) {
     const fonts = await E.ipcRenderer.invoke("getFonts");
     return { data: fonts };
   },
 
-  async getFontsModifiedAt(args: WebApi.GetFonts) {
+  async getFontsModifiedAt(_args: WebApi.GetFonts) {
     const fonts = await E.ipcRenderer.invoke("getFonts");
     return { data: fonts };
   },

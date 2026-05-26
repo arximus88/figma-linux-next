@@ -1,6 +1,7 @@
 import {
   app,
   shell,
+  Event,
   Rectangle,
   WebContents,
   WebContentsView,
@@ -107,8 +108,8 @@ export default class Tab {
   public updateScale(scale: number) {
     this.view.webContents.setZoomFactor(scale);
   }
-  private onDomReady(_event: any) {}
-  private onDidNavigateInPage(_event: any, newUrl: string, isMainFrame: boolean) {
+  private onDomReady(_event: Event) {}
+  private onDidNavigateInPage(_event: Event, newUrl: string, isMainFrame: boolean) {
     if (!isMainFrame) return;
     // Figma performs SPA navigations via history.pushState which bypass
     // will-navigate. If a non-MainTab tab ends up at a /files/ URL (the home
@@ -119,7 +120,7 @@ export default class Tab {
       app.emit("openUrlInNewTab", newUrl);
     }
   }
-  private onMainWindowWillNavigate(event: any, newUrl: string) {
+  private onMainWindowWillNavigate(event: Event & { sender?: WebContents }, newUrl: string) {
     if (!event.sender || event.sender.isDestroyed()) return;
     const currentUrl = event.sender.getURL();
 
@@ -157,7 +158,7 @@ export default class Tab {
       app.emit("signOut");
     }
 
-    if (to?.search && to.search.match(/[\?\&]redirected=1/)) {
+    if (to?.search && to.search.match(/[?&]redirected=1/)) {
       event.preventDefault();
       return;
     }

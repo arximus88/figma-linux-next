@@ -2,7 +2,7 @@ import { app, ipcMain, WebContentsView, Rectangle } from "electron";
 import { bridgePreloadPathDev, bridgePreloadPathProd } from "Utils/Main";
 import { storage } from "Main/Storage";
 import { isDev } from "Utils/Common";
-import { settingsUrlProd, settingsUrlDev, toggleDetachedDevTools } from "Utils/Main";
+import { settingsUrlProd, settingsUrlDev } from "Utils/Main";
 import { dialogs } from "Main/Dialogs";
 
 export default class SettingsView {

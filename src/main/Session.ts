@@ -1,16 +1,13 @@
-import { session, Event, Cookie, app } from "electron";
+import { session } from "electron";
 
 import * as Const from "Const";
 import { logger } from "./Logger";
-import { isSameCookieDomain } from "Utils/Main";
 
 export default class Session {
   private _hasFigmaSession: boolean;
-  private assessSessionTimer: NodeJS.Timer;
 
   constructor() {
     this._hasFigmaSession = null;
-    this.assessSessionTimer = null;
   }
 
   public get hasFigmaSession() {
@@ -47,13 +44,13 @@ export default class Session {
       .catch((error: Error) =>
         logger.warn("[wm] failed to get cookies during handleAppReady:", Const.HOMEPAGE, error),
       );
-    session.defaultSession.on("will-download", (event, item, webContents) => {
+    session.defaultSession.on("will-download", (_event, item, _webContents) => {
       const fileName = item.getFilename();
       const url = item.getURL();
 
       logger.info(`[Download] Starting download: ${fileName} from ${url}`);
 
-      item.on("updated", (event, state) => {
+      item.on("updated", (_event, state) => {
         if (state === "interrupted") {
           logger.warn(`[Download] Interrupted: ${fileName}`);
         } else if (state === "progressing") {
@@ -64,7 +61,7 @@ export default class Session {
           }
         }
       });
-      item.once("done", (event, state) => {
+      item.once("done", (_event, state) => {
         if (state === "completed") {
           logger.info(`[Download] Completed: ${fileName}`);
         } else {

@@ -2,6 +2,14 @@ import { PROTOCOL, HOMEPAGE } from "Const";
 
 // Modernized URL handling logic based on figma-linux-fork analysis
 
+export const parseURL = (url: string): URL | undefined => {
+  try {
+    return new URL(url);
+  } catch {
+    return undefined;
+  }
+};
+
 export const isFigmaRunUrl = (url: string): boolean => {
   const parsed = parseURL(url);
   if (!parsed) return false;
@@ -51,14 +59,6 @@ export const isFigmaUrl = (url: string): boolean =>
 
 export const isFigmaProtocolUrl = (url: string): boolean => {
   return url.startsWith("figma://");
-};
-
-export const parseURL = (url: string): URL | undefined => {
-  try {
-    return new URL(url);
-  } catch (_a) {
-    return undefined;
-  }
 };
 
 export const normalizeUrl = (url: string): string => {

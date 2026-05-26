@@ -23,16 +23,15 @@
     "//": "bun test (combined) conflicts with e2e due to electron preload - use test:unit && test:e2e separately",
     "check": "svelte-check",
     "lp": "bun run lint & bun run prettier",
-    "lint": "eslint -c ./config/.eslintrc.js src/**/*.ts",
+    "lint": "eslint src tests",
     "prettier": "prettier \"src/**/*.ts\" --write",
     "precommit": "lint-staged",
     "cln": "node -e \"require('fs').rmSync('./dist',{recursive:true,force:true})\""
   },
   "lint-staged": {
-    "*.{ts, tsx, js, jsx}": [
-      "node_modules/.bin/eslint -c ./config/.eslintrc.js src/**/*.ts",
-      "node_modules/.bin/prettier \"src/**/*.ts\" --write",
-      "git add"
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
     ]
   },
   "dependencies": {
@@ -57,6 +56,7 @@
     "@types/fontkit": "^2.0.9",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25.6.2",
+    "@eslint/js": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.59.2",
     "@typescript-eslint/parser": "^8.59.2",
     "cross-env": "^10.1.0",
@@ -65,7 +65,8 @@
     "electron-builder": "^26.8.1",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.59.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
     "nodemon": "^3.1.14",

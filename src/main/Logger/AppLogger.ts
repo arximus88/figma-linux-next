@@ -1,3 +1,4 @@
+import { ipcMain } from "electron";
 import { LogFunctions } from "electron-log";
 
 export class AppLogger {
@@ -5,7 +6,6 @@ export class AppLogger {
 
   public initialize = (): void => {
     try {
-      const { ipcMain } = require("electron");
       if (!ipcMain) {
         console.warn("AppLogger: Electron ipcMain is not available yet.");
         return;

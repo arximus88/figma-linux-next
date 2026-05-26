@@ -12,11 +12,6 @@ const log = (message: string) => {
   if (isDev) console.log("[Figma-Linux-Next] " + message);
 };
 
-// Track gesture state
-let isPinching = false;
-let lastPinchScale = 1.0;
-let isGestureActive = false;
-
 /**
  * Enhanced trackpad gesture handler for canvas zoom
  * Prevents browser zoom and maps to Figma canvas zoom instead
@@ -26,10 +21,6 @@ function handleTrackpadGesture(event: WheelEvent): void {
   if (event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
     event.stopPropagation();
-
-    // Calculate zoom delta
-    // Negative deltaY = zoom in, Positive deltaY = zoom out
-    const zoomDelta = -event.deltaY * 0.01;
 
     // Dispatch custom zoom event that Figma's canvas can handle
     const canvasZoomEvent = new WheelEvent("wheel", {
@@ -57,33 +48,6 @@ function handleTrackpadGesture(event: WheelEvent): void {
       // Already in pixel mode - optimal for Figma
       return;
     }
-  }
-}
-
-/**
- * Enhanced mouse wheel handler
- */
-function handleMouseWheel(event: WheelEvent): void {
-  // Improve precision for Wayland scroll events
-  if (window.matchMedia && window.matchMedia("(pointer: fine)").matches) {
-    // High-precision mouse detected
-    // Adjust delta for better feel
-    const enhancedEvent = new WheelEvent(event.type, {
-      deltaX: event.deltaX,
-      deltaY: event.deltaY,
-      deltaZ: event.deltaZ,
-      deltaMode: event.deltaMode,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      screenX: event.screenX,
-      screenY: event.screenY,
-      ctrlKey: event.ctrlKey,
-      shiftKey: event.shiftKey,
-      altKey: event.altKey,
-      metaKey: event.metaKey,
-      bubbles: event.bubbles,
-      cancelable: event.cancelable,
-    });
   }
 }
 
@@ -142,7 +106,7 @@ function initInputEnhancements(): void {
           const canvas = node as HTMLCanvasElement;
 
           // Enable desynchronized for lower latency
-          const context = canvas.getContext("2d", {
+          canvas.getContext("2d", {
             desynchronized: true,
             alpha: false,
           });

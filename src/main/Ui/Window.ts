@@ -38,10 +38,7 @@ export default class Window {
     this.window = new BrowserWindow({
       ...WINDOW_DEFAULT_OPTIONS,
       ...state,
-      webPreferences: {
-        ...WINDOW_DEFAULT_OPTIONS.webPreferences,
-        ...(state as any).webPreferences,
-      },
+      webPreferences: WINDOW_DEFAULT_OPTIONS.webPreferences,
     });
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
@@ -54,7 +51,7 @@ export default class Window {
     this.registerEvents();
 
     this.window.loadURL(isDev ? panelUrlDev : panelUrlProd);
-    isDev && toggleDetachedDevTools(this.window.webContents);
+    if (isDev) toggleDetachedDevTools(this.window.webContents);
     this.applyState();
 
     // Hide-until-ready: keep the BrowserWindow hidden until the Panel renderer
@@ -449,7 +446,7 @@ export default class Window {
 
     this.window.contentView.addChildView(this.settingsView.view);
 
-    isDev && toggleDetachedDevTools(this.settingsView.view.webContents);
+    if (isDev) toggleDetachedDevTools(this.settingsView.view.webContents);
 
     setTimeout(() => {
       this.settingsView.updateProps(bounds);
@@ -513,7 +510,7 @@ export default class Window {
   }
   private applyState() {
     const { x, y, height, width, userId, tabs, isMaximized } = this.state;
-    userId && this.setUserId(userId);
+    if (userId) this.setUserId(userId);
 
     if (storage.settings.app.saveLastOpenedTabs && tabs && tabs.length > 0) {
       this.window.webContents.once("did-finish-load", () => this.restoreTabs(tabs));
@@ -612,9 +609,11 @@ export default class Window {
 
     if (this.tabManager.lastFocusedTab === tabId) {
       if (isNewFileTab) {
-        this.tabManager.hasOpenedCommunityTab
-          ? this.setFocusToCommunityTab()
-          : this.setFocusToMainTab();
+        if (this.tabManager.hasOpenedCommunityTab) {
+          this.setFocusToCommunityTab();
+        } else {
+          this.setFocusToMainTab();
+        }
       } else {
         this.tabManager.focusTab(nextTabId);
         this.window.webContents.send("focusTab", nextTabId);
@@ -644,7 +643,7 @@ export default class Window {
   }
 
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
-  public executeInBrowserView(script: string): Promise<any> {
+  public executeInBrowserView(script: string): Promise<unknown> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
     if (!tab) return Promise.resolve(undefined);
     return tab.view.webContents.executeJavaScript(script);
@@ -653,7 +652,7 @@ export default class Window {
   /** Execute a fetch from within the active Figma WebContentsView context.
    *  Uses relative paths on www.figma.com so session cookies are sent automatically.
    *  @param path - relative path, e.g. "/api/files/{key}/nodes?ids=..." */
-  public figmaApiFetch(path: string): Promise<any> {
+  public figmaApiFetch(path: string): Promise<unknown> {
     return this.executeInBrowserView(`
       fetch(${JSON.stringify(path)})
         .then(r => r.ok ? r.json() : r.text().then(t => ({ error: r.status + ": " + t })))
@@ -801,7 +800,7 @@ export default class Window {
   public updateVisibleNewProjectBtn(_: IpcMainEvent, visible: boolean) {
     this.window.webContents.send("updateVisibleNewProjectBtn", visible);
   }
-  public handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
+  public handleCallbackForTab(webContentsId: number, cbId: number, args: unknown) {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
@@ -895,7 +894,7 @@ export default class Window {
         // Ensure we don't try to remove a view that isn't attached or is destroyed
         try {
           this.window.contentView.removeChildView(lastTab.view);
-        } catch (e) {
+        } catch {
           // Ignore errors if child is not attached
         }
       }

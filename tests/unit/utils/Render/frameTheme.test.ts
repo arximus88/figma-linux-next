@@ -5,7 +5,6 @@ import {
   getFrameStyleName,
   isValidFrameStyle,
   getAvailableFrameStyles,
-  FRAME_STYLES,
 } from "Utils/Render/frameTheme";
 
 describe("frameTheme utils", () => {

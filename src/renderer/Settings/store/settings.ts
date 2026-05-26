@@ -12,7 +12,7 @@ function createSettings() {
         current.app.commandSwitches = current.app.commandSwitches.filter((s) => s.switch !== "");
         return current;
       }),
-    reset: () => update((current) => (current = DEFAULT_SETTINGS)),
+    reset: () => set(DEFAULT_SETTINGS),
   };
 }
 

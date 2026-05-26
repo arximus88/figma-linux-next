@@ -27,7 +27,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       await process.exec(cmd.join(" "));
       return 0;
-    } catch (error) {
+    } catch {
       return 1;
     }
   };
@@ -55,7 +55,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       process.execSync(cmd.join(" "));
       return 0;
-    } catch (error) {
+    } catch {
       return 1;
     }
   };
@@ -85,7 +85,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       const stdout = await process.exec(cmd.join(" "));
       result = stdout.replace(/\n/, "").split("|");
-    } catch (error) {
+    } catch {
       return null;
     }
 
@@ -116,7 +116,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       const stdout = process.execSync(cmd.join(" "));
       result = stdout.replace(/\n/, "").split("|");
-    } catch (error) {
+    } catch {
       return null;
     }
 
@@ -134,7 +134,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       result = await process.exec(cmd.join(" "));
       result = result.replace(/\n/, "");
-    } catch (error) {
+    } catch {
       return null;
     }
 
@@ -151,7 +151,7 @@ export class ZenityDialogs implements ProviderDialog {
     try {
       result = process.execSync(cmd.join(" "));
       result = result.replace(/\n/, "");
-    } catch (error) {
+    } catch {
       return null;
     }
 

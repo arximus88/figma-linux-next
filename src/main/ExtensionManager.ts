@@ -614,7 +614,7 @@ export default class ExtensionManager {
 
     return id;
   }
-  private async getLocalManifestFileExtensionIdsToCachedMetadataMap(event: IpcMainInvokeEvent) {
+  private async getLocalManifestFileExtensionIdsToCachedMetadataMap(_event: IpcMainInvokeEvent) {
     const cache: WebApi.ExtensionsCachedMetadataMap = {};
 
     this.extensionMap.forEach((value, key) => {
@@ -632,11 +632,11 @@ export default class ExtensionManager {
   private async getLocalFileExtensionSource(event: IpcMainInvokeEvent, data: WebApi.ExtensionId) {
     return this.getSource(this.getPath(data.id));
   }
-  private async getAllLocalFileExtensionIds(event: IpcMainInvokeEvent) {
+  private async getAllLocalFileExtensionIds(_event: IpcMainInvokeEvent) {
     return Array.from(this.extensionMap.keys());
   }
 
-  private registerManifestChangeObserver(event: IpcMainEvent, callbackID: number, args?: any) {
+  private registerManifestChangeObserver(event: IpcMainEvent, callbackID: number, _args?: any) {
     const observer = (args: any) => {
       app.emit("handleCallbackForTab", event.sender.id, callbackID, args);
     };
@@ -647,7 +647,7 @@ export default class ExtensionManager {
     this.addManifestObserver(observer);
     this.registeredCancelCallbackMap.set(`${callbackID}:${event.sender.id}`, cancel);
   }
-  private registerCodeChangeObserver(event: IpcMainEvent, callbackID: number, args?: any) {
+  private registerCodeChangeObserver(event: IpcMainEvent, callbackID: number, _args?: any) {
     const observer = (args: any) => {
       app.emit("handleCallbackForTab", event.sender.id, callbackID, args);
     };
@@ -658,7 +658,7 @@ export default class ExtensionManager {
     this.addCodeObserver(observer, ALLOW_CODE_FILES);
     this.registeredCancelCallbackMap.set(`${callbackID}:${event.sender.id}`, cancel);
   }
-  private registerUiChangeObserver(event: IpcMainEvent, callbackID: number, args?: any) {
+  private registerUiChangeObserver(event: IpcMainEvent, callbackID: number, _args?: any) {
     const observer = (args: any) => {
       app.emit("handleCallbackForTab", event.sender.id, callbackID, args);
     };

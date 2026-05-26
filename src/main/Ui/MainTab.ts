@@ -82,7 +82,7 @@ export default class MainTab {
 
     this.loadUrl(url);
 
-    isDev && toggleDetachedDevTools(this.view.webContents);
+    if (isDev) toggleDetachedDevTools(this.view.webContents);
 
     app.emit("requestBoundsForTabView", this.windowId);
   }
@@ -90,15 +90,15 @@ export default class MainTab {
   public updateScale(scale: number) {
     this.view.webContents.setZoomFactor(scale);
   }
-  private onMainTabWillNavigate(event: Event<any>, url: string) {
+  private onMainTabWillNavigate(event: Event, url: string) {
     if (isFigmaRunUrl(url) && !isFileBrowserUrl(url)) {
       app.emit("openUrlInNewTab", url);
 
       event.preventDefault();
     }
   }
-  private onDomReady(_event: any) {}
-  private onMainWindowWillNavigate(event: Event<any>, url: string) {
+  private onDomReady(_event: Event) {}
+  private onMainWindowWillNavigate(event: Event & { sender?: Electron.WebContents }, url: string) {
     if (event?.sender) {
       const currentUrl = event.sender.getURL();
       if (isAppAuthRedeem(url)) {
@@ -122,7 +122,7 @@ export default class MainTab {
         app.emit("signOut");
       }
 
-      if (to?.search && to.search.match(/[\?\&]redirected=1/)) {
+      if (to?.search && to.search.match(/[?&]redirected=1/)) {
         event.preventDefault();
         return;
       }

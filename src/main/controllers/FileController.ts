@@ -3,7 +3,7 @@
  */
 import * as path from "path";
 import * as fs from "fs";
-import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 
 import { storage } from "../Storage";
 import { dialogs } from "../Dialogs";
@@ -36,7 +36,6 @@ export default class FileController {
       return;
     }
 
-    let skipReplaceConfirmation = false;
     let directoryPath = null;
     const lastDir = storage.settings.app.lastExportDir || storage.settings.app.exportDir;
 
@@ -53,8 +52,6 @@ export default class FileController {
         files[0].name = path.basename(savePath);
         if (path.extname(files[0].name) === "") {
           files[0].name += path.extname(originalFileName);
-        } else {
-          skipReplaceConfirmation = true;
         }
 
         storage.settings.app.lastExportDir = path.parse(savePath).dir;
@@ -83,7 +80,7 @@ export default class FileController {
 
       try {
         await fs.promises.writeFile(outputPath, Buffer.from(file.buffer));
-      } catch (ex) {
+      } catch {
         await dialogs.showMessageBox({
           type: "error",
           title: "Export Failed",

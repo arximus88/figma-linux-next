@@ -189,7 +189,7 @@ describe("Window Tab Routing", () => {
 
     test("createFile still closes the New File tab (existing behavior, explicit assertion)", () => {
       const closeTabSpy = spyOn(windowInstance, "closeTab");
-      const addTabSpy = spyOn(windowInstance, "addTab").mockReturnValue({
+      spyOn(windowInstance, "addTab").mockReturnValue({
         id: 999,
         loadUrl: mock(),
       } as any);
