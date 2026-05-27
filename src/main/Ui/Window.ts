@@ -129,8 +129,24 @@ export default class Window {
   }
 
   public setUserId(id: string) {
+    const previousId = this._userId;
     this._userId = id;
     this.tabManager.setUserId(id);
+
+    // If the active user changed (add-account / account switch), the warm
+    // tab is now stale — it baked the previous user's id into its URL and
+    // the server will serve a blank page on promotion. Tear it down and
+    // schedule a fresh one. Skip when previousId is undefined (first boot)
+    // or equal (the warm tab's own setUser cascade after it bootstraps).
+    if (previousId && previousId !== id && this.warmTab) {
+      if (!this.warmTab.view.webContents.isDestroyed()) {
+        this.warmTab.view.webContents.destroy();
+      }
+      this.warmTab = null;
+      this.warmTabBootstrapped = false;
+      this.warmTabScheduled = false;
+    }
+
     // Start warming the new-file tab in background once we have a userId.
     // Guard with warmTabScheduled to prevent cascade: the warm tab itself
     // loads Figma which sends setUser again, which would re-trigger this.
