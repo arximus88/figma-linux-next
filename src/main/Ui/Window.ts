@@ -39,6 +39,7 @@ export default class Window {
   private warmTab: Tab | null = null;
   private warmTabCreatedAt = 0;
   private warmTabScheduled = false;
+  private warmTabBootstrapped = false;
   private static readonly WARM_TAB_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(state: Types.WindowState) {
@@ -368,12 +369,19 @@ export default class Window {
     const warm = this.warmTab;
     if (warm && !warm.view.webContents.isDestroyed()) {
       // Promote the pre-warmed tab — instant, no loading delay
+      const wasBootstrapped = this.warmTabBootstrapped;
       this.warmTab = null;
+      this.warmTabBootstrapped = false;
       this.tabManager.promoteWarmTab(warm);
       this.window.webContents.send("didTabAdd", {
         id: warm.id,
         url: warm.url,
         title: NEW_FILE_TAB_TITLE,
+        // If the SPA hasn't fired its readiness signal yet, render the
+        // skeleton — the next setLoading(false) from the SPA clears it.
+        // Without this flag, the renderer never paints a placeholder and
+        // a not-yet-bootstrapped warm tab promotion shows a blank page.
+        loading: !wasBootstrapped,
       });
       this.setTabFocus(warm.id);
       // Warm the next one for next time
@@ -540,6 +548,18 @@ export default class Window {
 
   public setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const tabId = event.sender.id;
+
+    // Warm tab signals readiness via setLoading(false). Track it so the
+    // promoter knows whether to show the skeleton placeholder — promoting
+    // a not-yet-bootstrapped warm tab without the skeleton lands the user
+    // on a blank black page until the SPA finally renders.
+    if (this.warmTab && tabId === this.warmTab.id) {
+      if (args.loading === false) {
+        this.warmTabBootstrapped = true;
+      }
+      return;
+    }
+
     const tab = this.tabManager.getById(tabId);
 
     if (!tab) {
@@ -880,6 +900,7 @@ export default class Window {
 
     this.warmTab = tab;
     this.warmTabCreatedAt = Date.now();
+    this.warmTabBootstrapped = false;
     logger.debug("WarmTab: initialized");
   }
 
