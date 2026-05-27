@@ -7,7 +7,14 @@ import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { isDev, isCommunityUrl, isFileBrowserUrl, parseURL, getTabDedupKey } from "Utils/Common";
+import {
+  isDev,
+  isCommunityUrl,
+  isFileBrowserUrl,
+  isFigmaRunUrl,
+  parseURL,
+  getTabDedupKey,
+} from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
 
@@ -432,11 +439,16 @@ export default class Window {
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
 
+    // Non-Figma tabs (chrome://gpu, about:*) don't run figmaApi, so Figma's
+    // setLoading IPC never arrives. Without this flag the renderer skeleton
+    // covers the real title forever. For Figma URLs leave loading default-true;
+    // setLoading(false) clears it once the canvas is ready.
     this.window.webContents.send("didTabAdd", {
       id: tab.id,
       url,
       title,
       editorType: tab.editorType,
+      loading: isFigmaRunUrl(url),
     });
 
     return tab;

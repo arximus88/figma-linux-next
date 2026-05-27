@@ -23,6 +23,7 @@ export function initIpc() {
       focused: data.focused,
       order: data.title === NEW_FILE_TAB_TITLE ? 0 : undefined,
       editorType: data.editorType,
+      loading: data.loading,
     });
 
     if (data.focused) {
