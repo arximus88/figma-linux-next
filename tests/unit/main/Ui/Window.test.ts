@@ -62,6 +62,7 @@ mock.module("electron", () => {
       getContentBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
       isMaximized = () => false;
       isFullScreen = () => false;
+      isDestroyed = () => false;
       maximize = mock();
       focus = mock();
       on = mock();
@@ -200,6 +201,30 @@ describe("Window Tab Routing", () => {
       windowInstance.createFile({ url: "/files/new" } as any);
 
       expect(closeTabSpy).toHaveBeenCalledWith(123); // Closes the new file tab
+    });
+  });
+
+  describe("Bug 3: saveLastOpenedTabs persisted empty tabs after closeAll", () => {
+    test("getState returns cached snapshot after cacheStateBeforeClose, even when live tabs map has been cleared", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+
+      // Seed live tabs the same way TabManager would
+      tabManager.tabs.set(101, { title: "File A", url: "https://www.figma.com/design/abc/A" });
+      tabManager.tabs.set(102, { title: "File B", url: "https://www.figma.com/design/def/B" });
+
+      // Snapshot state before tabManager.closeAll() clears the map (mimics Window.close())
+      (windowInstance as any).cacheStateBeforeClose();
+
+      // Simulate closeAll wiping the live tabs map
+      tabManager.tabs.clear();
+
+      // getState must return the cached snapshot, not an empty list — otherwise
+      // WindowManager.saveState() would persist windowsState[id].tabs:[] and the
+      // next launch would start with a fresh session.
+      const state = windowInstance.getState();
+      expect(state.tabs.length).toBe(2);
+      expect(state.tabs[0].url).toBe("https://www.figma.com/design/abc/A");
+      expect(state.tabs[1].url).toBe("https://www.figma.com/design/def/B");
     });
   });
 });

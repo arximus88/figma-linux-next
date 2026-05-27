@@ -134,10 +134,13 @@ export default class Window {
     this.tabManager.sortTabs(tabs);
   }
   public getState(): Types.WindowState & { windowId: number } {
-    // Window may already be destroyed by the time saveState() runs from
-    // window-all-closed — getBounds()/isMaximized() throw on a destroyed
-    // BrowserWindow. Fall back to the last cached state captured on close.
-    if (this.window.isDestroyed()) {
+    // During close, cacheStateBeforeClose() snapshots state into this.state
+    // BEFORE tabManager.closeAll() clears the tabs map. After closeAll,
+    // reading the live this.tabs would return an empty list, persisting
+    // tabs:[] and defeating saveLastOpenedTabs. isDestroyed() alone is not
+    // enough — BrowserWindow.close() is async, so isDestroyed can still be
+    // false while internal state is gone (getBounds throws).
+    if (this.stateCached || this.window.isDestroyed()) {
       return { ...this.state, windowId: this.id };
     }
 
