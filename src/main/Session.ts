@@ -1,6 +1,7 @@
 import { session } from "electron";
 
 import * as Const from "Const";
+import { readAppVersion } from "Utils/Main";
 import { logger } from "./Logger";
 
 export default class Session {
@@ -26,7 +27,17 @@ export default class Session {
     });
 
     const defaultUserAgent = session.defaultSession.getUserAgent();
-    const userAgent = defaultUserAgent.replace(/Figma([^/]+)\/([^\s]+)/, "Figma$1/$2 Figma/$2");
+    // Append "Figma/<version>" tag — Figma server inspects UA for this token
+    // to differentiate the official desktop client from a generic browser.
+    // Without it, server-side flows like add-account silently degrade to
+    // single-session mode (no multi-user session_keys). The previous regex
+    // (figma-linux 0.x) only fired when UA already contained "Figma/" (Mac
+    // desktop case) — useless on Linux where UA has "figma-linux-next/0.0".
+    const version = readAppVersion();
+    const userAgent = defaultUserAgent.includes(" Figma/")
+      ? defaultUserAgent
+      : `${defaultUserAgent} Figma/${version}`;
+    logger.info(`[session] UA set to: ${userAgent}`);
 
     session.defaultSession.setUserAgent(userAgent);
     session.defaultSession.cookies

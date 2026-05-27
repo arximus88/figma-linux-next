@@ -315,6 +315,9 @@ Three frame styles configurable in settings (`app.frameStyle`):
 
 ## Important Gotchas
 
+### Electron is pinned to 42.0.1 — do NOT bump without manual OAuth test
+`package.json` lists `"electron": "42.0.1"` with no caret. Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) that includes a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validates those headers and silently rejects `/app_auth/redeem` from the new Chromium — the response is the login HTML instead of `Set-Cookie`, breaking first-login and add-account flows. AUR releases ship with bundled 42.0.1 and work fine. Before any Electron bump, manually run `bun run start` and verify both first-login (clean storage) and add-account end-to-end. If either breaks, the bump is not safe.
+
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
 

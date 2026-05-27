@@ -122,14 +122,22 @@ export default class WindowManager {
   public tryHandleAppAuthRedeemUrl = (url: string): boolean => {
     if (!isAppAuthRedeem(url)) return false;
 
-    // Navigate MainTab to https://www.figma.com/app_auth/redeem?g_secret=...
-    // Server validates the secret, sets figma_session via Set-Cookie, and 302s
-    // to /files/recent. The legacy IPC path (forward g_secret over webPort) is
-    // unreliable because the /login page doesn't establish the __figmaDesktop
-    // bridge, so webPort is undefined and the message is silently dropped.
-    const normalized = normalizeUrl(url);
     const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
-    window?.loadUrlMainTab(normalized);
+    if (!window) return false;
+
+    // Hand the g_secret off to MainTab's renderer instead of navigating to
+    // /app_auth/redeem at the top level. Navigation only refreshes
+    // figma.session and silently drops a second user from the account
+    // switcher; the in-page handler completes the redeem with the full
+    // session/CSRF context that the multi-user state requires. When the
+    // page bridge isn't established (e.g., MainTab on /login during a fresh
+    // sign-in), the renderer-side handler falls back to a top-level
+    // navigation so the server still mints a session.
+    const normalized = normalizeUrl(url);
+    const gSecret = new URL(normalized).searchParams.get("g_secret");
+    if (!gSecret) return false;
+
+    window.completeFigmaAuthInMainTab(gSecret);
     return true;
   };
 

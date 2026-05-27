@@ -148,6 +148,25 @@ const initWebApi = (props: IntiApiOptions) => {
 };
 
 const initWebBindings = (): void => {
+  // Multi-user auth completion: main process hands off the g_secret here,
+  // and we forward it through the page bridge so the in-page handler can
+  // finish the redeem with full session/CSRF context. The bridge target name
+  // is the channel the page listens on. When the bridge isn't ready yet
+  // (e.g., the login page hasn't established it), fall back to a top-level
+  // navigation so the server still mints a session.
+  E.ipcRenderer.on(
+    "figma:complete-auth",
+    (_: IpcRendererEvent, gSecret: string, path?: string) => {
+      if (webPort) {
+        const args: { gSecret: string; path?: string } = { gSecret };
+        if (path) args.path = path;
+        webPort.postMessage({ name: "redeemAppAuth", args });
+      } else {
+        const url = `https://www.figma.com/app_auth/redeem?g_secret=${encodeURIComponent(gSecret)}`;
+        window.location.href = url;
+      }
+    },
+  );
   E.ipcRenderer.on("newFile", () => {
     webPort.postMessage({ name: "newFile", args: {} });
   });

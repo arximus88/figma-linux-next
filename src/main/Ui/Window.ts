@@ -720,6 +720,14 @@ export default class Window {
   public loadUrlMainTab(url: string) {
     this.tabManager.mainTab.loadUrl(url);
   }
+  public completeFigmaAuthInMainTab(gSecret: string, path?: string) {
+    // Forward the g_secret to MainTab's renderer; the page-side handler
+    // completes the redeem in-place so multi-user state survives. `path`
+    // stays undefined when the auth flow stayed on MainTab — the page may
+    // concatenate HOMEPAGE+path on completion, and passing "" or null
+    // produces "https://www.figma.comnull/" → empty screen.
+    this.tabManager.mainTab.view.webContents.send("figma:complete-auth", gSecret, path);
+  }
   public setTabFocus(tabId: number) {
     const tab = this.tabManager.getById(tabId);
     if (!tab) return;
