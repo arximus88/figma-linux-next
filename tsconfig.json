@@ -73,6 +73,7 @@
     "src/types/**/*",
     "src/utils/**/*",
     "src/renderer/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "scripts/**/*.ts"
   ]
 }

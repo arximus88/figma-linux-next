@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.13.6",
+  "version": "0.13.7",
   "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
@@ -13,6 +13,7 @@
     "run": "electron dist/main/main.js",
     "run:watch": "nodemon --watch dist/main --ext js,json --exec \"electron dist/main/main.js\"",
     "build": "bun run cln && vite build && node -e \"require('fs').cpSync('src/package.json','dist/package.json')\" && cd dist && bun install --production --no-save",
+    "gen:changelog": "bun scripts/generate-changelog-data.ts",
     "builder": "electron-builder --config=config/builder.json -l",
     "pack": "rm -rf build/installers && bun run build && chmod a+x ./resources/AppRun && bun run builder",
     "pack:pacman": "bun run build && electron-builder --config=config/builder.json -l pacman",
