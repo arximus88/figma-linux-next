@@ -47,7 +47,7 @@ export default class CommunityTab {
     });
     this.id = this.view.webContents.id;
 
-    isDev && toggleDetachedDevTools(this.view.webContents);
+    if (isDev) toggleDetachedDevTools(this.view.webContents);
 
     app.emit("requestBoundsForTabView", this.windowId);
   }
@@ -69,7 +69,7 @@ export default class CommunityTab {
 
     shell.openExternal(url);
   }
-  private onDomReady(_event: any) {}
+  private onDomReady(_event: Electron.Event) {}
   private windowOpenHandler(details: HandlerDetails) {
     const url = details.url;
 

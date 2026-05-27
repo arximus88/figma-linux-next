@@ -56,7 +56,7 @@ async function start() {
 
   const session = new Session();
   const fontManager = new FontManager();
-  const extensionManager = new ExtensionManager();
+  new ExtensionManager();
   const windowManager = new WindowManager();
 
   new App(windowManager, session, fontManager);

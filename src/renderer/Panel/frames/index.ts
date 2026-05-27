@@ -31,7 +31,7 @@ export const IMPLEMENTED_FRAME_STYLES = new Set<Types.FrameStyle>(
   Object.keys(FRAME_MAP) as Types.FrameStyle[],
 );
 
-export function isValidFrameStyle(style: any): style is Types.FrameStyle {
+export function isValidFrameStyle(style: unknown): style is Types.FrameStyle {
   return typeof style === "string" && VALID_FRAME_STYLES.has(style as Types.FrameStyle);
 }
 

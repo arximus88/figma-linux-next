@@ -7,7 +7,14 @@ import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
-import { isDev, isCommunityUrl, isFileBrowserUrl, parseURL, getTabDedupKey } from "Utils/Common";
+import {
+  isDev,
+  isCommunityUrl,
+  isFileBrowserUrl,
+  isFigmaRunUrl,
+  parseURL,
+  getTabDedupKey,
+} from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
 
@@ -17,6 +24,10 @@ export default class Window {
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
   private state: Types.WindowState;
+  // Single-shot guard so the explicit pre-closeAll snapshot in close() is
+  // not overwritten by the BrowserWindow `close` event firing later with
+  // an already-cleared tabs map.
+  private stateCached = false;
 
   private _userId: string;
   private settingsViewOpen = false;
@@ -28,16 +39,14 @@ export default class Window {
   private warmTab: Tab | null = null;
   private warmTabCreatedAt = 0;
   private warmTabScheduled = false;
+  private warmTabBootstrapped = false;
   private static readonly WARM_TAB_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(state: Types.WindowState) {
     this.window = new BrowserWindow({
       ...WINDOW_DEFAULT_OPTIONS,
       ...state,
-      webPreferences: {
-        ...WINDOW_DEFAULT_OPTIONS.webPreferences,
-        ...(state as any).webPreferences,
-      },
+      webPreferences: WINDOW_DEFAULT_OPTIONS.webPreferences,
     });
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
@@ -50,7 +59,7 @@ export default class Window {
     this.registerEvents();
 
     this.window.loadURL(isDev ? panelUrlDev : panelUrlProd);
-    isDev && toggleDetachedDevTools(this.window.webContents);
+    if (isDev) toggleDetachedDevTools(this.window.webContents);
     this.applyState();
 
     // Hide-until-ready: keep the BrowserWindow hidden until the Panel renderer
@@ -120,8 +129,24 @@ export default class Window {
   }
 
   public setUserId(id: string) {
+    const previousId = this._userId;
     this._userId = id;
     this.tabManager.setUserId(id);
+
+    // If the active user changed (add-account / account switch), the warm
+    // tab is now stale — it baked the previous user's id into its URL and
+    // the server will serve a blank page on promotion. Tear it down and
+    // schedule a fresh one. Skip when previousId is undefined (first boot)
+    // or equal (the warm tab's own setUser cascade after it bootstraps).
+    if (previousId && previousId !== id && this.warmTab) {
+      if (!this.warmTab.view.webContents.isDestroyed()) {
+        this.warmTab.view.webContents.destroy();
+      }
+      this.warmTab = null;
+      this.warmTabBootstrapped = false;
+      this.warmTabScheduled = false;
+    }
+
     // Start warming the new-file tab in background once we have a userId.
     // Guard with warmTabScheduled to prevent cascade: the warm tab itself
     // loads Figma which sends setUser again, which would re-trigger this.
@@ -133,10 +158,13 @@ export default class Window {
     this.tabManager.sortTabs(tabs);
   }
   public getState(): Types.WindowState & { windowId: number } {
-    // Window may already be destroyed by the time saveState() runs from
-    // window-all-closed — getBounds()/isMaximized() throw on a destroyed
-    // BrowserWindow. Fall back to the last cached state captured on close.
-    if (this.window.isDestroyed()) {
+    // During close, cacheStateBeforeClose() snapshots state into this.state
+    // BEFORE tabManager.closeAll() clears the tabs map. After closeAll,
+    // reading the live this.tabs would return an empty list, persisting
+    // tabs:[] and defeating saveLastOpenedTabs. isDestroyed() alone is not
+    // enough — BrowserWindow.close() is async, so isDestroyed can still be
+    // false while internal state is gone (getBounds throws).
+    if (this.stateCached || this.window.isDestroyed()) {
       return { ...this.state, windowId: this.id };
     }
 
@@ -163,9 +191,11 @@ export default class Window {
   }
 
   private cacheStateBeforeClose() {
+    if (this.stateCached) return;
     if (this.window.isDestroyed()) return;
     const { windowId: _, ...snapshot } = this.getState();
     this.state = snapshot;
+    this.stateCached = true;
   }
   public restoreTabs(list?: Types.SavedTab[]) {
     const tabs =
@@ -355,12 +385,19 @@ export default class Window {
     const warm = this.warmTab;
     if (warm && !warm.view.webContents.isDestroyed()) {
       // Promote the pre-warmed tab — instant, no loading delay
+      const wasBootstrapped = this.warmTabBootstrapped;
       this.warmTab = null;
+      this.warmTabBootstrapped = false;
       this.tabManager.promoteWarmTab(warm);
       this.window.webContents.send("didTabAdd", {
         id: warm.id,
         url: warm.url,
         title: NEW_FILE_TAB_TITLE,
+        // If the SPA hasn't fired its readiness signal yet, render the
+        // skeleton — the next setLoading(false) from the SPA clears it.
+        // Without this flag, the renderer never paints a placeholder and
+        // a not-yet-bootstrapped warm tab promotion shows a blank page.
+        loading: !wasBootstrapped,
       });
       this.setTabFocus(warm.id);
       // Warm the next one for next time
@@ -426,11 +463,16 @@ export default class Window {
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
 
+    // Non-Figma tabs (chrome://gpu, about:*) don't run figmaApi, so Figma's
+    // setLoading IPC never arrives. Without this flag the renderer skeleton
+    // covers the real title forever. For Figma URLs leave loading default-true;
+    // setLoading(false) clears it once the canvas is ready.
     this.window.webContents.send("didTabAdd", {
       id: tab.id,
       url,
       title,
       editorType: tab.editorType,
+      loading: isFigmaRunUrl(url),
     });
 
     return tab;
@@ -443,7 +485,7 @@ export default class Window {
 
     this.window.contentView.addChildView(this.settingsView.view);
 
-    isDev && toggleDetachedDevTools(this.settingsView.view.webContents);
+    if (isDev) toggleDetachedDevTools(this.settingsView.view.webContents);
 
     setTimeout(() => {
       this.settingsView.updateProps(bounds);
@@ -507,7 +549,7 @@ export default class Window {
   }
   private applyState() {
     const { x, y, height, width, userId, tabs, isMaximized } = this.state;
-    userId && this.setUserId(userId);
+    if (userId) this.setUserId(userId);
 
     if (storage.settings.app.saveLastOpenedTabs && tabs && tabs.length > 0) {
       this.window.webContents.once("did-finish-load", () => this.restoreTabs(tabs));
@@ -522,6 +564,18 @@ export default class Window {
 
   public setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
     const tabId = event.sender.id;
+
+    // Warm tab signals readiness via setLoading(false). Track it so the
+    // promoter knows whether to show the skeleton placeholder — promoting
+    // a not-yet-bootstrapped warm tab without the skeleton lands the user
+    // on a blank black page until the SPA finally renders.
+    if (this.warmTab && tabId === this.warmTab.id) {
+      if (args.loading === false) {
+        this.warmTabBootstrapped = true;
+      }
+      return;
+    }
+
     const tab = this.tabManager.getById(tabId);
 
     if (!tab) {
@@ -606,9 +660,11 @@ export default class Window {
 
     if (this.tabManager.lastFocusedTab === tabId) {
       if (isNewFileTab) {
-        this.tabManager.hasOpenedCommunityTab
-          ? this.setFocusToCommunityTab()
-          : this.setFocusToMainTab();
+        if (this.tabManager.hasOpenedCommunityTab) {
+          this.setFocusToCommunityTab();
+        } else {
+          this.setFocusToMainTab();
+        }
       } else {
         this.tabManager.focusTab(nextTabId);
         this.window.webContents.send("focusTab", nextTabId);
@@ -638,7 +694,7 @@ export default class Window {
   }
 
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
-  public executeInBrowserView(script: string): Promise<any> {
+  public executeInBrowserView(script: string): Promise<unknown> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
     if (!tab) return Promise.resolve(undefined);
     return tab.view.webContents.executeJavaScript(script);
@@ -647,7 +703,7 @@ export default class Window {
   /** Execute a fetch from within the active Figma WebContentsView context.
    *  Uses relative paths on www.figma.com so session cookies are sent automatically.
    *  @param path - relative path, e.g. "/api/files/{key}/nodes?ids=..." */
-  public figmaApiFetch(path: string): Promise<any> {
+  public figmaApiFetch(path: string): Promise<unknown> {
     return this.executeInBrowserView(`
       fetch(${JSON.stringify(path)})
         .then(r => r.ok ? r.json() : r.text().then(t => ({ error: r.status + ": " + t })))
@@ -699,6 +755,14 @@ export default class Window {
   }
   public loadUrlMainTab(url: string) {
     this.tabManager.mainTab.loadUrl(url);
+  }
+  public completeFigmaAuthInMainTab(gSecret: string, path?: string) {
+    // Forward the g_secret to MainTab's renderer; the page-side handler
+    // completes the redeem in-place so multi-user state survives. `path`
+    // stays undefined when the auth flow stayed on MainTab — the page may
+    // concatenate HOMEPAGE+path on completion, and passing "" or null
+    // produces "https://www.figma.comnull/" → empty screen.
+    this.tabManager.mainTab.view.webContents.send("figma:complete-auth", gSecret, path);
   }
   public setTabFocus(tabId: number) {
     const tab = this.tabManager.getById(tabId);
@@ -795,7 +859,7 @@ export default class Window {
   public updateVisibleNewProjectBtn(_: IpcMainEvent, visible: boolean) {
     this.window.webContents.send("updateVisibleNewProjectBtn", visible);
   }
-  public handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
+  public handleCallbackForTab(webContentsId: number, cbId: number, args: unknown) {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
@@ -806,6 +870,13 @@ export default class Window {
   }
 
   public close() {
+    // Snapshot state while tabs are still alive. tabManager.closeAll()
+    // below clears the tabs map; without this explicit call the snapshot
+    // taken by the `close` event handler would see tabs:[] and overwrite
+    // any previously persisted "saveLastOpenedTabs" payload with an empty
+    // list. The stateCached guard then makes the event-driven call a no-op.
+    this.cacheStateBeforeClose();
+
     if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
       this.warmTab.view.webContents.destroy();
     }
@@ -845,6 +916,7 @@ export default class Window {
 
     this.warmTab = tab;
     this.warmTabCreatedAt = Date.now();
+    this.warmTabBootstrapped = false;
     logger.debug("WarmTab: initialized");
   }
 
@@ -882,7 +954,7 @@ export default class Window {
         // Ensure we don't try to remove a view that isn't attached or is destroyed
         try {
           this.window.contentView.removeChildView(lastTab.view);
-        } catch (e) {
+        } catch {
           // Ignore errors if child is not attached
         }
       }

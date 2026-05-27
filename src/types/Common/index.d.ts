@@ -39,6 +39,7 @@ declare namespace Types {
     order?: number;
     editorType?: EditorType;
     isLibrary?: boolean;
+    loading?: boolean;
   }
 
   interface TabData {

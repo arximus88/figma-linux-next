@@ -15,7 +15,7 @@ import {
 // ============================================================================
 
 export interface FrameIconConfig {
-  component: Component<any>;
+  component: Component<Record<string, unknown>>;
   size: string;
 }
 
@@ -252,7 +252,7 @@ const VALID_STYLES = new Set<Types.FrameStyle>(["windows", "gnome", "macos", "kd
 /**
  * Type guard for FrameStyle
  */
-export function isValidFrameStyle(style: any): style is Types.FrameStyle {
+export function isValidFrameStyle(style: unknown): style is Types.FrameStyle {
   return typeof style === "string" && VALID_STYLES.has(style as Types.FrameStyle);
 }
 

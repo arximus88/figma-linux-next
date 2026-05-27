@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.8] - 2026-05-27
+
+### Fixed
+
+- **Multi-account sign-in** — adding a second account now actually adds it; the profile switcher shows both, and switching between them works ([#31](https://github.com/arximus88/figma-linux-next/issues/31)).
+- **Sign-in flow no longer silently fails** — completing login in the browser reliably brings you back into the app authenticated.
+- **No blank screen after add-account** — the empty page that sometimes appeared after the second sign-in is gone.
+- **"+" new-file tab no longer opens blank** — if the page is still loading, you see the skeleton placeholder instead of a black void.
+- **Non-Figma tabs (`chrome://gpu`, `about:blank`) show their real title** — they were stuck on a permanent loading skeleton.
+- **"Save last opened tabs" actually persists** — closing the last window with the X button no longer drops your tab list.
+- **Tab click area now covers the full visible tab** — the bottom edge is no longer a dead zone.
+
+### Changed
+
+- **Electron pinned to 42.0.1** — newer versions break Figma's sign-in flow (a Chromium change Figma's server rejects). The bundled AUR build was already on this version; only local dev was affected.
+
+---
+
 ## [0.13.7] - 2026-05-12
 
 ### Added

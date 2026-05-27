@@ -129,11 +129,14 @@
 
   :global(.g-tab-text) {
     display: flex;
+    flex: 1;
+    align-self: stretch;
     min-width: 60px;
     max-width: 200px;
     align-items: center;
     gap: 6px;
     user-select: none;
+    cursor: pointer;
     padding: 0 0 0 10px;
     color: rgba(255, 255, 255, 0.7);
     font-size: var(--text-size-tab, 13px);

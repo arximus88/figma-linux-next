@@ -13,9 +13,9 @@ interface Window
     fileBrowser: boolean;
 
     postMessage(name: string, args?: any, transferList?: Transferable[]): void;
-    registerCallback(name: string, args: any, callback: Function): void;
+    registerCallback(name: string, args: any, callback: (...cbArgs: any[]) => void): void;
     promiseMessage(name: string, args?: any, transferList?: Transferable[]): Promise<void>;
-    setMessageHandler(handler: Function): void;
+    setMessageHandler(handler: (name: string, args: unknown) => void): void;
   };
 
   __figmaContent: any;

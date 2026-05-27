@@ -63,7 +63,7 @@ export default class TabManager {
 
     this.communityTab = undefined;
   }
-  public handleCallbackForTab(webContentsId: number, callbackID: number, args: any) {
+  public handleCallbackForTab(webContentsId: number, callbackID: number, args: unknown) {
     const tab = this.getById(webContentsId);
 
     if (tab) {
@@ -127,7 +127,7 @@ export default class TabManager {
   }
   public updateScaleAll(scale: number) {
     this.mainTab.updateScale(scale);
-    this.communityTab && this.communityTab.updateScale(scale);
+    if (this.communityTab) this.communityTab.updateScale(scale);
     this.tabs.forEach((t) => t.updateScale(scale));
   }
 

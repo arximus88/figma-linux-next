@@ -4,7 +4,7 @@ import Window from "./Window";
 import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
-import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
+import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { ipcRegistry } from "Main/controllers/registry";
@@ -122,14 +122,25 @@ export default class WindowManager {
   public tryHandleAppAuthRedeemUrl = (url: string): boolean => {
     if (!isAppAuthRedeem(url)) return false;
 
-    // Navigate MainTab to https://www.figma.com/app_auth/redeem?g_secret=...
-    // Server validates the secret, sets figma_session via Set-Cookie, and 302s
-    // to /files/recent. The legacy IPC path (forward g_secret over webPort) is
-    // unreliable because the /login page doesn't establish the __figmaDesktop
-    // bridge, so webPort is undefined and the message is silently dropped.
-    const normalized = normalizeUrl(url);
     const window = this.windows.get(this.lastFocusedwindowId) ?? this.windows.values().next().value;
-    window?.loadUrlMainTab(normalized);
+    if (!window) return false;
+
+    // Hand the g_secret off to MainTab's renderer instead of navigating to
+    // /app_auth/redeem at the top level. Navigation only refreshes
+    // figma.session and silently drops a second user from the account
+    // switcher; the in-page handler completes the redeem with the full
+    // session/CSRF context that the multi-user state requires. When the
+    // page bridge isn't established (e.g., MainTab on /login during a fresh
+    // sign-in), the renderer-side handler falls back to a top-level
+    // navigation so the server still mints a session.
+    const normalized = normalizeUrl(url);
+    // Base URL guards against AuthController.finishAppAuth passing a relative
+    // path (e.g. /app_auth/redeem?g_secret=…), which `new URL()` would throw
+    // on without a base.
+    const gSecret = new URL(normalized, HOMEPAGE).searchParams.get("g_secret");
+    if (!gSecret) return false;
+
+    window.completeFigmaAuthInMainTab(gSecret);
     return true;
   };
 
@@ -142,6 +153,13 @@ export default class WindowManager {
   }
 
   public saveState() {
+    if (this.windows.size === 0) {
+      // Nothing to snapshot. Preserve whatever was last persisted —
+      // windowClose() snapshots the closing window's state before
+      // removing it from the map, and we must not wipe that with an
+      // empty reset on the follow-up call from quitApp / window-all-closed.
+      return;
+    }
     storage.settings.app.windowsState = {};
     const keepTabs = storage.settings.app.saveLastOpenedTabs;
 
@@ -451,6 +469,15 @@ export default class WindowManager {
 
     window.close();
 
+    if (this.windows.size === 1) {
+      // Snapshot state while the closing window is still in the map.
+      // app.emit("quitApp") below triggers App.quitApp → saveState(),
+      // which iterates this.windows; if we deleted first, the only
+      // window would be gone and windowsState would persist as {},
+      // defeating the "saveLastOpenedTabs" setting.
+      this.saveState();
+    }
+
     this.windows.delete(windowId);
 
     if (this.windows.size === 0) {
@@ -648,7 +675,7 @@ export default class WindowManager {
   private openChangelogView() {
     this.openChangelogViewForLastWindow();
   }
-  private handleCallbackForTab(webContentsId: number, cbId: number, args: any) {
+  private handleCallbackForTab(webContentsId: number, cbId: number, args: unknown) {
     const window = this.getWindowByWebContentsId(webContentsId);
 
     window.handleCallbackForTab(webContentsId, cbId, args);

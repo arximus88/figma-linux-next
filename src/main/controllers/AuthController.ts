@@ -42,7 +42,18 @@ export default class AuthController {
     }
   }
 
-  private finishAppAuth(event: IpcMainEvent, data: { redirectURL: string }) {
+  private finishAppAuth(event: IpcMainEvent, data: { redirectURL?: string | null }) {
+    // Figma's SPA fires finishAppAuth without redirectURL after a successful
+    // in-place add-account redeem (it updated __Host-figma.authn itself and
+    // refreshed the profile switcher). Concatenating `${HOMEPAGE}${null}`
+    // produces "https://www.figma.comnull/" which lands MainTab on a
+    // chrome-error page and breaks the preload bridge for subsequent
+    // attempts. When no redirect is given, just refresh in place.
+    if (!data.redirectURL) {
+      this.windowManager.reloadAllWindows();
+      return;
+    }
+
     const url = `${Const.HOMEPAGE}${data.redirectURL}`;
 
     this.windowManager.handleUrl(url);

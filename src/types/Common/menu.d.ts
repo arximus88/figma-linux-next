@@ -48,5 +48,5 @@ declare namespace Menu {
     property?: string;
     propertyValue?: boolean;
   }
-  interface PluginMenuData {}
+  type PluginMenuData = Record<string, unknown>;
 }

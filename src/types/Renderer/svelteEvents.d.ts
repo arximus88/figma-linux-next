@@ -1,5 +1,5 @@
 declare namespace SvelteEvents {
-  interface Empty {}
+  type Empty = Record<string, never>;
 
   interface ApplyTheme {
     themeId: string;

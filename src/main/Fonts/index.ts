@@ -219,7 +219,7 @@ export default class FontManager {
               }
             }
           }
-        } catch (e) {
+        } catch {
           // ignore enhancement errors for individual files
         }
       }),

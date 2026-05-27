@@ -25,11 +25,9 @@ export async function downloadFile(url: string, savePath: string): Promise<void>
       .request(url)
       .on("response", (response) => {
         const buffers: Uint8Array[] = [];
-        let length = 0;
 
         const onData = (chunk: Buffer) => {
           buffers.push(chunk);
-          length += chunk.length;
         };
         const onEnd = async () => {
           const buffer = Buffer.concat(buffers);
