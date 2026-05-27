@@ -15,7 +15,7 @@ interface Window
     postMessage(name: string, args?: any, transferList?: Transferable[]): void;
     registerCallback(name: string, args: any, callback: (...cbArgs: any[]) => void): void;
     promiseMessage(name: string, args?: any, transferList?: Transferable[]): Promise<void>;
-    setMessageHandler(handler: (msg: unknown) => void): void;
+    setMessageHandler(handler: (name: string, args: unknown) => void): void;
   };
 
   __figmaContent: any;

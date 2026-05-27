@@ -110,7 +110,7 @@ const initWebApi = (props: IntiApiOptions) => {
         channel.port1.postMessage({ name, args, promiseID: id });
       });
     },
-    setMessageHandler: function (handler: (msg: unknown) => void): void {
+    setMessageHandler: function (handler: (name: string, args: unknown) => void): void {
       messageHandler = handler;
     },
   };

@@ -4,7 +4,7 @@ import Window from "./Window";
 import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
-import { CHROME_GPU, NEW_FILE_TAB_TITLE } from "Const";
+import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { ipcRegistry } from "Main/controllers/registry";
@@ -134,7 +134,10 @@ export default class WindowManager {
     // sign-in), the renderer-side handler falls back to a top-level
     // navigation so the server still mints a session.
     const normalized = normalizeUrl(url);
-    const gSecret = new URL(normalized).searchParams.get("g_secret");
+    // Base URL guards against AuthController.finishAppAuth passing a relative
+    // path (e.g. /app_auth/redeem?g_secret=…), which `new URL()` would throw
+    // on without a base.
+    const gSecret = new URL(normalized, HOMEPAGE).searchParams.get("g_secret");
     if (!gSecret) return false;
 
     window.completeFigmaAuthInMainTab(gSecret);
