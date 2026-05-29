@@ -6,7 +6,7 @@
   "repository": "https://github.com/arximus88/figma-linux-next.git",
   "homepage": "https://github.com/arximus88/figma-linux-next",
   "author": "Figma Linux Community",
-  "license": "MIT",
+  "license": "GPL-2.0-only",
   "scripts": {
     "start": "bun run build && bun run run",
     "dev": "cross-env NODE_ENV=dev vite",

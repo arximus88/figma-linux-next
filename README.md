@@ -91,4 +91,4 @@ bun run pack     # build all packages
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPL-2.0-only — see [LICENSE](LICENSE).
