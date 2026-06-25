@@ -62,23 +62,24 @@ Build targets configured in [`config/builder.json`](config/builder.json):
 ### Code Quality
 
 ```bash
-# Run linting and formatting
+# Lint + format .ts in place (Biome)
 bun run lp
 
-# ESLint (uses config/eslintrc.js)
+# Lint check only — no writes (used by CI)
 bun run lint
-
-# Prettier formatting
-bun run prettier
 
 # Svelte type checking
 bun run check
 
-# Pre-commit hook (runs linting/formatting on staged files)
+# Pre-commit hook (runs Biome on staged files via lint-staged)
 bun run precommit
 ```
 
-ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line limit
+Linting/formatting: **Biome** (`biome.json`) for all `.ts` (src + tests) — formatter matches the
+former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicitAny` and
+`noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
+`.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
+yet). ESLint and Prettier were removed in favor of Biome.
 
 ### Testing
 
