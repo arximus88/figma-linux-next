@@ -10,7 +10,7 @@ import WindowManager from "./Ui/WindowManager";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 import { dialogs } from "./Dialogs";
-import { applyChromiumSwitches } from "./applyChromiumSwitches";
+import { applyChromiumSwitches, shouldRelaunchUnderX11 } from "./applyChromiumSwitches";
 
 // Read persisted settings synchronously, ONCE. Everything below (Ozone platform choice,
 // GPU/command-line switches) must be decided BEFORE the first await / app.ready: Chromium
@@ -44,13 +44,7 @@ try {
 // process there → use `env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 bun run dev` instead).
 // Also skipped in test (NODE_ENV=test): Playwright drives the launched process directly, so
 // spawning a detached copy and calling app.exit(0) would orphan it and hang every e2e test.
-if (
-  savedSettings.app?.enableWebGPU &&
-  process.env.WAYLAND_DISPLAY &&
-  !process.env.FIGMA_FORCE_X11 &&
-  process.env.NODE_ENV !== "dev" &&
-  process.env.NODE_ENV !== "test"
-) {
+if (shouldRelaunchUnderX11(savedSettings.app ?? {})) {
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
     XDG_SESSION_TYPE: "x11",

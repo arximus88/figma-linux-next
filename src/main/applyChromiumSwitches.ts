@@ -6,6 +6,31 @@ import { logger } from "./Logger";
 const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-graphite"];
 
 /**
+ * Decide whether the process must relaunch itself under a clean X11 environment.
+ *
+ * Figma's WebGPU shader effects only composite under X11 ozone, and Electron reads
+ * WAYLAND_DISPLAY during early native init — too early to strip in JS — so a Wayland session
+ * with shaders enabled must spawn a fresh child with WAYLAND_DISPLAY removed (see index.ts).
+ * Pure + env-injectable so the decision is unit-testable without spawning anything.
+ *
+ * Guards: FIGMA_FORCE_X11 prevents an infinite relaunch loop; dev is skipped (vite owns the
+ * Electron process); test is skipped (Playwright drives the launched process directly, so
+ * spawning a detached copy + app.exit(0) would orphan it and hang every e2e test).
+ */
+export function shouldRelaunchUnderX11(
+  settings: Partial<Types.SettingsInterface["app"]>,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return Boolean(
+    settings?.enableWebGPU &&
+      env.WAYLAND_DISPLAY &&
+      !env.FIGMA_FORCE_X11 &&
+      env.NODE_ENV !== "dev" &&
+      env.NODE_ENV !== "test",
+  );
+}
+
+/**
  * Apply every Chromium command-line switch.
  *
  * CRITICAL: this MUST run synchronously at process startup, BEFORE the first `await`
