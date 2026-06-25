@@ -42,11 +42,14 @@ try {
 // with WAYLAND_DISPLAY removed and XDG_SESSION_TYPE=x11. Guarded against infinite relaunch
 // via FIGMA_FORCE_X11, and skipped under `bun run dev` (vite owns/restarts the Electron
 // process there → use `env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 bun run dev` instead).
+// Also skipped in test (NODE_ENV=test): Playwright drives the launched process directly, so
+// spawning a detached copy and calling app.exit(0) would orphan it and hang every e2e test.
 if (
   savedSettings.app?.enableWebGPU &&
   process.env.WAYLAND_DISPLAY &&
   !process.env.FIGMA_FORCE_X11 &&
-  process.env.NODE_ENV !== "dev"
+  process.env.NODE_ENV !== "dev" &&
+  process.env.NODE_ENV !== "test"
 ) {
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
