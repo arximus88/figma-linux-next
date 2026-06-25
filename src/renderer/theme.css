@@ -136,6 +136,10 @@
   --bg-item-hover: var(--bg-panel-hover);
   --border: var(--borders);
   --border-hover: var(--bg-toolbar-active);
+
+  /* Settings cards (Adwaita boxed-list) */
+  --bg-card: #f6f6f6;
+  --bg-card-hover: #efefef;
 }
 
 /* Dark theme overrides — applied when Figma is in dark mode */
@@ -151,4 +155,6 @@ html[data-theme="dark"] {
   --toggle-knob: #aaaaaa;
   --bg-item: #1e1e1e;
   --bg-item-hover: #2a2a2a;
+  --bg-card: #262626;
+  --bg-card-hover: #2e2e2e;
 }

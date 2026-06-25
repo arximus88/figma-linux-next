@@ -12,7 +12,7 @@
     const list = [
       {
         id: "general",
-        text: "General",
+        text: "Settings",
         itemArgs: {
           padding: "14px 10px",
         },

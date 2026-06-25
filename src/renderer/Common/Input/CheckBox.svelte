@@ -28,7 +28,6 @@
   }
   div > label {
     position: relative;
-    flex-grow: 1;
     cursor: pointer;
   }
 
@@ -131,9 +130,9 @@
   .info-icon::after {
     content: attr(data-tooltip);
     position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
-    left: auto;
+    top: calc(100% + 8px);
+    left: 0;
+    right: auto;
     transform: none;
     background: var(--bg-overlay, #222222);
     color: var(--fg-overlay, #ffffff);
