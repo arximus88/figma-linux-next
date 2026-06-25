@@ -863,8 +863,12 @@ export default class Window {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
-  public handleFrontReady() {
+  public pushSettingsToPanel() {
     this.window.webContents.send("loadSettings", storage.settings);
+  }
+
+  public handleFrontReady() {
+    this.pushSettingsToPanel();
     this.showHandler(null);
     this.revealIfHidden();
   }

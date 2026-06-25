@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ButtonWindow } from "Common/Buttons";
   import { Corner, Minimize, Maximize, Close } from "Icons";
-  import { tabs, isMenuOpen } from "../../store";
+  import { tabs, isMenuOpen, windowControls } from "../../store";
 
   function clickMenu() {
     if (isMenuOpen.value) return;
@@ -25,23 +25,25 @@
     <Corner size="14" />
   </ButtonWindow>
 
-  <ButtonWindow
-    padding="0"
-    hoverBgColor="rgba(255,255,255,0.1)"
-    activeBgColor="rgba(255,255,255,0.15)"
-    onButtonClick={() => window.figmaApi.send("windowMinimize")}
-  >
-    <Minimize size="16" />
-  </ButtonWindow>
+  {#if !windowControls.hideMinMax}
+    <ButtonWindow
+      padding="0"
+      hoverBgColor="rgba(255,255,255,0.1)"
+      activeBgColor="rgba(255,255,255,0.15)"
+      onButtonClick={() => window.figmaApi.send("windowMinimize")}
+    >
+      <Minimize size="16" />
+    </ButtonWindow>
 
-  <ButtonWindow
-    padding="0"
-    hoverBgColor="rgba(255,255,255,0.1)"
-    activeBgColor="rgba(255,255,255,0.15)"
-    onButtonClick={() => window.figmaApi.send("windowMaximize")}
-  >
-    <Maximize size="16" />
-  </ButtonWindow>
+    <ButtonWindow
+      padding="0"
+      hoverBgColor="rgba(255,255,255,0.1)"
+      activeBgColor="rgba(255,255,255,0.15)"
+      onButtonClick={() => window.figmaApi.send("windowMaximize")}
+    >
+      <Maximize size="16" />
+    </ButtonWindow>
+  {/if}
 
   <ButtonWindow
     padding="0"

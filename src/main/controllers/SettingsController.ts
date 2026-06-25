@@ -64,8 +64,15 @@ export default class SettingsController {
       app.emit("chromiumFlagsChanged", true);
     }
 
+    const minMaxChanged =
+      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons;
+
     storage.settings = settings;
     await storage.save();
+
+    if (minMaxChanged) {
+      this.windowManager.broadcastSettingsToPanels();
+    }
 
     this.windowManager.closeSettingsViewForLastWindow();
   }

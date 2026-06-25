@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     lastOpenedTabs: {},
     featureFlags: {},
     frameStyle: "gnome" as Types.FrameStyle,
+    hideWindowMinMaxButtons: false,
     savedExtensions: [],
     figmaTheme: "dark" as "dark" | "light",
   },

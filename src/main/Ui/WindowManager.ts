@@ -94,6 +94,12 @@ export default class WindowManager {
     }
   }
 
+  public broadcastSettingsToPanels() {
+    for (const [_, window] of this.windows) {
+      window.pushSettingsToPanel();
+    }
+  }
+
   public closeTabOnAllWindows() {
     for (const [_, window] of this.windows) {
       window.closeAllTab(null);

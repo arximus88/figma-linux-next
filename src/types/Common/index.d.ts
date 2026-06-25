@@ -104,6 +104,7 @@ declare namespace Types {
       recentlyClosedTabs: SavedTab[];
       commandSwitches: CommandSwitch[];
       frameStyle: FrameStyle;
+      hideWindowMinMaxButtons: boolean;
       windowsState: {
         [key: string]: WindowState;
       };

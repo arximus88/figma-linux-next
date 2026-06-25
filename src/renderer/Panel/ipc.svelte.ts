@@ -7,6 +7,7 @@ import {
   panelZoom,
   newFileVisible,
   communityTabVisible,
+  windowControls,
 } from "./store";
 
 export function initIpc() {
@@ -75,6 +76,7 @@ export function initIpc() {
   });
   window.figmaApi.on("loadSettings", (settings: Types.SettingsInterface) => {
     panelZoom.set(settings.ui.scalePanel);
+    windowControls.setHideMinMax(!!settings.app?.hideWindowMinMaxButtons);
   });
   window.figmaApi.on("openCommunity", () => {
     communityTabVisible.set(true);
