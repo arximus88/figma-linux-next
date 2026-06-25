@@ -1,7 +1,7 @@
 import { app } from "electron";
-import { spawn } from "child_process";
-import fs from "fs";
-import path from "path";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import App from "./App";
 import Session from "./Session";
 import FontManager from "./Fonts";
@@ -17,7 +17,10 @@ import { applyChromiumSwitches } from "./applyChromiumSwitches";
 // reads its command line and initializes Ozone at startup and ignores anything added later
 // (e.g. from inside `new App()`, which runs after `await storage.initialize()`). That
 // timing bug is why GPU/shader switches never reached the engine and Skia stayed GaneshGL.
-let savedSettings: { app?: Partial<Types.SettingsInterface["app"]>; mcp?: Partial<Types.SettingsInterface["mcp"]> } = {};
+let savedSettings: {
+  app?: Partial<Types.SettingsInterface["app"]>;
+  mcp?: Partial<Types.SettingsInterface["mcp"]>;
+} = {};
 try {
   const settingsPath = path.join(
     process.env.HOME ?? "",

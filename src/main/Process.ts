@@ -1,11 +1,9 @@
-import { promisify } from "util";
-import { exec as cp_exec, execSync } from "child_process";
+import { promisify } from "node:util";
+import { exec as cp_exec, execSync } from "node:child_process";
 
 import { logger } from "./Logger";
 
 export class Process {
-  constructor() {}
-
   public exec = async (command: string): Promise<string> => {
     const exec = promisify(cp_exec);
 

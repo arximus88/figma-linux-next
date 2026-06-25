@@ -1,7 +1,7 @@
 import { app } from "electron";
 import type { IpcMainEvent } from "electron";
-import * as path from "path";
-import * as fs from "fs";
+import * as path from "node:path";
+import * as fs from "node:fs";
 
 import { DEFAULT_SETTINGS, access } from "Utils/Main";
 import { logger } from "./Logger";
@@ -15,8 +15,6 @@ export class Storage {
   public settings: Types.SettingsInterface;
   private writePromise: Promise<void> | null = null;
   private nextWriteData: Types.SettingsInterface | null = null;
-
-  constructor() {}
 
   public async initialize(): Promise<void> {
     if (this.filePath) return;

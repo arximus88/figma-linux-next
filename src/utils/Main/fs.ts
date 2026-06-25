@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from "node:fs";
 
 export async function mkdirIfNotExists(path: string) {
   try {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, IpcMainEvent, Rectangle, Menu } from "electron";
+import { app, BrowserWindow, type IpcMainEvent, type Rectangle, type Menu } from "electron";
 import { storage } from "Main/Storage";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
@@ -798,7 +798,7 @@ export default class Window {
     }
 
     this.tabManager.setTitle(tab.id, title);
-    if (tab && tab.view && tab.view.webContents) {
+    if (tab?.view?.webContents) {
       this.window.webContents.send("setTitle", { id: tab.view.webContents.id, title });
     }
   }
@@ -950,7 +950,7 @@ export default class Window {
     const lastFocusedId = this.tabManager.lastFocusedTab;
     if (lastFocusedId) {
       const lastTab = this.tabManager.getById(lastFocusedId);
-      if (lastTab && lastTab.view) {
+      if (lastTab?.view) {
         // Ensure we don't try to remove a view that isn't attached or is destroyed
         try {
           this.window.contentView.removeChildView(lastTab.view);

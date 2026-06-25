@@ -1,5 +1,5 @@
-import * as fs from "fs";
-import { net, ClientRequestConstructorOptions } from "electron";
+import * as fs from "node:fs";
+import { net, type ClientRequestConstructorOptions } from "electron";
 
 export const request = (options: ClientRequestConstructorOptions): Promise<Request.Responce> =>
   new Promise((resolve, reject) => {

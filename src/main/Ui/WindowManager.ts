@@ -1,4 +1,4 @@
-import { app, clipboard, IpcMainEvent, WebContents } from "electron";
+import { app, clipboard, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
 import Tab from "./Tab";

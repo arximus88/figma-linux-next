@@ -9,7 +9,7 @@
 import { isDev } from "Utils/Common";
 
 const log = (message: string) => {
-  if (isDev) console.log("[Figma-Linux-Next] " + message);
+  if (isDev) console.log(`[Figma-Linux-Next] ${message}`);
 };
 
 /**

@@ -42,5 +42,18 @@
   },
   "assist": {
     "enabled": false
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.d.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "useAdjacentOverloadSignatures": "off",
+            "noShadowRestrictedNames": "off"
+          }
+        }
+      }
+    }
+  ]
 }

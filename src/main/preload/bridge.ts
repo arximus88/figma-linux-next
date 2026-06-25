@@ -5,7 +5,7 @@
  *
  * Security: contextBridge ensures only whitelisted channels are accessible.
  */
-import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 /**
  * Allowed IPC channels — only these can be sent/received through the bridge.

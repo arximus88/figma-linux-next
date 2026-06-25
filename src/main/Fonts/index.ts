@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFile } from "fs/promises";
-import { statSync } from "fs";
+import { readFile } from "node:fs/promises";
+import { statSync } from "node:fs";
 import * as fontkit from "fontkit"; // types provided by Fonts namespace
 import { logger } from "Main/Logger";
 
@@ -77,8 +77,7 @@ export default class FontManager {
     const home = process.env.HOME;
     if (!home) return false;
     return (
-      filePath.startsWith(`${home}/.local/share/fonts/`) ||
-      filePath.startsWith(`${home}/.fonts/`)
+      filePath.startsWith(`${home}/.local/share/fonts/`) || filePath.startsWith(`${home}/.fonts/`)
     );
   }
 
@@ -109,7 +108,7 @@ export default class FontManager {
         const fcWeight = parseInt(weightStr, 10);
         const fcWidth = parseInt(widthStr, 10);
         const slant = parseInt(slantStr, 10);
-        if (isNaN(fcWeight)) continue;
+        if (Number.isNaN(fcWeight)) continue;
 
         const fontIndex = indexStr ? parseInt(indexStr, 10) : undefined;
         const styleName = (style || "Regular").trim();
@@ -119,9 +118,9 @@ export default class FontManager {
           id: postscript || family,
           style: styleName,
           name: styleName,
-          index: isNaN(fontIndex!) ? undefined : fontIndex,
+          index: Number.isNaN(fontIndex!) ? undefined : fontIndex,
           weight: fcWeightToCSS(fcWeight),
-          stretch: fcWidthToStretch(isNaN(fcWidth) ? 100 : fcWidth),
+          stretch: fcWidthToStretch(Number.isNaN(fcWidth) ? 100 : fcWidth),
           italic: slant > 0,
           user_installed: this.isUserInstalledPath(filePath),
         };
@@ -155,8 +154,7 @@ export default class FontManager {
 
               for (const font of fonts) {
                 const isItalic =
-                  font.italicAngle !== 0 ||
-                  (font.subfamilyName && font.subfamilyName.toLowerCase().includes("italic"));
+                  font.italicAngle !== 0 || font.subfamilyName?.toLowerCase().includes("italic");
                 let weight = 400;
                 if (font["OS/2"]?.usWeightClass) weight = font["OS/2"].usWeightClass;
                 const styleName = font.subfamilyName || "Regular";
@@ -246,10 +244,10 @@ export default class FontManager {
       default: axis.default,
     }));
 
-    item.useFontOpticalSize = !!font.variationAxes["opsz"];
+    item.useFontOpticalSize = !!font.variationAxes.opsz;
 
     // 1. variationAxisValues: The raw coordinates for this named instance
-    if (font.namedVariations && font.namedVariations[item.style]) {
+    if (font.namedVariations?.[item.style]) {
       const variation = font.namedVariations[item.style];
       item.variationAxisValues = Object.entries(variation).map(([tag, value]) => ({
         tag,

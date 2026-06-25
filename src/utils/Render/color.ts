@@ -11,16 +11,16 @@ export const HexToRgb = (hex: string) => {
     return hex;
   }
 
-  let r, g, b;
+  let r: number, g: number, b: number;
 
-  if (hex.length == 4) {
-    r = Number("0x" + hex[1] + hex[1]);
-    g = Number("0x" + hex[2] + hex[2]);
-    b = Number("0x" + hex[3] + hex[3]);
-  } else if (hex.length == 7) {
-    r = Number("0x" + hex[1] + hex[2]);
-    g = Number("0x" + hex[3] + hex[4]);
-    b = Number("0x" + hex[5] + hex[6]);
+  if (hex.length === 4) {
+    r = Number(`0x${hex[1]}${hex[1]}`);
+    g = Number(`0x${hex[2]}${hex[2]}`);
+    b = Number(`0x${hex[3]}${hex[3]}`);
+  } else if (hex.length === 7) {
+    r = Number(`0x${hex[1]}${hex[2]}`);
+    g = Number(`0x${hex[3]}${hex[4]}`);
+    b = Number(`0x${hex[5]}${hex[6]}`);
   } else {
     return hex;
   }

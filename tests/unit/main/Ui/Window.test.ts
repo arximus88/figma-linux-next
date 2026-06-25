@@ -98,7 +98,7 @@ mock.module("electron", () => {
   };
 });
 
-import { IpcMainEvent } from "electron";
+import type { IpcMainEvent } from "electron";
 import Window from "Main/Ui/Window";
 
 describe("Window Tab Routing", () => {

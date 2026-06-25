@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { LogLevel } from "Types/enums";
 
 export const DEFAULT_SETTINGS: Types.SettingsInterface = {

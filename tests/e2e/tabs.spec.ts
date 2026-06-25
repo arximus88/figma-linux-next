@@ -8,19 +8,18 @@ const FILE_URL_B = "https://www.figma.com/design/BBB222bbb/project-beta";
  * Open a tab via the main-process openUrlInNewTab event (same path as HomeTab clicks).
  */
 async function openTab(app: Awaited<ReturnType<typeof launchApp>>["app"], url: string) {
-  await app.evaluate(
-    ({ app: electronApp }, tabUrl) => {
-      electronApp.emit("openUrlInNewTab", tabUrl);
-    },
-    url,
-  );
+  await app.evaluate(({ app: electronApp }, tabUrl) => {
+    electronApp.emit("openUrlInNewTab", tabUrl);
+  }, url);
 }
 
 /**
  * Returns the number of webContents currently alive (panel + mainTab + settingsView + open tabs).
  * Use deltas between calls to measure tab additions/removals.
  */
-async function getWebContentsCount(app: Awaited<ReturnType<typeof launchApp>>["app"]): Promise<number> {
+async function getWebContentsCount(
+  app: Awaited<ReturnType<typeof launchApp>>["app"],
+): Promise<number> {
   return app.evaluate(({ webContents }) => webContents.getAllWebContents().length);
 }
 

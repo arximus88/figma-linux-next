@@ -1,5 +1,5 @@
 import { describe, expect, it, spyOn } from "bun:test";
-import * as fs from "fs";
+import * as fs from "node:fs";
 import { mkdirIfNotExists, access, accessSync, mkPath } from "Utils/Main/fs";
 
 describe("fs utils", () => {
@@ -10,7 +10,7 @@ describe("fs utils", () => {
     });
 
     it("returns false when file does not exist", async () => {
-      expect(await access("/tmp/figma-linux-next-definitely-missing-" + Math.random())).toBe(false);
+      expect(await access(`/tmp/figma-linux-next-definitely-missing-${Math.random()}`)).toBe(false);
     });
   });
 
@@ -20,7 +20,7 @@ describe("fs utils", () => {
     });
 
     it("returns false when path does not exist", () => {
-      expect(accessSync("/tmp/figma-linux-next-definitely-missing-" + Math.random())).toBe(false);
+      expect(accessSync(`/tmp/figma-linux-next-definitely-missing-${Math.random()}`)).toBe(false);
     });
   });
 

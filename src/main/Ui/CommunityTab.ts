@@ -1,11 +1,11 @@
 import {
   app,
   shell,
-  BrowserWindow,
+  type BrowserWindow,
   WebContentsView,
-  Rectangle,
-  HandlerDetails,
-  DidCreateWindowDetails,
+  type Rectangle,
+  type HandlerDetails,
+  type DidCreateWindowDetails,
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";

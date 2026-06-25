@@ -5,8 +5,6 @@ import { ZenityDialogs } from "./Zenity";
 export class Provider {
   private provider: ProviderDialog;
 
-  constructor() {}
-
   public initialize(): void {
     if (this.provider) return;
 

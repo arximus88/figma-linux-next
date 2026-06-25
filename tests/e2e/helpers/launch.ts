@@ -1,7 +1,7 @@
-import { mkdtempSync } from "fs";
-import { tmpdir } from "os";
-import path from "path";
-import { _electron as electron, ElectronApplication, Page } from "@playwright/test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
 
 const MAIN_JS = path.resolve(__dirname, "../../../dist/main/main.js");
 

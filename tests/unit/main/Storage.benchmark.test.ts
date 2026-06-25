@@ -1,11 +1,11 @@
 import { mock, test, expect } from "bun:test";
-import path from "path";
-import fs from "fs";
-import os from "os";
+import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 
 const tempUserData = path.join(
   os.tmpdir(),
-  "figma-linux-test-" + Math.random().toString(36).substring(7),
+  `figma-linux-test-${Math.random().toString(36).substring(7)}`,
 );
 if (!fs.existsSync(tempUserData)) {
   fs.mkdirSync(tempUserData);

@@ -1,4 +1,4 @@
-import { app, net, Event, protocol } from "electron";
+import { app, net, type Event, protocol } from "electron";
 
 import * as Const from "Const";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
@@ -8,9 +8,9 @@ import { registerAppImageUrlHandler } from "./AppImageIntegration";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 
-import WindowManager from "./Ui/WindowManager";
-import Session from "./Session";
-import FontManager from "./Fonts";
+import type WindowManager from "./Ui/WindowManager";
+import type Session from "./Session";
+import type FontManager from "./Fonts";
 import { McpServer } from "./MCP";
 import type { FigmaViewProvider } from "./MCP";
 

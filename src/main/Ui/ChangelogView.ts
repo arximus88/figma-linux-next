@@ -1,4 +1,4 @@
-import { WebContentsView, Rectangle } from "electron";
+import { WebContentsView, type Rectangle } from "electron";
 
 import {
   bridgePreloadPathDev,

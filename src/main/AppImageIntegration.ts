@@ -1,27 +1,25 @@
-import { spawnSync } from "child_process";
-import { mkdirSync, writeFileSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import { logger } from "./Logger";
 
 const DESKTOP_FILENAME = "figma-linux-next-appimage.desktop";
 
 function buildDesktopEntry(appImagePath: string): string {
-  return (
-    [
-      "[Desktop Entry]",
-      "Name=Figma Linux Next",
-      "Comment=Unofficial Figma desktop app for Linux",
-      `Exec=${appImagePath} %U`,
-      "Terminal=false",
-      "Type=Application",
-      "Icon=figma-linux-next",
-      "StartupWMClass=figma-linux-next",
-      "Categories=Graphics;",
-      "MimeType=application/figma;x-scheme-handler/figma;",
-    ].join("\n") + "\n"
-  );
+  return `${[
+    "[Desktop Entry]",
+    "Name=Figma Linux Next",
+    "Comment=Unofficial Figma desktop app for Linux",
+    `Exec=${appImagePath} %U`,
+    "Terminal=false",
+    "Type=Application",
+    "Icon=figma-linux-next",
+    "StartupWMClass=figma-linux-next",
+    "Categories=Graphics;",
+    "MimeType=application/figma;x-scheme-handler/figma;",
+  ].join("\n")}\n`;
 }
 
 function isAlreadyRegistered(): boolean {

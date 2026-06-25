@@ -18,10 +18,10 @@
  *   GET  /assets/:id — Exported images
  */
 
-import http from "http";
-import crypto from "crypto";
-import fs from "fs";
-import path from "path";
+import http from "node:http";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import type { WebContentsView } from "electron";
 import { version as APP_VERSION } from "../../../package.json";
 

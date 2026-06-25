@@ -44,11 +44,11 @@ const onWebMessage = (event: MessageEvent) => {
     return;
   }
 
-  let resultPromise = undefined;
+  let resultPromise: any;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    resultPromise = msg.name && publicAPI && publicAPI[msg.name](msg.args);
+    resultPromise = msg.name && publicAPI?.[msg.name](msg.args);
   } catch (e) {
     console.error("onWebMessage, err: ", msg.name, e);
     throw e;
@@ -60,11 +60,11 @@ const onWebMessage = (event: MessageEvent) => {
             webPort.postMessage({ result: result.data, promiseID: msg.promiseID });
           })
           .catch((error) => {
-            const errorString = (error && error.name) || "Promise error";
+            const errorString = error?.name || "Promise error";
             webPort.postMessage({ error: errorString, promiseID: msg.promiseID });
           });
       } else {
-        webPort.postMessage({ error: "No result" + resultPromise, promiseID: msg.promiseID });
+        webPort.postMessage({ error: `No result${resultPromise}`, promiseID: msg.promiseID });
       }
     }
   }
@@ -89,11 +89,11 @@ const initWebApi = (props: IntiApiOptions) => {
     version: props.version,
     appVersion: props.appVersion,
     fileBrowser: props.fileBrowser,
-    postMessage: function (name, args, transferList): void {
+    postMessage: (name, args, transferList): void => {
       if (import.meta.env.DEV) console.debug("[webBinding] postMessage:", name, args);
       channel.port1.postMessage({ name, args }, transferList);
     },
-    registerCallback: function (name, args, callback) {
+    registerCallback: (name, args, callback) => {
       const id = nextCallbackID++;
       if (import.meta.env.DEV)
         console.debug(`[webBinding] registerCallback id="${id}" name="${name}"`);
@@ -103,14 +103,13 @@ const initWebApi = (props: IntiApiOptions) => {
         channel.port1.postMessage({ cancelCallbackID: id });
       };
     },
-    promiseMessage: function (name, args, _transferList) {
-      return new Promise((resolve, reject) => {
+    promiseMessage: (name, args, _transferList) =>
+      new Promise((resolve, reject) => {
         const id = nextPromiseID++;
         pendingPromises.set(id, { resolve, reject });
         channel.port1.postMessage({ name, args, promiseID: id });
-      });
-    },
-    setMessageHandler: function (handler: (name: string, args: unknown) => void): void {
+      }),
+    setMessageHandler: (handler: (name: string, args: unknown) => void): void => {
       messageHandler = handler;
     },
   };
@@ -154,19 +153,16 @@ const initWebBindings = (): void => {
   // is the channel the page listens on. When the bridge isn't ready yet
   // (e.g., the login page hasn't established it), fall back to a top-level
   // navigation so the server still mints a session.
-  E.ipcRenderer.on(
-    "figma:complete-auth",
-    (_: IpcRendererEvent, gSecret: string, path?: string) => {
-      if (webPort) {
-        const args: { gSecret: string; path?: string } = { gSecret };
-        if (path) args.path = path;
-        webPort.postMessage({ name: "redeemAppAuth", args });
-      } else {
-        const url = `https://www.figma.com/app_auth/redeem?g_secret=${encodeURIComponent(gSecret)}`;
-        window.location.href = url;
-      }
-    },
-  );
+  E.ipcRenderer.on("figma:complete-auth", (_: IpcRendererEvent, gSecret: string, path?: string) => {
+    if (webPort) {
+      const args: { gSecret: string; path?: string } = { gSecret };
+      if (path) args.path = path;
+      webPort.postMessage({ name: "redeemAppAuth", args });
+    } else {
+      const url = `https://www.figma.com/app_auth/redeem?g_secret=${encodeURIComponent(gSecret)}`;
+      window.location.href = url;
+    }
+  });
   E.ipcRenderer.on("newFile", () => {
     webPort.postMessage({ name: "newFile", args: {} });
   });
@@ -176,10 +172,10 @@ const initWebBindings = (): void => {
   E.ipcRenderer.on("handleUrl", (_: IpcRendererEvent, path: string, params: string) => {
     webPort.postMessage({ name: "handleUrl", args: { path, params } });
   });
-  E.ipcRenderer.on("handleSetFullScreen", (event: IpcRendererEvent, fullscreen: boolean) => {
+  E.ipcRenderer.on("handleSetFullScreen", (_event: IpcRendererEvent, fullscreen: boolean) => {
     webPort.postMessage({ name: "handleSetFullScreen", args: { fullscreen } });
   });
-  E.ipcRenderer.on("showFlashMessage", (event: IpcRendererEvent, flashErrorMessage: string) => {
+  E.ipcRenderer.on("showFlashMessage", (_event: IpcRendererEvent, flashErrorMessage: string) => {
     webPort.postMessage({
       name: "showFlashMessage",
       args: { flashErrorMessage },
@@ -192,7 +188,7 @@ const initWebBindings = (): void => {
     });
   });
 
-  E.ipcRenderer.on("handlePluginMenuAction", (event: IpcRendererEvent, pluginMenuAction: any) => {
+  E.ipcRenderer.on("handlePluginMenuAction", (_event: IpcRendererEvent, pluginMenuAction: any) => {
     webPort.postMessage({ name: "handlePluginMenuAction", args: { pluginMenuAction } });
   });
 };
@@ -213,7 +209,7 @@ const publicAPI: any = {
   },
 
   setUrl(args: any) {
-    const url = typeof args === "string" ? args : args?.url ?? args?.href;
+    const url = typeof args === "string" ? args : (args?.url ?? args?.href);
     if (typeof url === "string" && url.length) sendMsgToMain("setTabUrl", url);
   },
 
@@ -252,7 +248,7 @@ const publicAPI: any = {
   },
   // TODO: need update
   openFile(args: any) {
-    sendMsgToMain("openFile", "/file/" + args.fileKey, args.title, undefined, args.target);
+    sendMsgToMain("openFile", `/file/${args.fileKey}`, args.title, undefined, args.target);
   },
   openFileFromNewTab(args: any) {
     if (args.url) {
@@ -261,7 +257,7 @@ const publicAPI: any = {
     } else {
       sendMsgToMain(
         "openFile",
-        "/file/" + args.fileKey,
+        `/file/${args.fileKey}`,
         args.title,
         undefined,
         args.target ?? "tab",
@@ -274,9 +270,9 @@ const publicAPI: any = {
   openPrototype(args: any) {
     sendMsgToMain(
       "openFile",
-      "/proto/" + args.fileKey,
+      `/proto/${args.fileKey}`,
       args.title,
-      "?node-id=" + args.pageId,
+      `?node-id=${args.pageId}`,
       args.target,
     );
   },
@@ -330,7 +326,7 @@ const publicAPI: any = {
   // In dev mode they log args so you can inspect the payload for future feature implementation.
   setEditorType(args: any) {
     if (import.meta.env.DEV) console.debug("[setEditorType]", args);
-    const raw = typeof args === "string" ? args : args?.editorType ?? args?.type ?? args?.value;
+    const raw = typeof args === "string" ? args : (args?.editorType ?? args?.type ?? args?.value);
     if (typeof raw !== "string") return;
     const normalized = normalizeEditorType(raw);
     if (normalized) {

@@ -1,6 +1,5 @@
 interface Window
-  extends
-    EventTarget,
+  extends EventTarget,
     WindowSessionStorage,
     WindowLocalStorage,
     GlobalEventHandlers,

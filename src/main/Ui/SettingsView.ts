@@ -1,4 +1,4 @@
-import { app, ipcMain, WebContentsView, Rectangle } from "electron";
+import { app, ipcMain, WebContentsView, type Rectangle } from "electron";
 import { bridgePreloadPathDev, bridgePreloadPathProd } from "Utils/Main";
 import { storage } from "Main/Storage";
 import { isDev } from "Utils/Common";

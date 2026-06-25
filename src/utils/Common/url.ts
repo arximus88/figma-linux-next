@@ -104,7 +104,7 @@ export const getFileKeyFromUrl = (url: string): string | null => {
   const path = parsed.pathname;
   const match = path.match(/^\/(file|design|board|proto)\/([a-zA-Z0-9]+)/);
 
-  if (match && match[2]) {
+  if (match?.[2]) {
     return match[2];
   }
 
