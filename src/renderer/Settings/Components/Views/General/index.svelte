@@ -174,6 +174,12 @@
         description="Forces sRGB color profile. Useful if colors look washed out on wide-gamut displays. Requires restart."
       />
       <CheckBox
+        bind:checked={$settings.app.enableWebGPU}
+        text="Enable WebGPU shaders"
+        badge="Experimental"
+        description="Enables Figma's Shader, Halftone and Noise effects (WebGPU↔GL interop). Runs the app under XWayland (ozone=x11), so native Wayland features like fractional scaling and per-monitor DPI are lost while enabled. Requires restart."
+      />
+      <CheckBox
         bind:checked={$settings.app.useZenity}
         text="Use Zenity for Dialogs"
         description="Use Zenity (GTK dialog tool) instead of native Electron dialogs for file open/save prompts."

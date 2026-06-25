@@ -95,6 +95,7 @@ declare namespace Types {
       logLevel: number;
       lastTimeClearLogFile: number;
       enableColorSpaceSrgb: boolean;
+      enableWebGPU: boolean;
       useZenity: boolean;
       panelHeight: number;
       saveLastOpenedTabs: boolean;

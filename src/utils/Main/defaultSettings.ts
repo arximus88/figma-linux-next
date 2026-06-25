@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     logLevel: LogLevel.INFO,
     lastTimeClearLogFile: 0,
     enableColorSpaceSrgb: false,
+    enableWebGPU: false,
     useZenity: false,
     panelHeight: 40,
     saveLastOpenedTabs: true,
