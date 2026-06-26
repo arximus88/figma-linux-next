@@ -17,17 +17,18 @@ import { applyChromiumSwitches, shouldRelaunchUnderX11 } from "./applyChromiumSw
 // reads its command line and initializes Ozone at startup and ignores anything added later
 // (e.g. from inside `new App()`, which runs after `await storage.initialize()`). That
 // timing bug is why GPU/shader switches never reached the engine and Skia stayed GaneshGL.
+// Set the app name first so app.getPath("userData") below resolves to the real config dir —
+// it honours XDG_CONFIG_HOME and sandboxed/redirected paths, respects an e2e --user-data-dir,
+// and matches what Storage.ts uses. Hardcoding ~/.config/figma-linux-next would read a stale
+// file whenever those differ. app.getPath works before app.ready once the name is set.
+app.setName("figma-linux-next");
+
 let savedSettings: {
   app?: Partial<Types.SettingsInterface["app"]>;
   mcp?: Partial<Types.SettingsInterface["mcp"]>;
 } = {};
 try {
-  const settingsPath = path.join(
-    process.env.HOME ?? "",
-    ".config",
-    "figma-linux-next",
-    "settings.json",
-  );
+  const settingsPath = path.join(app.getPath("userData"), "settings.json");
   savedSettings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) ?? {};
 } catch {
   // settings.json missing or unreadable (e.g. first run) — fall back to defaults.
@@ -54,13 +55,12 @@ if (shouldRelaunchUnderX11(savedSettings.app ?? {})) {
   spawn(process.execPath, process.argv.slice(1), {
     env: childEnv,
     detached: true,
-    stdio: "inherit",
+    // Detached fire-and-forget: don't inherit the (about-to-close) parent's stdio.
+    // The child re-runs this entry and logs to file; inheriting would risk EPIPE.
+    stdio: "ignore",
   }).unref();
   app.exit(0);
 }
-
-// Set the application name explicitly
-app.setName("figma-linux-next");
 
 logger.initialize();
 
