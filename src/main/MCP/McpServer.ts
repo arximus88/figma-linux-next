@@ -37,7 +37,6 @@ import type {
   JsonRpcRequest,
   JsonRpcResponse,
   Logger,
-  McpSession,
 } from "./types";
 import {
   CREATE_PAGE_SCRIPT,
@@ -53,6 +52,7 @@ import {
   VARIABLE_DEFS_SCRIPT,
 } from "./scripts";
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { SessionManager } from "./transport/SessionManager";
 import { collectBody, cors, isValidHost, replyError } from "./utils/http";
 import { parseMermaid } from "./utils/mermaid";
 import { normalizeNodeId } from "./utils/nodeId";
@@ -61,17 +61,17 @@ import { normalizeNodeId } from "./utils/nodeId";
 
 export class McpServer {
   private server: http.Server | null = null;
-  private sessions = new Map<string, McpSession>();
+  private sessions: SessionManager;
   private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private _isRunning = false;
-  private _sessionReaper: ReturnType<typeof setInterval> | null = null;
   private _writeToolsEnabled = false;
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
+    this.sessions = new SessionManager(this.log);
   }
 
   public get isRunning(): boolean {
@@ -95,7 +95,7 @@ export class McpServer {
       jsonrpc: "2.0",
       method: "notifications/tools/list_changed",
     });
-    for (const [, session] of this.sessions) {
+    for (const session of this.sessions.values()) {
       if (session.sseResponse && !session.sseResponse.destroyed) {
         try {
           session.sseResponse.write(`event: message\ndata: ${notification}\n\n`);
@@ -129,26 +129,7 @@ export class McpServer {
       this.server.listen(port, host, () => {
         this._isRunning = true;
         this.log.info(`MCP server running at http://${host}:${port}/mcp`);
-        // Reap sessions idle for more than 30 minutes
-        this._sessionReaper = setInterval(
-          () => {
-            const cutoff = Date.now() - 30 * 60 * 1000;
-            for (const [id, session] of this.sessions) {
-              if (session.lastActivity < cutoff) {
-                if (session.sseResponse) {
-                  try {
-                    session.sseResponse.end();
-                  } catch {
-                    /* ignore */
-                  }
-                }
-                this.sessions.delete(id);
-                this.log.info("Session reaped (idle 30m):", id);
-              }
-            }
-          },
-          5 * 60 * 1000,
-        );
+        this.sessions.startReaper();
         resolve({ didStart: true, port });
       });
     });
@@ -156,22 +137,7 @@ export class McpServer {
 
   /** Stop the HTTP server and clean up all sessions. */
   public stop(): void {
-    // Close all SSE connections
-    for (const [id, session] of this.sessions) {
-      if (session.sseResponse) {
-        try {
-          session.sseResponse.end();
-        } catch {
-          /* ignore */
-        }
-      }
-      this.sessions.delete(id);
-    }
-
-    if (this._sessionReaper) {
-      clearInterval(this._sessionReaper);
-      this._sessionReaper = null;
-    }
+    this.sessions.shutdown();
 
     if (this.server) {
       this.server.close();
@@ -310,7 +276,7 @@ export class McpServer {
       }
       const newSessionId = crypto.randomUUID();
       const now = Date.now();
-      this.sessions.set(newSessionId, {
+      this.sessions.set({
         id: newSessionId,
         createdAt: now,
         lastActivity: now,
@@ -353,7 +319,7 @@ export class McpServer {
     }
 
     // Touch last-activity so the TTL reaper doesn't evict active sessions
-    this.sessions.get(sessionId)!.lastActivity = Date.now();
+    this.sessions.touch(sessionId);
 
     const response = await this.handleJsonRpc(body);
     res.writeHead(200, { "Content-Type": "application/json", ...cors() });
@@ -365,7 +331,7 @@ export class McpServer {
   private handleSseConnect(_req: http.IncomingMessage, res: http.ServerResponse): void {
     const sessionId = crypto.randomUUID();
 
-    this.sessions.set(sessionId, {
+    this.sessions.set({
       id: sessionId,
       createdAt: Date.now(),
       lastActivity: Date.now(),
