@@ -3,6 +3,7 @@ import { storage } from "Main/Storage";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
 import TabManager from "./TabManager";
+import { WindowGeometry } from "./WindowGeometry";
 import { logger } from "../Logger";
 
 import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
@@ -20,6 +21,7 @@ import Tab from "./Tab";
 
 export default class Window {
   private window: BrowserWindow;
+  private geometry: WindowGeometry;
   private tabManager: TabManager;
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
@@ -48,6 +50,7 @@ export default class Window {
       ...state,
       webPreferences: WINDOW_DEFAULT_OPTIONS.webPreferences,
     });
+    this.geometry = new WindowGeometry(this.window);
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
@@ -222,15 +225,7 @@ export default class Window {
     }, 100);
   }
   public calcBoundsForTabView(): Rectangle {
-    const panelHeight = storage.settings.app.panelHeight || TOPPANELHEIGHT;
-    const contentBounds = this.window.getContentBounds();
-
-    return {
-      x: 0,
-      y: panelHeight,
-      width: contentBounds.width || 1200,
-      height: (contentBounds.height || 900) - panelHeight,
-    };
+    return this.geometry.calcBoundsForTabView();
   }
 
   public handleUrl(path: string) {
