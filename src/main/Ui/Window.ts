@@ -4,6 +4,7 @@ import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
 import { ModalViewManager } from "./ModalViewManager";
 import TabManager from "./TabManager";
+import { WarmTabManager } from "./WarmTabManager";
 import { WindowGeometry } from "./WindowGeometry";
 import { logger } from "../Logger";
 
@@ -38,11 +39,7 @@ export default class Window {
   private static readonly SHOW_FALLBACK_MS = 3000;
 
   // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
-  private warmTab: Tab | null = null;
-  private warmTabCreatedAt = 0;
-  private warmTabScheduled = false;
-  private warmTabBootstrapped = false;
-  private static readonly WARM_TAB_TTL = 5 * 60 * 1000; // 5 minutes
+  private warmTabs: WarmTabManager;
 
   constructor(state: Types.WindowState) {
     this.window = new BrowserWindow({
@@ -55,6 +52,10 @@ export default class Window {
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
     this.modalViews = new ModalViewManager(this.window, this.settingsView, this.changelogView);
+    this.warmTabs = new WarmTabManager(this.window.id, {
+      getUserId: () => this._userId,
+      getBgColor: () => this.figmaThemeBgColor,
+    });
     this.state = state;
 
     this.window.contentView.addChildView(this.tabManager.mainTab.view);
@@ -125,8 +126,9 @@ export default class Window {
       ids.add(this.tabManager.communityTabWebContentId);
     }
     // Include warm tab so IPC messages from it can be routed to this window
-    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      ids.add(this.warmTab.id);
+    const warmId = this.warmTabs.activeWebContentsId;
+    if (warmId !== null) {
+      ids.add(warmId);
     }
 
     return [...ids];
@@ -137,26 +139,9 @@ export default class Window {
     this._userId = id;
     this.tabManager.setUserId(id);
 
-    // If the active user changed (add-account / account switch), the warm
-    // tab is now stale — it baked the previous user's id into its URL and
-    // the server will serve a blank page on promotion. Tear it down and
-    // schedule a fresh one. Skip when previousId is undefined (first boot)
-    // or equal (the warm tab's own setUser cascade after it bootstraps).
-    if (previousId && previousId !== id && this.warmTab) {
-      if (!this.warmTab.view.webContents.isDestroyed()) {
-        this.warmTab.view.webContents.destroy();
-      }
-      this.warmTab = null;
-      this.warmTabBootstrapped = false;
-      this.warmTabScheduled = false;
-    }
-
-    // Start warming the new-file tab in background once we have a userId.
-    // Guard with warmTabScheduled to prevent cascade: the warm tab itself
-    // loads Figma which sends setUser again, which would re-trigger this.
-    if (!this.warmTab && !this.warmTabScheduled) {
-      this.scheduleWarmTab(2000);
-    }
+    // The warm tab bakes the user id into its URL, so an account switch
+    // invalidates it. Tear down + reschedule (and schedule on first boot).
+    this.warmTabs.onUserIdChanged(previousId, id);
   }
   public sortTabs(tabs: Types.TabFront[]) {
     this.tabManager.sortTabs(tabs);
@@ -368,26 +353,21 @@ export default class Window {
       return;
     }
 
-    const warm = this.warmTab;
-    if (warm && !warm.view.webContents.isDestroyed()) {
+    const ready = this.warmTabs.takeWarmTab();
+    if (ready) {
       // Promote the pre-warmed tab — instant, no loading delay
-      const wasBootstrapped = this.warmTabBootstrapped;
-      this.warmTab = null;
-      this.warmTabBootstrapped = false;
-      this.tabManager.promoteWarmTab(warm);
+      this.tabManager.promoteWarmTab(ready.tab);
       this.window.webContents.send("didTabAdd", {
-        id: warm.id,
-        url: warm.url,
+        id: ready.tab.id,
+        url: ready.tab.url,
         title: NEW_FILE_TAB_TITLE,
         // If the SPA hasn't fired its readiness signal yet, render the
         // skeleton — the next setLoading(false) from the SPA clears it.
         // Without this flag, the renderer never paints a placeholder and
         // a not-yet-bootstrapped warm tab promotion shows a blank page.
-        loading: !wasBootstrapped,
+        loading: !ready.wasBootstrapped,
       });
-      this.setTabFocus(warm.id);
-      // Warm the next one for next time
-      this.scheduleWarmTab(100);
+      this.setTabFocus(ready.tab.id);
     } else {
       // Fallback: warm tab not ready yet, create normally
       this.addTab(`${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`, NEW_FILE_TAB_TITLE);
@@ -523,10 +503,7 @@ export default class Window {
     // promoter knows whether to show the skeleton placeholder — promoting
     // a not-yet-bootstrapped warm tab without the skeleton lands the user
     // on a blank black page until the SPA finally renders.
-    if (this.warmTab && tabId === this.warmTab.id) {
-      if (args.loading === false) {
-        this.warmTabBootstrapped = true;
-      }
+    if (this.warmTabs.handleSetLoading(tabId, args.loading)) {
       return;
     }
 
@@ -743,7 +720,7 @@ export default class Window {
   }
   public setTabTitle(event: IpcMainEvent, title: string) {
     // Ignore title updates from the warm tab (not yet promoted to active tab)
-    if (this.warmTab && event.sender.id === this.warmTab.id) return;
+    if (this.warmTabs.isWarmTab(event.sender.id)) return;
 
     const tab = this.tabManager.getById(event.sender.id);
 
@@ -835,10 +812,7 @@ export default class Window {
     // list. The stateCached guard then makes the event-driven call a no-op.
     this.cacheStateBeforeClose();
 
-    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      this.warmTab.view.webContents.destroy();
-    }
-    this.warmTab = null;
+    this.warmTabs.destroy();
     this.modalViews.destroy();
     this.tabManager.closeAll();
     this.window.close();
@@ -846,44 +820,6 @@ export default class Window {
 
   private get figmaThemeBgColor(): string {
     return storage.settings.app.figmaTheme === "light" ? "#ffffff" : "#1e1e1e";
-  }
-
-  private scheduleWarmTab(delayMs: number) {
-    if (this.warmTabScheduled) return;
-    this.warmTabScheduled = true;
-    setTimeout(() => {
-      this.warmTabScheduled = false;
-      this.initWarmTab();
-    }, delayMs);
-  }
-
-  private initWarmTab() {
-    if (!this._userId) return;
-
-    // Destroy previous warm tab if still alive
-    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      this.warmTab.view.webContents.destroy();
-    }
-
-    const tab = new Tab(this.window.id);
-    tab.view.setBackgroundColor(this.figmaThemeBgColor);
-    const url = new URL(NEW_PROJECT_TAB_URL);
-    url.searchParams.set("fuid", this._userId);
-    tab.loadUrl(url.toString());
-
-    this.warmTab = tab;
-    this.warmTabCreatedAt = Date.now();
-    this.warmTabBootstrapped = false;
-    logger.debug("WarmTab: initialized");
-  }
-
-  private refreshWarmTabIfStale() {
-    const isAlive = this.warmTab && !this.warmTab.view.webContents.isDestroyed();
-    const isStale = Date.now() - this.warmTabCreatedAt > Window.WARM_TAB_TTL;
-
-    if (!isAlive || isStale) {
-      this.scheduleWarmTab(0);
-    }
   }
 
   private registerEvents() {
@@ -896,7 +832,7 @@ export default class Window {
     this.window.on("move", () => setTimeout(this.updateTabsBounds.bind(this), 100));
     this.window.on("focus", () => {
       app.emit("windowFocus", this.window.id);
-      this.refreshWarmTabIfStale();
+      this.warmTabs.refreshIfStale();
     });
     this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
     this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
