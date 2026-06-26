@@ -41,6 +41,10 @@ export default class SettingsController {
     if (storage.settings.app.enableColorSpaceSrgb !== settings.app.enableColorSpaceSrgb) {
       app.emit("enableColorSpaceSrgbWasChanged", settings.app.enableColorSpaceSrgb);
     }
+    if (storage.settings.app.enableWebGPU !== settings.app.enableWebGPU) {
+      // Forces ozone=x11 + Skia Graphite, which only apply at process startup → restart.
+      app.emit("chromiumFlagsChanged", true);
+    }
     if (
       JSON.stringify(storage.settings.app.commandSwitches) !==
       JSON.stringify(settings.app.commandSwitches)
@@ -60,8 +64,15 @@ export default class SettingsController {
       app.emit("chromiumFlagsChanged", true);
     }
 
+    const minMaxChanged =
+      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons;
+
     storage.settings = settings;
     await storage.save();
+
+    if (minMaxChanged) {
+      this.windowManager.broadcastSettingsToPanels();
+    }
 
     this.windowManager.closeSettingsViewForLastWindow();
   }

@@ -2,12 +2,12 @@ import {
   app,
   shell,
   WebContentsView,
-  WebContentsViewConstructorOptions,
-  Rectangle,
-  BrowserWindow,
-  DidCreateWindowDetails,
-  Event,
-  HandlerDetails,
+  type WebContentsViewConstructorOptions,
+  type Rectangle,
+  type BrowserWindow,
+  type DidCreateWindowDetails,
+  type Event,
+  type HandlerDetails,
 } from "electron";
 
 import { LOGIN_PAGE, RECENT_FILES } from "Const";
@@ -122,7 +122,7 @@ export default class MainTab {
         app.emit("signOut");
       }
 
-      if (to?.search && to.search.match(/[?&]redirected=1/)) {
+      if (to?.search?.match(/[?&]redirected=1/)) {
         event.preventDefault();
         return;
       }

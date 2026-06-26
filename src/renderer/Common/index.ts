@@ -73,6 +73,12 @@ export { default as Text } from "./Text/Text.svelte";
 export { default as HeaderText } from "./Text/HeaderText.svelte";
 export { default as Label } from "./Text/Label.svelte";
 
+// Settings (Adwaita boxed-list)
+export { default as Section } from "./Settings/Section.svelte";
+export { default as Card } from "./Settings/Card.svelte";
+export { default as SettingRow } from "./Settings/SettingRow.svelte";
+export { default as Toggle } from "./Settings/Toggle.svelte";
+
 // Other
 export { default as Line } from "./Other/Line.svelte";
 export { default as Popup } from "./Other/Popup.svelte";

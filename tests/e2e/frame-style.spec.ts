@@ -8,12 +8,9 @@ async function setFrameStyle(
   app: Awaited<ReturnType<typeof launchApp>>["app"],
   style: "gnome" | "windows" | "macos",
 ) {
-  await app.evaluate(
-    ({ ipcMain }, s) => {
-      ipcMain.emit("setFrameStyle", { sender: { id: -1 } } as any, s);
-    },
-    style,
-  );
+  await app.evaluate(({ ipcMain }, s) => {
+    ipcMain.emit("setFrameStyle", { sender: { id: -1 } } as any, s);
+  }, style);
 }
 
 test.describe("Window frame style", () => {

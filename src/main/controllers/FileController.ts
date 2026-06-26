@@ -1,8 +1,8 @@
 /**
  * FileController — handles file creation and export IPC channels.
  */
-import * as path from "path";
-import * as fs from "fs";
+import * as path from "node:path";
+import * as fs from "node:fs";
 import type { IpcMainInvokeEvent } from "electron";
 
 import { storage } from "../Storage";
@@ -63,7 +63,7 @@ export default class FileController {
         buttonLabel: "Save",
         defaultPath: lastDir,
       });
-      if (!directories || directories.length !== 1) {
+      if (directories?.length !== 1) {
         return;
       }
       directoryPath = directories[0];

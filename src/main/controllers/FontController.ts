@@ -4,7 +4,7 @@
 import type { IpcMainInvokeEvent } from "electron";
 
 import { storage } from "../Storage";
-import FontManager from "../Fonts";
+import type FontManager from "../Fonts";
 import { ipcRegistry } from "./registry";
 
 export default class FontController {

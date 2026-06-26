@@ -1,4 +1,4 @@
-import { Rectangle } from "electron";
+import type { Rectangle } from "electron";
 
 import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
 import { parseURL } from "Utils/Common";
@@ -121,14 +121,18 @@ export default class TabManager {
   }
 
   public reloadAll() {
-    this.tabs.forEach((t) =>
-      !t.view.webContents.isDestroyed() ? t.view.webContents.reload() : "",
-    );
+    this.tabs.forEach((t) => {
+      if (!t.view.webContents.isDestroyed()) {
+        t.view.webContents.reload();
+      }
+    });
   }
   public updateScaleAll(scale: number) {
     this.mainTab.updateScale(scale);
     if (this.communityTab) this.communityTab.updateScale(scale);
-    this.tabs.forEach((t) => t.updateScale(scale));
+    this.tabs.forEach((t) => {
+      t.updateScale(scale);
+    });
   }
 
   public getNextTabId(currentId: Types.TabIdType | undefined): number | undefined {

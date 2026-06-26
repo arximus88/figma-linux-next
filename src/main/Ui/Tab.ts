@@ -1,13 +1,13 @@
 import {
   app,
   shell,
-  Event,
-  Rectangle,
-  WebContents,
+  type Event,
+  type Rectangle,
+  type WebContents,
   WebContentsView,
   BrowserWindow,
-  HandlerDetails,
-  DidCreateWindowDetails,
+  type HandlerDetails,
+  type DidCreateWindowDetails,
 } from "electron";
 
 import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
@@ -158,7 +158,7 @@ export default class Tab {
       app.emit("signOut");
     }
 
-    if (to?.search && to.search.match(/[?&]redirected=1/)) {
+    if (to?.search?.match(/[?&]redirected=1/)) {
       event.preventDefault();
       return;
     }

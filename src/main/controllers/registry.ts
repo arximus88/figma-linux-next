@@ -7,7 +7,7 @@
  * - Prevents duplicate handler registration
  * - Type-safe handler signatures
  */
-import { ipcMain, IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { logger } from "../Logger";
 
 type IpcOnHandler = (event: IpcMainEvent, ...args: any[]) => void;

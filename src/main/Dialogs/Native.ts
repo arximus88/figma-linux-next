@@ -1,8 +1,6 @@
-import { MessageBoxOptions, OpenDialogOptions, dialog, BrowserWindow } from "electron";
+import { type MessageBoxOptions, type OpenDialogOptions, dialog, BrowserWindow } from "electron";
 
 export class NativeDialogs implements ProviderDialog {
-  constructor() {}
-
   public showMessageBox = async (options: Dialogs.MessageBoxOptions) => {
     const ops: MessageBoxOptions = {
       type: options.type,

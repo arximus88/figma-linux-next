@@ -1,7 +1,7 @@
 import { parseChangelog, renderInline, type ChangelogEntry } from "./parseChangelog";
 
 const categoryClass = (category: string) =>
-  "section-" + category.toLowerCase().replace(/\W+/g, "-");
+  `section-${category.toLowerCase().replace(/\W+/g, "-")}`;
 
 function renderEntry(entry: ChangelogEntry): string {
   const sections = entry.sections

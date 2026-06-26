@@ -1,4 +1,11 @@
-import { app, shell, clipboard, Menu, MenuItemConstructorOptions, BrowserWindow } from "electron";
+import {
+  app,
+  shell,
+  clipboard,
+  Menu,
+  type MenuItemConstructorOptions,
+  type BrowserWindow,
+} from "electron";
 
 import { storage } from "Main/Storage";
 import { MENU_WIDTH, LINKS } from "Const";
@@ -9,8 +16,6 @@ type MICO = MenuItemConstructorOptions;
 export default class MenuManager {
   private menu: Menu;
   private _menu: Map<number, Menu.State> = new Map();
-
-  constructor() {}
 
   public getMenu(state?: Menu.State): Menu {
     const template: MICO[] = [

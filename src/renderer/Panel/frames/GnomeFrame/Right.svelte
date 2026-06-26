@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ButtonWindow } from "Common/Buttons";
   import { GnomeMenu, GnomeMinimize, GnomeMaximize, GnomeClose } from "Icons";
-  import { tabs, isMenuOpen } from "../../store";
+  import { tabs, isMenuOpen, windowControls } from "../../store";
 
   function clickMenu() {
     if (isMenuOpen.value) return;
@@ -28,25 +28,27 @@
   </div>
 
   <div class="close-group">
-    <ButtonWindow
-      padding="0"
-      normalBgColor="rgba(255,255,255,0.06)"
-      hoverBgColor="rgba(255,255,255,0.12)"
-      activeBgColor="rgba(255,255,255,0.18)"
-      onButtonClick={() => window.figmaApi.send("windowMinimize")}
-    >
-      <GnomeMinimize size="24" />
-    </ButtonWindow>
+    {#if !windowControls.hideMinMax}
+      <ButtonWindow
+        padding="0"
+        normalBgColor="rgba(255,255,255,0.06)"
+        hoverBgColor="rgba(255,255,255,0.12)"
+        activeBgColor="rgba(255,255,255,0.18)"
+        onButtonClick={() => window.figmaApi.send("windowMinimize")}
+      >
+        <GnomeMinimize size="24" />
+      </ButtonWindow>
 
-    <ButtonWindow
-      padding="0"
-      normalBgColor="rgba(255,255,255,0.06)"
-      hoverBgColor="rgba(255,255,255,0.12)"
-      activeBgColor="rgba(255,255,255,0.18)"
-      onButtonClick={() => window.figmaApi.send("windowMaximize")}
-    >
-      <GnomeMaximize size="24" />
-    </ButtonWindow>
+      <ButtonWindow
+        padding="0"
+        normalBgColor="rgba(255,255,255,0.06)"
+        hoverBgColor="rgba(255,255,255,0.12)"
+        activeBgColor="rgba(255,255,255,0.18)"
+        onButtonClick={() => window.figmaApi.send("windowMaximize")}
+      >
+        <GnomeMaximize size="24" />
+      </ButtonWindow>
+    {/if}
 
     <ButtonWindow
       padding="0"

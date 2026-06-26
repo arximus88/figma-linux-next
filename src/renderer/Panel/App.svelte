@@ -1,7 +1,7 @@
 <script lang="ts">
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc.svelte";
-  import { panelZoom } from "./store";
+  import { panelZoom, windowControls } from "./store";
   import { getFramePanel, isValidFrameStyle } from "./frames/index";
 
   initCommonIpc();
@@ -15,6 +15,7 @@
     if (settings?.app?.frameStyle && isValidFrameStyle(settings.app.frameStyle)) {
       frameStyle = settings.app.frameStyle;
     }
+    windowControls.setHideMinMax(!!settings?.app?.hideWindowMinMaxButtons);
   }).catch((e: Error) => {
     console.error("App.svelte: failed to get settings:", e);
   });

@@ -1,4 +1,4 @@
-import { app, clipboard, IpcMainEvent, WebContents } from "electron";
+import { app, clipboard, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
 import Tab from "./Tab";
@@ -91,6 +91,12 @@ export default class WindowManager {
   public setFrameStyleAllWindows(style: Types.FrameStyle) {
     for (const [_, window] of this.windows) {
       window.setFrameStyle(style);
+    }
+  }
+
+  public broadcastSettingsToPanels() {
+    for (const [_, window] of this.windows) {
+      window.pushSettingsToPanel();
     }
   }
 
@@ -383,8 +389,18 @@ export default class WindowManager {
   }
   private reopenClosedTabFromMenu(windowId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    if (!window) return;
 
-    window.restoreTabs(this.closedTabsForMenu);
+    // Ctrl+Shift+T reopens only the most recently closed tab (LIFO), like a browser.
+    // Pop it off the history so a subsequent press reopens the next-most-recent one.
+    const last = [...this.closedTabs.keys()].at(-1);
+    if (last === undefined) return;
+
+    const tabInfo = this.closedTabs.get(last)!;
+    this.closedTabs.delete(last);
+    storage.settings.app.recentlyClosedTabs = this.closedTabsForMenu;
+
+    window.addTab(tabInfo.url, tabInfo.title);
   }
   private handleCloseTab(window: Window, tabId: number) {
     const tabInfo = window.getTabInfo(tabId);

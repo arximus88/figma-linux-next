@@ -1,11 +1,10 @@
 <script lang="ts">
   import { untrack } from "svelte";
   let { zIndex } = $props();
-  import { InputRange, CheckBox, InputText, ListBox } from "Common/Input";
-  import { Text, Label, Flex, FlexItem, Line } from "Common";
-  import { ButtonTool, SecondaryButton } from "Common/Buttons";
+  import { InputRange, ListBox } from "Common/Input";
+  import { Section, Card, SettingRow, Toggle } from "Common";
+  import { SecondaryButton } from "Common/Buttons";
   import { TOPPANELHEIGHT } from "Const";
-  import { Folder } from "Common/Icons";
   import { settings, modalBounds } from "../../../store";
   import { getAvailableFrameStyles } from "../../../../Panel/frames/index";
 
@@ -138,144 +137,139 @@
 </script>
 
 <div class="settings-root" style={`z-index: ${zIndex}; height: ${bodyHeight}px;`}>
-  <Flex>
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Scale UI</Label>
-      <InputRange bind:value={$settings.ui.scaleFigmaUI} min={0.5} max={1.5} step={0.05} />
-      <Flex der="column" alignItems="center" justifyContent="center">
-        <Text padding="8px 0 0 0">{Math.floor($settings.ui.scaleFigmaUI * 100)}%</Text>
-      </Flex>
-    </Flex>
-    <Flex width="120px" />
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Scale Tabs</Label>
-      <InputRange bind:value={$settings.ui.scalePanel} min={0.5} max={1.5} step={0.05} />
-      <Flex der="column" alignItems="center" justifyContent="center">
-        <Text padding="8px 0 0 0">{Math.floor($settings.ui.scalePanel * 100)}%</Text>
-      </Flex>
-    </Flex>
-  </Flex>
-
-  <Flex height="50px" />
-  <Line />
-  <Flex height="40px" />
-
-  <Flex>
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Main settings</Label>
-      <CheckBox
-        bind:checked={$settings.app.saveLastOpenedTabs}
-        text="Save the last opened tabs"
-        description="Restore previously open Figma tabs when the app starts."
-      />
-      <CheckBox
-        bind:checked={$settings.app.enableColorSpaceSrgb}
-        text="Enable color space sRGB"
-        description="Forces sRGB color profile. Useful if colors look washed out on wide-gamut displays. Requires restart."
-      />
-      <CheckBox
-        bind:checked={$settings.app.useZenity}
-        text="Use Zenity for Dialogs"
-        description="Use Zenity (GTK dialog tool) instead of native Electron dialogs for file open/save prompts."
-      />
-
-      <Flex height="16px" />
-      <Label>Window Frame Style</Label>
-      <select
-        class="frame-style-select"
-        bind:value={$settings.app.frameStyle}
-        onchange={onFrameStyleChange}
-      >
-        {#each frameStyles as style}
-          <option value={style.value} disabled={style.disabled}>{style.label}</option>
-        {/each}
-      </select>
-
-      <Flex height="16px" />
-      <Label>MCP Server</Label>
-      <CheckBox
-        bind:checked={$settings.mcp.enableWriteTools}
-        text="Enable MCP Write Tools"
-        badge="Experimental"
-        description="Allow AI assistants to create and modify objects in your Figma files. Disabled by default — LLMs can make unintended changes. Requires MCP client reconnect."
-      />
-      <CheckBox
-        bind:checked={$settings.mcp.cdpEnabled}
-        text="Enable Chrome DevTools Protocol (CDP)"
-        description="Enables remote debugging on the port below. Required for chrome-figma MCP in Claude Code. Requires restart."
-      />
-
-      <Flex height="12px" />
-      <div class="port-row">
-        <span class="port-label">CDP Port</span>
-        <input
-          class="port-input"
-          type="number"
-          min="1024"
-          max="65535"
-          bind:value={$settings.mcp.remoteDebugPort}
-        />
-      </div>
-    </Flex>
-    <Flex width="120px" />
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Export files to</Label>
-      <Flex>
-        <FlexItem grow={1}>
-          <InputText bind:value={$settings.app.exportDir}>
-            <ButtonTool normalBgColor="tarsparent" onButtonClick={onChangeExportPath}>
-              <Folder color="var(--text)" size="18" />
-            </ButtonTool>
-          </InputText>
-        </FlexItem>
-        <Flex width="20px" />
-        <SecondaryButton onButtonClick={onChangeExportPath}>Change</SecondaryButton>
-      </Flex>
-    </Flex>
-  </Flex>
-
-  <Flex height="24px" />
-  <Label>Claude Code MCP — .mcp.json</Label>
-  <Flex height="8px" />
-  <div class="mcp-snippet">
-    <div class="mcp-snippet-header">
-      <span class="mcp-snippet-title">Copy into your project's .mcp.json → mcpServers</span>
-      <button class="copy-btn" onclick={copyMcpSnippet}>
-        {copied ? "Copied!" : "Copy"}
-      </button>
+  <Section title="Display">
+    <div class="grid-2">
+      <Card padding="16px 18px">
+        <div class="slider-head">
+          <span class="slider-label">Scale UI</span>
+          <span class="slider-value">{Math.floor($settings.ui.scaleFigmaUI * 100)}%</span>
+        </div>
+        <InputRange bind:value={$settings.ui.scaleFigmaUI} min={0.5} max={1.5} step={0.05} width="100%" />
+      </Card>
+      <Card padding="16px 18px">
+        <div class="slider-head">
+          <span class="slider-label">Scale Tabs</span>
+          <span class="slider-value">{Math.floor($settings.ui.scalePanel * 100)}%</span>
+        </div>
+        <InputRange bind:value={$settings.ui.scalePanel} min={0.5} max={1.5} step={0.05} width="100%" />
+      </Card>
     </div>
-    <pre class="mcp-snippet-code">{mcpSnippet}</pre>
-  </div>
+  </Section>
 
-  <Flex height="50px" />
-  <Line />
-  <Flex height="40px" />
+  <Section title="Preferences">
+    <div class="grid-2">
+      <Card>
+        <SettingRow
+          title="Save the last opened tabs"
+          subtitle="Restore open Figma tabs on startup"
+        >
+          <Toggle bind:checked={$settings.app.saveLastOpenedTabs} />
+        </SettingRow>
+        <SettingRow
+          title="Enable color space sRGB"
+          subtitle="Fixes washed-out colors on wide-gamut displays · restart"
+        >
+          <Toggle bind:checked={$settings.app.enableColorSpaceSrgb} />
+        </SettingRow>
+        <SettingRow
+          title="Enable WebGPU shaders"
+          badge="Experimental"
+          subtitle="Shader, Halftone & Noise effects · runs under XWayland · restart"
+        >
+          <Toggle bind:checked={$settings.app.enableWebGPU} />
+        </SettingRow>
+        <SettingRow
+          title="Use Zenity for dialogs"
+          subtitle="GTK file dialogs instead of native Electron ones"
+        >
+          <Toggle bind:checked={$settings.app.useZenity} />
+        </SettingRow>
+      </Card>
+      <Card>
+        <SettingRow title="Export files to" subtitle={$settings.app.exportDir} truncate={true}>
+          <SecondaryButton onButtonClick={onChangeExportPath}>Change</SecondaryButton>
+        </SettingRow>
+        <SettingRow title="Window frame style">
+          <select
+            class="frame-style-select"
+            bind:value={$settings.app.frameStyle}
+            onchange={onFrameStyleChange}
+          >
+            {#each frameStyles as style}
+              <option value={style.value} disabled={style.disabled}>{style.label}</option>
+            {/each}
+          </select>
+        </SettingRow>
+        <SettingRow
+          title="Hide minimize & maximize buttons"
+          subtitle="Show only the close button (stock GNOME)"
+        >
+          <Toggle bind:checked={$settings.app.hideWindowMinMaxButtons} />
+        </SettingRow>
+      </Card>
+    </div>
+  </Section>
 
-  <Flex>
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Font directories</Label>
-      <ListBox {items} {onItemRemoveClick} height="160px" />
-      <Flex height="10px" />
-      <Flex>
-        <FlexItem grow={1} />
-        <SecondaryButton onButtonClick={onClearList}>Clear list</SecondaryButton>
-        <Flex width="10px" />
-        <SecondaryButton onButtonClick={onAddDirectory}>Add directory</SecondaryButton>
-      </Flex>
-    </Flex>
-    <Flex width="120px" />
-    <Flex der="column" width="-webkit-fill-available">
-      <Label>Chromium command line switches</Label>
-      <ListBox items={switchItems} onItemRemoveClick={onSwitchItemRemoveClick} height="160px" />
-      <Flex height="10px" />
-      <Flex>
-        <FlexItem grow={1} />
-        <SecondaryButton onButtonClick={onClearSwicthList}>Clear list</SecondaryButton>
-        <Flex width="10px" />
-        <SecondaryButton onButtonClick={onAddSwicth}>Add Switch</SecondaryButton>
-      </Flex>
-    </Flex>
-  </Flex>
+  <Section title="Developer">
+    <div class="grid-2">
+      <Card>
+        <SettingRow
+          title="Enable MCP Write Tools"
+          badge="Experimental"
+          subtitle="Let AI modify objects in your files · reconnect MCP"
+        >
+          <Toggle bind:checked={$settings.mcp.enableWriteTools} />
+        </SettingRow>
+        <SettingRow
+          title="Enable Chrome DevTools (CDP)"
+          subtitle="Remote debugging for chrome-figma MCP · restart"
+        >
+          <Toggle bind:checked={$settings.mcp.cdpEnabled} />
+        </SettingRow>
+        <SettingRow title="CDP port">
+          <input
+            class="port-input"
+            type="number"
+            min="1024"
+            max="65535"
+            bind:value={$settings.mcp.remoteDebugPort}
+          />
+        </SettingRow>
+      </Card>
+      <Card>
+        <div class="mcp-snippet">
+          <div class="mcp-snippet-header">
+            <span class="mcp-snippet-title">.mcp.json snippet</span>
+            <button class="copy-btn" onclick={copyMcpSnippet}>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <pre class="mcp-snippet-code">{mcpSnippet}</pre>
+        </div>
+      </Card>
+    </div>
+  </Section>
+
+  <Section>
+    <div class="grid-2">
+      <div class="list-block">
+        <h3 class="block-title">Font directories</h3>
+        <ListBox {items} {onItemRemoveClick} height="160px" />
+        <div class="list-actions">
+          <SecondaryButton onButtonClick={onClearList}>Clear list</SecondaryButton>
+          <SecondaryButton onButtonClick={onAddDirectory}>Add directory</SecondaryButton>
+        </div>
+      </div>
+      <div class="list-block">
+        <h3 class="block-title">Chromium command line switches</h3>
+        <ListBox items={switchItems} onItemRemoveClick={onSwitchItemRemoveClick} height="160px" />
+        <div class="list-actions">
+          <SecondaryButton onButtonClick={onClearSwicthList}>Clear list</SecondaryButton>
+          <SecondaryButton onButtonClick={onAddSwicth}>Add switch</SecondaryButton>
+        </div>
+      </div>
+    </div>
+  </Section>
 </div>
 
 <style>
@@ -289,15 +283,39 @@
     overflow-x: hidden;
   }
 
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: stretch;
+  }
+
+  .slider-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .slider-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .slider-value {
+    font-size: 13px;
+    color: var(--text-disabled);
+  }
+
   .frame-style-select {
-    width: 100%;
-    padding: 8px 12px;
-    margin-top: 8px;
+    width: auto;
+    min-width: 170px;
+    max-width: 210px;
+    padding: 7px 12px;
     background-color: var(--bg-item, var(--bg-panel));
     color: var(--text);
     border: 1px solid var(--borders);
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
     font-family: "Inter", sans-serif;
     cursor: pointer;
     outline: none;
@@ -320,21 +338,8 @@
     padding: 8px;
   }
 
-  .port-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 8px;
-  }
-
-  .port-label {
-    font-size: 13px;
-    color: var(--text);
-    white-space: nowrap;
-  }
-
   .port-input {
-    width: 110px;
+    width: 90px;
     padding: 6px 10px;
     background-color: var(--bg-item, var(--bg-panel));
     color: var(--text);
@@ -351,19 +356,19 @@
     box-shadow: 0 0 0 2px var(--accent-transparent, rgba(24, 160, 251, 0.15));
   }
 
+  /* .mcp.json snippet fills its card */
   .mcp-snippet {
-    margin-top: 12px;
-    border: 1px solid var(--borders);
-    border-radius: 6px;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .mcp-snippet-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
-    background-color: var(--bg-item, var(--bg-panel));
+    padding: 8px 14px;
+    background-color: var(--bg-card-hover, var(--bg-item));
     border-bottom: 1px solid var(--borders);
   }
 
@@ -377,7 +382,7 @@
 
   .copy-btn {
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 4px;
     border: 1px solid var(--borders);
     background: transparent;
@@ -392,15 +397,33 @@
   }
 
   .mcp-snippet-code {
+    flex: 1;
     margin: 0;
-    padding: 12px;
+    padding: 14px;
     font-size: 11px;
     font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
     color: var(--text);
-    background-color: var(--bg-panel);
+    background-color: transparent;
     line-height: 1.6;
     white-space: pre;
     overflow-x: auto;
     tab-size: 2;
+  }
+
+  .list-block {
+    display: flex;
+    flex-direction: column;
+  }
+  .block-title {
+    margin: 0 0 12px 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .list-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
   }
 </style>

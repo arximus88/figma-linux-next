@@ -54,7 +54,7 @@ declare namespace Extensions {
   interface ExtensionSource {
     source?: string;
     html?: Dict<string> | string;
-    buildErrCode?: number;
+    buildErrCode?: number | string;
     stdout?: string;
     stderr?: string;
     path?: string;

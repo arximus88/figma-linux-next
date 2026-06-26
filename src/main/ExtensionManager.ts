@@ -1,9 +1,9 @@
 import { app, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
-import * as fs from "fs";
-import * as os from "os";
-import { resolve, relative, join, basename, parse } from "path";
-import * as cp from "child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import { resolve, relative, join, basename, parse } from "node:path";
+import * as cp from "node:child_process";
 import * as Chokidar from "chokidar";
 import { dialogs } from "./Dialogs";
 import { storage } from "Storage";
@@ -72,7 +72,7 @@ export default class ExtensionManager {
     if (entry) {
       try {
         const parsed = JSON.parse(manifest) as Extensions.ManifestFile;
-        if (parsed && parsed.name) {
+        if (parsed?.name) {
           entry.lastKnownName = parsed.name;
           entry.lastKnownPluginId = parsed.id;
         }
@@ -227,7 +227,7 @@ export default class ExtensionManager {
         cachedContainsWidget: false,
         lastKnownName: this.getLastKnownName(id),
         observeFiles: new Map(),
-        error: ex + "",
+        error: `${ex}`,
       };
     }
   }
@@ -264,7 +264,7 @@ export default class ExtensionManager {
 
     const loadFileFromManifestProperty = async (prop: string, key?: string) => {
       const fileName = key ? manifest[prop][key] : manifest[prop];
-      const property = key ? prop + "." + key : prop;
+      const property = key ? `${prop}.${key}` : prop;
       if (!fileName) {
         return undefined;
       }
@@ -437,7 +437,7 @@ export default class ExtensionManager {
   }
   private validateFileName(file: WebApi.WriteNewExtensionDirectoryToDiskFile, basePath: string) {
     const resolved = resolve(basePath, file.name);
-    if (!resolved.startsWith(resolve(basePath) + "/")) {
+    if (!resolved.startsWith(`${resolve(basePath)}/`)) {
       throw new Error(`Filename "${file.name}" not allowed`);
     }
   }
@@ -520,19 +520,19 @@ export default class ExtensionManager {
 
     return lastKnownPluginId;
   }
-  private openExtensionDirectory(event: IpcMainEvent, data: WebApi.ExtensionId): void {
+  private openExtensionDirectory(_event: IpcMainEvent, data: WebApi.ExtensionId): void {
     const extensionDirectory = this.getPath(data.id);
 
     shell.showItemInFolder(extensionDirectory);
   }
   private async removeLocalFileExtension(
-    event: IpcMainEvent,
+    _event: IpcMainEvent,
     data: WebApi.ExtensionId,
   ): Promise<void> {
     await this.removePath(data.id);
   }
   private async createMultipleNewLocalFileExtensions(
-    event: IpcMainInvokeEvent,
+    _event: IpcMainInvokeEvent,
     data: WebApi.CreateMultipleExtension,
   ) {
     const added: any[] = [];
@@ -586,7 +586,7 @@ export default class ExtensionManager {
   }
 
   private async writeNewExtensionDirectoryToDisk(
-    event: IpcMainInvokeEvent,
+    _event: IpcMainInvokeEvent,
     data: WebApi.WriteNewExtensionDirectoryToDisk,
   ) {
     const path = await dialogs.showSaveDialog({
@@ -626,10 +626,13 @@ export default class ExtensionManager {
 
     return cache;
   }
-  private async getLocalFileExtensionManifest(event: IpcMainInvokeEvent, data: WebApi.ExtensionId) {
+  private async getLocalFileExtensionManifest(
+    _event: IpcMainInvokeEvent,
+    data: WebApi.ExtensionId,
+  ) {
     return this.loadExtensionManifest(data.id);
   }
-  private async getLocalFileExtensionSource(event: IpcMainInvokeEvent, data: WebApi.ExtensionId) {
+  private async getLocalFileExtensionSource(_event: IpcMainInvokeEvent, data: WebApi.ExtensionId) {
     return this.getSource(this.getPath(data.id));
   }
   private async getAllLocalFileExtensionIds(_event: IpcMainInvokeEvent) {

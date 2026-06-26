@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { LogFunctions } from "electron-log";
+import type { LogFunctions } from "electron-log";
 
 export class AppLogger {
   constructor(private logInstance: LogFunctions) {}

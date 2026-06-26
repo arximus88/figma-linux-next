@@ -4,7 +4,7 @@ This file provides guidance to AI coding assistants when working with code in th
 
 ## Project Overview
 
-figma-linux-next is a fork of the unofficial Electron-based Figma desktop app for Linux. It provides native Wayland support, GPU acceleration, system integration, themes, extensions, and advanced window management.
+figma-linux-next is a fork of the unofficial Electron-based Figma desktop app for Linux. It provides native Wayland support, GPU acceleration, system integration, extensions, and advanced window management.
 
 ## Development Commands
 
@@ -62,23 +62,24 @@ Build targets configured in [`config/builder.json`](config/builder.json):
 ### Code Quality
 
 ```bash
-# Run linting and formatting
+# Lint + format .ts in place (Biome)
 bun run lp
 
-# ESLint (uses config/eslintrc.js)
+# Lint check only — no writes (used by CI)
 bun run lint
-
-# Prettier formatting
-bun run prettier
 
 # Svelte type checking
 bun run check
 
-# Pre-commit hook (runs linting/formatting on staged files)
+# Pre-commit hook (runs Biome on staged files via lint-staged)
 bun run precommit
 ```
 
-ESLint rules: Uses TypeScript ESLint with Prettier integration, 120 char line limit
+Linting/formatting: **Biome** (`biome.json`) for all `.ts` (src + tests) — formatter matches the
+former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicitAny` and
+`noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
+`.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
+yet). ESLint and Prettier were removed in favor of Biome.
 
 ### Testing
 
@@ -92,7 +93,7 @@ bun run test:e2e
 
 Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
 
-`bunfig.toml` registers `src/test/electron-preload.ts` as a test preload — globally mocks the `electron` module so unit tests touching `src/utils/Main/` work without an Electron runtime.
+`bunfig.toml` registers `tests/unit/electron-preload.ts` as a test preload — globally mocks the `electron` module so unit tests touching `src/utils/Main/` work without an Electron runtime.
 
 ## Architecture
 
@@ -168,12 +169,6 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Observer pattern for manifest and code file changes
 - Extensions loaded from `savedExtensions` in settings
 
-**ThemeManager** (`src/main/Ui/ThemeManager/index.ts`):
-- Loads themes from `~/.config/figma-linux-next/Themes/`
-- Two theme types: community themes (downloaded) and creator themes (user-created)
-- ThemeValidator validates theme structure
-- Themes applied via CSS custom properties injected into Figma
-
 **Storage** (`src/main/Storage.ts`):
 - Singleton (`storage`) for settings persistence to `~/.config/figma-linux-next/settings.json`
 - `storage.initialize()` must be called at startup before App
@@ -223,7 +218,7 @@ The project uses TypeScript path aliases for cleaner imports:
 
 ```typescript
 import { logger } from "Main/Logger";
-import { ThemesApplier } from "DesktopAPI/ThemesApplier";
+import { CheckBox } from "Common/Input";
 import { defaultSettings } from "Utils/Render/defaultSettings";
 ```
 
@@ -302,11 +297,9 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
 | `src/main/AppImageIntegration.ts` | AppImage figma:// URL handler registration |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
-| `src/main/Ui/ThemeManager/index.ts` | Theme loading & management |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
 | `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop MessageChannel bridge |
-| `src/renderer/DesktopAPI/ThemesApplier.ts` | Theme injection |
 | `src/utils/Render/defaultSettings.ts` | Default settings — authoritative settings schema |
 | `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
 | `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
@@ -389,7 +382,7 @@ Local AUR repos: `/home/arx/aur/figma-linux-next/`, `/home/arx/aur/figma-linux-n
 **Pacman uses system Electron** — version may lag behind project's Electron. `-bin` package bundles Electron from the release zip for version parity.
 
 ### bun test and electron mocking
-bun validates named ESM exports statically before mocks run. `src/utils/Main/net.ts` imports `{ net }` from electron, so any test that touches the `Utils/Main` import chain needs electron pre-mocked. The preload at `src/test/electron-preload.ts` (registered via `bunfig.toml`) handles this globally — do not add per-file electron mocks.
+bun validates named ESM exports statically before mocks run. `src/utils/Main/net.ts` imports `{ net }` from electron, so any test that touches the `Utils/Main` import chain needs electron pre-mocked. The preload at `tests/unit/electron-preload.ts` (registered via `bunfig.toml`) handles this globally — do not add per-file electron mocks.
 
 ## Common Development Tasks
 
@@ -411,12 +404,7 @@ When modifying the codebase:
    - Always check `tabManager.getAll().has(id)` before `getById()` on dynamic IDs
    - URL changes propagate to main process for state saving
 
-4. **Modifying themes**:
-   - Theme files in Themes directory
-   - ThemeValidator validates structure
-   - ThemesApplier injects CSS vars into Figma
-
-5. **Working with extensions**:
+4. **Working with extensions**:
    - ExtensionManager scans Extensions directory
    - manifest.json required
    - File watching enables hot-reloading

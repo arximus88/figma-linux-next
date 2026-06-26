@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.0] - 2026-06-25
+
+### Added
+
+- **WebGPU shader effects** — Figma's new **Shader, Halftone and Noise** effects now actually render on the canvas (previously editable in the Effects panel but with no visual output). Off by default; turn on **Settings → "Enable WebGPU shaders" (Experimental)**. They composite via Chromium's WebGPU↔GL interop, which only works under X11 ozone — so when enabled on a Wayland session the app relaunches itself once under a clean XWayland environment. While the toggle is on the app runs under XWayland, so native Wayland niceties (fractional scaling, per-monitor DPI) are traded off. Requires restart.
+- **Hide minimize & maximize buttons** — new Settings option to show only the close button in the window controls, to match stock GNOME / Adwaita apps. Applies to all frame styles and updates live, no restart ([#34](https://github.com/arximus88/figma-linux-next/issues/34)).
+
+### Changed
+
+- **Redesigned Settings** — the General view is rebuilt in GNOME/Adwaita "boxed-list" style: grouped sections (Display, Preferences, Developer) of rounded cards with a label/description on the left and the control on the right, and the `.mcp.json` snippet in its own card beside the MCP toggles. The window title is now "Settings".
+- **Toolchain migrated to Biome** — ESLint + Prettier replaced by [Biome](https://biomejs.dev/) for linting/formatting all `.ts` (same 100-col/double-quote/semicolon style, ~15× faster); `.svelte` files remain covered by `svelte-check`.
+- **Dependency cleanup** — removed 11 unused dev/runtime dependencies and bumped the toolchain (Playwright, Vite, Svelte, svelte-check, electron-builder, lint-staged, @types/node) to latest. **Electron stays pinned at 42.0.1** (newer Chromium breaks Figma sign-in).
+
+### Fixed
+
+- **Ctrl+Shift+T reopened *all* recently closed tabs** at once — it now reopens only the most recently closed tab, and each subsequent press restores the next one, like a browser ([#35](https://github.com/arximus88/figma-linux-next/issues/35)).
+
+### Tests
+
+- Added unit coverage for the startup Chromium-switch logic — the full Wayland-vs-X11 truth-table (ozone platform, GPU blocklist, Vulkan/WebGPU, feature flags, colour space) and the WebGPU self-relaunch decision, including the dev/test guards. This is the area that previously had zero coverage and let a relaunch regression slip through (which hung the e2e suite under `NODE_ENV=test`; also fixed here).
+
+---
+
 ## [0.13.8] - 2026-05-27
 
 ### Fixed

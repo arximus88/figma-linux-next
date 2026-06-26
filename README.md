@@ -1,6 +1,6 @@
 # <img src="resources/icons/128x128.png" width="32"> Figma Linux Next
 
-Unofficial [Electron](http://electron.atom.io)-based browser wrapper for the [Figma](https://figma.com) web app on Linux.
+Native app based on [Electron](http://electron.atom.io)-based browser wrapper for the [Figma](https://figma.com) web app on Linux.
 Loads figma.com directly — no private APIs, no data scraping, no account sharing.
 Not affiliated with or endorsed by Figma, Inc.
 
@@ -8,24 +8,26 @@ Not affiliated with or endorsed by Figma, Inc.
 > Pre-built binaries (`.pacman`, `.deb`, `.rpm`, `.AppImage`) for x64 and arm64:
 > **https://github.com/arximus88/figma-linux-next/releases**
 
-## What's different from other forks
+## Features
 
-- **Increased performance and build times** — thanks to [Bun](https://bun.sh), Vite 8, and Electron 41.
-- **Instant new-file tab** — pre-loaded in background after login, opens without delay
-- **No duplicate tabs** — opening the same file twice focuses the existing tab
-- **Full local font support** — uses fontconfig (`fc-list`) instead of fontkit; variable fonts and all named instances work correctly
-- **Updated Google Fonts support** — new fonts available: Google Sans, Google Sans Flex, Google Sans Code, etc
-- **Native window frame styles** — GNOME and Windows frame styles that match your DE (macOS and KDE TBD); no custom theming injections that break visual rendering
-- **Native Wayland** — works on GNOME Wayland, KDE Plasma, Sway, Hyprland
-- **Launched on different enviroments** — tested on Asahi Linux (Apple Silicon), Niri compositor ot OpenSuse.
-- **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations
+- **Local system fonts** — full fontconfig (`fc-list`) enumeration plus fontkit for variable-font axes; variable fonts and all named instances work, just like the official desktop app (the web app can't reach them).
+- **Shader, Halftone & Noise effects** — Figma's new WebGPU canvas effects render, matching the official app (opt-in, Experimental). They require X11/XWayland: on a Wayland session, enabling them relaunches the app under XWayland, so you trade native Wayland features (fractional scaling, per-monitor DPI) for shaders while they're on.
+- **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
+- **Built-in MCP server for AI assistants** — a [Model Context Protocol](https://modelcontextprotocol.io) server (port 3845) exposes your open design to AI tools like Claude Code.
+- **Latest Chromium engine** — Electron 42 / Chromium 148, so the canvas, WebGL and color handling track the current web app.
+- **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
+- **Runs on both Wayland and X11** — native Wayland on GNOME, KDE Plasma, Sway, Hyprland, with a clean X11 fallback. Tested on Asahi Linux (Apple Silicon), Niri, and openSUSE.
+- **Native window frame styles** — GNOME and Windows frames that match your DE (macOS and KDE TBD), with an option to hide the minimize/maximize buttons for a stock-GNOME look.
+- **Instant new-file tab** — pre-loaded in the background after login, opens with no delay.
+- **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations.
 
 ## Tech Stack
 
-- **Electron 41** (Chromium 134)
+- **Electron 42** (Chromium 148)
 - **Svelte 5** with runes
 - **Vite 8**
 - **Bun**
+- **Biome** (lint + format)
 
 ## Installation
 

@@ -1,4 +1,3 @@
- 
 import { version } from "./../package.json";
 
 export interface AppArgs {
@@ -11,7 +10,7 @@ export default (argv: string[] = process.argv): AppArgs => {
   let figmaUrl = "";
   let newFileType: "design" | "figjam" | undefined;
 
-  if (argv.indexOf("-v") != -1 || argv.indexOf("--version") != -1) {
+  if (argv.indexOf("-v") !== -1 || argv.indexOf("--version") !== -1) {
     console.log(typeof version === "string" ? version : "0.12.0");
     process.exit(0);
   }
@@ -33,7 +32,7 @@ export default (argv: string[] = process.argv): AppArgs => {
     figmaUrl = argv[urlIndex];
   }
 
-  if (argv.indexOf("-h") != -1 || argv.indexOf("--help") != -1) {
+  if (argv.indexOf("-h") !== -1 || argv.indexOf("--help") !== -1) {
     const help = `
 Figma Linux Next v${version}
 

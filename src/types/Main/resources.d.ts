@@ -1,7 +1,7 @@
 declare namespace Resources {
   interface File {
     name: string;
-    data: Promise<string | void>;
+    data: Promise<string | undefined>;
   }
 
   interface Page {

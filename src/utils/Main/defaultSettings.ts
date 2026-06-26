@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { LogLevel } from "Types/enums";
 
 export const DEFAULT_SETTINGS: Types.SettingsInterface = {
@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     logLevel: LogLevel.INFO,
     lastTimeClearLogFile: 0,
     enableColorSpaceSrgb: false,
+    enableWebGPU: false,
     useZenity: false,
     panelHeight: 40,
     saveLastOpenedTabs: true,
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: Types.SettingsInterface = {
     lastOpenedTabs: {},
     featureFlags: {},
     frameStyle: "gnome" as Types.FrameStyle,
+    hideWindowMinMaxButtons: false,
     savedExtensions: [],
     figmaTheme: "dark" as "dark" | "light",
   },

@@ -23,14 +23,11 @@ async function getInnerWidth(
   app: Awaited<ReturnType<typeof launchApp>>["app"],
   wcId: number,
 ): Promise<number> {
-  return app.evaluate(
-    async ({ webContents }, id) => {
-      const wc = webContents.fromId(id);
-      if (!wc || wc.isDestroyed()) return -1;
-      return wc.executeJavaScript("window.innerWidth");
-    },
-    wcId,
-  );
+  return app.evaluate(async ({ webContents }, id) => {
+    const wc = webContents.fromId(id);
+    if (!wc || wc.isDestroyed()) return -1;
+    return wc.executeJavaScript("window.innerWidth");
+  }, wcId);
 }
 
 async function getFileTabWcIds(
@@ -39,8 +36,8 @@ async function getFileTabWcIds(
   return app.evaluate(({ webContents }) =>
     webContents
       .getAllWebContents()
-      .filter(wc => wc.getURL().includes("figma.com/design"))
-      .map(wc => wc.id),
+      .filter((wc) => wc.getURL().includes("figma.com/design"))
+      .map((wc) => wc.id),
   );
 }
 
@@ -62,11 +59,13 @@ async function resizeTo(
 }
 
 function withGridRoute(handle: Awaited<ReturnType<typeof launchApp>>) {
-  return handle.panel.context().route("**/*", route =>
-    route.request().url().includes("figma.com")
-      ? route.fulfill({ status: 200, contentType: "text/html", body: GRID_HTML })
-      : route.continue(),
-  );
+  return handle.panel
+    .context()
+    .route("**/*", (route) =>
+      route.request().url().includes("figma.com")
+        ? route.fulfill({ status: 200, contentType: "text/html", body: GRID_HTML })
+        : route.continue(),
+    );
 }
 
 test.describe("Resize bounds correctness", () => {
@@ -100,8 +99,8 @@ test.describe("Resize bounds correctness", () => {
       await handle.panel.waitForTimeout(200);
     }
 
-    const wcCountBefore = await handle.app.evaluate(({ webContents }) =>
-      webContents.getAllWebContents().length,
+    const wcCountBefore = await handle.app.evaluate(
+      ({ webContents }) => webContents.getAllWebContents().length,
     );
 
     // 50 rapid resizes alternating two sizes
@@ -112,8 +111,8 @@ test.describe("Resize bounds correctness", () => {
 
     // App alive, no leaked WebContentsViews
     expect(handle.app.windows().length).toBeGreaterThanOrEqual(1);
-    const wcCountAfter = await handle.app.evaluate(({ webContents }) =>
-      webContents.getAllWebContents().length,
+    const wcCountAfter = await handle.app.evaluate(
+      ({ webContents }) => webContents.getAllWebContents().length,
     );
     expect(wcCountAfter).toBe(wcCountBefore);
 

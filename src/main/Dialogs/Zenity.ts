@@ -1,8 +1,6 @@
 import { process } from "../Process";
 
 export class ZenityDialogs implements ProviderDialog {
-  constructor() {}
-
   public showMessageBox = async (options: Dialogs.MessageBoxOptions) => {
     const cmd = [`zenity --${options.type} --ellipsize`];
 
