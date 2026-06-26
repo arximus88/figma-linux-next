@@ -56,6 +56,7 @@ import { SessionManager } from "./transport/SessionManager";
 import { collectBody, cors, isValidHost, replyError } from "./utils/http";
 import { parseMermaid } from "./utils/mermaid";
 import { normalizeNodeId } from "./utils/nodeId";
+import { toolError, toolResult } from "./utils/toolResponse";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
@@ -448,7 +449,7 @@ export class McpServer {
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     if (!this.viewProvider) {
-      return this.toolError("No Figma window open — open a file first");
+      return toolError("No Figma window open — open a file first");
     }
 
     try {
@@ -477,31 +478,23 @@ export class McpServer {
           return await this.toolSearchDesignSystem(args);
         case "use_figma":
           if (!this._writeToolsEnabled)
-            return this.toolError(
+            return toolError(
               "Write tools are disabled. Enable them in Settings → General → MCP Server.",
             );
           return await this.toolUseFigma(args);
         case "create_new_file":
           if (!this._writeToolsEnabled)
-            return this.toolError(
+            return toolError(
               "Write tools are disabled. Enable them in Settings → General → MCP Server.",
             );
           return await this.toolCreateNewFile(args);
         default:
-          return this.toolError(`Unknown tool: ${name}`);
+          return toolError(`Unknown tool: ${name}`);
       }
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
-      return this.toolError(err?.message ?? String(err));
+      return toolError(err?.message ?? String(err));
     }
-  }
-
-  private toolResult(text: string) {
-    return { content: [{ type: "text", text }] };
-  }
-
-  private toolError(text: string) {
-    return { isError: true, content: [{ type: "text", text }] };
   }
 
   /** Run a script in the active Figma tab. Single chokepoint for view access. */
@@ -523,13 +516,13 @@ export class McpServer {
     try {
       result = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch {
-      return this.toolError(
+      return toolError(
         "Failed to deserialize design context — the Figma scene graph may contain non-serializable objects",
       );
     }
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
     const json = JSON.stringify(result, null, 2);
@@ -540,10 +533,10 @@ export class McpServer {
       const warn =
         `⚠ Large response (~${(approxTokens / 1000).toFixed(1)}k tokens). ` +
         `This may fill context quickly. Consider re-calling with a more specific nodeId or a smaller depth.\n\n`;
-      return this.toolResult(warn + json);
+      return toolResult(warn + json);
     }
 
-    return this.toolResult(json);
+    return toolResult(json);
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────
@@ -559,14 +552,14 @@ export class McpServer {
     try {
       result = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch {
-      return this.toolError("Failed to deserialize metadata response");
+      return toolError("Failed to deserialize metadata response");
     }
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
-    return this.toolResult(result.xml ?? "");
+    return toolResult(result.xml ?? "");
   }
 
   // ── Tool: get_file_info ──────────────────────────────────────────────────
@@ -575,10 +568,10 @@ export class McpServer {
     const result = await this.exec(FILE_INFO_SCRIPT);
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
-    return this.toolResult(JSON.stringify(result, null, 2));
+    return toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Tool: get_screenshot ─────────────────────────────────────────────────
@@ -602,7 +595,7 @@ export class McpServer {
       return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath);
     }
 
-    return this.toolError("Screenshot export returned no data");
+    return toolError("Screenshot export returned no data");
   }
 
   /** Build an MCP response with the image inline + optional disk save. */
@@ -635,7 +628,7 @@ export class McpServer {
   /** Fallback: use Electron's capturePage on the webContents */
   private async capturePageFallback(savePath: string | null = null) {
     const view = this.viewProvider!.getActiveTabView();
-    if (!view) return this.toolError("No active Figma view");
+    if (!view) return toolError("No active Figma view");
 
     const image = await view.webContents.capturePage();
     const buffer = image.toPNG();
@@ -655,10 +648,10 @@ export class McpServer {
     const result = await this.exec(script);
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
-    return this.toolResult(JSON.stringify(result, null, 2));
+    return toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Tool: get_code_connect_map ───────────────────────────────────────────
@@ -672,7 +665,7 @@ export class McpServer {
       };
     }
 
-    return this.toolResult(
+    return toolResult(
       JSON.stringify(
         {
           mappings: map,
@@ -692,7 +685,7 @@ export class McpServer {
     const result = await this.exec(script);
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
     // Try to capture screenshots of top nodes
@@ -723,7 +716,7 @@ export class McpServer {
       }
     }
 
-    return this.toolResult(xml);
+    return toolResult(xml);
   }
 
   // ── Tool: generate_diagram ───────────────────────────────────────────────
@@ -731,12 +724,12 @@ export class McpServer {
   private async toolGenerateDiagram(args: Record<string, unknown>) {
     const mermaid = args.mermaid as string;
     if (!mermaid) {
-      return this.toolError("Missing required field: mermaid (Mermaid diagram syntax)");
+      return toolError("Missing required field: mermaid (Mermaid diagram syntax)");
     }
 
     const { nodes, edges } = parseMermaid(mermaid);
     if (nodes.length === 0) {
-      return this.toolError("Could not parse any nodes from the Mermaid syntax.");
+      return toolError("Could not parse any nodes from the Mermaid syntax.");
     }
 
     const nodesWithEdges = nodes.map((n) => ({
@@ -748,10 +741,10 @@ export class McpServer {
     const result = await this.exec(script);
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
-    return this.toolResult(
+    return toolResult(
       JSON.stringify(
         {
           success: true,
@@ -773,7 +766,7 @@ export class McpServer {
     const codeConnectName = args.codeConnectName as string;
 
     if (!nodeId || !codeConnectSrc || !codeConnectName) {
-      return this.toolError("Missing required fields: nodeId, codeConnectSrc, codeConnectName");
+      return toolError("Missing required fields: nodeId, codeConnectSrc, codeConnectName");
     }
 
     this.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName });
@@ -785,7 +778,7 @@ export class McpServer {
       `(${codeConnectSrc})`,
     );
 
-    return this.toolResult(
+    return toolResult(
       JSON.stringify(
         {
           success: true,
@@ -810,7 +803,7 @@ export class McpServer {
     const result = await this.exec(DESIGN_SYSTEM_RULES_SCRIPT);
 
     if (result?.error) {
-      return this.toolError(result.error);
+      return toolError(result.error);
     }
 
     // Format as a design system rules document
@@ -886,18 +879,18 @@ export class McpServer {
       "",
     );
 
-    return this.toolResult(lines.join("\n"));
+    return toolResult(lines.join("\n"));
   }
 
   // ── Tool: search_design_system ──────────────────────────────────────────
 
   private async toolSearchDesignSystem(args: Record<string, unknown>) {
     const query = (args.query as string) || "";
-    if (!query) return this.toolError("query is required");
+    if (!query) return toolError("query is required");
 
     const result = await this.exec(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
-    if (result?.error) return this.toolError(result.error);
-    return this.toolResult(JSON.stringify(result, null, 2));
+    if (result?.error) return toolError(result.error);
+    return toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Tool: use_figma (write) ─────────────────────────────────────────────
@@ -905,13 +898,13 @@ export class McpServer {
   private async toolUseFigma(args: Record<string, unknown>) {
     const action = args.action as string;
     const params = args.params as Record<string, unknown>;
-    if (!action) return this.toolError("action is required");
-    if (!params) return this.toolError("params is required");
+    if (!action) return toolError("action is required");
+    if (!params) return toolError("params is required");
 
     const paramsJson = JSON.stringify(params);
     const result = await this.exec(USE_FIGMA_SCRIPT(action, paramsJson));
-    if (result?.error) return this.toolError(result.error);
-    return this.toolResult(JSON.stringify(result, null, 2));
+    if (result?.error) return toolError(result.error);
+    return toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Tool: create_new_file (create page, write) ──────────────────────────
@@ -919,8 +912,8 @@ export class McpServer {
   private async toolCreateNewFile(args: Record<string, unknown>) {
     const name = (args.name as string) || "Untitled Page";
     const result = await this.exec(CREATE_PAGE_SCRIPT(name));
-    if (result?.error) return this.toolError(result.error);
-    return this.toolResult(JSON.stringify(result, null, 2));
+    if (result?.error) return toolError(result.error);
+    return toolResult(JSON.stringify(result, null, 2));
   }
 
   // ── Asset Serving ────────────────────────────────────────────────────────
