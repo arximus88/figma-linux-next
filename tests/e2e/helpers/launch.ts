@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
@@ -10,15 +10,26 @@ export interface AppHandle {
   panel: Page;
 }
 
+export interface LaunchOptions {
+  /** Partial settings.json to pre-seed (deep-merged with defaults on load). */
+  settings?: Record<string, unknown>;
+}
+
 /**
  * Launch the Electron app and wait for the panel window to be ready.
  * Intercepts all figma.com requests and serves a lightweight stub page
  * so tests run without network access or a real Figma account.
  */
-export async function launchApp(): Promise<AppHandle> {
+export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // Each test run gets its own user-data-dir so requestSingleInstanceLock()
   // doesn't collide with a running production instance or another test worker.
   const userDataDir = mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
+
+  // Pre-seed settings.json (read from userData/settings.json at startup) so the
+  // app boots directly in the desired state — avoids flaky runtime IPC toggles.
+  if (opts?.settings) {
+    writeFileSync(path.join(userDataDir, "settings.json"), JSON.stringify(opts.settings, null, 2));
+  }
 
   const app = await electron.launch({
     args: [MAIN_JS, `--user-data-dir=${userDataDir}`],

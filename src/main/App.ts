@@ -110,6 +110,9 @@ export default class App {
     }, Const.STARTUP_DELAY_MS);
 
     setTimeout(() => {
+      // Skip the auto "What's new" popup under test: it's a separate
+      // WebContentsView that overlays the panel and races e2e DOM capture.
+      if (process.env.NODE_ENV === "test") return;
       const current = readAppVersion();
       const lastSeen = storage.settings.app.lastSeenChangelogVersion ?? "";
       if (lastSeen !== current) {

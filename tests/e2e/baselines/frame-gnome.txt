@@ -1,0 +1,53 @@
+data-frame=gnome
+div.svelte-1yg6ant
+  {display:flex; width:1168px; height:40px; padding:0px 8px 0px 3px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgb(46, 46, 50); border-radius:0px; box-shadow:rgb(66, 66, 66) 0px -1px 0px 0px inset; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
+  div.left.svelte-ovtur8
+    {display:flex; width:80px; height:34px; padding:0px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
+    div.button__active.svelte-c9bfwv[role=button]
+      {display:flex; width:34px; height:34px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(255, 255, 255, 0.12); border-radius:9px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
+      svg
+        {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
+        path
+          {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
+    div.svelte-c9bfwv[role=button]
+      {display:flex; width:34px; height:34px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:9px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+      svg
+        {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        path
+          {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        path
+          {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+  div.svelte-1rmri4j.tabs[role=tablist]
+    {display:flex; width:911px; height:0px; padding:0px; margin:0px; gap:2px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgba(255, 255, 255, 0.8); opacity:1}
+    section.svelte-1jezhu3[role=list]
+      {display:flex; width:0px; height:0px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgba(255, 255, 255, 0.8); opacity:1}
+  div.controls.svelte-19fwut
+    {display:flex; width:142px; height:34px; padding:0px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
+    div.menu-btn.svelte-19fwut
+      {display:block; width:34px; height:34px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
+      div.svelte-c9bfwv[role=button]
+        {display:flex; width:34px; height:34px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:9px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        svg
+          {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+          path
+            {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+    div.close-group.svelte-19fwut
+      {display:flex; width:96px; height:24px; padding:0px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
+      div.svelte-c9bfwv[role=button]
+        {display:flex; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(255, 255, 255, 0.06); border-radius:20px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        svg
+          {display:block; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+          g
+            {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+      div.svelte-c9bfwv[role=button]
+        {display:flex; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(255, 255, 255, 0.06); border-radius:20px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        svg
+          {display:block; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+          g
+            {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+      div.svelte-c9bfwv[role=button]
+        {display:flex; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(255, 255, 255, 0.06); border-radius:20px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+        svg
+          {display:block; width:24px; height:24px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
+          g
+            {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
