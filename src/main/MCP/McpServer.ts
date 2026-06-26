@@ -22,84 +22,24 @@ import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { WebContentsView } from "electron";
-import { version as APP_VERSION } from "../../../package.json";
-
-// ── Configuration ──────────────────────────────────────────────────────────────
-
-const MCP_PORT = 3845;
-const MCP_HOST = "127.0.0.1";
-const SERVER_NAME = "figma-linux-next";
-const SERVER_VERSION = APP_VERSION;
-const PROTOCOL_VERSION = "2025-03-26";
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id?: string | number | null;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-interface McpSession {
-  id: string;
-  createdAt: number;
-  lastActivity: number;
-  sseResponse: http.ServerResponse | null;
-  clientInfo?: { name: string; version: string };
-}
-
-interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}
-
-interface AssetEntry {
-  data: Buffer;
-  contentType: string;
-}
-
-interface CodeConnectEntry {
-  nodeId: string;
-  codeConnectSrc: string;
-  codeConnectName: string;
-}
-
-/** Minimal interface for querying the Figma BrowserView.
- *  Matches figma-linux-next Window class public surface. */
-export interface FigmaViewProvider {
-  /** Execute arbitrary JS in the active Figma tab's webContents. */
-  executeInBrowserView(script: string): Promise<any>;
-  /** Get the active tab's WebContentsView (for capturePage). */
-  getActiveTabView(): WebContentsView | null;
-  /** Get the URL of the currently focused tab. */
-  getActiveTabUrl(): string | null;
-}
-
-// ── Logger (accepts figma-linux-next logger interface) ─────────────────────────
-
-interface Logger {
-  info(...args: unknown[]): void;
-  warn(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-  debug(...args: unknown[]): void;
-}
-
-const defaultLogger: Logger = {
-  info: (...args) => console.log("[MCP]", ...args),
-  warn: (...args) => console.warn("[MCP]", ...args),
-  error: (...args) => console.error("[MCP]", ...args),
-  debug: (...args) => console.debug("[MCP]", ...args),
-};
+import {
+  defaultLogger,
+  MCP_HOST,
+  MCP_PORT,
+  PROTOCOL_VERSION,
+  SERVER_NAME,
+  SERVER_VERSION,
+} from "./config";
+import type {
+  AssetEntry,
+  CodeConnectEntry,
+  FigmaViewProvider,
+  JsonRpcRequest,
+  JsonRpcResponse,
+  Logger,
+  McpSession,
+  ToolDefinition,
+} from "./types";
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
