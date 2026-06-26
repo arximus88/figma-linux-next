@@ -2,6 +2,7 @@ import { app, BrowserWindow, type IpcMainEvent, type Rectangle, type Menu } from
 import { storage } from "Main/Storage";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
+import { ModalViewManager } from "./ModalViewManager";
 import TabManager from "./TabManager";
 import { WindowGeometry } from "./WindowGeometry";
 import { logger } from "../Logger";
@@ -25,6 +26,7 @@ export default class Window {
   private tabManager: TabManager;
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
+  private modalViews: ModalViewManager;
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
   // not overwritten by the BrowserWindow `close` event firing later with
@@ -32,8 +34,6 @@ export default class Window {
   private stateCached = false;
 
   private _userId: string;
-  private settingsViewOpen = false;
-  private changelogViewOpen = false;
   private shown = false;
   private static readonly SHOW_FALLBACK_MS = 3000;
 
@@ -54,6 +54,7 @@ export default class Window {
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
+    this.modalViews = new ModalViewManager(this.window, this.settingsView, this.changelogView);
     this.state = state;
 
     this.window.contentView.addChildView(this.tabManager.mainTab.view);
@@ -340,23 +341,13 @@ export default class Window {
   public updateTabsBounds() {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForActiveTab(bounds);
-    if (this.settingsViewOpen) {
-      this.settingsView.updateProps(this.window.getBounds());
-    }
-    if (this.changelogViewOpen) {
-      this.changelogView.updateProps(this.window.getBounds());
-    }
+    this.modalViews.syncBounds(this.window.getBounds());
   }
 
   public updateAllTabsBounds() {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForAllTab(bounds);
-    if (this.settingsViewOpen) {
-      this.settingsView.updateProps(this.window.getBounds());
-    }
-    if (this.changelogViewOpen) {
-      this.changelogView.updateProps(this.window.getBounds());
-    }
+    this.modalViews.syncBounds(this.window.getBounds());
   }
   public closeAllTab(_: IpcMainEvent) {
     const tabs = this.tabManager.getAll();
@@ -474,52 +465,20 @@ export default class Window {
   }
 
   public openSettingsView() {
-    this.settingsViewOpen = true;
-    const bounds = this.window.getBounds();
-    this.settingsView.updateProps(bounds);
-
-    this.window.contentView.addChildView(this.settingsView.view);
-
-    if (isDev) toggleDetachedDevTools(this.settingsView.view.webContents);
-
-    setTimeout(() => {
-      this.settingsView.updateProps(bounds);
-    }, 100);
+    this.modalViews.openSettingsView();
   }
   public closeSettingsView() {
-    if (!this.settingsView.view) {
-      return;
-    }
-
-    this.settingsViewOpen = false;
-    this.settingsView.closeDevTools();
-
-    this.window.contentView.removeChildView(this.settingsView.view);
-
-    this.settingsView.postClose();
+    this.modalViews.closeSettingsView();
   }
 
   public openChangelogView() {
-    if (this.changelogViewOpen) return;
-    this.changelogViewOpen = true;
-
-    const bounds = this.window.getBounds();
-    this.changelogView.updateProps(bounds);
-
-    this.window.contentView.addChildView(this.changelogView.view);
-
-    setTimeout(() => {
-      this.changelogView.updateProps(bounds);
-    }, 100);
+    this.modalViews.openChangelogView();
   }
   public closeChangelogView() {
-    if (!this.changelogViewOpen) return;
-    this.changelogViewOpen = false;
-    this.changelogView.closeDevTools();
-    this.window.contentView.removeChildView(this.changelogView.view);
+    this.modalViews.closeChangelogView();
   }
   public get isChangelogViewOpen() {
-    return this.changelogViewOpen;
+    return this.modalViews.isChangelogViewOpen;
   }
   public toggleFullScreen() {
     if (this.window.isFullScreen()) {
@@ -880,8 +839,7 @@ export default class Window {
       this.warmTab.view.webContents.destroy();
     }
     this.warmTab = null;
-    this.settingsView.destroy();
-    this.changelogView.destroy();
+    this.modalViews.destroy();
     this.tabManager.closeAll();
     this.window.close();
   }
