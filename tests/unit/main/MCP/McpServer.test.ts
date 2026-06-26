@@ -185,4 +185,51 @@ describe("McpServer (Streamable HTTP transport)", () => {
     const res = await rpc({ jsonrpc: "2.0", id: 9, method: "does/not/exist" }, sessionId);
     expect(res.json.error.code).toBe(-32601);
   });
+
+  /** Helper: invoke a tool over tools/call. */
+  function callTool(sessionId: string, name: string, args: Record<string, unknown>, id: number) {
+    return rpc(
+      { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } },
+      sessionId,
+    );
+  }
+
+  it("threads code-connect state across add then get (no exec needed)", async () => {
+    const sessionId = await initialize();
+    const add = await callTool(
+      sessionId,
+      "add_code_connect_map",
+      { nodeId: "10-20", codeConnectSrc: "src/Button.tsx", codeConnectName: "Button" },
+      10,
+    );
+    expect(add.json.result.content[0].text).toContain("Button");
+
+    const get = await callTool(sessionId, "get_code_connect_map", {}, 11);
+    const payload = JSON.parse(get.json.result.content[0].text);
+    expect(payload.count).toBe(1);
+    expect(payload.mappings["10:20"].codeConnectName).toBe("Button");
+  });
+
+  it("generates a diagram from mermaid (parseMermaid + exec)", async () => {
+    const sessionId = await initialize();
+    provider.nextResult = { nodesCreated: 2, connectorsCreated: 1 };
+    const res = await callTool(sessionId, "generate_diagram", { mermaid: "graph TD\n A-->B" }, 12);
+    expect(res.json.result.content[0].text).toContain("Created 2 nodes");
+  });
+
+  it("rejects a write tool when write tools are disabled", async () => {
+    const sessionId = await initialize();
+    const res = await callTool(sessionId, "use_figma", { action: "noop", params: {} }, 13);
+    expect(res.json.result.isError).toBe(true);
+    expect(res.json.result.content[0].text).toContain("disabled");
+  });
+
+  it("runs a write tool once write tools are enabled", async () => {
+    server.setWriteToolsEnabled(true);
+    const sessionId = await initialize();
+    provider.nextResult = { ok: true };
+    const res = await callTool(sessionId, "use_figma", { action: "createFrame", params: {} }, 14);
+    expect(res.json.result.isError).toBeUndefined();
+    expect(res.json.result.content[0].text).toContain("ok");
+  });
 });
