@@ -53,6 +53,9 @@ import {
   VARIABLE_DEFS_SCRIPT,
 } from "./scripts";
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { collectBody, cors, isValidHost, replyError } from "./utils/http";
+import { parseMermaid } from "./utils/mermaid";
+import { normalizeNodeId } from "./utils/nodeId";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
@@ -183,7 +186,7 @@ export class McpServer {
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     // Host header validation (standard localhost security)
     const host = req.headers.host;
-    if (!host || !this.isValidHost(host)) {
+    if (!host || !isValidHost(host)) {
       this.log.error("Access denied — invalid Host header:", host);
       res.writeHead(403);
       res.end("Access denied — invalid Host header");
@@ -196,7 +199,7 @@ export class McpServer {
 
     // CORS for preflight
     if (req.method === "OPTIONS") {
-      res.writeHead(204, this.cors());
+      res.writeHead(204, cors());
       res.end();
       return;
     }
@@ -225,7 +228,7 @@ export class McpServer {
       return;
     }
 
-    res.writeHead(404, { "Content-Type": "application/json", ...this.cors() });
+    res.writeHead(404, { "Content-Type": "application/json", ...cors() });
     res.end(JSON.stringify({ error: "not found" }));
   }
 
@@ -240,7 +243,7 @@ export class McpServer {
     if (req.method === "GET") {
       // SSE stream for server→client notifications (session required)
       if (!sessionId || !this.sessions.has(sessionId)) {
-        this.replyError(res, 400, -32001, "No valid session", null);
+        replyError(res, 400, -32001, "No valid session", null);
         return;
       }
       const session = this.sessions.get(sessionId)!;
@@ -248,7 +251,7 @@ export class McpServer {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        ...this.cors(),
+        ...cors(),
       });
       session.sseResponse = res;
       req.on("close", () => {
@@ -271,13 +274,13 @@ export class McpServer {
         this.sessions.delete(sessionId);
         this.log.info("Session terminated by client:", sessionId);
       }
-      res.writeHead(200, this.cors());
+      res.writeHead(200, cors());
       res.end();
       return;
     }
 
     if (req.method !== "POST") {
-      res.writeHead(405, this.cors());
+      res.writeHead(405, cors());
       res.end();
       return;
     }
@@ -285,16 +288,16 @@ export class McpServer {
     // Parse request body
     let body: JsonRpcRequest;
     try {
-      const raw = await this.collectBody(req);
+      const raw = await collectBody(req);
       body = JSON.parse(raw);
     } catch {
-      this.replyError(res, 400, -32700, "Parse error", null);
+      replyError(res, 400, -32700, "Parse error", null);
       return;
     }
 
     // Notifications need no response
     if (body.method?.startsWith("notifications/")) {
-      res.writeHead(202, this.cors());
+      res.writeHead(202, cors());
       res.end();
       return;
     }
@@ -302,7 +305,7 @@ export class McpServer {
     // No session → must be initialize
     if (!sessionId) {
       if (body.method !== "initialize") {
-        this.replyError(res, 400, -32000, "Must initialize first", body.id ?? null);
+        replyError(res, 400, -32000, "Must initialize first", body.id ?? null);
         return;
       }
       const newSessionId = crypto.randomUUID();
@@ -337,7 +340,7 @@ export class McpServer {
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Mcp-Session-Id": newSessionId,
-        ...this.cors(),
+        ...cors(),
       });
       res.end(JSON.stringify(result));
       return;
@@ -345,7 +348,7 @@ export class McpServer {
 
     // With session → route the request
     if (!this.sessions.has(sessionId)) {
-      this.replyError(res, 404, -32002, "Session not found", body.id ?? null);
+      replyError(res, 404, -32002, "Session not found", body.id ?? null);
       return;
     }
 
@@ -353,7 +356,7 @@ export class McpServer {
     this.sessions.get(sessionId)!.lastActivity = Date.now();
 
     const response = await this.handleJsonRpc(body);
-    res.writeHead(200, { "Content-Type": "application/json", ...this.cors() });
+    res.writeHead(200, { "Content-Type": "application/json", ...cors() });
     res.end(JSON.stringify(response));
   }
 
@@ -373,7 +376,7 @@ export class McpServer {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      ...this.cors(),
+      ...cors(),
     });
 
     // Send endpoint event per SSE transport spec
@@ -406,17 +409,17 @@ export class McpServer {
     const sessionId = url.searchParams.get("sessionId");
 
     if (!sessionId || !this.sessions.has(sessionId)) {
-      res.writeHead(400, { "Content-Type": "application/json", ...this.cors() });
+      res.writeHead(400, { "Content-Type": "application/json", ...cors() });
       res.end(JSON.stringify({ error: "Invalid sessionId" }));
       return;
     }
 
     let body: JsonRpcRequest;
     try {
-      const raw = await this.collectBody(req);
+      const raw = await collectBody(req);
       body = JSON.parse(raw);
     } catch {
-      this.replyError(res, 400, -32700, "Parse error", null);
+      replyError(res, 400, -32700, "Parse error", null);
       return;
     }
 
@@ -430,7 +433,7 @@ export class McpServer {
     }
 
     // Acknowledge the POST
-    res.writeHead(202, this.cors());
+    res.writeHead(202, cors());
     res.end();
   }
 
@@ -538,7 +541,7 @@ export class McpServer {
   // ── Tool: get_design_context ─────────────────────────────────────────────
 
   private async toolGetDesignContext(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const depth = typeof args.depth === "number" ? args.depth : 10;
 
     const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
@@ -575,7 +578,7 @@ export class McpServer {
   // ── Tool: get_metadata ───────────────────────────────────────────────────
 
   private async toolGetMetadata(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const depth = typeof args.depth === "number" ? args.depth : 8;
 
     const script = METADATA_XML_SCRIPT(nodeId, depth);
@@ -610,7 +613,7 @@ export class McpServer {
   // ── Tool: get_screenshot ─────────────────────────────────────────────────
 
   private async toolGetScreenshot(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.5, args.scale)) : 2;
     const savePath = args.savePath ? String(args.savePath) : null;
 
@@ -676,7 +679,7 @@ export class McpServer {
   // ── Tool: get_variable_defs ──────────────────────────────────────────────
 
   private async toolGetVariableDefs(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const script = VARIABLE_DEFS_SCRIPT(nodeId);
     const result = await this.viewProvider!.executeInBrowserView(script);
 
@@ -713,7 +716,7 @@ export class McpServer {
   // ── Tool: get_figjam ─────────────────────────────────────────────────────
 
   private async toolGetFigjam(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const script = FIGJAM_SCRIPT(nodeId);
     const result = await this.viewProvider!.executeInBrowserView(script);
 
@@ -760,7 +763,7 @@ export class McpServer {
       return this.toolError("Missing required field: mermaid (Mermaid diagram syntax)");
     }
 
-    const { nodes, edges } = this.parseMermaid(mermaid);
+    const { nodes, edges } = parseMermaid(mermaid);
     if (nodes.length === 0) {
       return this.toolError("Could not parse any nodes from the Mermaid syntax.");
     }
@@ -791,109 +794,10 @@ export class McpServer {
     );
   }
 
-  /** Parse Mermaid syntax into nodes and edges. */
-  private parseMermaid(src: string): {
-    nodes: { id: string; label: string; shape: string }[];
-    edges: { from: string; to: string; label: string }[];
-  } {
-    const nodes = new Map<string, { id: string; label: string; shape: string }>();
-    const edges: { from: string; to: string; label: string }[] = [];
-    // Pre-process: split on newlines + semicolons, strip directives, expand chains (A-->B-->C → A-->B, B-->C)
-    const NODE_PAT = "[\\w]+(?:\\[[^\\]]+\\]|\\([^)]+\\)|\\{[^}]+\\})?";
-    const ARROW_PAT = "(?:-->|==>|-\\.->|---)";
-    const EL_PAT = "(?:\\|[^|]*\\|)?";
-    const firstNodeRe = new RegExp(`^(${NODE_PAT})`);
-    const contRe = new RegExp(`^\\s*(${ARROW_PAT})\\s*(${EL_PAT})\\s*(${NODE_PAT})`);
-    const directiveRe =
-      /^(?:graph|flowchart|stateDiagram|sequenceDiagram|gantt|title|section|dateFormat|axisFormat)\s*(?:TD|LR|TB|RL|BT)?\s*;?\s*(.*)/i;
-
-    const lines: string[] = [];
-    for (const raw of src
-      .split(/[\n;]/)
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith("%%"))) {
-      const dm = raw.match(directiveRe);
-      const stmt = dm ? dm[1].trim() : raw;
-      if (!stmt) continue;
-
-      // Expand chains: A-->B-->C → ["A-->B", "B-->C"]
-      const firstNode = stmt.match(firstNodeRe);
-      if (firstNode) {
-        let prevNode = firstNode[1];
-        let rest = stmt.slice(firstNode[0].length);
-        const segs: string[] = [];
-        while (rest.length > 0) {
-          const cont = rest.match(contRe);
-          if (!cont) break;
-          segs.push(`${prevNode}${cont[1]}${cont[2]}${cont[3]}`);
-          prevNode = cont[3];
-          rest = rest.slice(cont[0].length);
-        }
-        lines.push(...(segs.length > 0 ? segs : [stmt]));
-      } else {
-        lines.push(stmt);
-      }
-    }
-
-    for (const line of lines) {
-      // Flowchart edges: A[Label] --> B[Label], A -->|label| B
-      const em = line.match(
-        /^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?\s*(?:-->|==>|-.->|---)\s*(?:\|([^|]*)\|)?\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})?/,
-      );
-      if (em) {
-        const fId = em[1],
-          fL = em[2] || em[3] || em[4] || em[1],
-          eL = em[5] || "",
-          tId = em[6],
-          tL = em[7] || em[8] || em[9] || em[6];
-        const fS = em[4] ? "DIAMOND" : em[3] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
-        const tS = em[9] ? "DIAMOND" : em[8] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
-        if (!nodes.has(fId)) nodes.set(fId, { id: fId, label: fL, shape: fS });
-        if (!nodes.has(tId)) nodes.set(tId, { id: tId, label: tL, shape: tS });
-        edges.push({ from: fId, to: tId, label: eL.trim() });
-        continue;
-      }
-
-      // Standalone node: A["Label"]
-      const nm = line.match(/^\s*([\w]+)(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})\s*$/);
-      if (nm) {
-        const id = nm[1],
-          label = nm[2] || nm[3] || nm[4] || id;
-        const shape = nm[4] ? "DIAMOND" : nm[3] ? "ELLIPSE" : "ROUNDED_RECTANGLE";
-        if (!nodes.has(id)) nodes.set(id, { id, label, shape });
-        continue;
-      }
-
-      // Sequence diagram: Actor ->> Actor: message
-      const sm = line.match(/^\s*([\w\s]+?)\s*(?:->>|-->>|->|-->)\s*([\w\s]+?)\s*:\s*(.+)$/);
-      if (sm) {
-        const fId = sm[1].trim().replace(/\s+/g, "_"),
-          tId = sm[2].trim().replace(/\s+/g, "_");
-        if (!nodes.has(fId))
-          nodes.set(fId, { id: fId, label: sm[1].trim(), shape: "ROUNDED_RECTANGLE" });
-        if (!nodes.has(tId))
-          nodes.set(tId, { id: tId, label: sm[2].trim(), shape: "ROUNDED_RECTANGLE" });
-        edges.push({ from: fId, to: tId, label: sm[3].trim() });
-        continue;
-      }
-
-      // State diagram: StateA --> StateB : event
-      const stm = line.match(/^\s*([\w]+)\s*-->\s*([\w]+)\s*(?::\s*(.+))?$/);
-      if (stm) {
-        if (!nodes.has(stm[1]))
-          nodes.set(stm[1], { id: stm[1], label: stm[1], shape: "ROUNDED_RECTANGLE" });
-        if (!nodes.has(stm[2]))
-          nodes.set(stm[2], { id: stm[2], label: stm[2], shape: "ROUNDED_RECTANGLE" });
-        edges.push({ from: stm[1], to: stm[2], label: (stm[3] || "").trim() });
-      }
-    }
-    return { nodes: [...nodes.values()], edges };
-  }
-
   // ── Tool: add_code_connect_map ───────────────────────────────────────────
 
   private toolAddCodeConnectMap(args: Record<string, unknown>) {
-    const nodeId = args.nodeId ? String(args.nodeId).replace(/-/g, ":") : null;
+    const nodeId = normalizeNodeId(args.nodeId);
     const codeConnectSrc = args.codeConnectSrc as string;
     const codeConnectName = args.codeConnectName as string;
 
@@ -1072,78 +976,5 @@ export class McpServer {
 
     res.writeHead(200, headers);
     res.end(asset.data);
-  }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  /**
-   * Validates that the HTTP Host header points to a loopback address.
-   * Uses the WHATWG URL API for reliable hostname extraction.
-   */
-  private isValidHost(hostHeader: string): boolean {
-    let hostname: string;
-    try {
-      // URL constructor reliably parses host:port combinations
-      const parsed = new URL(`http://${hostHeader}`);
-      hostname = parsed.hostname;
-    } catch {
-      return false;
-    }
-
-    // Allow only loopback addresses
-    return hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost";
-  }
-
-  private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
-    const body = JSON.stringify(data);
-    res.writeHead(status, {
-      "Content-Type": "application/json",
-      ...this.cors(),
-    });
-    res.end(body);
-  }
-
-  /**
-   * Sends a JSON-RPC 2.0 error response.
-   * See: https://www.jsonrpc.org/specification#error_object
-   */
-  private replyError(
-    res: http.ServerResponse,
-    httpCode: number,
-    rpcCode: number,
-    msg: string,
-    reqId: string | number | null = null,
-  ): void {
-    this.sendJson(res, httpCode, {
-      jsonrpc: "2.0",
-      error: { code: rpcCode, message: msg },
-      id: reqId,
-    });
-  }
-
-  /**
-   * Collects the full request body as a UTF-8 string.
-   * Uses for-await-of on the native readable stream.
-   */
-  private async collectBody(req: http.IncomingMessage): Promise<string> {
-    const parts: string[] = [];
-    req.setEncoding("utf8");
-    for await (const chunk of req) {
-      parts.push(chunk as string);
-    }
-    return parts.join("");
-  }
-
-  /**
-   * Returns the minimum CORS headers required for MCP local transport.
-   * See: https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/transports/
-   */
-  private cors(): Record<string, string> {
-    return {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id",
-      "Access-Control-Expose-Headers": "Mcp-Session-Id",
-    };
   }
 }
