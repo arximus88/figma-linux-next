@@ -538,6 +538,11 @@ export class McpServer {
     return { isError: true, content: [{ type: "text", text }] };
   }
 
+  /** Run a script in the active Figma tab. Single chokepoint for view access. */
+  private exec(script: string): Promise<any> {
+    return this.viewProvider!.executeInBrowserView(script);
+  }
+
   // ── Tool: get_design_context ─────────────────────────────────────────────
 
   private async toolGetDesignContext(args: Record<string, unknown>) {
@@ -545,7 +550,7 @@ export class McpServer {
     const depth = typeof args.depth === "number" ? args.depth : 10;
 
     const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
-    const raw = await this.viewProvider!.executeInBrowserView(script);
+    const raw = await this.exec(script);
 
     // Script returns a JSON string to avoid V8 structured-clone failures over IPC
     let result: any;
@@ -582,7 +587,7 @@ export class McpServer {
     const depth = typeof args.depth === "number" ? args.depth : 8;
 
     const script = METADATA_XML_SCRIPT(nodeId, depth);
-    const raw = await this.viewProvider!.executeInBrowserView(script);
+    const raw = await this.exec(script);
 
     let result: any;
     try {
@@ -601,7 +606,7 @@ export class McpServer {
   // ── Tool: get_file_info ──────────────────────────────────────────────────
 
   private async toolGetFileInfo() {
-    const result = await this.viewProvider!.executeInBrowserView(FILE_INFO_SCRIPT);
+    const result = await this.exec(FILE_INFO_SCRIPT);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -619,7 +624,7 @@ export class McpServer {
 
     // Try Plugin API exportAsync first
     const script = SCREENSHOT_SCRIPT(nodeId, scale);
-    const result = await this.viewProvider!.executeInBrowserView(script);
+    const result = await this.exec(script);
 
     if (result?.error) {
       // Fallback: capture the visible page via capturePage
@@ -681,7 +686,7 @@ export class McpServer {
   private async toolGetVariableDefs(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const script = VARIABLE_DEFS_SCRIPT(nodeId);
-    const result = await this.viewProvider!.executeInBrowserView(script);
+    const result = await this.exec(script);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -718,7 +723,7 @@ export class McpServer {
   private async toolGetFigjam(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const script = FIGJAM_SCRIPT(nodeId);
-    const result = await this.viewProvider!.executeInBrowserView(script);
+    const result = await this.exec(script);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -730,7 +735,7 @@ export class McpServer {
       for (const nid of result.nodeIds.slice(0, 5)) {
         try {
           const ssScript = SCREENSHOT_SCRIPT(nid, 1);
-          const ssResult = await this.viewProvider!.executeInBrowserView(ssScript);
+          const ssResult = await this.exec(ssScript);
           if (ssResult?.base64) {
             const buffer = Buffer.from(ssResult.base64, "base64");
             const assetId = `${crypto.randomUUID()}.png`;
@@ -774,7 +779,7 @@ export class McpServer {
     }));
     const nodesJson = JSON.stringify(nodesWithEdges);
     const script = GENERATE_DIAGRAM_SCRIPT(nodesJson);
-    const result = await this.viewProvider!.executeInBrowserView(script);
+    const result = await this.exec(script);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -836,7 +841,7 @@ export class McpServer {
     const componentLibraryPath = (args.componentLibraryPath as string) || "Not specified";
 
     // Collect design system data from Figma
-    const result = await this.viewProvider!.executeInBrowserView(DESIGN_SYSTEM_RULES_SCRIPT);
+    const result = await this.exec(DESIGN_SYSTEM_RULES_SCRIPT);
 
     if (result?.error) {
       return this.toolError(result.error);
@@ -924,9 +929,7 @@ export class McpServer {
     const query = (args.query as string) || "";
     if (!query) return this.toolError("query is required");
 
-    const result = await this.viewProvider!.executeInBrowserView(
-      SEARCH_DESIGN_SYSTEM_SCRIPT(query),
-    );
+    const result = await this.exec(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
     if (result?.error) return this.toolError(result.error);
     return this.toolResult(JSON.stringify(result, null, 2));
   }
@@ -940,9 +943,7 @@ export class McpServer {
     if (!params) return this.toolError("params is required");
 
     const paramsJson = JSON.stringify(params);
-    const result = await this.viewProvider!.executeInBrowserView(
-      USE_FIGMA_SCRIPT(action, paramsJson),
-    );
+    const result = await this.exec(USE_FIGMA_SCRIPT(action, paramsJson));
     if (result?.error) return this.toolError(result.error);
     return this.toolResult(JSON.stringify(result, null, 2));
   }
@@ -951,7 +952,7 @@ export class McpServer {
 
   private async toolCreateNewFile(args: Record<string, unknown>) {
     const name = (args.name as string) || "Untitled Page";
-    const result = await this.viewProvider!.executeInBrowserView(CREATE_PAGE_SCRIPT(name));
+    const result = await this.exec(CREATE_PAGE_SCRIPT(name));
     if (result?.error) return this.toolError(result.error);
     return this.toolResult(JSON.stringify(result, null, 2));
   }
