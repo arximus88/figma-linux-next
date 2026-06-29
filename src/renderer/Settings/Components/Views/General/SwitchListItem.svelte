@@ -7,11 +7,11 @@
 
 <div>
   <FlexItem grow={1}>
-    <InputText bind:value={item.switch} />
+    <InputText value={item.switch} onValue={(v) => (item.switch = v)} />
   </FlexItem>
   <Flex width="20px" />
   <FlexItem grow={1}>
-    <InputText bind:value={item.value} />
+    <InputText value={item.value} onValue={(v) => (item.value = v)} />
   </FlexItem>
   <Flex width="20px" />
   <ButtonTool normalBgColor="tarsparent" onButtonClick={onItemRemoveClick}>
