@@ -1,27 +1,34 @@
-import { ipcMain } from "electron";
 import type { LogFunctions } from "electron-log";
+import { ipcRegistry } from "../controllers/registry";
 
 export class AppLogger {
   constructor(private logInstance: LogFunctions) {}
 
   public initialize = (): void => {
     try {
-      if (!ipcMain) {
-        console.warn("AppLogger: Electron ipcMain is not available yet.");
-        return;
-      }
-
-      ipcMain.on("logDebug", (sender: any, ...msg: any[]) =>
-        this.debug(`[From web content: ${sender.sender.id}]`, ...msg),
+      ipcRegistry.on(
+        "logDebug",
+        (sender: any, ...msg: any[]) =>
+          this.debug(`[From web content: ${sender.sender.id}]`, ...msg),
+        "AppLogger",
       );
-      ipcMain.on("logInfo", (sender: any, ...msg: any[]) =>
-        this.info(`[From web content: ${sender.sender.id}]`, ...msg),
+      ipcRegistry.on(
+        "logInfo",
+        (sender: any, ...msg: any[]) =>
+          this.info(`[From web content: ${sender.sender.id}]`, ...msg),
+        "AppLogger",
       );
-      ipcMain.on("logWarn", (sender: any, ...msg: any[]) =>
-        this.warn(`[From web content: ${sender.sender.id}]`, ...msg),
+      ipcRegistry.on(
+        "logWarn",
+        (sender: any, ...msg: any[]) =>
+          this.warn(`[From web content: ${sender.sender.id}]`, ...msg),
+        "AppLogger",
       );
-      ipcMain.on("logError", (sender: any, ...msg: any[]) =>
-        this.error(`[From web content: ${sender.sender.id}]`, ...msg),
+      ipcRegistry.on(
+        "logError",
+        (sender: any, ...msg: any[]) =>
+          this.error(`[From web content: ${sender.sender.id}]`, ...msg),
+        "AppLogger",
       );
     } catch (e) {
       console.error("AppLogger: Failed to initialize IPC handlers", e);
