@@ -96,6 +96,8 @@ export default class SettingsController {
   }
 
   private setFrameStyle(_: IpcMainEvent, style: Types.FrameStyle) {
+    if (storage.settings.app.frameStyle === style) return;
+
     storage.settings.app.frameStyle = style;
     storage.save();
     this.windowManager.setFrameStyleAllWindows(style);
