@@ -15,6 +15,7 @@ snap/snap
 snap/stage
 bun.lock
 bun.lockb
+docs
 
 # OS
 .DS_Store

@@ -4,6 +4,27 @@ Native app based on [Electron](http://electron.atom.io)-based browser wrapper fo
 Loads figma.com directly — no private APIs, no data scraping, no account sharing.
 Not affiliated with or endorsed by Figma, Inc.
 
+<p>
+  <a href="https://github.com/arximus88/figma-linux-next/releases"><img alt="Release" src="https://img.shields.io/github/v/release/arximus88/figma-linux-next?style=flat-square&logo=github"></a>
+  <a href="https://github.com/arximus88/figma-linux-next/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/arximus88/figma-linux-next/total?style=flat-square&color=success"></a>
+  <a href="https://github.com/arximus88/figma-linux-next/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/arximus88/figma-linux-next/ci.yml?branch=dev&style=flat-square&label=CI&logo=githubactions&logoColor=white"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/arximus88/figma-linux-next?style=flat-square"></a>
+</p>
+<p>
+  <a href="https://github.com/arximus88/figma-linux-next/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/arximus88/figma-linux-next?style=flat-square&logo=github"></a>
+  <a href="https://github.com/arximus88/figma-linux-next/issues"><img alt="Issues" src="https://img.shields.io/github/issues/arximus88/figma-linux-next?style=flat-square"></a>
+  <a href="https://github.com/arximus88/figma-linux-next/commits"><img alt="Last commit" src="https://img.shields.io/github/last-commit/arximus88/figma-linux-next?style=flat-square"></a>
+  <a href="https://aur.archlinux.org/packages/figma-linux-next"><img alt="AUR" src="https://img.shields.io/aur/version/figma-linux-next?style=flat-square&logo=archlinux&logoColor=white&label=AUR"></a>
+  <a href="https://aur.archlinux.org/packages/figma-linux-next-bin"><img alt="AUR (bin)" src="https://img.shields.io/aur/version/figma-linux-next-bin?style=flat-square&logo=archlinux&logoColor=white&label=AUR%20(bin)"></a>
+</p>
+<p>
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white">
+  <img alt="Svelte" src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white">
+  <img alt="Bun" src="https://img.shields.io/badge/Bun-000000?style=flat-square&logo=bun&logoColor=white">
+  <img alt="Biome" src="https://img.shields.io/badge/Biome-60A5FA?style=flat-square&logo=biome&logoColor=white">
+</p>
+
 > **🧪 Status: Active Testing**
 > Pre-built binaries (`.pacman`, `.deb`, `.rpm`, `.AppImage`) for x64 and arm64:
 > **https://github.com/arximus88/figma-linux-next/releases**
