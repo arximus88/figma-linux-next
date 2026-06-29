@@ -54,7 +54,7 @@
     margin: 0;
     padding: 0;
     border: none;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     font-size: var(--fontSize);
     font-weight: 400;
   }

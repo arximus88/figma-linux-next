@@ -141,7 +141,7 @@
     font-size: 12px;
     font-style: normal;
     font-weight: normal;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     white-space: normal;
     max-width: 220px;
     width: max-content;

@@ -316,7 +316,7 @@
     border: 1px solid var(--borders);
     border-radius: 6px;
     font-size: 13px;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     cursor: pointer;
     outline: none;
     transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -346,7 +346,7 @@
     border: 1px solid var(--borders);
     border-radius: 6px;
     font-size: 13px;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
@@ -375,7 +375,7 @@
   .mcp-snippet-title {
     font-size: 11px;
     color: var(--text-disabled);
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -388,7 +388,7 @@
     background: transparent;
     color: var(--text);
     cursor: pointer;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     transition: background-color 0.15s ease;
   }
 

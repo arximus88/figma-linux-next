@@ -20,7 +20,7 @@ test.describe("Settings", () => {
     await closeApp(handle);
   });
 
-  test("settings text uses the Inter font stack (not the serif fallback)", async () => {
+  test("settings text uses the native system sans (not the serif fallback)", async () => {
     const handle = await launchApp();
     await handle.app.evaluate(({ ipcMain }) => {
       ipcMain.emit("openSettings");
@@ -45,7 +45,9 @@ test.describe("Settings", () => {
     const fontFamily = await settingsPage.evaluate(
       () => getComputedStyle(document.body).fontFamily,
     );
-    expect(fontFamily.toLowerCase()).toContain("inter");
+    // Native system sans stack — never the browser default serif.
+    expect(fontFamily.toLowerCase()).toContain("system-ui");
+    expect(fontFamily.toLowerCase()).not.toContain("times");
 
     await closeApp(handle);
   });
