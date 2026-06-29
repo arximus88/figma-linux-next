@@ -1,33 +1,33 @@
 data-frame=windows
-div.svelte-suesy
+div
   {display:flex; width:1168px; height:40px; padding:0px; margin:0px; gap:0px; align-items:stretch; justify-content:normal; background-color:rgb(34, 34, 34); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
-  div.left.svelte-1w9j343
+  div.left
     {display:flex; width:77px; height:40px; padding:0px; margin:0px; gap:0px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
-    div.button__active.svelte-c9bfwv[role=button]
+    div.button__active[role=button]
       {display:flex; width:22px; height:40px; padding:0px 10px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(255, 255, 255, 0.15); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
       svg.svg
         {display:block; width:22px; height:22px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
         path
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(5, 5, 5); opacity:1}
-    div.svelte-wgl0qh[role=button]
+    div[role=button]
       {display:flex; width:15px; height:40px; padding:0px 10px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgb(34, 34, 34); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:0.4}
       svg.svg
         {display:block; width:15px; height:15px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
         path
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
-  div.svelte-1bpl1lo.tabs[role=tablist]
+  div.tabs[role=tablist]
     {display:flex; width:899px; height:40px; padding:0px 16px; margin:0px; gap:0px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
-    section.svelte-1jezhu3[role=list]
+    section[role=list]
       {display:flex; width:0px; height:0px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
-  div.controls.svelte-2l3b7y
+  div.controls
     {display:flex; width:160px; height:40px; padding:0px; margin:0px; gap:0px; align-items:stretch; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
-    div.svelte-c9bfwv[role=button]
+    div[role=button]
       {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
       svg
         {display:block; width:14px; height:14px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
         path
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
-    div.svelte-c9bfwv[role=button]
+    div[role=button]
       {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
       svg
         {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
@@ -37,7 +37,7 @@ div.svelte-suesy
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
           path
             {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
-    div.svelte-c9bfwv[role=button]
+    div[role=button]
       {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
       svg
         {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
@@ -45,7 +45,7 @@ div.svelte-suesy
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
           path
             {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
-    div.svelte-c9bfwv[role=button]
+    div[role=button]
       {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
       svg
         {display:block; width:16px; height:16px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}

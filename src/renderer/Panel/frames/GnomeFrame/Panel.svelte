@@ -1,15 +1,15 @@
 <script lang="ts">
   import { getFrameStyleVars } from "Utils/Render/frameTheme";
+  import FramedTabs from "../FramedTabs.svelte";
   import Left from "./Left.svelte";
   import Right from "./Right.svelte";
-  import Tabs from "./Tabs.svelte";
 
   let { zoom = 1 } = $props<{ zoom?: number }>();
 </script>
 
 <div id="panel" data-frame="gnome" style="zoom: {zoom}; {getFrameStyleVars('gnome')}">
   <Left />
-  <Tabs />
+  <FramedTabs style="gnome" />
   <Right />
 </div>
 

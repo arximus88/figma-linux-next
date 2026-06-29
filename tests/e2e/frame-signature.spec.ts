@@ -77,7 +77,13 @@ async function panelSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) 
 
     const lines: string[] = [];
     const walk = (el: Element, depth: number) => {
-      const cls = [...el.classList].sort().join(".");
+      // Drop Svelte's scoped-style hash classes (svelte-xxxx) — they are an
+      // implementation detail that changes when components are restructured,
+      // not a visual difference.
+      const cls = [...el.classList]
+        .filter((c) => !c.startsWith("svelte-"))
+        .sort()
+        .join(".");
       const role = el.getAttribute("role");
       const tag = el.tagName.toLowerCase();
       lines.push(
