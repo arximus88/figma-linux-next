@@ -1,16 +1,16 @@
 <script lang="ts">
   import { getFrameStyleVars } from "Utils/Render/frameTheme";
+  import FramedLeft from "../FramedLeft.svelte";
+  import FramedRight from "../FramedRight.svelte";
   import FramedTabs from "../FramedTabs.svelte";
-  import Left from "./Left.svelte";
-  import Right from "./Right.svelte";
 
   let { zoom = 1 } = $props<{ zoom?: number }>();
 </script>
 
 <div id="panel" data-frame="windows" style="zoom: {zoom}; {getFrameStyleVars('windows')}">
-  <Left />
+  <FramedLeft style="windows" />
   <FramedTabs style="windows" />
-  <Right />
+  <FramedRight style="windows" />
 </div>
 
 <style>

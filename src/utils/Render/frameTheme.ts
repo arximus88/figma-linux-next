@@ -118,7 +118,8 @@ const GNOME_CONFIG: FrameConfig = {
     plus: { component: GnomePlus, size: "16" },
   },
   right: {
-    menu: { component: GnomeMenu, size: "24" },
+    // Matches the rendered GnomeFrame menu button (was stale at "24").
+    menu: { component: GnomeMenu, size: "16" },
     minimize: { component: GnomeMinimize, size: "24" },
     maximize: { component: GnomeMaximize, size: "24" },
     close: { component: GnomeClose, size: "24" },
