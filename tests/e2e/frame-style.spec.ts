@@ -14,32 +14,8 @@ async function setFrameStyle(
 }
 
 test.describe("Window frame style", () => {
-  test("switches from GNOME to Windows style without crash", async () => {
-    const handle = await launchApp();
-    await handle.panel.waitForTimeout(300);
-
-    await setFrameStyle(handle.app, "windows");
-    await handle.panel.waitForTimeout(300);
-
-    expect(handle.app.windows().length).toBeGreaterThanOrEqual(1);
-
-    await closeApp(handle);
-  });
-
-  test("switches back from Windows to GNOME style", async () => {
-    const handle = await launchApp();
-    await handle.panel.waitForTimeout(300);
-
-    await setFrameStyle(handle.app, "windows");
-    await handle.panel.waitForTimeout(200);
-    await setFrameStyle(handle.app, "gnome");
-    await handle.panel.waitForTimeout(200);
-
-    expect(handle.app.windows().length).toBeGreaterThanOrEqual(1);
-
-    await closeApp(handle);
-  });
-
+  // Cycling gnome -> windows -> gnome also covers switching to and back from
+  // each style without crashing.
   test("cycles through all available styles", async () => {
     const handle = await launchApp();
     await handle.panel.waitForTimeout(300);

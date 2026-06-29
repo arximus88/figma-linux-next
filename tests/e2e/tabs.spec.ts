@@ -24,16 +24,25 @@ async function getWebContentsCount(
 }
 
 test.describe("Tab management", () => {
-  test("opens a new tab for a file URL", async () => {
+  // Covers: opening a file URL adds a tab, distinct file keys get distinct tabs,
+  // and several tabs can be opened in sequence.
+  test("opens a distinct tab for each new file URL", async () => {
     const handle = await launchApp();
     await handle.panel.waitForTimeout(800);
 
     const before = await getWebContentsCount(handle.app);
-    await openTab(handle.app, FILE_URL_A);
-    await handle.panel.waitForTimeout(600);
+    const urls = [FILE_URL_A, FILE_URL_B, "https://www.figma.com/design/CCC333ccc/gamma"];
 
-    const after = await getWebContentsCount(handle.app);
-    expect(after).toBeGreaterThan(before);
+    let prev = before;
+    for (const url of urls) {
+      await openTab(handle.app, url);
+      await handle.panel.waitForTimeout(500);
+      const now = await getWebContentsCount(handle.app);
+      expect(now).toBeGreaterThan(prev); // each distinct file adds a webContents
+      prev = now;
+    }
+
+    expect(await getWebContentsCount(handle.app)).toBeGreaterThanOrEqual(before + urls.length);
 
     await closeApp(handle);
   });
@@ -52,46 +61,6 @@ test.describe("Tab management", () => {
     const afterSecond = await getWebContentsCount(handle.app);
 
     expect(afterSecond).toBe(afterFirst);
-
-    await closeApp(handle);
-  });
-
-  test("opens separate tabs for different file keys", async () => {
-    const handle = await launchApp();
-    await handle.panel.waitForTimeout(800);
-
-    await openTab(handle.app, FILE_URL_A);
-    await handle.panel.waitForTimeout(500);
-    const afterFirst = await getWebContentsCount(handle.app);
-
-    await openTab(handle.app, FILE_URL_B);
-    await handle.panel.waitForTimeout(500);
-    const afterSecond = await getWebContentsCount(handle.app);
-
-    expect(afterSecond).toBeGreaterThan(afterFirst);
-
-    await closeApp(handle);
-  });
-
-  test("can open multiple different tabs", async () => {
-    const handle = await launchApp();
-    await handle.panel.waitForTimeout(800);
-
-    const base = await getWebContentsCount(handle.app);
-
-    const urls = [
-      "https://www.figma.com/design/AAA111aaa/alpha",
-      "https://www.figma.com/design/BBB222bbb/beta",
-      "https://www.figma.com/design/CCC333ccc/gamma",
-    ];
-
-    for (const url of urls) {
-      await openTab(handle.app, url);
-      await handle.panel.waitForTimeout(400);
-    }
-
-    const count = await getWebContentsCount(handle.app);
-    expect(count).toBeGreaterThanOrEqual(base + 3);
 
     await closeApp(handle);
   });
