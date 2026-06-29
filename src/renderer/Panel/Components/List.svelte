@@ -45,12 +45,15 @@
     tabCloseClass?: string;
   }>();
 
-  const flipDurationMs = 0;
-  const constrainAxisY = true;
+  // Live reorder: tabs slide to make room as you drag (FLIP). The shadow item
+  // (an invisible spacer the size of the dragged tab) is styled into a visible
+  // drop slot below, so you can see where the tab will land.
+  const flipDurationMs = 180;
+  const constrainAxisY = true; // lock Y → the dragged clone slides along the strip
   const morphDisabled = true;
-  const cursorStartDrag = "default";
-  const cursorDragging = "default";
-  const cursorDrop = "default";
+  const cursorStartDrag = "grabbing";
+  const cursorDragging = "grabbing";
+  const cursorDrop = "grabbing";
   const cursorHover = "default";
   const normalBgColor = "transparent";
   const hoverBgColor = "transparent";
@@ -86,7 +89,7 @@
   onfinalize={onDndFinalize as any}
 >
   {#each items as item, index (item.id)}
-    <div class={tabWrapperClass} animate:flip={{ duration: flipDurationMs }}>
+    <div class={tabWrapperClass} data-tab-id={item.id} animate:flip={{ duration: flipDurationMs }}>
       {#if showDividers && index > 0}
         <div
           class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"
@@ -136,12 +139,25 @@
     align-items: center;
     outline: none !important;
   }
+  /* Drop slot. The dnd library inserts a shadow clone of the dragged tab at the
+     drop position and hides it (visibility:hidden); it keeps the dragged tab's
+     footprint, so the surrounding tabs FLIP open to make room. We re-show the
+     wrapper box (but keep its cloned content hidden) and paint it as a
+     highlighted slot, so the landing spot is explicit. */
   :global([data-is-dnd-shadow-item]) {
-    width: 0 !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    visibility: visible !important;
+    box-sizing: border-box;
+    outline: 2px dashed rgba(255, 255, 255, 0.35);
+    outline-offset: -2px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  :global([data-is-dnd-shadow-item] > *) {
+    visibility: hidden;
+  }
+  /* Windows tabs are square; match the slot to the frame. */
+  :global([data-frame="windows"] [data-is-dnd-shadow-item]) {
+    border-radius: 0;
   }
 
   :global(.tab-skeleton-icon) {
