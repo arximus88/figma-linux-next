@@ -10,7 +10,6 @@
       "src/**/*.ts",
       "tests/**/*.ts",
       "!**/*.svelte",
-      "!src/renderer/svelte-dnd-action/**",
       "!src/renderer/Changelog/_data.ts",
       "!src/node_modules/**"
     ]

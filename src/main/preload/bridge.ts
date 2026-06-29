@@ -16,6 +16,7 @@ const SEND_CHANNELS = [
   "frontReady",
   "openMainMenu",
   "windowClose",
+  "reorderTabs",
   "windowMinimize",
   "windowMaximize",
   "closeTab",

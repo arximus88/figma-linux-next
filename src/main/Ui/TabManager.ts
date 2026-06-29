@@ -294,14 +294,25 @@ export default class TabManager {
   }
   public sortTabs(tabs: Types.TabFront[]) {
     const entries = [...this.tabs.entries()];
+    const next = new Map<number, Tab>();
+    const placed = new Set<number>();
 
-    this.tabs.clear();
-
+    // Apply the requested order for ids we actually have.
     for (const tab of tabs) {
-      const needed = entries.find(([_, t]) => t.id === tab.id);
-
-      this.tabs.set(needed[0], needed[1]);
+      const entry = entries.find(([key]) => key === tab.id);
+      if (entry && !placed.has(entry[0])) {
+        next.set(entry[0], entry[1]);
+        placed.add(entry[0]);
+      }
     }
+    // Preserve any existing tabs the payload didn't mention — never drop a tab.
+    for (const [key, tab] of entries) {
+      if (!placed.has(key)) {
+        next.set(key, tab);
+      }
+    }
+
+    this.tabs = next;
   }
 
   public getTabUrl(tabId: number) {

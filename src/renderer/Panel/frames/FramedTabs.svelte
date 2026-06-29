@@ -45,17 +45,19 @@
     closeTab(id);
   }
 
-  function onDndConsider(event: any) {
-    tabs.set(event.detail.items);
-  }
-
-  function onDndFinalize(event: any) {
-    const items = event.detail.items as Types.TabFront[];
-    tabs.set(
-      items
-        .map((tab, index) => ({ ...tab, order: tab.title === NEW_FILE_TAB_TITLE ? 0 : index + 1 }))
-        .sort((a, b) => (a.order > b.order ? 1 : -1)),
-    );
+  // The strip was reordered by drag. Renumber `order` from the new visual
+  // sequence (New file stays pinned first) and push it to the main process so
+  // the tab Map — and thus Ctrl+(Shift+)Tab cycling — follows the visual order
+  // immediately, not only on window close.
+  function onReorder(orderedIds: number[]) {
+    const byId = new Map(tabs.value.map((t) => [t.id, t]));
+    const next = orderedIds
+      .map((id) => byId.get(id))
+      .filter((t): t is Types.TabFront => !!t)
+      .map((tab, index) => ({ ...tab, order: tab.title === NEW_FILE_TAB_TITLE ? 0 : index + 1 }))
+      .sort((a, b) => (a.order > b.order ? 1 : -1));
+    tabs.set(next);
+    window.figmaApi.send("reorderTabs", $state.snapshot(next));
   }
 
   $effect(() => {
@@ -87,8 +89,7 @@
     tabCloseClass="{p}-tab-close"
     {onClickTitle}
     {onClickClose}
-    {onDndConsider}
-    {onDndFinalize}
+    {onReorder}
   />
 </div>
 

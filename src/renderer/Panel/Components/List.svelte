@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Component } from "svelte";
-  import { flip } from "svelte/animate";
-  import { dndzone } from "../../svelte-dnd-action";
+  import { tabReorder } from "./tabReorder";
   import { ButtonTool } from "Common/Buttons";
   import { Loader } from "Icons";
   import { Spiner } from "Common";
@@ -13,8 +12,7 @@
     items = $bindable([]),
     onClickTitle = (event: MouseEvent, id: number) => {},
     onClickClose = (event: any, id: number) => {},
-    onDndConsider = (event: any) => {},
-    onDndFinalize = (event: any) => {},
+    onReorder = (orderedIds: number[]) => {},
     // Style props — provided by each frame's Tabs component
     closeIcon,
     closeIconSize,
@@ -31,8 +29,7 @@
     items: Types.TabFront[];
     onClickTitle: (event: MouseEvent, id: number) => void;
     onClickClose: (event: any, id: number) => void;
-    onDndConsider: (event: any) => void;
-    onDndFinalize: (event: any) => void;
+    onReorder: (orderedIds: number[]) => void;
     closeIcon: Component<any>;
     closeIconSize: string;
     showDividers?: boolean;
@@ -45,16 +42,6 @@
     tabCloseClass?: string;
   }>();
 
-  // Live reorder: tabs slide to make room as you drag (FLIP). The shadow item
-  // (an invisible spacer the size of the dragged tab) is styled into a visible
-  // drop slot below, so you can see where the tab will land.
-  const flipDurationMs = 180;
-  const constrainAxisY = true; // lock Y → the dragged clone slides along the strip
-  const morphDisabled = true;
-  const cursorStartDrag = "grabbing";
-  const cursorDragging = "grabbing";
-  const cursorDrop = "grabbing";
-  const cursorHover = "default";
   const normalBgColor = "transparent";
   const hoverBgColor = "transparent";
 
@@ -74,34 +61,22 @@
   });
 </script>
 
-<section
-  use:dndzone={{
-    items,
-    flipDurationMs,
-    morphDisabled,
-    constrainAxisY,
-    cursorStartDrag,
-    cursorDragging,
-    cursorDrop,
-    cursorHover,
-  }}
-  onconsider={onDndConsider as any}
-  onfinalize={onDndFinalize as any}
->
+<section use:tabReorder={{ onReorder, enabled: items.length > 1 }}>
   {#each items as item, index (item.id)}
-    <div
-      class={tabWrapperClass}
-      data-tab-id={item.id}
-      data-loading={item.loading}
-      animate:flip={{ duration: flipDurationMs }}
-    >
+    <div class={tabWrapperClass} data-tab-id={item.id} data-loading={item.loading}>
       {#if showDividers && index > 0}
         <div
           class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"
         ></div>
       {/if}
       <div class="{tabClass} {currentTabId === item.id ? tabActiveClass : ''}">
-        <div role="button" tabindex="0" class={tabTextClass} onmouseup={(e) => onClickTitle(e, item.id)}>
+        <div
+          role="button"
+          tabindex="0"
+          class={tabTextClass}
+          data-drag-handle
+          onmouseup={(e) => onClickTitle(e, item.id)}
+        >
           {#if (item.loading || !item.title) && item.title !== NEW_FILE_TAB_TITLE}
             <span class="tab-skeleton-icon"></span>
             <span class="tab-skeleton-title"></span>
@@ -144,25 +119,16 @@
     align-items: center;
     outline: none !important;
   }
-  /* Drop slot. The dnd library inserts a shadow clone of the dragged tab at the
-     drop position and hides it (visibility:hidden); it keeps the dragged tab's
-     footprint, so the surrounding tabs FLIP open to make room. We re-show the
-     wrapper box (but keep its cloned content hidden) and paint it as a
-     highlighted slot, so the landing spot is explicit. */
-  :global([data-is-dnd-shadow-item]) {
-    visibility: visible !important;
-    box-sizing: border-box;
-    outline: 2px dashed rgba(255, 255, 255, 0.35);
-    outline-offset: -2px;
+  /* The grabbed tab while dragging. tabReorder sets translateX inline so it
+     follows the cursor; the neighbours slide via their own transform transition
+     to open the drop gap. Lift it above the row and drop a soft shadow so it
+     reads as "picked up". */
+  :global(.tab-dragging) {
+    z-index: 5;
+    opacity: 0.97;
+    cursor: grabbing;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.07);
-  }
-  :global([data-is-dnd-shadow-item] > *) {
-    visibility: hidden;
-  }
-  /* Windows tabs are square; match the slot to the frame. */
-  :global([data-frame="windows"] [data-is-dnd-shadow-item]) {
-    border-radius: 0;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
   }
 
   :global(.tab-skeleton-icon) {

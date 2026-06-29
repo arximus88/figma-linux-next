@@ -2,17 +2,15 @@ import { expect, test } from "@playwright/test";
 import { type AppHandle, closeApp, launchApp } from "./helpers/launch";
 
 /**
- * Tab drag-and-drop reorder.
+ * Tab drag reorder (bespoke pointer reorder — src/renderer/Panel/Components/tabReorder.ts).
  *
- * Drives the real pointer-based DnD (svelte-dnd-action) with synthetic mouse
- * events and asserts the two things the "live reorder" fix restored:
- *   1. mid-drag a visible placeholder slot exists with a non-zero footprint
- *      (the regression: the shadow item used to be collapsed to width:0, so the
- *      other tabs closed ranks with no indication of the drop target);
- *   2. on drop the tab order actually changes.
- *
- * Animation *smoothness* (FLIP) is not assertable here; presence + footprint of
- * the placeholder and the reorder outcome are.
+ * Drives the real pointer reorder with synthetic mouse input and asserts:
+ *   1. mid-drag the grabbed tab is lifted (.tab-dragging present);
+ *   2. on drop the visual order changes to match the drag;
+ *   3. nothing is left in a dragging/transformed state after the drop
+ *      (the old vendored lib could leave a tab stuck as an empty slot);
+ *   4. tab cycling order (getNextTabId) follows the new visual order — i.e. the
+ *      reorder was pushed to the main process, not deferred to window close.
  */
 
 const URLS = [
@@ -27,7 +25,6 @@ async function openTab(app: AppHandle["app"], url: string) {
   }, url);
 }
 
-/** The panel page hosts #panel; app.firstWindow() is not reliably it. */
 async function findPanelPage(app: AppHandle["app"]) {
   for (let i = 0; i < 50; i++) {
     for (const page of app.windows()) {
@@ -41,16 +38,14 @@ async function findPanelPage(app: AppHandle["app"]) {
 
 type Panel = Awaited<ReturnType<typeof findPanelPage>>;
 
-const TAB_SEL = "#panel [data-tab-id]:not([data-is-dnd-shadow-item])";
+const TAB_SEL = "#panel [data-tab-id]";
 
-/** Ordered list of tab ids currently rendered in the strip (shadow excluded). */
 async function tabOrder(panel: Panel): Promise<string[]> {
   return panel.evaluate((sel) => {
     return [...document.querySelectorAll(sel)].map((el) => el.getAttribute("data-tab-id") ?? "");
   }, TAB_SEL);
 }
 
-/** Wait until at least `n` tab chips are present. */
 async function waitForTabs(panel: Panel, n: number) {
   for (let i = 0; i < 50; i++) {
     if ((await tabOrder(panel)).length >= n) return;
@@ -59,8 +54,21 @@ async function waitForTabs(panel: Panel, n: number) {
   throw new Error(`strip never reached ${n} tabs`);
 }
 
+/** Bounding box of the drag handle (title area) of the tab at `index`. */
+async function handleBox(panel: Panel, index: number) {
+  const box = await panel.evaluate((i) => {
+    const wrappers = [...document.querySelectorAll("#panel [data-tab-id]")];
+    const handle = wrappers[i]?.querySelector("[data-drag-handle]");
+    if (!handle) return null;
+    const r = handle.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  }, index);
+  if (!box) throw new Error(`no drag handle at index ${index}`);
+  return box;
+}
+
 test.describe("Tab drag reorder", () => {
-  test("dragging a tab shows a placeholder slot and reorders the strip", async () => {
+  test("reorders the strip and keeps cycling order in sync", async () => {
     const handle = await launchApp({ settings: { app: { frameStyle: "gnome" } } });
     const panel = await findPanelPage(handle.app);
 
@@ -68,57 +76,71 @@ test.describe("Tab drag reorder", () => {
       await openTab(handle.app, url);
       await panel.waitForTimeout(300);
     }
-    // file tabs + the always-present New file tab
     await waitForTabs(panel, URLS.length);
 
     const before = await tabOrder(panel);
     expect(before.length).toBeGreaterThanOrEqual(3);
 
-    // Drag the first chip toward the last chip's position.
-    const boxes = await panel.evaluate((sel) => {
-      return [...document.querySelectorAll(sel)].map((el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y, w: r.width, h: r.height };
-      });
-    }, TAB_SEL);
-
-    const src = boxes[0];
-    const dst = boxes[boxes.length - 1];
+    // Drag the first tab past the last tab's centre.
+    const src = await handleBox(panel, 0);
+    const dst = await handleBox(panel, before.length - 1);
     const y = src.y + src.h / 2;
     const startX = src.x + src.w / 2;
-    const endX = dst.x + dst.w / 2;
+    const endX = dst.x + dst.w / 2 + 10;
 
     await panel.mouse.move(startX, y);
     await panel.mouse.down();
-    // Cross the ~3px drag-start threshold, then step toward the target. Y stays
-    // fixed (the dnd config locks the Y axis for the horizontal strip).
-    await panel.mouse.move(startX + 8, y);
-    await panel.waitForTimeout(120);
+    await panel.mouse.move(startX + 8, y); // cross the threshold
+    await panel.waitForTimeout(60);
 
     const steps = 6;
     for (let i = 1; i <= steps; i++) {
       await panel.mouse.move(startX + ((endX - startX) * i) / steps, y);
-      await panel.waitForTimeout(80);
+      await panel.waitForTimeout(40);
     }
 
-    // Mid-drag: the placeholder slot must exist and occupy real width.
-    const shadow = await panel.evaluate(() => {
-      const el = document.querySelector("#panel [data-is-dnd-shadow-item]");
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { w: r.width, h: r.height };
-    });
-    expect(shadow, "placeholder shadow element should be present mid-drag").not.toBeNull();
-    expect(shadow!.w, "placeholder slot should have a non-zero width").toBeGreaterThan(4);
+    // Mid-drag: the grabbed tab is lifted.
+    const lifted = await panel.evaluate(() => document.querySelectorAll(".tab-dragging").length);
+    expect(lifted, "grabbed tab should be lifted mid-drag").toBe(1);
 
     await panel.mouse.up();
     await panel.waitForTimeout(300);
 
+    // The first tab moved to the end; order changed.
     const after = await tabOrder(panel);
-    // Same set of tabs, different sequence — the dragged (first) tab moved right.
     expect(after.length).toBe(before.length);
     expect(after).not.toEqual(before);
-    expect(after[0]).not.toBe(before[0]);
+    expect(after[after.length - 1]).toBe(before[0]);
+
+    // Nothing left in a dragging / transformed state (the old lib could stick).
+    const residue = await panel.evaluate(() => {
+      const dragging = document.querySelectorAll(".tab-dragging").length;
+      const transformed = [...document.querySelectorAll("#panel [data-tab-id]")].filter(
+        (el) => (el as HTMLElement).style.transform !== "",
+      ).length;
+      return { dragging, transformed };
+    });
+    expect(residue.dragging).toBe(0);
+    expect(residue.transformed).toBe(0);
+
+    // Cycling order follows the new visual order: focusing the new first tab and
+    // advancing lands on the new second tab (proves the reorder reached main).
+    const firstId = Number(after[0]);
+    const secondId = Number(after[1]);
+    await handle.app.evaluate(
+      ({ ipcMain, app: electronApp }, id) => {
+        ipcMain.emit("setTabFocus", { sender: { id: -1 } }, id);
+        electronApp.emit("focusNextTab");
+      },
+      firstId,
+    );
+    await panel.waitForTimeout(200);
+
+    const activeId = await panel.evaluate(() => {
+      const active = document.querySelector('#panel [class*="-tab--active"]');
+      return active?.closest("[data-tab-id]")?.getAttribute("data-tab-id") ?? null;
+    });
+    expect(Number(activeId)).toBe(secondId);
 
     await closeApp(handle);
   });

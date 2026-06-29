@@ -19,7 +19,7 @@ div
           {display:inline; width:auto; height:auto; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(51, 51, 51); opacity:1}
   div.tabs[role=tablist]
     {display:flex; width:911px; height:0px; padding:0px; margin:0px; gap:2px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgba(255, 255, 255, 0.8); opacity:1}
-    section[role=list]
+    section
       {display:flex; width:0px; height:0px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgba(255, 255, 255, 0.8); opacity:1}
   div.controls
     {display:flex; width:142px; height:34px; padding:0px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(0, 0, 0); opacity:1}
