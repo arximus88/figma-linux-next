@@ -1,48 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { LogLevel } from "Types/enums";
+import { BASE_DEFAULT_SETTINGS } from "Utils/Common/defaultSettings";
 
+// Main-process defaults: the shared env-independent base plus the fields that
+// require a Node runtime (a random clientId and $HOME-derived paths). These are
+// the values actually persisted to settings.json by Storage.
 export const DEFAULT_SETTINGS: Types.SettingsInterface = {
+  ...BASE_DEFAULT_SETTINGS,
   clientId: randomUUID(),
-  userId: "",
-  authedUserIDs: [],
   app: {
-    logLevel: LogLevel.INFO,
-    lastTimeClearLogFile: 0,
-    enableColorSpaceSrgb: false,
-    enableWebGPU: false,
-    useZenity: false,
-    panelHeight: 40,
-    saveLastOpenedTabs: true,
+    ...BASE_DEFAULT_SETTINGS.app,
     exportDir: `${process.env.HOME}/Pictures/Figma`,
-    commandSwitches: [
-      { switch: "enable-experimental-canvas-features" },
-      // Vulkan switches (use-vulkan, enable-unsafe-webgpu) are managed automatically
-      // by App.ts based on session type (Wayland vs X11). Add them here only to
-      // force-enable on Wayland.
-    ],
-    fontDirs: [
-      "/usr/share/fonts",
-      "/usr/local/share/fonts",
-      "/run/host/fonts",
-      "/run/host/user-fonts",
-      `${process.env.HOME}/.local/share/fonts`,
-    ],
-    recentlyClosedTabs: [],
-    windowsState: {},
-    lastOpenedTabs: {},
-    featureFlags: {},
-    frameStyle: "gnome" as Types.FrameStyle,
-    hideWindowMinMaxButtons: false,
-    savedExtensions: [],
-    figmaTheme: "dark" as "dark" | "light",
-  },
-  mcp: {
-    enableWriteTools: false,
-    cdpEnabled: false,
-    remoteDebugPort: 9222,
-  },
-  ui: {
-    scalePanel: 1,
-    scaleFigmaUI: 1,
+    fontDirs: [...BASE_DEFAULT_SETTINGS.app.fontDirs, `${process.env.HOME}/.local/share/fonts`],
   },
 };
