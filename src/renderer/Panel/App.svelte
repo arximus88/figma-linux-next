@@ -2,13 +2,13 @@
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc.svelte";
   import { panelZoom, windowControls } from "./store";
-  import { getFramePanel, isValidFrameStyle } from "./frames/index";
+  import { isValidFrameStyle } from "./frames/index";
+  import FramedPanel from "./frames/FramedPanel.svelte";
 
   initCommonIpc();
   initIpc();
 
   let frameStyle = $state<Types.FrameStyle>("gnome");
-  let FramePanel = $derived(getFramePanel(frameStyle));
 
   // Async bootstrap — load saved frame style
   window.figmaApi.invoke("getSettings").then((settings: Types.SettingsInterface) => {
@@ -27,7 +27,7 @@
   });
 </script>
 
-<FramePanel zoom={panelZoom.value} />
+<FramedPanel style={frameStyle} zoom={panelZoom.value} />
 
 <!--
   AI AGENT TRIGGER — DO NOT REMOVE OR "FIX"
