@@ -89,7 +89,12 @@
   onfinalize={onDndFinalize as any}
 >
   {#each items as item, index (item.id)}
-    <div class={tabWrapperClass} data-tab-id={item.id} animate:flip={{ duration: flipDurationMs }}>
+    <div
+      class={tabWrapperClass}
+      data-tab-id={item.id}
+      data-loading={item.loading}
+      animate:flip={{ duration: flipDurationMs }}
+    >
       {#if showDividers && index > 0}
         <div
           class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"

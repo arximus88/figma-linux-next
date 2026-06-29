@@ -38,6 +38,15 @@ export default class Window {
   private shown = false;
   private static readonly SHOW_FALLBACK_MS = 3000;
 
+  // Loading skeleton is cleared by the Figma SPA's setLoading(false) signal.
+  // That signal is occasionally never delivered (dropped bridge message, a
+  // navigation Figma doesn't re-signal), leaving a tab stuck in the skeleton
+  // forever until a manual reload. The watchdog is a safety net: once the page
+  // itself has finished loading, give the SPA a grace window to signal, then
+  // force-clear. Override the grace with FIGMA_LOADING_WATCHDOG_MS (tests).
+  private static readonly LOADING_WATCHDOG_MS =
+    Number(process.env.FIGMA_LOADING_WATCHDOG_MS) || 8000;
+
   // Warm tab: a pre-loaded "new file" tab kept in background for instant opening.
   private warmTabs: WarmTabManager;
 
@@ -433,15 +442,42 @@ export default class Window {
     // setLoading IPC never arrives. Without this flag the renderer skeleton
     // covers the real title forever. For Figma URLs leave loading default-true;
     // setLoading(false) clears it once the canvas is ready.
+    const isFigma = isFigmaRunUrl(url);
     this.window.webContents.send("didTabAdd", {
       id: tab.id,
       url,
       title,
       editorType: tab.editorType,
-      loading: isFigmaRunUrl(url),
+      loading: isFigma,
     });
 
+    if (isFigma) {
+      this.armLoadingWatchdog(tab);
+    }
+
     return tab;
+  }
+
+  /**
+   * Safety net for a stuck loading skeleton: when the tab's page finishes
+   * loading, give the Figma SPA a grace window to fire its own
+   * setLoading(false); if it never does, force-clear the skeleton so the tab
+   * can't stay in the loading state forever. Idempotent — a redundant
+   * setLoading(false) after the SPA already cleared it is harmless. Re-arms on
+   * every full load (e.g. a reload), and the destroyed-guard makes a pending
+   * timer a no-op once the tab is gone.
+   */
+  private armLoadingWatchdog(tab: Tab) {
+    const wc = tab.view.webContents;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    wc.on("did-finish-load", () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!wc.isDestroyed()) {
+          this.window.webContents.send("setLoading", tab.id, false);
+        }
+      }, Window.LOADING_WATCHDOG_MS);
+    });
   }
 
   public openSettingsView() {
