@@ -30,8 +30,29 @@ export interface McpSession {
   clientInfo?: { name: string; version: string };
 }
 
+/**
+ * Every MCP tool the server implements. This union is the single source of
+ * truth: the tool definitions (tools/definitions.ts) and the dispatch table
+ * (McpServer.dispatchTool) are both keyed by it, so tsc flags any drift —
+ * an advertised tool with no handler, or a handler for an unadvertised name.
+ */
+export type ToolName =
+  | "get_design_context"
+  | "get_metadata"
+  | "get_file_info"
+  | "get_screenshot"
+  | "get_variable_defs"
+  | "get_code_connect_map"
+  | "add_code_connect_map"
+  | "create_design_system_rules"
+  | "get_figjam"
+  | "generate_diagram"
+  | "search_design_system"
+  | "use_figma"
+  | "create_new_file";
+
 export interface ToolDefinition {
-  name: string;
+  name: ToolName;
   description: string;
   inputSchema: Record<string, unknown>;
 }

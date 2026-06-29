@@ -36,6 +36,7 @@ import type {
   JsonRpcRequest,
   JsonRpcResponse,
   Logger,
+  ToolName,
 } from "./types";
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
@@ -438,51 +439,50 @@ export class McpServer {
 
   // ── Tool Dispatch ────────────────────────────────────────────────────────
 
+  private static readonly WRITE_TOOLS_DISABLED =
+    "Write tools are disabled. Enable them in Settings → General → MCP Server.";
+
+  /**
+   * Tool dispatch table. Keyed by ToolName so tsc enforces a 1:1 mapping with
+   * the advertised tool definitions — a missing or stray handler is a compile
+   * error, not a runtime "Unknown tool". `write: true` marks tools gated behind
+   * the write-tools setting; the gate is checked once in dispatchTool, so a new
+   * write tool cannot accidentally ship without the guard.
+   */
+  private static readonly DISPATCH: Record<
+    ToolName,
+    { write?: true; run: (h: ToolHandlers, args: Record<string, unknown>) => unknown }
+  > = {
+    get_design_context: { run: (h, a) => h.toolGetDesignContext(a) },
+    get_metadata: { run: (h, a) => h.toolGetMetadata(a) },
+    get_file_info: { run: (h) => h.toolGetFileInfo() },
+    get_screenshot: { run: (h, a) => h.toolGetScreenshot(a) },
+    get_variable_defs: { run: (h, a) => h.toolGetVariableDefs(a) },
+    get_code_connect_map: { run: (h) => h.toolGetCodeConnectMap() },
+    add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },
+    create_design_system_rules: { run: (h, a) => h.toolCreateDesignSystemRules(a) },
+    get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
+    generate_diagram: { run: (h, a) => h.toolGenerateDiagram(a) },
+    search_design_system: { run: (h, a) => h.toolSearchDesignSystem(a) },
+    use_figma: { write: true, run: (h, a) => h.toolUseFigma(a) },
+    create_new_file: { write: true, run: (h, a) => h.toolCreateNewFile(a) },
+  };
+
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     if (!this.viewProvider || !this.handlers) {
       return toolError("No Figma window open — open a file first");
     }
-    const h = this.handlers;
+
+    const entry = McpServer.DISPATCH[name as ToolName];
+    if (!entry) {
+      return toolError(`Unknown tool: ${name}`);
+    }
+    if (entry.write && !this._writeToolsEnabled) {
+      return toolError(McpServer.WRITE_TOOLS_DISABLED);
+    }
 
     try {
-      switch (name) {
-        case "get_design_context":
-          return await h.toolGetDesignContext(args);
-        case "get_metadata":
-          return await h.toolGetMetadata(args);
-        case "get_file_info":
-          return await h.toolGetFileInfo();
-        case "get_screenshot":
-          return await h.toolGetScreenshot(args);
-        case "get_variable_defs":
-          return await h.toolGetVariableDefs(args);
-        case "get_code_connect_map":
-          return h.toolGetCodeConnectMap();
-        case "add_code_connect_map":
-          return h.toolAddCodeConnectMap(args);
-        case "create_design_system_rules":
-          return await h.toolCreateDesignSystemRules(args);
-        case "get_figjam":
-          return await h.toolGetFigjam(args);
-        case "generate_diagram":
-          return await h.toolGenerateDiagram(args);
-        case "search_design_system":
-          return await h.toolSearchDesignSystem(args);
-        case "use_figma":
-          if (!this._writeToolsEnabled)
-            return toolError(
-              "Write tools are disabled. Enable them in Settings → General → MCP Server.",
-            );
-          return await h.toolUseFigma(args);
-        case "create_new_file":
-          if (!this._writeToolsEnabled)
-            return toolError(
-              "Write tools are disabled. Enable them in Settings → General → MCP Server.",
-            );
-          return await h.toolCreateNewFile(args);
-        default:
-          return toolError(`Unknown tool: ${name}`);
-      }
+      return await entry.run(this.handlers, args);
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
       return toolError(err?.message ?? String(err));
