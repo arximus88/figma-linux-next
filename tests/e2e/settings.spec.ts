@@ -20,6 +20,36 @@ test.describe("Settings", () => {
     await closeApp(handle);
   });
 
+  test("settings text uses the Inter font stack (not the serif fallback)", async () => {
+    const handle = await launchApp();
+    await handle.app.evaluate(({ ipcMain }) => {
+      ipcMain.emit("openSettings");
+    });
+    await handle.panel.waitForTimeout(500);
+
+    let settingsPage: any = null;
+    for (let i = 0; i < 30 && !settingsPage; i++) {
+      for (const page of handle.app.windows()) {
+        const has = await page
+          .evaluate(() => !!document.querySelector("#settings"))
+          .catch(() => false);
+        if (has) {
+          settingsPage = page;
+          break;
+        }
+      }
+      if (!settingsPage) await handle.panel.waitForTimeout(100);
+    }
+    expect(settingsPage, "settings page (#settings) not found").not.toBeNull();
+
+    const fontFamily = await settingsPage.evaluate(
+      () => getComputedStyle(document.body).fontFamily,
+    );
+    expect(fontFamily.toLowerCase()).toContain("inter");
+
+    await closeApp(handle);
+  });
+
   test("settings view opens and closes without crash", async () => {
     const handle = await launchApp();
     const { app } = handle;

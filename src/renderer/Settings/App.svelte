@@ -38,6 +38,11 @@
   }
   :global(body) {
     background-color: rgba(0, 0, 0, 0.5);
+    /* Base font for the whole Settings window. Without this, any text that
+       doesn't set its own font-family (section headers, the title) falls back
+       to the browser default serif (Times) — the "broken" look. Mirrors the
+       Panel's Inter base, with a sans fallback so it never renders serif. */
+    font-family: "Inter", system-ui, sans-serif;
   }
   div {
     display: flex;
