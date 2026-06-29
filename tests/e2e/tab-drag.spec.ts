@@ -90,6 +90,15 @@ test.describe("Tab drag reorder", () => {
 
     await panel.mouse.move(startX, y);
     await panel.mouse.down();
+
+    // Grabbing activates the tab immediately (browser-style) so you always drag
+    // the visually-distinct active tab, not a transparent one.
+    const activeOnGrab = await panel.evaluate(() => {
+      const active = document.querySelector('#panel [class*="-tab--active"]');
+      return active?.closest("[data-tab-id]")?.getAttribute("data-tab-id") ?? null;
+    });
+    expect(activeOnGrab).toBe(before[0]);
+
     await panel.mouse.move(startX + 8, y); // cross the threshold
     await panel.waitForTimeout(60);
 

@@ -22,6 +22,13 @@
 export interface TabReorderOptions {
   /** Called once on drop with the new full id order (left→right). */
   onReorder: (orderedIds: number[]) => void;
+  /**
+   * Called on pointerdown with the grabbed tab id, before any drag — so the
+   * grabbed tab activates immediately (browser-style) and you always drag the
+   * visually-distinct active tab instead of a transparent one that blends into
+   * the tab it overlaps.
+   */
+  onActivate?: (id: number) => void;
   /** When false the action is inert (e.g. fewer than 2 tabs). */
   enabled?: boolean;
 }
@@ -77,6 +84,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     startX = e.clientX;
     grabbedId = Number(wrapper.dataset.tabId);
     active = false;
+    options.onActivate?.(grabbedId);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);

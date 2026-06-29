@@ -13,6 +13,7 @@
     onClickTitle = (event: MouseEvent, id: number) => {},
     onClickClose = (event: any, id: number) => {},
     onReorder = (orderedIds: number[]) => {},
+    onActivate = (id: number) => {},
     // Style props — provided by each frame's Tabs component
     closeIcon,
     closeIconSize,
@@ -30,6 +31,7 @@
     onClickTitle: (event: MouseEvent, id: number) => void;
     onClickClose: (event: any, id: number) => void;
     onReorder: (orderedIds: number[]) => void;
+    onActivate: (id: number) => void;
     closeIcon: Component<any>;
     closeIconSize: string;
     showDividers?: boolean;
@@ -61,7 +63,7 @@
   });
 </script>
 
-<section use:tabReorder={{ onReorder, enabled: items.length > 1 }}>
+<section use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}>
   {#each items as item, index (item.id)}
     <div class={tabWrapperClass} data-tab-id={item.id} data-loading={item.loading}>
       {#if showDividers && index > 0}
@@ -129,6 +131,9 @@
     cursor: grabbing;
     border-radius: 8px;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    /* Solid fill so the lifted tab never blends into the one it overlaps —
+       even the New file tab, which isn't activated on grab. */
+    background: #3d3d40;
   }
 
   :global(.tab-skeleton-icon) {
