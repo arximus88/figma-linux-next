@@ -1,0 +1,26 @@
+[Desktop Entry]
+Name=Figma Linux Next
+GenericName=Interface Design Tool
+Comment=Collaborative interface design tool with native Linux optimizations
+Exec=figma-linux-next %U
+Terminal=false
+Type=Application
+Icon=app.borys.FigmaLinuxNext
+StartupWMClass=figma-linux-next
+Categories=Graphics;Design;VectorGraphics;
+MimeType=x-scheme-handler/figma;application/x-figma;
+Keywords=design;figma;ui;ux;interface;prototype;vector;
+StartupNotify=true
+Actions=NewWindow;NewFile;NewFigJam;
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=figma-linux-next --new-window
+
+[Desktop Action NewFile]
+Name=New Design File
+Exec=figma-linux-next --new-file=design
+
+[Desktop Action NewFigJam]
+Name=New FigJam Board
+Exec=figma-linux-next --new-file=figjam
