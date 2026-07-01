@@ -73,7 +73,8 @@ export const TOOLS: ToolDefinition[] = [
     name: "get_screenshot",
     description:
       "Capture a screenshot of the currently selected node or the visible canvas. " +
-      "Returns a local URL (http://127.0.0.1:3845/assets/<id>.png) that can be fetched " +
+      "Returns a local URL (http://127.0.0.1:<mcpPort>/assets/<id>.png, on the MCP server's " +
+      "configured port) that can be fetched " +
       "to get the PNG image data. Helps preserve layout fidelity in generated code. " +
       "Recommended to keep on — only skip if concerned about token limits. " +
       "Supports Figma Design and FigJam files.",

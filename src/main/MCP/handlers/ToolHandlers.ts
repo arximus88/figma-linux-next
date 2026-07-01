@@ -11,7 +11,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { MCP_HOST, MCP_PORT } from "../config";
+import { MCP_HOST } from "../config";
 import {
   CREATE_PAGE_SCRIPT,
   DESIGN_CONTEXT_SCRIPT,
@@ -41,6 +41,8 @@ export interface ToolContext {
   log: Logger;
   codeConnectMap: Map<string, CodeConnectEntry>;
   assetStore: Map<string, AssetEntry>;
+  /** The port the MCP server is actually bound to (may differ from the default). */
+  getPort: () => number;
 }
 
 export class ToolHandlers {
@@ -286,7 +288,7 @@ export class ToolHandlers {
             const assetId = `${crypto.randomUUID()}.png`;
             this.ctx.assetStore.set(assetId, { data: buffer, contentType: "image/png" });
             setTimeout(() => this.ctx.assetStore.delete(assetId), 10 * 60 * 1000);
-            screenshots[nid] = `http://${MCP_HOST}:${MCP_PORT}/assets/${assetId}`;
+            screenshots[nid] = `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${assetId}`;
           }
         } catch {
           /* skip */

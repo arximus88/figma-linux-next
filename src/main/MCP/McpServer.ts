@@ -79,6 +79,7 @@ export class McpServer {
       log: this.log,
       codeConnectMap: this.codeConnectMap,
       assetStore: this.assetStore,
+      getPort: () => this._boundPort,
     });
     this.log.info("View provider attached");
   }
@@ -107,6 +108,14 @@ export class McpServer {
 
   /** Start the HTTP server. */
   public start(port = MCP_PORT, host = MCP_HOST): Promise<{ didStart: boolean; port: number }> {
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      // Guards against a corrupted/empty settings value (e.g. NaN from a blank
+      // port field) reaching http.Server.listen(), which would bind a random
+      // port and store a bogus _boundPort.
+      this.log.warn(`Invalid MCP port ${port} — falling back to ${MCP_PORT}`);
+      port = MCP_PORT;
+    }
+
     if (this._isRunning) {
       this.log.info("MCP server already running");
       return Promise.resolve({ didStart: true, port });

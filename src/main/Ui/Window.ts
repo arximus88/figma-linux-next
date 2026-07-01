@@ -390,8 +390,13 @@ export default class Window {
     if (!tab) return false;
 
     tab.loadUrl(args.url);
-    this.closeTab(newFileTab.id);
-    this.tabWasClosed(newFileTab.id);
+    // newFileTab may be absent (e.g. the file was opened without going through
+    // the New-file tab); guard like closeNewFileTab() does — otherwise
+    // newFileTab.id throws and the just-created tab is left unfocused.
+    if (newFileTab) {
+      this.closeTab(newFileTab.id);
+      this.tabWasClosed(newFileTab.id);
+    }
 
     this.window.webContents.send("newFileBtnVisible", true);
 

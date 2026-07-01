@@ -657,7 +657,7 @@ export const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
 ${HELPERS_PREAMBLE}
-    const q = "${query}".toLowerCase();
+    const q = ${JSON.stringify(query)}.toLowerCase();
     const results = { variables: [], styles: [], components: [] };
 
     // Search local variables
@@ -726,7 +726,7 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
     if (!figma) return { error: "Figma Plugin API not available" };
 ${HELPERS_PREAMBLE}
     const params = ${params};
-    const action = "${action}";
+    const action = ${JSON.stringify(action)};
 
     switch (action) {
       case 'create_frame': {
@@ -887,7 +887,7 @@ export const CREATE_PAGE_SCRIPT = (pageName: string) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
     const page = figma.createPage();
-    page.name = "${pageName}";
+    page.name = ${JSON.stringify(pageName)};
     figma.currentPage = page;
     return { success: true, pageId: page.id, pageName: page.name };
   } catch (e) {
