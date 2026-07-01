@@ -55,6 +55,7 @@ export class McpServer {
   private handlers: ToolHandlers | null = null;
   private _isRunning = false;
   private _writeToolsEnabled = false;
+  private _boundPort = MCP_PORT;
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
@@ -63,6 +64,11 @@ export class McpServer {
 
   public get isRunning(): boolean {
     return this._isRunning;
+  }
+
+  /** Runtime status for the settings UI: is the listener up, and on which port. */
+  public getStatus(): { listening: boolean; port: number } {
+    return { listening: this._isRunning, port: this._boundPort };
   }
 
   /** Set the provider that gives us access to the Figma webContents. */
@@ -121,6 +127,7 @@ export class McpServer {
 
       this.server.listen(port, host, () => {
         this._isRunning = true;
+        this._boundPort = port;
         this.log.info(`MCP server running at http://${host}:${port}/mcp`);
         this.sessions.startReaper();
         resolve({ didStart: true, port });
@@ -130,14 +137,42 @@ export class McpServer {
 
   /** Stop the HTTP server and clean up all sessions. */
   public stop(): void {
+    void this.closeServer();
+  }
+
+  /**
+   * Restart the listener on a (possibly new) port — used when the user changes
+   * the server port in settings. No app restart needed; this is our own
+   * http.Server. Waits for the old listener to fully close first.
+   */
+  public async restart(
+    port = MCP_PORT,
+    host = MCP_HOST,
+  ): Promise<{ didStart: boolean; port: number }> {
+    await this.closeServer();
+    this.log.info(`MCP server restarting on port ${port}`);
+    return this.start(port, host);
+  }
+
+  /** Close the listener and resolve once it has fully released the port. */
+  private closeServer(): Promise<void> {
     this.sessions.shutdown();
 
-    if (this.server) {
-      this.server.close();
-      this.server = null;
-      this._isRunning = false;
-      this.log.info("MCP server stopped");
-    }
+    if (!this.server) return Promise.resolve();
+
+    const srv = this.server;
+    this.server = null;
+    this._isRunning = false;
+
+    return new Promise((resolve) => {
+      // SSE responses are long-lived; force-close lingering sockets so close()
+      // can complete instead of hanging on keep-alive connections.
+      srv.closeAllConnections?.();
+      srv.close(() => {
+        this.log.info("MCP server stopped");
+        resolve();
+      });
+    });
   }
 
   // ── HTTP Handler ───────────────────────────────────────────────────────────
@@ -464,8 +499,11 @@ export class McpServer {
     get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
     generate_diagram: { run: (h, a) => h.toolGenerateDiagram(a) },
     search_design_system: { run: (h, a) => h.toolSearchDesignSystem(a) },
+    figma_find: { run: (h, a) => h.toolFigmaFind(a) },
+    figma_tree: { run: (h, a) => h.toolFigmaTree(a) },
     use_figma: { write: true, run: (h, a) => h.toolUseFigma(a) },
     create_new_file: { write: true, run: (h, a) => h.toolCreateNewFile(a) },
+    figma_text: { write: true, run: (h, a) => h.toolFigmaText(a) },
   };
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {

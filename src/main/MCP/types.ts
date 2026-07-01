@@ -48,8 +48,11 @@ export type ToolName =
   | "get_figjam"
   | "generate_diagram"
   | "search_design_system"
+  | "figma_find"
+  | "figma_tree"
   | "use_figma"
-  | "create_new_file";
+  | "create_new_file"
+  | "figma_text";
 
 export interface ToolDefinition {
   name: ToolName;

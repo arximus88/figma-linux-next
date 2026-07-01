@@ -18,17 +18,21 @@ import {
   DESIGN_SYSTEM_RULES_SCRIPT,
   FIGJAM_SCRIPT,
   FILE_INFO_SCRIPT,
+  FIND_NODES_SCRIPT,
   GENERATE_DIAGRAM_SCRIPT,
   METADATA_XML_SCRIPT,
   SCREENSHOT_SCRIPT,
   SEARCH_DESIGN_SYSTEM_SCRIPT,
+  SET_TEXT_SCRIPT,
+  TREE_SCRIPT,
   USE_FIGMA_SCRIPT,
   VARIABLE_DEFS_SCRIPT,
 } from "../scripts";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
-import { toolError, toolResult } from "../utils/toolResponse";
+import { safeStringify } from "../utils/serialize";
+import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
 
 /** Shared state the tool handlers operate on, injected by McpServer. */
 export interface ToolContext {
@@ -45,6 +49,43 @@ export class ToolHandlers {
   /** Run a script in the active Figma tab. Single chokepoint for view access. */
   private exec(script: string): Promise<any> {
     return this.ctx.viewProvider.executeInBrowserView(script);
+  }
+
+  /**
+   * Run a script with a print()/logs channel. The script (a self-contained IIFE
+   * expression) is inlined into a wrapper that exposes a `print(...)` function in
+   * its lexical scope and captures emitted lines into `__logs`. The wrapper
+   * preserves the promise path (some scripts return a Promise) and always
+   * resolves to a structured-clone-safe `{__logs, __result}`.
+   *
+   * Backward-compatible: scripts that never call print() simply return empty
+   * logs. Only the new tools use this path; the 11 existing tools keep exec().
+   */
+  private async execWithLogs(script: string): Promise<{ result: any; logs: string[] }> {
+    const wrapped = `
+(function () {
+  var __logs = [];
+  var print = function () {
+    try { __logs.push(Array.prototype.map.call(arguments, function (a) {
+      return (typeof a === 'string') ? a : JSON.stringify(a); }).join(' ')); }
+    catch (e) { __logs.push(String(arguments[0])); }
+  };
+  var __r;
+  try { __r = (${script}); }
+  catch (e) { return { __logs: __logs, __result: { error: e.message || String(e) } }; }
+  if (__r && typeof __r.then === 'function') {
+    return __r.then(function (v) { return { __logs: __logs, __result: v }; })
+              .catch(function (e) { return { __logs: __logs, __result: { error: e.message || String(e) } }; });
+  }
+  return { __logs: __logs, __result: __r };
+})()`;
+
+    const raw = await this.exec(wrapped);
+    const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return {
+      result: obj?.__result,
+      logs: Array.isArray(obj?.__logs) ? obj.__logs : [],
+    };
   }
 
   // ── Tool: get_design_context ─────────────────────────────────────────────
@@ -116,7 +157,7 @@ export class ToolHandlers {
       return toolError(result.error);
     }
 
-    return toolResult(JSON.stringify(result, null, 2));
+    return toolResult(safeStringify(result));
   }
 
   // ── Tool: get_screenshot ─────────────────────────────────────────────────
@@ -196,7 +237,7 @@ export class ToolHandlers {
       return toolError(result.error);
     }
 
-    return toolResult(JSON.stringify(result, null, 2));
+    return toolResult(safeStringify(result));
   }
 
   // ── Tool: get_code_connect_map ───────────────────────────────────────────
@@ -435,7 +476,7 @@ export class ToolHandlers {
 
     const result = await this.exec(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
     if (result?.error) return toolError(result.error);
-    return toolResult(JSON.stringify(result, null, 2));
+    return toolResult(safeStringify(result));
   }
 
   // ── Tool: use_figma (write) ─────────────────────────────────────────────
@@ -449,7 +490,7 @@ export class ToolHandlers {
     const paramsJson = JSON.stringify(params);
     const result = await this.exec(USE_FIGMA_SCRIPT(action, paramsJson));
     if (result?.error) return toolError(result.error);
-    return toolResult(JSON.stringify(result, null, 2));
+    return toolResult(safeStringify(result));
   }
 
   // ── Tool: create_new_file (create page, write) ──────────────────────────
@@ -458,6 +499,45 @@ export class ToolHandlers {
     const name = (args.name as string) || "Untitled Page";
     const result = await this.exec(CREATE_PAGE_SCRIPT(name));
     if (result?.error) return toolError(result.error);
-    return toolResult(JSON.stringify(result, null, 2));
+    return toolResult(safeStringify(result));
+  }
+
+  // ── Tool: figma_find (read) ──────────────────────────────────────────────
+
+  public async toolFigmaFind(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    const opts = {
+      query: typeof args.query === "string" ? args.query : null,
+      type: typeof args.type === "string" ? args.type : null,
+      text: typeof args.text === "string" ? args.text : null,
+      limit: typeof args.limit === "number" ? args.limit : 100,
+    };
+
+    const result = await this.exec(FIND_NODES_SCRIPT(nodeId, JSON.stringify(opts)));
+    if (result?.error) return toolError(result.error);
+    return toolResult(safeStringify(result));
+  }
+
+  // ── Tool: figma_tree (read) ──────────────────────────────────────────────
+
+  public async toolFigmaTree(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    const maxDepth = typeof args.maxDepth === "number" ? args.maxDepth : 5;
+
+    const { result, logs } = await this.execWithLogs(TREE_SCRIPT(nodeId, maxDepth));
+    if (result?.error) return toolError(result.error);
+    return toolResult(appendLogs(result?.tree ?? "", logs));
+  }
+
+  // ── Tool: figma_text (write) ─────────────────────────────────────────────
+
+  public async toolFigmaText(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    if (!nodeId) return toolError("nodeId is required");
+    if (typeof args.characters !== "string") return toolError("characters is required");
+
+    const result = await this.exec(SET_TEXT_SCRIPT(nodeId, JSON.stringify(args.characters)));
+    if (result?.error) return toolError(result.error);
+    return toolResult(safeStringify(result));
   }
 }

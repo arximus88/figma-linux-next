@@ -232,4 +232,119 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(res.json.result.isError).toBeUndefined();
     expect(res.json.result.content[0].text).toContain("ok");
   });
+
+  // ── New tools: figma_find / figma_tree / figma_text ──────────────────────
+
+  it("lists the new read tools and gates figma_text behind write", async () => {
+    const sessionId = await initialize();
+    const off = await rpc({ jsonrpc: "2.0", id: 15, method: "tools/list" }, sessionId);
+    const offNames = off.json.result.tools.map((t: { name: string }) => t.name);
+    expect(offNames).toContain("figma_find");
+    expect(offNames).toContain("figma_tree");
+    expect(offNames).not.toContain("figma_text");
+
+    server.setWriteToolsEnabled(true);
+    const on = await rpc({ jsonrpc: "2.0", id: 16, method: "tools/list" }, sessionId);
+    const onNames = on.json.result.tools.map((t: { name: string }) => t.name);
+    expect(onNames).toContain("figma_text");
+  });
+
+  it("shapes figma_find results", async () => {
+    const sessionId = await initialize();
+    provider.nextResult = {
+      matches: [{ id: "1:2", name: "Button", type: "FRAME", path: "Page" }],
+      count: 1,
+      truncated: false,
+    };
+    const res = await callTool(sessionId, "figma_find", { query: "Button" }, 17);
+    expect(res.json.result.isError).toBeUndefined();
+    expect(res.json.result.content[0].text).toContain("Button");
+    expect(res.json.result.content[0].text).toContain("1:2");
+  });
+
+  it("returns figma_tree text and appends captured logs (A3)", async () => {
+    const sessionId = await initialize();
+    // execWithLogs unwraps {__logs, __result}; MockProvider returns it verbatim.
+    provider.nextResult = {
+      __logs: ["walked tree under Page"],
+      __result: { tree: "PAGE Page #0:1" },
+    };
+    const res = await callTool(sessionId, "figma_tree", { maxDepth: 3 }, 18);
+    expect(res.json.result.isError).toBeUndefined();
+    const text = res.json.result.content[0].text;
+    expect(text).toContain("PAGE Page #0:1");
+    expect(text).toContain("--- logs ---");
+    expect(text).toContain("walked tree under Page");
+  });
+
+  it("gates figma_text behind write tools", async () => {
+    const sessionId = await initialize();
+    const res = await callTool(sessionId, "figma_text", { nodeId: "1-2", characters: "Hi" }, 19);
+    expect(res.json.result.isError).toBe(true);
+    expect(res.json.result.content[0].text).toContain("disabled");
+  });
+
+  it("runs figma_text once write tools are enabled", async () => {
+    server.setWriteToolsEnabled(true);
+    const sessionId = await initialize();
+    provider.nextResult = { success: true, nodeId: "1:2", name: "Label" };
+    const res = await callTool(sessionId, "figma_text", { nodeId: "1-2", characters: "Hi" }, 20);
+    expect(res.json.result.isError).toBeUndefined();
+    expect(res.json.result.content[0].text).toContain("Label");
+  });
+
+  // ── A1: error hints ──────────────────────────────────────────────────────
+
+  it("appends an actionable hint to a matching tool error (A1)", async () => {
+    const sessionId = await initialize();
+    provider.nextResult = { error: "Node not found: 9:9" };
+    const res = await callTool(sessionId, "get_file_info", {}, 21);
+    expect(res.json.result.isError).toBe(true);
+    const text = res.json.result.content[0].text;
+    expect(text).toContain("Node not found: 9:9");
+    expect(text).toContain("Hint:");
+    expect(text).toContain("figma_find");
+  });
+
+  it("leaves an unmatched error untouched (A1)", async () => {
+    const sessionId = await initialize();
+    provider.nextResult = { error: "some totally novel failure xyz" };
+    const res = await callTool(sessionId, "get_file_info", {}, 22);
+    expect(res.json.result.content[0].text).toBe("some totally novel failure xyz");
+  });
+
+  // ── getStatus / restart (configurable server port) ───────────────────────
+
+  it("reports the bound port via getStatus", () => {
+    const status = server.getStatus();
+    expect(status.listening).toBe(true);
+    expect(typeof status.port).toBe("number");
+    expect(base).toContain(`:${status.port}/`);
+  });
+
+  it("restart() rebinds on a new port and serves there", async () => {
+    const newPort = await getFreePort();
+    const { didStart, port } = await server.restart(newPort, "127.0.0.1");
+    expect(didStart).toBe(true);
+    expect(port).toBe(newPort);
+    expect(server.getStatus().port).toBe(newPort);
+
+    // The new listener accepts an initialize on the new port.
+    const res = await fetch(`http://127.0.0.1:${newPort}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "t", version: "1" },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("mcp-session-id")).toBeTruthy();
+  });
 });

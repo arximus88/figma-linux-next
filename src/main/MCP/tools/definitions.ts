@@ -241,6 +241,63 @@ export const TOOLS: ToolDefinition[] = [
       required: ["query"],
     },
   },
+  {
+    name: "figma_find",
+    description:
+      "Finds nodes in the current page (or under a given nodeId) matching a name " +
+      "substring, node type, and/or text content. Returns a compact list of " +
+      "{id, name, type, path} — far cheaper than get_design_context for locating " +
+      "a node before reading or editing it. Use this to discover node IDs. " +
+      "Supports Figma Design and FigJam files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Optional root node to search under. Defaults to the current page.",
+        },
+        query: {
+          type: "string",
+          description: "Case-insensitive substring matched against node names.",
+        },
+        type: {
+          type: "string",
+          description: "Node type filter, e.g. FRAME, TEXT, COMPONENT, INSTANCE (prefix match).",
+        },
+        text: {
+          type: "string",
+          description: "Substring matched against the characters of TEXT nodes.",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum matches to return (default 100).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "figma_tree",
+    description:
+      "Returns a compact indented text outline of the scene graph under a node " +
+      "(or the current page) — one line per node as 'type name #id'. Much cheaper " +
+      "than get_design_context for navigating structure. Supports Figma Design and " +
+      "FigJam files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Optional root node. Defaults to the current page.",
+        },
+        maxDepth: {
+          type: "number",
+          description: "Maximum tree depth to walk (default 5).",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ── Write Tool Definitions (gated by settings) ──────────────────────────────
@@ -254,7 +311,15 @@ export const WRITE_TOOLS: ToolDefinition[] = [
       "create_rectangle, update_node, delete_node, set_variable, reparent_node. " +
       "All create actions accept an optional parentNodeId to place the node inside a frame. " +
       "create_text accepts fills to set text color at creation time. " +
-      "Use get_metadata first to discover node IDs before updating or deleting. " +
+      "Use get_metadata or figma_find first to discover node IDs before updating or deleting. " +
+      "ORDERING: when building inside a parent, the API applies steps as create → resize → " +
+      "set layoutMode/sizing → appendChild → THEN fills/strokes; appendChild resets fills to " +
+      "the parent default, so set colors after parenting (this tool already orders correctly, " +
+      "but split your own multi-step builds the same way). " +
+      "TWO-STAGE for complex layouts: first create the structure (frames, children, auto-layout) " +
+      "with hardcoded colors, then do a second pass to bind variables / set fills / set text once " +
+      "nodes are parented — don't bind variables before a node has a parent. " +
+      "For editing the text of an existing TEXT node, prefer the figma_text tool (it auto-loads fonts). " +
       "⚠ This is a WRITE tool that modifies the file.",
     inputSchema: {
       type: "object",
@@ -306,6 +371,28 @@ export const WRITE_TOOLS: ToolDefinition[] = [
         },
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "figma_text",
+    description:
+      "Sets the text content of an existing TEXT node, automatically loading the " +
+      "node's font(s) first (handles mixed fonts across segments). Safer and more " +
+      "token-efficient than use_figma update_node for the common 'edit text' case. " +
+      "⚠ This is a WRITE tool that modifies the file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "ID of the TEXT node to edit.",
+        },
+        characters: {
+          type: "string",
+          description: "New text content.",
+        },
+      },
+      required: ["nodeId", "characters"],
     },
   },
 ];

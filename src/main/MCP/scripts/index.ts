@@ -2,9 +2,12 @@
  * scripts/index.ts -- Figma Plugin API query/mutation snippets.
  *
  * Each template returns a string of JS that runs inside the Figma webapp
- * renderer context via webContents.executeJavaScript(). Extracted verbatim
- * from McpServer.ts (Phase 2 of decomposition); no behavior change.
+ * renderer context via webContents.executeJavaScript(). Common boilerplate
+ * (frozen-array cloning, XML escaping, appendChild ordering, font loading, tree
+ * walking) lives in scripts/helpers.ts as the inlined HELPERS_PREAMBLE.
  */
+
+import { HELPERS_PREAMBLE } from "./helpers";
 
 // ── Figma Plugin API Queries ───────────────────────────────────────────────────
 // These JS snippets run inside the Figma webapp's renderer context via
@@ -16,7 +19,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
   try {
     const figma = window.figma;
     if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
-
+${HELPERS_PREAMBLE}
     function serializeNode(node, currentDepth, maxDepth) {
       if (!node || currentDepth > maxDepth) return null;
       const result = {
@@ -54,15 +57,9 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       if ('layoutSizingVertical' in node) result.layoutSizingVertical = node.layoutSizingVertical;
 
       // Fills, strokes, effects
-      if ('fills' in node) {
-        try { result.fills = JSON.parse(JSON.stringify(node.fills)); } catch(e) {}
-      }
-      if ('strokes' in node) {
-        try { result.strokes = JSON.parse(JSON.stringify(node.strokes)); } catch(e) {}
-      }
-      if ('effects' in node) {
-        try { result.effects = JSON.parse(JSON.stringify(node.effects)); } catch(e) {}
-      }
+      if ('fills' in node) assignClone(result, 'fills', node.fills);
+      if ('strokes' in node) assignClone(result, 'strokes', node.strokes);
+      if ('effects' in node) assignClone(result, 'effects', node.effects);
       if ('strokeWeight' in node) result.strokeWeight = node.strokeWeight;
       if ('cornerRadius' in node) result.cornerRadius = node.cornerRadius;
 
@@ -70,23 +67,15 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       if (node.type === 'TEXT') {
         result.characters = node.characters;
         if ('fontSize' in node) result.fontSize = node.fontSize;
-        if ('fontName' in node) {
-          try { result.fontName = JSON.parse(JSON.stringify(node.fontName)); } catch(e) {}
-        }
+        if ('fontName' in node) assignClone(result, 'fontName', node.fontName);
         if ('textAlignHorizontal' in node) result.textAlignHorizontal = node.textAlignHorizontal;
         if ('textAlignVertical' in node) result.textAlignVertical = node.textAlignVertical;
-        if ('lineHeight' in node) {
-          try { result.lineHeight = JSON.parse(JSON.stringify(node.lineHeight)); } catch(e) {}
-        }
-        if ('letterSpacing' in node) {
-          try { result.letterSpacing = JSON.parse(JSON.stringify(node.letterSpacing)); } catch(e) {}
-        }
+        if ('lineHeight' in node) assignClone(result, 'lineHeight', node.lineHeight);
+        if ('letterSpacing' in node) assignClone(result, 'letterSpacing', node.letterSpacing);
       }
 
       // Component info
-      if ('componentProperties' in node) {
-        try { result.componentProperties = JSON.parse(JSON.stringify(node.componentProperties)); } catch(e) {}
-      }
+      if ('componentProperties' in node) assignClone(result, 'componentProperties', node.componentProperties);
       if (node.type === 'INSTANCE' && node.mainComponent) {
         result.mainComponentId = node.mainComponent.id;
         result.mainComponentName = node.mainComponent.name;
@@ -183,26 +172,22 @@ export const METADATA_XML_SCRIPT = (nodeId: string | null, depth: number) => `
   try {
     const figma = window.figma;
     if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
-
-    function esc(s) {
-      return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
+${HELPERS_PREAMBLE}
     function nodeToXml(node, indent, currentDepth) {
       if (!node || currentDepth > ${depth}) return '';
       try {
         const pad = '  '.repeat(indent);
         const tag = (node.type || 'node').toLowerCase().replace(/_/g, '-');
         const attrs = [];
-        try { attrs.push('id="' + esc(node.id) + '"'); } catch(_) {}
-        try { attrs.push('name="' + esc(node.name) + '"'); } catch(_) {}
+        try { attrs.push('id="' + escapeXml(node.id) + '"'); } catch(_) {}
+        try { attrs.push('name="' + escapeXml(node.name) + '"'); } catch(_) {}
         try { if ('x' in node) attrs.push('x="' + Math.round(node.x) + '"'); } catch(_) {}
         try { if ('y' in node) attrs.push('y="' + Math.round(node.y) + '"'); } catch(_) {}
         try { if ('width' in node) attrs.push('width="' + Math.round(node.width) + '"'); } catch(_) {}
         try { if ('height' in node) attrs.push('height="' + Math.round(node.height) + '"'); } catch(_) {}
         try {
           if (node.type === 'TEXT' && 'characters' in node) {
-            attrs.push('text="' + esc(String(node.characters).substring(0, 80)) + '"');
+            attrs.push('text="' + escapeXml(String(node.characters).substring(0, 80)) + '"');
           }
         } catch(_) {}
 
@@ -234,7 +219,7 @@ export const METADATA_XML_SCRIPT = (nodeId: string | null, depth: number) => `
     }
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\\n';
-    xml += '<canvas name="' + esc(figma.currentPage.name) + '" file="' + esc(figma.root.name) + '">\\n';
+    xml += '<canvas name="' + escapeXml(figma.currentPage.name) + '" file="' + escapeXml(figma.root.name) + '">\\n';
     for (let i = 0; i < targetNodes.length; i++) {
       try { xml += nodeToXml(targetNodes[i], 1, 0); } catch(_) {}
     }
@@ -253,6 +238,7 @@ export const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 
+${HELPERS_PREAMBLE}
     let targetNodes = null;
     let fileWideMode = false;
     ${
@@ -286,7 +272,7 @@ export const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
               if (v && !variables[v.id]) {
                 const values = {};
                 for (const mode of coll.modes) {
-                  try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+                  assignClone(values, mode.name, v.valuesByMode[mode.modeId]);
                 }
                 variables[v.id] = {
                   name: v.name,
@@ -348,10 +334,7 @@ export const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
                   };
                   if (collection) {
                     for (const mode of collection.modes) {
-                      try {
-                        const val = v.valuesByMode[mode.modeId];
-                        variables[v.id].valuesByMode[mode.name] = JSON.parse(JSON.stringify(val));
-                      } catch(e) {}
+                      assignClone(variables[v.id].valuesByMode, mode.name, v.valuesByMode[mode.modeId]);
                     }
                   }
                 }
@@ -401,14 +384,14 @@ export const FIGJAM_SCRIPT = (nodeId: string | null) => `
   try {
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
-
+${HELPERS_PREAMBLE}
     function nodeToXml(node, indent) {
       try {
         if (!node) return '';
         const pad = '  '.repeat(indent);
         const attrs = [];
         try { attrs.push('id="' + node.id + '"'); } catch(_) {}
-        try { attrs.push('name="' + (node.name || '').replace(/"/g, '&quot;') + '"'); } catch(_) {}
+        try { attrs.push('name="' + escapeAttrQuote(node.name) + '"'); } catch(_) {}
         try { attrs.push('type="' + node.type + '"'); } catch(_) {}
         try { if ('x' in node) attrs.push('x="' + Math.round(node.x) + '"'); } catch(_) {}
         try { if ('y' in node) attrs.push('y="' + Math.round(node.y) + '"'); } catch(_) {}
@@ -417,14 +400,14 @@ export const FIGJAM_SCRIPT = (nodeId: string | null) => `
         try {
           if (node.type === 'STICKY' || node.type === 'SHAPE_WITH_TEXT') {
             var text = ('characters' in node) ? node.characters : (node.text ? node.text.characters : null);
-            if (text) attrs.push('text="' + String(text).replace(/"/g, '&quot;') + '"');
+            if (text) attrs.push('text="' + escapeAttrQuote(text) + '"');
           }
         } catch(_) {}
         try {
           if (node.type === 'CONNECTOR') {
             try { if (node.connectorStart && node.connectorStart.endpointNodeId) attrs.push('startNodeId="' + node.connectorStart.endpointNodeId + '"'); } catch(_) {}
             try { if (node.connectorEnd && node.connectorEnd.endpointNodeId) attrs.push('endNodeId="' + node.connectorEnd.endpointNodeId + '"'); } catch(_) {}
-            try { if (node.text && node.text.characters) attrs.push('label="' + node.text.characters.replace(/"/g, '&quot;') + '"'); } catch(_) {}
+            try { if (node.text && node.text.characters) attrs.push('label="' + escapeAttrQuote(node.text.characters) + '"'); } catch(_) {}
           }
         } catch(_) {}
         var nodeType = node.type || 'NODE';
@@ -542,6 +525,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
 
+${HELPERS_PREAMBLE}
     // Collect all local variable collections and their variables
     const collections = [];
     try {
@@ -553,7 +537,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
           if (v) {
             const values = {};
             for (const mode of coll.modes) {
-              try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+              assignClone(values, mode.name, v.valuesByMode[mode.modeId]);
             }
             vars.push({ name: v.name, type: v.resolvedType, values });
           }
@@ -568,7 +552,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
       const paintStyles = figma.getLocalPaintStyles ? figma.getLocalPaintStyles() : [];
       for (const s of paintStyles) {
         const entry = { name: s.name, type: 'PAINT', description: s.description || null };
-        try { entry.paints = JSON.parse(JSON.stringify(s.paints)); } catch(e) {}
+        assignClone(entry, 'paints', s.paints);
         allStyles.push(entry);
       }
     } catch(e) {}
@@ -577,9 +561,9 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
       for (const s of textStyles) {
         const entry = { name: s.name, type: 'TEXT', description: s.description || null };
         try { entry.fontSize = s.fontSize; } catch(e) {}
-        try { entry.fontName = JSON.parse(JSON.stringify(s.fontName)); } catch(e) {}
-        try { entry.lineHeight = JSON.parse(JSON.stringify(s.lineHeight)); } catch(e) {}
-        try { entry.letterSpacing = JSON.parse(JSON.stringify(s.letterSpacing)); } catch(e) {}
+        assignClone(entry, 'fontName', s.fontName);
+        assignClone(entry, 'lineHeight', s.lineHeight);
+        assignClone(entry, 'letterSpacing', s.letterSpacing);
         try { entry.textDecoration = s.textDecoration; } catch(e) {}
         try { entry.textCase = s.textCase; } catch(e) {}
         allStyles.push(entry);
@@ -589,7 +573,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
       const effectStyles = figma.getLocalEffectStyles ? figma.getLocalEffectStyles() : [];
       for (const s of effectStyles) {
         const entry = { name: s.name, type: 'EFFECT', description: s.description || null };
-        try { entry.effects = JSON.parse(JSON.stringify(s.effects)); } catch(e) {}
+        assignClone(entry, 'effects', s.effects);
         allStyles.push(entry);
       }
     } catch(e) {}
@@ -597,7 +581,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
       const gridStyles = figma.getLocalGridStyles ? figma.getLocalGridStyles() : [];
       for (const s of gridStyles) {
         const entry = { name: s.name, type: 'GRID', description: s.description || null };
-        try { entry.layoutGrids = JSON.parse(JSON.stringify(s.layoutGrids)); } catch(e) {}
+        assignClone(entry, 'layoutGrids', s.layoutGrids);
         allStyles.push(entry);
       }
     } catch(e) {}
@@ -672,6 +656,7 @@ export const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
   try {
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
+${HELPERS_PREAMBLE}
     const q = "${query}".toLowerCase();
     const results = { variables: [], styles: [], components: [] };
 
@@ -685,7 +670,7 @@ export const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
             if (v && v.name.toLowerCase().includes(q)) {
               const values = {};
               for (const mode of coll.modes) {
-                try { values[mode.name] = JSON.parse(JSON.stringify(v.valuesByMode[mode.modeId])); } catch(e) {}
+                assignClone(values, mode.name, v.valuesByMode[mode.modeId]);
               }
               results.variables.push({ name: v.name, type: v.resolvedType, collection: coll.name, valuesByMode: values });
             }
@@ -739,6 +724,7 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
   try {
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available" };
+${HELPERS_PREAMBLE}
     const params = ${params};
     const action = "${action}";
 
@@ -765,13 +751,10 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
           if (params.primaryAxisSizingMode) { try { frame.primaryAxisSizingMode = params.primaryAxisSizingMode; } catch(e) {} }
           if (params.counterAxisSizingMode) { try { frame.counterAxisSizingMode = params.counterAxisSizingMode; } catch(e) {} }
         }
-        if (params.parentNodeId) {
-          const parent = figma.getNodeById(params.parentNodeId);
-          if (parent && 'appendChild' in parent) parent.appendChild(frame);
-        }
+        appendChildOrdered(frame, params.parentNodeId);
         // Apply fills/strokes after reparenting — appendChild resets fills to frame default
-        if (params.fills) { try { frame.fills = params.fills; } catch(e) {} }
-        if (params.strokes) { try { frame.strokes = params.strokes; } catch(e) {} }
+        if (params.fills) bindFill(frame, params.fills);
+        if (params.strokes) bindStroke(frame, params.strokes);
         if (params.strokeWeight !== undefined) frame.strokeWeight = params.strokeWeight;
         if (params.strokeAlign) { try { frame.strokeAlign = params.strokeAlign; } catch(e) {} }
         figma.currentPage.selection = [frame];
@@ -793,12 +776,9 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
           text.characters = params.characters || 'Text';
           if (params.fontSize) text.fontSize = params.fontSize;
           if (style !== 'Regular') { try { text.fontName = { family, style }; } catch(e) {} }
-          if (params.parentNodeId) {
-            const parent = figma.getNodeById(params.parentNodeId);
-            if (parent && 'appendChild' in parent) parent.appendChild(text);
-          }
+          appendChildOrdered(text, params.parentNodeId);
           // Apply fills after reparenting — appendChild resets fills
-          if (params.fills) { try { text.fills = params.fills; } catch(e) {} }
+          if (params.fills) bindFill(text, params.fills);
           figma.currentPage.selection = [text];
           return { success: true, nodeId: text.id, name: text.name, type: 'TEXT' };
         });
@@ -810,13 +790,10 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
         if (params.x !== undefined) rect.x = params.x;
         if (params.y !== undefined) rect.y = params.y;
         if (params.cornerRadius !== undefined) rect.cornerRadius = params.cornerRadius;
-        if (params.parentNodeId) {
-          const parent = figma.getNodeById(params.parentNodeId);
-          if (parent && 'appendChild' in parent) parent.appendChild(rect);
-        }
+        appendChildOrdered(rect, params.parentNodeId);
         // Apply fills/strokes after reparenting — appendChild resets fills to frame default
-        if (params.fills) { try { rect.fills = params.fills; } catch(e) {} }
-        if (params.strokes) { try { rect.strokes = params.strokes; } catch(e) {} }
+        if (params.fills) bindFill(rect, params.fills);
+        if (params.strokes) bindStroke(rect, params.strokes);
         if (params.strokeWeight !== undefined) rect.strokeWeight = params.strokeWeight;
         if (params.strokeAlign) { try { rect.strokeAlign = params.strokeAlign; } catch(e) {} }
         figma.currentPage.selection = [rect];
@@ -843,8 +820,8 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
         if (params.x !== undefined && 'x' in node) node.x = params.x;
         if (params.y !== undefined && 'y' in node) node.y = params.y;
         if (params.width !== undefined && params.height !== undefined && 'resize' in node) node.resize(params.width, params.height);
-        if (params.fills && 'fills' in node) { try { node.fills = params.fills; } catch(e) {} }
-        if (params.strokes && 'strokes' in node) { try { node.strokes = params.strokes; } catch(e) {} }
+        if (params.fills && 'fills' in node) bindFill(node, params.fills);
+        if (params.strokes && 'strokes' in node) bindStroke(node, params.strokes);
         if (params.strokeWeight !== undefined && 'strokeWeight' in node) node.strokeWeight = params.strokeWeight;
         if (params.strokeAlign && 'strokeAlign' in node) { try { node.strokeAlign = params.strokeAlign; } catch(e) {} }
         if (params.cornerRadius !== undefined && 'cornerRadius' in node) node.cornerRadius = params.cornerRadius;
@@ -913,6 +890,73 @@ export const CREATE_PAGE_SCRIPT = (pageName: string) => `
     page.name = "${pageName}";
     figma.currentPage = page;
     return { success: true, pageId: page.id, pageName: page.name };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── figma_find: locate nodes by name/type/text (read) ───────────────────────
+export const FIND_NODES_SCRIPT = (nodeId: string | null, optsJson: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+${HELPERS_PREAMBLE}
+    var opts = ${optsJson};
+    var root;
+    ${
+      nodeId
+        ? `root = figma.getNodeById("${nodeId}");
+    if (!root) return { error: "Node not found: ${nodeId}" };`
+        : `root = figma.currentPage;`
+    }
+    return findNodes(root, opts);
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── figma_tree: compact indented outline (read; runs via execWithLogs) ──────
+export const TREE_SCRIPT = (nodeId: string | null, maxDepth: number) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+${HELPERS_PREAMBLE}
+    var root;
+    ${
+      nodeId
+        ? `root = figma.getNodeById("${nodeId}");
+    if (!root) return { error: "Node not found: ${nodeId}" };`
+        : `root = figma.currentPage;`
+    }
+    var tree = dumpTree(root, ${maxDepth});
+    try { print('walked tree under', root.name || root.id); } catch (e) {}
+    return { tree: tree };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()
+`;
+
+// ── figma_text: set TEXT node characters with auto font-load (write) ────────
+export const SET_TEXT_SCRIPT = (nodeId: string, charsJson: string) => `
+(function() {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+${HELPERS_PREAMBLE}
+    var node = figma.getNodeById("${nodeId}");
+    if (!node) return { error: "Node not found: ${nodeId}" };
+    if (node.type !== 'TEXT') return { error: "Node is not a TEXT node (type: " + node.type + ")" };
+    var chars = ${charsJson};
+    return setText(node, chars).then(function () {
+      return { success: true, nodeId: node.id, name: node.name };
+    }).catch(function (e) {
+      return { error: e.message || String(e) };
+    });
   } catch (e) {
     return { error: e.message || String(e) };
   }
