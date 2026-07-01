@@ -165,17 +165,14 @@ export default class TabManager {
   }
 
   public getTabIndex(webContentsId: number) {
+    // NOTE: `return` inside forEach only skips one iteration — it does not stop
+    // the walk — so the counter must break out of a real loop instead.
     let i = 0;
-
-    this.tabs.forEach((_, id) => {
-      if (webContentsId === id) {
-        return;
-      }
-
+    for (const id of this.tabs.keys()) {
+      if (webContentsId === id) return i;
       i++;
-    });
-
-    return i;
+    }
+    return -1;
   }
 
   public reloadTab(tabId: number) {

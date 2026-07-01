@@ -127,11 +127,14 @@ export class McpServer {
       this.server.on("error", (err: NodeJS.ErrnoException) => {
         if (err.code === "EADDRINUSE") {
           this.log.warn(`Port ${port} already in use — MCP server not started`);
-          resolve({ didStart: false, port });
         } else {
           this.log.error("Server error:", err);
-          resolve({ didStart: false, port });
         }
+        // Drop the dead server so a later start() doesn't orphan this instance
+        // (with its listeners) when it reassigns this.server.
+        this.server?.removeAllListeners();
+        this.server = null;
+        resolve({ didStart: false, port });
       });
 
       this.server.listen(port, host, () => {

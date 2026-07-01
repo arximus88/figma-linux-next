@@ -888,8 +888,13 @@ export const CREATE_PAGE_SCRIPT = (pageName: string) => `
     if (!figma) return { error: "Figma Plugin API not available" };
     const page = figma.createPage();
     page.name = ${JSON.stringify(pageName)};
-    figma.currentPage = page;
-    return { success: true, pageId: page.id, pageName: page.name };
+    // figma.currentPage = page is rejected ("Setting figma.currentPage is not
+    // supported"); the async setter is the only way to switch pages.
+    return Promise.resolve(figma.setCurrentPageAsync(page)).then(function () {
+      return { success: true, pageId: page.id, pageName: page.name };
+    }).catch(function (e) {
+      return { error: (e && e.message) || String(e) };
+    });
   } catch (e) {
     return { error: e.message || String(e) };
   }
