@@ -78,6 +78,7 @@ export { default as Section } from "./Settings/Section.svelte";
 export { default as Card } from "./Settings/Card.svelte";
 export { default as SettingRow } from "./Settings/SettingRow.svelte";
 export { default as Toggle } from "./Settings/Toggle.svelte";
+export { default as McpSnippet } from "./Settings/McpSnippet.svelte";
 
 // Other
 export { default as Line } from "./Other/Line.svelte";

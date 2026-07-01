@@ -67,6 +67,7 @@ const INVOKE_CHANNELS = [
   "selectExportDirectory",
   "updateFigmaUiScale",
   "updatePanelScale",
+  "getMcpStatus",
 ] as const;
 
 type SendChannel = (typeof SEND_CHANNELS)[number];

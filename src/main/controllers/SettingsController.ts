@@ -58,6 +58,15 @@ export default class SettingsController {
       app.emit("mcpWriteToolsChanged", !!settings.mcp?.enableWriteTools);
     }
     if (
+      storage.settings.mcp?.serverEnabled !== settings.mcp?.serverEnabled ||
+      storage.settings.mcp?.serverPort !== settings.mcp?.serverPort
+    ) {
+      app.emit("mcpServerConfigChanged", {
+        enabled: settings.mcp?.serverEnabled !== false,
+        port: settings.mcp?.serverPort ?? 3845,
+      });
+    }
+    if (
       storage.settings.mcp?.cdpEnabled !== settings.mcp?.cdpEnabled ||
       storage.settings.mcp?.remoteDebugPort !== settings.mcp?.remoteDebugPort
     ) {

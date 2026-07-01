@@ -56,6 +56,10 @@ export class Storage {
         ...DEFAULT_SETTINGS.theme,
         ...this.settings.theme,
       },
+      mcp: {
+        ...DEFAULT_SETTINGS.mcp,
+        ...this.settings.mcp,
+      },
     };
 
     await this.writeAsync(this.settings);
