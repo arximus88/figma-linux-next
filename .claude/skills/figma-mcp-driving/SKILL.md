@@ -49,48 +49,74 @@ Data-plane-only tasks (pure read/write of the current file) need only the Figma 
 
 ## The reliable handoff
 
-`chrome-figma select_page` picks which CDP target *its own* commands act on — it does **not** change the
-app's active tab that the Figma MCP follows. To retarget the Figma MCP you must actually change the
-active tab's content via the UI/navigation, then confirm:
+The Figma MCP follows the app's **active (focused) tab** — the field `TabManager.lastFocusedTab`, which
+is changed **only** by the app's own tab-focus paths. `chrome-figma select_page` / `bringToFront` /
+`navigate_page` pick which **CDP target** chrome-figma's own commands act on; none of them touches
+`lastFocusedTab`, so **they do NOT retarget the Figma MCP** (verified live: `select_page`+`bringToFront`
+to a background file → `get_file_info` still returned the old active tab). To retarget the Figma MCP,
+drive the app's real focus path, then confirm:
 
-1. **Act** (control): drive the app with chrome-figma — click a tab in the panel, use the app's open-file
-   flow, or navigate the active tab's page to a Figma URL.
+1. **Act** (control): change the app's *active tab* — the reliable ways are:
+   - **Click the panel tab.** In the panel page (the `dist/index.html` CDP target), each tab is a
+     `.g-tab-wrapper` with a `data-tab-id` attribute; clicking it sends the `setTabFocus` IPC.
+   - **Send the IPC directly** from the panel: `window.figmaApi.send('setTabFocus', <data-tab-id>)`
+     (proven: switched the active tab and woke the Plugin API in ~1s).
+   - **Open a URL** via the app's open-file flow (`figma://…` / `figma.com/…`) — this creates a **new,
+     focused tab**, not a navigate-in-place.
+   - **Navigate the tab that is *already* the active one** in place also works.
 2. **Confirm** (data): call Figma MCP `get_file_info` and check `fileName` / `currentPage` match what you
    expect **before** doing real work. This one cheap call prevents operating on the wrong file after a
-   race or a navigation that didn't land.
+   race or a switch that didn't land.
 3. **Operate** (data): now run the read/write tools.
 
-Skipping step 2 is the most common failure — navigation is async and the Figma MCP will happily read
-whatever tab happens to be active.
+Skipping step 2 is the most common failure — a switch is async and CDP-level navigation of a *background*
+tab never retargets the MCP at all, so it will happily read whatever tab is genuinely active.
 
 ## Recipes
 
 **Navigate-then-inspect** — open/focus a specific file, then read it.
-`chrome-figma` navigate the active tab to the Figma URL (or click its tab) → Figma MCP `get_file_info`
-to confirm → `get_metadata` / `get_design_context` / `figma_find`.
+Switch the app's active tab (click the panel `.g-tab-wrapper`, or `window.figmaApi.send('setTabFocus',
+<data-tab-id>)`) → Figma MCP `get_file_info` to confirm → `get_metadata` / `get_design_context` /
+`figma_find`. Do **not** rely on `select_page`/`bringToFront` to switch what the MCP reads — they don't.
 
 **Batch-across-tabs** — do the same read on every open file.
-`chrome-figma list_pages` to enumerate tabs → for each: bring it to the foreground (click its panel
-tab) → confirm with `get_file_info` → run the read (e.g. `create_design_system_rules`, `get_variable_defs`)
-→ collect. Log which tab you're on each iteration so a mis-focus is visible, not silent.
+`chrome-figma list_pages` to enumerate targets → map each Figma file target to its panel `data-tab-id` →
+for each: **`setTabFocus` that tab** (panel click / IPC), confirm with `get_file_info`, then run the read
+(e.g. `create_design_system_rules`, `get_variable_defs`) → collect. Log which tab you're on each
+iteration so a mis-focus is visible, not silent.
 
 **Visual-verify-writes** — prove a mutation actually rendered, not just returned success.
-Figma MCP `use_figma` (create/edit) → **chrome-figma `take_screenshot` of the real window** → inspect the
-pixels. The Figma API returning `{success:true}` is not proof the canvas looks right; the screenshot is
-pixel truth. This closes the loop that a data-plane-only check can't.
+Figma MCP `use_figma` (create/edit) → screenshot → inspect the pixels. Two screenshot options: Figma MCP
+`get_screenshot` (exports the node via the Plugin API — best when the node is off-viewport, as new nodes
+often are), or chrome-figma `take_screenshot` of the real window (best when you also want chrome/panel
+state). The API returning `{success:true}` is not proof the canvas looks right; the screenshot is pixel
+truth. (Verified live: a magenta test frame + text showed correct pixels via `get_screenshot`.)
 
 **Open-by-URL** — jump straight to a design.
-`chrome-figma` navigate the active tab to `figma://file/…` or `https://figma.com/…` → confirm with
-`get_file_info` → operate.
+Open `figma://file/…` or `https://figma.com/…` through the app's open flow → this lands as a **new
+focused tab** → confirm with `get_file_info` → operate.
 
 **Debug a stuck read** — if a Figma MCP tool errors with "Figma Plugin API not available" or "No Figma
-window open", use chrome-figma `take_snapshot`/`take_screenshot` to see the actual window state (loading?
-login screen? wrong tab?) rather than guessing.
+window open", the #1 cause is that the app's active tab isn't a foregrounded, fully-booted **design**
+tab (it's the New-File tab, Recents mid-load, a changelog overlay, or a *background* editor whose Plugin
+API is dormant). Fix: `setTabFocus` a real design tab (panel click / IPC) and retry `get_file_info` — the
+Plugin API wakes within ~1–2s of the tab becoming the active foreground tab. Use chrome-figma
+`take_snapshot`/`take_screenshot` only to *see* the window state when that doesn't resolve it.
 
 ## Gotchas
 
-- **Tab-switch changes the target.** Any control-plane navigation retargets every subsequent Figma MCP
-  call. Re-confirm with `get_file_info` after each switch.
+- **Only app tab-focus retargets the MCP.** The Figma MCP reads the app's active tab (`lastFocusedTab`).
+  Changing it requires `setTabFocus` (panel click / IPC) or the app open-file flow. chrome-figma
+  `select_page` / `bringToFront` / `navigate_page` on a background target do **not** retarget it — that's
+  the single most common mistaken assumption. Re-confirm with `get_file_info` after every real switch.
+- **Plugin API is dormant on non-active tabs.** `window.figma` (used by every read/write tool) is a lazy
+  getter that returns `undefined` until Figma initializes on the tab that is the app's active,
+  foreground design editor. A freshly-launched app with restored tabs, or a design tab sitting in the
+  background, will fail with "Plugin API not available" — bring a design tab to focus via `setTabFocus`
+  and it wakes within ~1–2s. This is state, not a bug.
+- **The MainTab (Recents / Home) is a real Figma page** with `window.figma` — MCP tools work there once
+  it's the active tab. A "not available" error means the tab is mid-load or on a non-Figma URL (New-File
+  tab), not that Home tabs are unsupported.
 - **CDP needs a restart.** Toggling CDP or its port does nothing until the app relaunches. The Figma MCP
   server port, by contrast, rebinds live on save.
 - **Write tools are gated.** `use_figma`, `figma_text`, `create_new_file` only appear when Settings →
