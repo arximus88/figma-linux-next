@@ -71,6 +71,12 @@ export function isValidHost(hostHeader: string): boolean {
     return false;
   }
 
-  // Allow only loopback addresses
-  return hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost";
+  // Allow only loopback addresses. URL.hostname keeps the brackets for IPv6,
+  // so the loopback comes through as "[::1]".
+  return (
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "[::1]" ||
+    hostname === "localhost"
+  );
 }

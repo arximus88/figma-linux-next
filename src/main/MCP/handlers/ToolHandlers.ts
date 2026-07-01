@@ -83,7 +83,13 @@ export class ToolHandlers {
 })()`;
 
     const raw = await this.exec(wrapped);
-    const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+    let obj: any;
+    try {
+      obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch (err) {
+      this.ctx.log.error("Failed to parse execWithLogs result:", err);
+      obj = null;
+    }
     return {
       result: obj?.__result,
       logs: Array.isArray(obj?.__logs) ? obj.__logs : [],
@@ -187,7 +193,7 @@ export class ToolHandlers {
   }
 
   /** Build an MCP response with the image inline + optional disk save. */
-  private buildScreenshotResponse(
+  private async buildScreenshotResponse(
     base64: string,
     nodeId: string,
     nodeName: string,
@@ -201,8 +207,9 @@ export class ToolHandlers {
     if (savePath) {
       try {
         const absPath = path.isAbsolute(savePath) ? savePath : path.join(process.cwd(), savePath);
-        fs.mkdirSync(path.dirname(absPath), { recursive: true });
-        fs.writeFileSync(absPath, Buffer.from(base64, "base64"));
+        // Async FS so a slow disk doesn't block the Electron main thread.
+        await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+        await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
         meta.savedTo = absPath;
       } catch (e: any) {
         meta.saveError = e.message;

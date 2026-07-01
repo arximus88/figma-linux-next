@@ -74,6 +74,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
 
   function onPointerDown(e: PointerEvent) {
     if (options.enabled === false) return;
+    if (pointerId !== -1) return; // already tracking a pointer — ignore a second one
     if (e.button !== 0) return; // left button only
     const target = e.target as HTMLElement;
     if (!target.closest("[data-drag-handle]")) return; // grab only by the title area

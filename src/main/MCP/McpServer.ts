@@ -134,6 +134,9 @@ export class McpServer {
         // (with its listeners) when it reassigns this.server.
         this.server?.removeAllListeners();
         this.server = null;
+        // A runtime error can fire AFTER a successful listen — clear the running
+        // flag too, or a later start() early-returns onto a dead server.
+        this._isRunning = false;
         resolve({ didStart: false, port });
       });
 

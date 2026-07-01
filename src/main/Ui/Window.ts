@@ -478,7 +478,9 @@ export default class Window {
     wc.on("did-finish-load", () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        if (!wc.isDestroyed()) {
+        // The window can be closed during the grace window; guard both the tab
+        // WebContents and the window before sending, or the send() throws.
+        if (!wc.isDestroyed() && !this.window.isDestroyed()) {
           this.window.webContents.send("setLoading", tab.id, false);
         }
       }, Window.LOADING_WATCHDOG_MS);

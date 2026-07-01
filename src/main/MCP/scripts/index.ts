@@ -96,8 +96,8 @@ ${HELPERS_PREAMBLE}
     ${
       nodeId
         ? `
-      const target = figma.getNodeById("${nodeId}");
-      if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
+      const target = figma.getNodeById(${JSON.stringify(nodeId)});
+      if (!target) return JSON.stringify({ error: "Node not found: " + ${JSON.stringify(nodeId)} });
       targetNodes = [target];
     `
         : `
@@ -208,8 +208,8 @@ ${HELPERS_PREAMBLE}
     ${
       nodeId
         ? `
-      const target = figma.getNodeById("${nodeId}");
-      if (!target) return JSON.stringify({ error: "Node not found: ${nodeId}" });
+      const target = figma.getNodeById(${JSON.stringify(nodeId)});
+      if (!target) return JSON.stringify({ error: "Node not found: " + ${JSON.stringify(nodeId)} });
       targetNodes = [target];
     `
         : `
@@ -244,8 +244,8 @@ ${HELPERS_PREAMBLE}
     ${
       nodeId
         ? `
-      const target = figma.getNodeById("${nodeId}");
-      if (!target) return { error: "Node not found: ${nodeId}" };
+      const target = figma.getNodeById(${JSON.stringify(nodeId)});
+      if (!target) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };
       targetNodes = [target];
     `
         : `
@@ -430,8 +430,8 @@ ${HELPERS_PREAMBLE}
     ${
       nodeId
         ? `
-      var target = figma.getNodeById("${nodeId}");
-      if (!target) return { error: "Node not found: ${nodeId}" };
+      var target = figma.getNodeById(${JSON.stringify(nodeId)});
+      if (!target) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };
       targetNodes = [target];
     `
         : `
@@ -622,8 +622,8 @@ export const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
     ${
       nodeId
         ? `
-      target = figma.getNodeById("${nodeId}");
-      if (!target) return { error: "Node not found: ${nodeId}" };
+      target = figma.getNodeById(${JSON.stringify(nodeId)});
+      if (!target) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };
     `
         : `
       const sel = figma.currentPage.selection;
@@ -912,8 +912,8 @@ ${HELPERS_PREAMBLE}
     var root;
     ${
       nodeId
-        ? `root = figma.getNodeById("${nodeId}");
-    if (!root) return { error: "Node not found: ${nodeId}" };`
+        ? `root = figma.getNodeById(${JSON.stringify(nodeId)});
+    if (!root) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };`
         : `root = figma.currentPage;`
     }
     return findNodes(root, opts);
@@ -933,8 +933,8 @@ ${HELPERS_PREAMBLE}
     var root;
     ${
       nodeId
-        ? `root = figma.getNodeById("${nodeId}");
-    if (!root) return { error: "Node not found: ${nodeId}" };`
+        ? `root = figma.getNodeById(${JSON.stringify(nodeId)});
+    if (!root) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };`
         : `root = figma.currentPage;`
     }
     var tree = dumpTree(root, ${maxDepth});
@@ -953,8 +953,8 @@ export const SET_TEXT_SCRIPT = (nodeId: string, charsJson: string) => `
     const figma = window.figma;
     if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
 ${HELPERS_PREAMBLE}
-    var node = figma.getNodeById("${nodeId}");
-    if (!node) return { error: "Node not found: ${nodeId}" };
+    var node = figma.getNodeById(${JSON.stringify(nodeId)});
+    if (!node) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };
     if (node.type !== 'TEXT') return { error: "Node is not a TEXT node (type: " + node.type + ")" };
     var chars = ${charsJson};
     return setText(node, chars).then(function () {
