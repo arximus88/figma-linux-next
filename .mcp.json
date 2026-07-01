@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "figma-linux-next": {
+      "type": "http",
+      "url": "http://127.0.0.1:3845/mcp"
+    },
     "chrome-figma": {
       "type": "stdio",
       "command": "npx",

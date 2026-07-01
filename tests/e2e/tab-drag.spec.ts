@@ -136,13 +136,10 @@ test.describe("Tab drag reorder", () => {
     // advancing lands on the new second tab (proves the reorder reached main).
     const firstId = Number(after[0]);
     const secondId = Number(after[1]);
-    await handle.app.evaluate(
-      ({ ipcMain, app: electronApp }, id) => {
-        ipcMain.emit("setTabFocus", { sender: { id: -1 } }, id);
-        electronApp.emit("focusNextTab");
-      },
-      firstId,
-    );
+    await handle.app.evaluate(({ ipcMain, app: electronApp }, id) => {
+      ipcMain.emit("setTabFocus", { sender: { id: -1 } }, id);
+      electronApp.emit("focusNextTab");
+    }, firstId);
     await panel.waitForTimeout(200);
 
     const activeId = await panel.evaluate(() => {
