@@ -63,7 +63,7 @@ Configured in **`config/builder.json`**:
 | AppImage | x64, arm64 | Uses `resources/AppRun` launcher |
 | ZIP | x64, arm64 | Portable archive, uploaded to GitHub Releases |
 
-App ID: `com.figma.FigmaLinuxNext` — registers `.fig` file association and `figma://` protocol.
+App ID: `app.borys.FigmaLinuxNext` — registers `.fig` file association and `figma://` protocol.
 
 ---
 

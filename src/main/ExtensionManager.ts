@@ -1,10 +1,11 @@
-import { app, ipcMain, shell } from "electron";
+import { app, shell } from "electron";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import { resolve, relative, join, basename, parse } from "node:path";
 import * as cp from "node:child_process";
 import * as Chokidar from "chokidar";
+import { ipcRegistry } from "./controllers/registry";
 import { dialogs } from "./Dialogs";
 import { storage } from "Storage";
 import { logger } from "./Logger";
@@ -680,34 +681,57 @@ export default class ExtensionManager {
   }
 
   private registerEvents() {
-    ipcMain.on(
+    const src = "ExtensionManager";
+
+    ipcRegistry.on(
       `web-callback:registerManifestChangeObserver`,
       this.registerManifestChangeObserver.bind(this),
+      src,
     );
-    ipcMain.on(
+    ipcRegistry.on(
       `web-callback:registerCodeChangeObserver`,
       this.registerCodeChangeObserver.bind(this),
+      src,
     );
-    ipcMain.on(`web-callback:registerUiChangeObserver`, this.registerUiChangeObserver.bind(this));
-    ipcMain.on("web-cancel-callback", this.webCancelCallback.bind(this));
+    ipcRegistry.on(
+      `web-callback:registerUiChangeObserver`,
+      this.registerUiChangeObserver.bind(this),
+      src,
+    );
+    ipcRegistry.on("web-cancel-callback", this.webCancelCallback.bind(this), src);
 
-    ipcMain.on("openExtensionDirectory", this.openExtensionDirectory.bind(this));
-    ipcMain.on("removeLocalFileExtension", this.removeLocalFileExtension.bind(this));
+    ipcRegistry.on("openExtensionDirectory", this.openExtensionDirectory.bind(this), src);
+    ipcRegistry.on("removeLocalFileExtension", this.removeLocalFileExtension.bind(this), src);
 
-    ipcMain.handle(
+    ipcRegistry.handle(
       "writeNewExtensionDirectoryToDisk",
       this.writeNewExtensionDirectoryToDisk.bind(this),
+      src,
     );
-    ipcMain.handle(
+    ipcRegistry.handle(
       "createMultipleNewLocalFileExtensions",
       this.createMultipleNewLocalFileExtensions.bind(this),
+      src,
     );
-    ipcMain.handle(
+    ipcRegistry.handle(
       "getLocalManifestFileExtensionIdsToCachedMetadataMap",
       this.getLocalManifestFileExtensionIdsToCachedMetadataMap.bind(this),
+      src,
     );
-    ipcMain.handle("getLocalFileExtensionManifest", this.getLocalFileExtensionManifest.bind(this));
-    ipcMain.handle("getLocalFileExtensionSource", this.getLocalFileExtensionSource.bind(this));
-    ipcMain.handle("getAllLocalFileExtensionIds", this.getAllLocalFileExtensionIds.bind(this));
+    ipcRegistry.handle(
+      "getLocalFileExtensionManifest",
+      this.getLocalFileExtensionManifest.bind(this),
+      src,
+    );
+    ipcRegistry.handle(
+      "getLocalFileExtensionSource",
+      this.getLocalFileExtensionSource.bind(this),
+      src,
+    );
+    ipcRegistry.handle(
+      "getAllLocalFileExtensionIds",
+      this.getAllLocalFileExtensionIds.bind(this),
+      src,
+    );
   }
 }

@@ -1,9 +1,15 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  let {value = $bindable(), width = "auto", placeholder = "", isValidValue = $bindable(true), validator = (value: string) => true, children = undefined}: { value?: string, width?: string, placeholder?: string, isValidValue?: boolean, validator?: (v: string) => boolean, children?: Snippet } = $props();
+  let {value = $bindable(), width = "auto", placeholder = "", isValidValue = $bindable(true), validator = (value: string) => true, onValue = undefined, children = undefined}: { value?: string, width?: string, placeholder?: string, isValidValue?: boolean, validator?: (v: string) => boolean, onValue?: (v: string) => void, children?: Snippet } = $props();
 
   function onChangeHandler() {
     isValidValue = validator(value);
+  }
+  // Live value callback — lets a parent update its own (non-$state) backing
+  // object from an event handler instead of bind:value, which would warn with
+  // binding_property_non_reactive when the target isn't reactive state.
+  function onInputHandler() {
+    onValue?.(value);
   }
 </script>
 
@@ -16,6 +22,7 @@
     `}
     type="text"
     {placeholder}
+    oninput={onInputHandler}
     onchange={onChangeHandler}
     onfocusout={onChangeHandler}
   />

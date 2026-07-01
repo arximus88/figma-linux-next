@@ -1,6 +1,14 @@
 declare namespace Types {
   type EditorType = "design" | "figjam" | "slides" | "buzz" | "site" | "make" | "prototype";
 
+  /** Runtime state of the MCP integrations, reported to the settings UI. */
+  interface McpStatus {
+    /** The built-in Figma MCP HTTP server. */
+    server: { listening: boolean; port: number };
+    /** The Chrome DevTools Protocol port actually opened at launch (null if off). */
+    cdp: { active: boolean; port: number | null };
+  }
+
   interface Tab {
     id: number;
     title?: string;
@@ -121,6 +129,8 @@ declare namespace Types {
       lastSeenChangelogVersion?: string;
     };
     mcp: {
+      serverEnabled: boolean;
+      serverPort: number;
       enableWriteTools: boolean;
       cdpEnabled: boolean;
       remoteDebugPort: number;

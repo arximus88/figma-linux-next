@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onMount, untrack } from "svelte";
   let { zIndex } = $props();
   import { InputRange, ListBox } from "Common/Input";
-  import { Section, Card, SettingRow, Toggle } from "Common";
+  import { Section, Card, SettingRow, Toggle, McpSnippet } from "Common";
   import { SecondaryButton } from "Common/Buttons";
   import { TOPPANELHEIGHT } from "Const";
   import { settings, modalBounds } from "../../../store";
@@ -103,24 +103,56 @@
     }
   });
 
-  let copied = $state(false);
-
-  let mcpSnippet = $derived.by(() => {
-    const port = $settings.mcp.remoteDebugPort ?? 9222;
-    const cdpEnabled = $settings.mcp.cdpEnabled ?? false;
-    const cdpEntry =
-      cdpEnabled && port > 0
-        ? `,\n    "chrome-figma": {\n      "type": "stdio",\n      "command": "npx",\n      "args": ["chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:${port}"]\n    }`
-        : "";
-    return `{\n  "mcpServers": {\n    "figma-linux-next": {\n      "type": "http",\n      "url": "http://127.0.0.1:3845/mcp"\n    }${cdpEntry}\n  }\n}`;
+  // ── MCP runtime status (real server/CDP state, fetched once on mount) ──────
+  let mcpStatus = $state<Types.McpStatus | null>(null);
+  onMount(async () => {
+    try {
+      mcpStatus = (await window.figmaApi.invoke("getMcpStatus")) as Types.McpStatus;
+    } catch {
+      mcpStatus = null;
+    }
   });
 
-  function copyMcpSnippet() {
-    navigator.clipboard.writeText(mcpSnippet).then(() => {
-      copied = true;
-      setTimeout(() => (copied = false), 2000);
-    });
-  }
+  type Chip = { kind: "active" | "pending" | "error" | "muted"; text: string };
+
+  // Figma MCP server chip: compares the running listener to the edited settings.
+  // Server start/stop/port all apply on save, so mismatches read as "on save".
+  let figmaChip: Chip = $derived.by(() => {
+    const enabled = $settings.mcp.serverEnabled ?? true;
+    const want = $settings.mcp.serverPort ?? 3845;
+    const s = mcpStatus?.server;
+    if (!s) return { kind: "muted", text: enabled ? `:${want}` : "disabled" };
+    if (!enabled) {
+      return s.listening
+        ? { kind: "pending", text: "off on save" }
+        : { kind: "muted", text: "disabled" };
+    }
+    if (s.listening && s.port === want) return { kind: "active", text: `listening on :${s.port}` };
+    return { kind: "pending", text: `:${want} on save` };
+  });
+
+  // Chrome MCP (CDP) chip: compares the launched flag state to the edited settings.
+  let cdpChip: Chip = $derived.by(() => {
+    const wantOn = $settings.mcp.cdpEnabled ?? false;
+    const wantPort = $settings.mcp.remoteDebugPort ?? 9222;
+    const c = mcpStatus?.cdp;
+    if (!c) return { kind: "muted", text: wantOn ? "restart to apply" : "disabled" };
+    const matchesLaunch = c.active === wantOn && (!wantOn || c.port === wantPort);
+    if (!matchesLaunch) return { kind: "pending", text: "restart required" };
+    if (c.active) return { kind: "active", text: `active on :${c.port}` };
+    return { kind: "muted", text: "disabled" };
+  });
+
+  let portCollision = $derived(
+    ($settings.mcp.serverPort ?? 3845) === ($settings.mcp.remoteDebugPort ?? 9222),
+  );
+
+  let figmaSnippet = $derived(
+    `{\n  "mcpServers": {\n    "figma-linux-next": {\n      "type": "http",\n      "url": "http://127.0.0.1:${$settings.mcp.serverPort ?? 3845}/mcp"\n    }\n  }\n}`,
+  );
+  let chromeSnippet = $derived(
+    `{\n  "mcpServers": {\n    "chrome-figma": {\n      "type": "stdio",\n      "command": "npx",\n      "args": ["chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:${$settings.mcp.remoteDebugPort ?? 9222}"]\n    }\n  }\n}`,
+  );
 
   function onFrameStyleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
@@ -210,44 +242,109 @@
     </div>
   </Section>
 
-  <Section title="Developer">
+  <Section title="MCP integrations">
     <div class="grid-2">
+      <!-- LEFT — Figma MCP (the app's own design-context server) -->
       <Card>
-        <SettingRow
-          title="Enable MCP Write Tools"
-          badge="Experimental"
-          subtitle="Let AI modify objects in your files · reconnect MCP"
-        >
-          <Toggle bind:checked={$settings.mcp.enableWriteTools} />
-        </SettingRow>
-        <SettingRow
-          title="Enable Chrome DevTools (CDP)"
-          subtitle="Remote debugging for chrome-figma MCP · restart"
-        >
-          <Toggle bind:checked={$settings.mcp.cdpEnabled} />
-        </SettingRow>
-        <SettingRow title="CDP port">
-          <input
-            class="port-input"
-            type="number"
-            min="1024"
-            max="65535"
-            bind:value={$settings.mcp.remoteDebugPort}
-          />
-        </SettingRow>
-      </Card>
-      <Card>
-        <div class="mcp-snippet">
-          <div class="mcp-snippet-header">
-            <span class="mcp-snippet-title">.mcp.json snippet</span>
-            <button class="copy-btn" onclick={copyMcpSnippet}>
-              {copied ? "Copied!" : "Copy"}
-            </button>
+        <div class="mcp-block">
+          <div class="mcp-block-head">
+            <div class="mcp-head-top">
+              <span class="mcp-block-title">Figma MCP</span>
+              <span class="status-chip {figmaChip.kind}">{figmaChip.text}</span>
+            </div>
+            <p class="mcp-block-lead">Serves your open file's design context to AI assistants.</p>
           </div>
-          <pre class="mcp-snippet-code">{mcpSnippet}</pre>
+          <div class="mcp-rows">
+            <SettingRow title="Enable Figma MCP" subtitle="Runs the local HTTP server">
+              <Toggle bind:checked={$settings.mcp.serverEnabled} />
+            </SettingRow>
+            <SettingRow
+              title="Enable write tools"
+              badge="Experimental"
+              subtitle="Let AI edit, not just read"
+            >
+              <Toggle
+                bind:checked={$settings.mcp.enableWriteTools}
+                disabled={!($settings.mcp.serverEnabled ?? true)}
+              />
+            </SettingRow>
+            <SettingRow title="Server port" subtitle="Default 3845">
+              <input
+                class="port-input"
+                class:invalid={portCollision}
+                type="number"
+                min="1024"
+                max="65535"
+                bind:value={$settings.mcp.serverPort}
+              />
+            </SettingRow>
+          </div>
+          <div class="mcp-intro">
+            <p class="mcp-block-desc">
+              <strong>Read (always on):</strong> scene graph, metadata, variables &amp; styles,
+              screenshots, find/tree, Code Connect, design-system rules, Mermaid→FigJam.
+              <strong>Write (optional):</strong> create/edit/delete nodes, set text, new page.
+            </p>
+            <p class="mcp-note">
+              Read tools ship with the server; write tools layer on top. Disabling closes the local
+              endpoint entirely.
+            </p>
+          </div>
+          <div class="mcp-block-snippet">
+            <McpSnippet title=".mcp.json — figma-linux-next" code={figmaSnippet} />
+          </div>
+        </div>
+      </Card>
+
+      <!-- RIGHT — Chrome Figma MCP (CDP browser automation) -->
+      <Card>
+        <div class="mcp-block">
+          <div class="mcp-block-head">
+            <div class="mcp-head-top">
+              <span class="mcp-block-title">Chrome Figma MCP</span>
+              <span class="status-chip {cdpChip.kind}">{cdpChip.text}</span>
+            </div>
+            <p class="mcp-block-lead">Drives the live app window for browser automation.</p>
+          </div>
+          <div class="mcp-rows">
+            <SettingRow
+              title="Enable Chrome DevTools (CDP)"
+              badge="Restart"
+              subtitle="Opens a debugging port"
+            >
+              <Toggle bind:checked={$settings.mcp.cdpEnabled} />
+            </SettingRow>
+            <SettingRow title="CDP port" subtitle="127.0.0.1 only · any local process can attach">
+              <input
+                class="port-input"
+                class:invalid={portCollision}
+                type="number"
+                min="1024"
+                max="65535"
+                bind:value={$settings.mcp.remoteDebugPort}
+              />
+            </SettingRow>
+          </div>
+          <div class="mcp-intro">
+            <p class="mcp-block-desc">
+              Via the Chrome DevTools Protocol: navigate, run JS in the page, capture screenshots,
+              inspect the DOM, trace performance — used for debugging &amp; verifying changes.
+            </p>
+            <p class="mcp-note">
+              The app only opens the port. The <code>chrome-figma</code> server (npx
+              chrome-devtools-mcp) runs in your AI client and attaches to it — a client showing
+              "connected" only means that process started, not that this port is open.
+            </p>
+          </div>
+          <div class="mcp-block-snippet">
+            <McpSnippet title=".mcp.json — chrome-figma" code={chromeSnippet} />
+          </div>
         </div>
       </Card>
     </div>
+    {#if portCollision}
+      <p class="mcp-collision">⚠ Figma MCP and CDP ports must differ — both are set to the same value.</p>
+    {/if}
   </Section>
 
   <Section>
@@ -316,7 +413,7 @@
     border: 1px solid var(--borders);
     border-radius: 6px;
     font-size: 13px;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     cursor: pointer;
     outline: none;
     transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -346,7 +443,7 @@
     border: 1px solid var(--borders);
     border-radius: 6px;
     font-size: 13px;
-    font-family: "Inter", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
     outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
@@ -356,58 +453,110 @@
     box-shadow: 0 0 0 2px var(--accent-transparent, rgba(24, 160, 251, 0.15));
   }
 
-  /* .mcp.json snippet fills its card */
-  .mcp-snippet {
+  .port-input.invalid {
+    border-color: var(--error, #f24822);
+  }
+
+  /* ── MCP integration blocks ─────────────────────────────────────────────── */
+  .mcp-block {
     display: flex;
     flex-direction: column;
     height: 100%;
   }
 
-  .mcp-snippet-header {
+  .mcp-block-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px 10px;
+  }
+
+  .mcp-head-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 14px;
-    background-color: var(--bg-card-hover, var(--bg-item));
-    border-bottom: 1px solid var(--borders);
+    gap: 8px;
   }
 
-  .mcp-snippet-title {
-    font-size: 11px;
-    color: var(--text-disabled);
-    font-family: "Inter", sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .copy-btn {
-    font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--borders);
-    background: transparent;
+  .mcp-block-title {
+    font-size: 14px;
+    font-weight: 600;
     color: var(--text);
-    cursor: pointer;
-    font-family: "Inter", sans-serif;
-    transition: background-color 0.15s ease;
   }
 
-  .copy-btn:hover {
-    background-color: var(--bg-item-hover, rgba(255, 255, 255, 0.06));
-  }
-
-  .mcp-snippet-code {
-    flex: 1;
+  .mcp-block-lead {
     margin: 0;
-    padding: 14px;
-    font-size: 11px;
-    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-disabled);
+  }
+
+  .status-chip {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .status-chip.active {
+    background-color: var(--success-muted, rgba(54, 179, 126, 0.16));
+    color: var(--success, #36b37e);
+  }
+  .status-chip.pending {
+    background-color: var(--warning-muted, rgba(255, 171, 0, 0.16));
+    color: var(--warning, #ffab00);
+  }
+  .status-chip.error {
+    background-color: var(--error-muted, rgba(242, 72, 34, 0.16));
+    color: var(--error, #f24822);
+  }
+  .status-chip.muted {
+    background-color: var(--bg-item, rgba(255, 255, 255, 0.06));
+    color: var(--text-disabled);
+  }
+
+  .mcp-block-desc,
+  .mcp-note {
+    margin: 0;
+    padding: 0 16px 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-disabled);
+  }
+  .mcp-block-desc strong {
     color: var(--text);
-    background-color: transparent;
-    line-height: 1.6;
-    white-space: pre;
-    overflow-x: auto;
-    tab-size: 2;
+    font-weight: 600;
+  }
+  .mcp-note {
+    padding-top: 0;
+    font-style: italic;
+  }
+  .mcp-note code {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-style: normal;
+    font-size: 11px;
+  }
+
+  .mcp-rows {
+    border-top: 1px solid var(--borders);
+  }
+
+  /* snippet wrapper grows to fill the equal-height card */
+  .mcp-block-snippet {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    border-top: 1px solid var(--borders);
+  }
+  .mcp-block-snippet :global(.mcp-snippet) {
+    width: 100%;
+  }
+
+  .mcp-collision {
+    margin: 12px 2px 0;
+    font-size: 12px;
+    color: var(--error, #f24822);
   }
 
   .list-block {

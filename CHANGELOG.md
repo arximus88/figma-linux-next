@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-01
+
+### Added
+
+- New tools for the built-in AI assistant integration: quickly locate layers by name or
+  type, get a compact outline of a design, and safely edit text (fonts load automatically).
+- You can now turn the AI assistant server on or off, change its port, and see its live
+  status under Settings → General → MCP integrations.
+
+### Changed
+
+- Smoother tab reordering: dragging a tab lifts and selects it and shows a placeholder where
+  it will drop.
+- The Settings window now uses your system's native sans-serif font.
+
+### Fixed
+
+- Fixed a crash when creating a file from a template while no "New file" tab was open.
+- Tabs that got stuck showing a loading placeholder now clear on their own.
+- The AI assistant integration no longer fails on layer/page names or search text that
+  contain quotes or backslashes, and its screenshot links now use the configured port.
+
+### Under the hood
+
+No behavior change, but a large chunk of the codebase was reorganized this cycle:
+
+- Modularized the built-in AI-assistant (MCP) server — the single large file was split into
+  focused modules (tool handlers, injected scripts, tool schemas, an HTTP session transport,
+  and shared utilities) with data-driven, compile-time-checked tool dispatch.
+- Broke window handling into standalone pieces: a warm-tab state machine, a modal-view
+  manager for the Settings/changelog panels, and a tab-bounds geometry helper.
+- Simplified the panel frame components (one shared frame; merged the per-style left/right and
+  tab variants) and routed the extensions and logger subsystems through the central IPC layer.
+- Replaced the vendored drag-and-drop library with the in-house tab reorder.
+- Grew the automated test suite (MCP transport & write-tool gating, warm-tab lifecycle, window
+  geometry, frame-style visual baselines) and trimmed overlapping end-to-end cases.
+
 ---
 
 ## [0.14.0] - 2026-06-25

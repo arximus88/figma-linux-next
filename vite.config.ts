@@ -30,6 +30,13 @@ export default defineConfig({
     electron([
       {
         entry: "main/index.ts",
+        // vite-plugin-electron@1 launches electron with cwd = vite root ("src"),
+        // where electron reads src/package.json (main: "main/main.js") and can't
+        // find the build output (it lives in dist/main/main.js). Launch from the
+        // project root instead, so electron resolves package.json#main correctly.
+        onstart({ startup }) {
+          startup([".", "--no-sandbox"], { cwd: __dirname });
+        },
         vite: {
           define: {
             "import.meta.url": 'require("url").pathToFileURL(__filename).href',
@@ -73,6 +80,11 @@ export default defineConfig({
       },
       {
         entry: "main/preload/bridge.ts",
+        // Preload/renderer-side scripts must not spawn their own electron; just
+        // reload the app the main entry launched when they rebuild.
+        onstart({ reload }) {
+          reload();
+        },
         vite: {
           resolve: {
             alias: {
@@ -97,6 +109,9 @@ export default defineConfig({
       },
       {
         entry: "renderer/DesktopAPI/loadContent.ts",
+        onstart({ reload }) {
+          reload();
+        },
         vite: {
           resolve: {
             alias: {
@@ -121,6 +136,9 @@ export default defineConfig({
       },
       {
         entry: "renderer/DesktopAPI/loadMainContent.ts",
+        onstart({ reload }) {
+          reload();
+        },
         vite: {
           resolve: {
             alias: {

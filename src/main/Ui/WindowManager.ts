@@ -239,6 +239,7 @@ export default class WindowManager {
     // Window/tab operations
     ipcRegistry.on("frontReady", this.handleFrontReady.bind(this), "WindowManager");
     ipcRegistry.on("windowClose", this.handlerWindowClose.bind(this), "WindowManager");
+    ipcRegistry.on("reorderTabs", this.reorderTabs.bind(this), "WindowManager");
     ipcRegistry.on("windowMinimize", this.windowMinimize.bind(this), "WindowManager");
     ipcRegistry.on("windowMaximize", this.windowMaximize.bind(this), "WindowManager");
     ipcRegistry.on("setFocusToMainTab", this.setFocusToMainTab.bind(this), "WindowManager");
@@ -478,6 +479,16 @@ export default class WindowManager {
     const window = this.windows.get(windowId);
 
     window.sortTabs(tabs);
+  }
+
+  // Live drag reorder from the panel: reorder this window's tab Map immediately
+  // so tab cycling (Ctrl+(Shift+)Tab) and the next state snapshot follow the
+  // visual order, instead of waiting for window close.
+  private reorderTabs(event: IpcMainEvent, tabs: Types.TabFront[]) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (window) {
+      window.sortTabs(tabs);
+    }
   }
 
   private windowClose(windowId: number) {

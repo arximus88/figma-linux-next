@@ -1,0 +1,84 @@
+# Flatpak manifest for figma-linux-next (Flathub submission).
+#
+# STATUS: SKELETON — not buildable as-is. The blocking item is offline dependency
+# vendoring (Flathub builds run with NO network). See the `generated-sources`
+# TODO in the main module below.
+#
+# Local test build (once sources are vendored):
+#   flatpak install flathub org.freedesktop.Sdk//24.08 \
+#       org.freedesktop.Platform//24.08 org.electronjs.Electron2.BaseApp//24.08
+#   flatpak-builder --user --install --force-clean build-dir \
+#       flatpak/app.borys.FigmaLinuxNext.yml
+
+app-id: app.borys.FigmaLinuxNext
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "24.08"
+
+command: figma-linux-next
+separate-locales: false
+
+finish-args:
+  # Figma is a network app — required.
+  - --share=network
+  - --share=ipc
+  # Display: prefer Wayland, fall back to X11.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Audio (FigJam, notifications sounds).
+  - --socket=pulseaudio
+  # Desktop notifications.
+  - --talk-name=org.freedesktop.Notifications
+  # Export / open files.
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents
+  # System fonts (FontManager enumerates host fonts).
+  - --filesystem=/usr/share/fonts:ro
+  - --filesystem=/run/host/fonts:ro
+  - --filesystem=xdg-config/fontconfig:ro
+  # GPU/VA-API hardware decode.
+  - --device=all
+  # Electron via zypak (provided by the Electron2 BaseApp) — do NOT add --no-sandbox.
+  - --env=TMPDIR=/var/tmp
+
+# NOTE on figma:// protocol + MCP server (port 3845):
+#   The .desktop MimeType registers x-scheme-handler/figma inside the sandbox.
+#   The MCP server binds localhost:3845; reachable from the host via --share=network.
+#   Both need a manual smoke test inside the flatpak before submission.
+
+modules:
+  - name: figma-linux-next
+    buildsystem: simple
+    build-options:
+      env:
+        # Electron downloads are not allowed offline; build must use cached binary
+        # from the BaseApp or a vendored electron.
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        npm_config_nodedir: /usr/lib/sdk/node20
+    build-commands:
+      # TODO: real build steps. High-level shape:
+      #   1. bun/npm install  (OFFLINE — needs vendored node_modules, see sources)
+      #   2. bun run build     → dist/
+      #   3. copy dist/ into /app/main, install zypak wrapper as /app/bin/figma-linux-next
+      #   4. install desktop file, icon, metainfo
+      - "echo 'TODO: build commands not yet implemented'"
+      - install -Dm644 ../flatpak/app.borys.FigmaLinuxNext.desktop
+        /app/share/applications/app.borys.FigmaLinuxNext.desktop
+      - install -Dm644 ../flatpak/app.borys.FigmaLinuxNext.metainfo.xml
+        /app/share/metainfo/app.borys.FigmaLinuxNext.metainfo.xml
+      - install -Dm644 ../resources/icons/512x512.png
+        /app/share/icons/hicolor/512x512/apps/app.borys.FigmaLinuxNext.png
+      - install -Dm644 ../resources/icons/scalable.svg
+        /app/share/icons/hicolor/scalable/apps/app.borys.FigmaLinuxNext.svg
+    sources:
+      - type: git
+        url: https://github.com/arximus88/figma-linux-next.git
+        tag: v0.14.0
+      # TODO: offline dependency manifest. bun is NOT supported by
+      # flatpak-node-generator — generate an npm package-lock.json first, then:
+      #   flatpak-node-generator npm package-lock.json -o generated-sources.json
+      # and uncomment:
+      # - generated-sources.json

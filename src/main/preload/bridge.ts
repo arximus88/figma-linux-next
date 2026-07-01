@@ -16,6 +16,7 @@ const SEND_CHANNELS = [
   "frontReady",
   "openMainMenu",
   "windowClose",
+  "reorderTabs",
   "windowMinimize",
   "windowMaximize",
   "closeTab",
@@ -66,6 +67,7 @@ const INVOKE_CHANNELS = [
   "selectExportDirectory",
   "updateFigmaUiScale",
   "updatePanelScale",
+  "getMcpStatus",
 ] as const;
 
 type SendChannel = (typeof SEND_CHANNELS)[number];

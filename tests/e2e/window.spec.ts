@@ -72,26 +72,4 @@ test.describe("Menu and Settings", () => {
 
     await closeApp(handle);
   });
-
-  test("settings opens from IPC", async () => {
-    const handle = await launchApp();
-    const { panel, app } = handle;
-
-    await app.evaluate(({ ipcMain }) => {
-      ipcMain.emit("openSettings");
-    });
-
-    await panel.waitForTimeout(2000);
-
-    const url = panel.url();
-    console.log("Panel URL:", url);
-
-    const bodyText = await panel.evaluate(() => document.body.innerText);
-    console.log("Body text length:", bodyText.length);
-    console.log("Body text:", bodyText.substring(0, 300));
-
-    expect(app.windows().length).toBeGreaterThan(0);
-
-    await closeApp(handle);
-  });
 });

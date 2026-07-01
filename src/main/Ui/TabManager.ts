@@ -165,17 +165,14 @@ export default class TabManager {
   }
 
   public getTabIndex(webContentsId: number) {
+    // NOTE: `return` inside forEach only skips one iteration — it does not stop
+    // the walk — so the counter must break out of a real loop instead.
     let i = 0;
-
-    this.tabs.forEach((_, id) => {
-      if (webContentsId === id) {
-        return;
-      }
-
+    for (const id of this.tabs.keys()) {
+      if (webContentsId === id) return i;
       i++;
-    });
-
-    return i;
+    }
+    return -1;
   }
 
   public reloadTab(tabId: number) {
@@ -294,14 +291,25 @@ export default class TabManager {
   }
   public sortTabs(tabs: Types.TabFront[]) {
     const entries = [...this.tabs.entries()];
+    const next = new Map<number, Tab>();
+    const placed = new Set<number>();
 
-    this.tabs.clear();
-
+    // Apply the requested order for ids we actually have.
     for (const tab of tabs) {
-      const needed = entries.find(([_, t]) => t.id === tab.id);
-
-      this.tabs.set(needed[0], needed[1]);
+      const entry = entries.find(([key]) => key === tab.id);
+      if (entry && !placed.has(entry[0])) {
+        next.set(entry[0], entry[1]);
+        placed.add(entry[0]);
+      }
     }
+    // Preserve any existing tabs the payload didn't mention — never drop a tab.
+    for (const [key, tab] of entries) {
+      if (!placed.has(key)) {
+        next.set(key, tab);
+      }
+    }
+
+    this.tabs = next;
   }
 
   public getTabUrl(tabId: number) {

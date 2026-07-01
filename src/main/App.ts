@@ -13,6 +13,7 @@ import type Session from "./Session";
 import type FontManager from "./Fonts";
 import { McpServer } from "./MCP";
 import type { FigmaViewProvider } from "./MCP";
+import { MCP_PORT } from "./MCP/config";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -64,6 +65,9 @@ export default class App {
     // WindowManager registers its own window/tab-specific IPC via registry
     this.windowManager.registerIpcHandlers();
 
+    // MCP runtime status for the settings UI (real server/CDP state)
+    ipcRegistry.handle("getMcpStatus", () => this.getMcpStatus(), "App");
+
     // Seal the registry — no more IPC registrations after this point
     ipcRegistry.seal();
 
@@ -101,7 +105,10 @@ export default class App {
     };
     this.mcpServer.setViewProvider(viewProvider);
     this.mcpServer.setWriteToolsEnabled(!!storage.settings.mcp?.enableWriteTools);
-    this.mcpServer.start();
+    // Server is opt-out (default on). Only bind when enabled.
+    if (storage.settings.mcp?.serverEnabled !== false) {
+      this.mcpServer.start(storage.settings.mcp?.serverPort ?? MCP_PORT);
+    }
 
     setTimeout(() => {
       if (figmaUrl !== "") {
@@ -110,6 +117,9 @@ export default class App {
     }, Const.STARTUP_DELAY_MS);
 
     setTimeout(() => {
+      // Skip the auto "What's new" popup under test: it's a separate
+      // WebContentsView that overlays the panel and races e2e DOM capture.
+      if (process.env.NODE_ENV === "test") return;
       const current = readAppVersion();
       const lastSeen = storage.settings.app.lastSeenChangelogVersion ?? "";
       if (lastSeen !== current) {
@@ -199,5 +209,21 @@ export default class App {
     app.on("mcpWriteToolsChanged", (enabled: boolean) => {
       this.mcpServer.setWriteToolsEnabled(enabled);
     });
+    app.on("mcpServerConfigChanged", ({ enabled, port }: { enabled: boolean; port: number }) => {
+      // Our own http.Server — start/stop/rebind live, no app restart needed.
+      if (enabled) void this.mcpServer.restart(port);
+      else this.mcpServer.stop();
+    });
   };
+
+  /** Real runtime state of both MCP integrations, for the settings UI. */
+  private getMcpStatus(): Types.McpStatus {
+    const active = app.commandLine.hasSwitch("remote-debugging-port");
+    const portStr = active ? app.commandLine.getSwitchValue("remote-debugging-port") : "";
+    const cdpPort = portStr ? Number.parseInt(portStr, 10) : Number.NaN;
+    return {
+      server: this.mcpServer.getStatus(),
+      cdp: { active, port: Number.isFinite(cdpPort) ? cdpPort : null },
+    };
+  }
 }

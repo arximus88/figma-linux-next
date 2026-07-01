@@ -38,6 +38,11 @@
   }
   :global(body) {
     background-color: rgba(0, 0, 0, 0.5);
+    /* Base font for the whole Settings window. Without this, any text that
+       doesn't set its own font-family (section headers, the title) falls back
+       to the browser default serif (Times) — the "broken" look. Use the
+       platform's native UI sans so it matches the host desktop. */
+    font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
   }
   div {
     display: flex;
