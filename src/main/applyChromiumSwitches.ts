@@ -146,11 +146,18 @@ function applyDefaultOptimizations(
   // Enable modern rendering features
   app.commandLine.appendSwitch("enable-features", features.join(","));
 
-  // WebGPU/Vulkan: enabled on X11 explicitly. On Wayland the GPU blocklist handles
-  // disabling Vulkan automatically — we don't need to pass enable-unsafe-webgpu
-  // (and shouldn't, since it would re-enable it regardless of the blocklist).
-  // User can still force it via commandSwitches if they know what they're doing.
-  if (!isWayland || userForcesVulkan) {
+  // WebGPU/Vulkan: gated on the enableWebGPU toggle, not merely on the session type.
+  // enable-unsafe-webgpu exposes navigator.gpu, which is what Figma probes to switch on
+  // its Shader/Halftone/Noise effects — so it belongs with the shaders, behind the toggle.
+  // Previously this fired on any X11 session (!isWayland), which left WebGPU silently ON
+  // for X11 users who had the toggle OFF, contradicting the setting. Now it follows
+  // shadersActive (X11 + enableWebGPU); on Wayland the blocklist disables Vulkan anyway.
+  // The escape hatch stays: a user can force it via commandSwitches (userForcesVulkan),
+  // which also re-enables it on Wayland with a warning. Note this only gates WebGPU — the
+  // normal WebGL canvas keeps its hardware acceleration (ignore-gpu-blocklist + enable-webgl
+  // on X11 are untouched), so a toggle-off X11 user simply loses the shader effects, not
+  // general GPU rendering.
+  if (shadersActive || userForcesVulkan) {
     if (userForcesVulkan && isWayland) {
       logger.warn(
         "enable-unsafe-webgpu forced on Wayland via commandSwitches — Vulkan may conflict with the compositor",
