@@ -64,11 +64,14 @@ afterEach(() => {
 });
 
 describe("applyChromiumSwitches — Wayland vs X11 truth-table", () => {
-  test("X11, shaders off: blocklist bypass + DirectRenderingDisplayCompositor + unsafe-webgpu", () => {
+  test("X11, shaders off: blocklist bypass + DirectRenderingDisplayCompositor, WebGPU stays OFF", () => {
     applyChromiumSwitches({});
 
     expect(has("ignore-gpu-blocklist")).toBe(true);
-    expect(has("enable-unsafe-webgpu")).toBe(true);
+    // WebGPU is gated on the enableWebGPU toggle, not the session type: toggle off → no unsafe-webgpu.
+    expect(has("enable-unsafe-webgpu")).toBe(false);
+    // …but general GPU acceleration for the normal WebGL canvas is unaffected.
+    expect(has("enable-webgl")).toBe(true);
     expect(features()).toContain("DirectRenderingDisplayCompositor");
     expect(features()).not.toContain("WaylandWindowDecorations");
     expect(has("ozone-platform")).toBe(false);
@@ -77,10 +80,11 @@ describe("applyChromiumSwitches — Wayland vs X11 truth-table", () => {
     expect(has("force-color-profile")).toBe(false);
   });
 
-  test("X11 + enableWebGPU: forces ozone-platform=x11 for shaders", () => {
+  test("X11 + enableWebGPU: forces ozone-platform=x11 and enables unsafe-webgpu for shaders", () => {
     applyChromiumSwitches({ enableWebGPU: true });
 
     expect(switchValue("ozone-platform")).toBe("x11");
+    expect(has("enable-unsafe-webgpu")).toBe(true);
     expect(has("ignore-gpu-blocklist")).toBe(true);
     expect(features()).toContain("DirectRenderingDisplayCompositor");
   });
@@ -105,6 +109,9 @@ describe("applyChromiumSwitches — Wayland vs X11 truth-table", () => {
     applyChromiumSwitches({ enableWebGPU: true });
 
     expect(has("ozone-platform")).toBe(false);
+    // Shaders are inactive on a live Wayland session (production relaunches under XWayland
+    // before this runs), so unsafe-webgpu stays off here too.
+    expect(has("enable-unsafe-webgpu")).toBe(false);
     expect(features()).toContain("WaylandWindowDecorations");
   });
 
