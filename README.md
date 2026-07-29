@@ -107,6 +107,22 @@ yay -S figma-linux-next
 
 Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.org/packages/figma-linux-next)
 
+### NixOS
+
+Add to your flake inputs:
+```nix
+figma-linux-next.url = "github:arximus88/figma-linux-next";
+```
+
+Then enable with:
+```nix
+programs.figma-linux-next = {
+  enable = true;
+};
+```
+
+Enabling registers the `figma://` mime type handler for login redirects.
+
 ## Migration from legacy figma-linux
 
 Settings are stored in `~/.config/figma-linux-next`. To carry over settings from the old installation:
