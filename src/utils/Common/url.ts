@@ -33,6 +33,11 @@ export const isFigmaRunUrl = (url: string): boolean => {
       /^\/site\//, // Figma Sites
       /^\/buzz\//, // Figma Buzz (social/marketing templates)
       /^\/slides\//, // Figma Slides (presentations)
+      // Figma Motion's video-export queue. "Export video" calls
+      // window.open("https://www.figma.com/export/<fileKey>?fuid=…"); routing it
+      // to the desktop browser lands on a logged-in but empty queue, because the
+      // queue lives in this app's session (issue #41).
+      /^\/export\//,
     ];
 
     return validPaths.some((regex) => regex.test(parsed.pathname));
@@ -91,6 +96,11 @@ export const isFileBrowserUrl = (url: string): boolean => {
     !!parsed && /(w{0,3}\.)?figma\.com/.test(parsed.hostname) && /^\/files\//.test(parsed.pathname)
   );
 };
+
+/** Schemes the desktop browser can actually open. Everything else handed to
+ *  shell.openExternal() either no-ops or hands the URL to an unrelated app
+ *  via xdg-open. */
+export const isExternallyOpenableUrl = (url: string): boolean => /^https?:\/\//i.test(url);
 
 export const isFigmaDocLink = (url: string) =>
   /^https:\/\/w{0,3}?.figma.com\/plugin-docs/.test(url);
@@ -156,9 +166,14 @@ export const getTabDedupKey = (url: string): string | null => {
   const parsed = parseURL(url);
   if (!parsed) return null;
 
-  const match = parsed.pathname.match(/^\/(file|design|board|proto)\/([a-zA-Z0-9]+)/);
+  const match = parsed.pathname.match(/^\/(file|design|board|proto|export)\/([a-zA-Z0-9]+)/);
   if (!match) return null;
 
   const [, type, key] = match;
-  return type === "proto" ? `proto:${key}` : `doc:${key}`;
+  // The export queue is its own tab, separate from the document it renders —
+  // without a distinct prefix a repeated "Export video" click would either
+  // hijack the design tab or stack duplicate queue tabs.
+  if (type === "proto") return `proto:${key}`;
+  if (type === "export") return `export:${key}`;
+  return `doc:${key}`;
 };

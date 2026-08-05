@@ -5,6 +5,7 @@ import {
   getTabDedupKey,
   isFigmaRunUrl,
   isFileBrowserUrl,
+  isExternallyOpenableUrl,
   getEditorTypeFromUrl,
   normalizeEditorType,
 } from "Utils/Common/url";
@@ -332,4 +333,47 @@ describe("open-tab type detection (URL + Figma codename combined)", () => {
       }
     });
   }
+});
+
+describe("isExternallyOpenableUrl", () => {
+  test("accepts what the desktop browser can actually open", () => {
+    expect(isExternallyOpenableUrl("https://linear.app/oauth/authorize")).toBe(true);
+    expect(isExternallyOpenableUrl("http://localhost:3000/callback")).toBe(true);
+    expect(isExternallyOpenableUrl("HTTPS://EXAMPLE.COM")).toBe(true);
+  });
+
+  test("rejects schemes that would no-op or hand the URL to an unrelated app", () => {
+    expect(isExternallyOpenableUrl("about:blank")).toBe(false);
+    expect(isExternallyOpenableUrl("blob:https://www.figma.com/9f3a")).toBe(false);
+    expect(isExternallyOpenableUrl("data:text/html,<p>hi</p>")).toBe(false);
+    expect(isExternallyOpenableUrl("javascript:alert(1)")).toBe(false);
+    expect(isExternallyOpenableUrl("file:///etc/passwd")).toBe(false);
+    expect(isExternallyOpenableUrl("")).toBe(false);
+  });
+});
+
+describe("Figma Motion export queue (issue #41)", () => {
+  // Real URL captured from the app log when pressing "Export video".
+  const EXPORT_URL = "https://www.figma.com/export/5gUR7P3cw4YMjkslNtUHP6?fuid=745592650552274914";
+
+  test("export URLs route into the app, not the system browser", () => {
+    expect(isFigmaRunUrl(EXPORT_URL)).toBe(true);
+    expect(isFigmaRunUrl("https://www.figma.com/export/ABC123")).toBe(true);
+  });
+
+  test("export tabs dedupe on their own key, apart from the design file", () => {
+    expect(getTabDedupKey(EXPORT_URL)).toBe("export:5gUR7P3cw4YMjkslNtUHP6");
+    // A second "Export video" click on the same file reuses the queue tab.
+    expect(getTabDedupKey("https://www.figma.com/export/5gUR7P3cw4YMjkslNtUHP6")).toBe(
+      "export:5gUR7P3cw4YMjkslNtUHP6",
+    );
+    // …and never collides with the design tab for that same file.
+    expect(getTabDedupKey("https://www.figma.com/design/5gUR7P3cw4YMjkslNtUHP6/x")).toBe(
+      "doc:5gUR7P3cw4YMjkslNtUHP6",
+    );
+  });
+
+  test("the export queue is not mistaken for the file browser", () => {
+    expect(isFileBrowserUrl(EXPORT_URL)).toBe(false);
+  });
 });
