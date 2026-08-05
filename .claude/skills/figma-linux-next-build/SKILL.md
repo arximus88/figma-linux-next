@@ -193,17 +193,21 @@ aur (needs release, archlinux container)
 aur-bin (needs release, archlinux container)
   same, against figma-linux-next-bin, hashing the release zip
 
-flake (needs release)
-  checkout staging → sha256 of both release zips → SRI
+flake (needs release, RELEASE_PAT)
+  checkout dev → sha256 of both release zips → SRI
   scripts/update_flake_release.py VERSION SHA_X64 SHA_ARM64 flake.nix
-  commit + push → staging
+  commit + push → dev, then the same on staging
 ```
 
 **flake.nix is CI-owned.** Version and hashes live in one `release = { … }` block and are
 rewritten together — the hashes only exist after the binaries are built, so this cannot be
 part of `bump_version.pl`. Editing the version there by hand produces a flake that names one
-release while carrying another's hashes, which fails every `nix build`. The commit goes to
-`staging` because `dev` is protected, so the flake in `dev` is one release behind.
+release while carrying another's hashes, which fails every `nix build`.
+
+`dev` is written first because Nix resolves the flake from the default branch. That needs
+`RELEASE_PAT` (fine-grained, `Contents: write`, expires **2027-08-05**) — `GITHUB_TOKEN`
+cannot push to a protected branch. A 403 on that push means the token expired; everything
+else in the release is already published by then.
 
 ---
 

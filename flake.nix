@@ -15,8 +15,11 @@
       # purpose: the hashes only exist once the release binaries are built, so a
       # version bump would otherwise leave the flake pointing at a tarball whose
       # hash it cannot know, and every `nix build` would fail until someone
-      # recomputed them by hand. Kept together, the two can never drift — the
-      # flake simply trails package.json by at most one release.
+      # recomputed them by hand. Kept together, the two can never drift.
+      #
+      # Between a version bump and the release finishing, this block still names
+      # the previous release — that window is the build itself, not a release
+      # cycle: CI writes the new pair to dev as soon as the binaries exist.
       release = {
         version = "0.15.0";
         hashes = {

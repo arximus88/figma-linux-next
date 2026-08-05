@@ -251,21 +251,30 @@ jobs:
         env:
           GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
 
-  # Pin flake.nix to the release that just went out. The hashes only exist once
-  # the binaries are built, so this cannot run at bump time — it lands on staging
-  # and reaches dev with the next release PR.
+  # Pin flake.nix to the release that just went out.
+  #
+  # Nix needs the archive's hash written into the repo, and that hash only exists
+  # once the binaries are built — so this cannot be part of bump_version.pl and
+  # has to land after the release is published. dev is where Nix resolves
+  # `github:arximus88/figma-linux-next` from, so dev is updated first and staging
+  # mirrored after; leaving dev for the next release PR would keep NixOS users a
+  # full release behind.
+  #
+  # RELEASE_PAT is a fine-grained token (Contents: write on this repo only) and is
+  # needed because the default GITHUB_TOKEN cannot push to a protected branch.
+  # This job runs last and depends on `release`, so if the push is rejected the
+  # release itself, its binaries and both AUR packages are already out.
   flake:
     needs: release
     if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: staging
+          ref: dev
+          token: ${{ secrets.RELEASE_PAT }}
 
-      - name: Pin flake to the released binaries
+      - name: Hash the released binaries
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           BASE="${{ github.server_url }}/${{ github.repository }}/releases/download/v${VERSION}"
@@ -274,13 +283,30 @@ jobs:
           X64=$(curl -sfL "$BASE/figma-linux-next_${VERSION}_linux_x64.zip" | sha256sum | cut -d' ' -f1)
           ARM64=$(curl -sfL "$BASE/figma-linux-next_${VERSION}_linux_arm64.zip" | sha256sum | cut -d' ' -f1)
 
-          python3 scripts/update_flake_release.py "$VERSION" "$X64" "$ARM64" flake.nix
+          {
+            echo "VERSION=$VERSION"
+            echo "X64=$X64"
+            echo "ARM64=$ARM64"
+          } >> "$GITHUB_ENV"
 
-      - name: Commit to staging
+          # Kept outside the worktree so the staging step below can still run it
+          # after switching branches, whatever that branch contains.
+          cp scripts/update_flake_release.py /tmp/update_flake_release.py
+
+      - name: Commit to dev
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
           git config user.name "${{ secrets.USER_NAME }}"
           git config user.email "${{ secrets.EMAIL }}"
+          python3 /tmp/update_flake_release.py "$VERSION" "$X64" "$ARM64" flake.nix
+          git add flake.nix
+          git diff --staged --quiet || git commit -m "chore(nix): pin flake to v${VERSION}"
+          git push origin dev
+
+      - name: Mirror to staging
+        run: |
+          git fetch origin staging:staging
+          git checkout staging
+          python3 /tmp/update_flake_release.py "$VERSION" "$X64" "$ARM64" flake.nix
           git add flake.nix
           git diff --staged --quiet || git commit -m "chore(nix): pin flake to v${VERSION}"
           git push origin staging
