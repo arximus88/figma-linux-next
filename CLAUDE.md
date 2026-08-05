@@ -363,8 +363,12 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 3. **`build-pacman`** — builds `.pacman` in Arch container (electron-builder bundles Electron)
 4. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`
 5. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
+6. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
+7. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `staging`
 
 Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`.
+
+**`flake.nix` pins version + hashes together** and is updated by CI, not by `bump_version.pl` — the hashes don't exist until the release binaries are built. The commit lands on `staging` (`dev` is protected), so the flake in `dev` trails by one release. Never bump the version in `flake.nix` by hand: it would name a release whose hashes it doesn't have, and every `nix build` would fail on a hash mismatch.
 
 Other workflows:
 - `ci.yml` — runs on PRs to `dev`

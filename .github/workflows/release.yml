@@ -250,3 +250,37 @@ jobs:
           git push
         env:
           GIT_SSH_COMMAND: ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts
+
+  # Pin flake.nix to the release that just went out. The hashes only exist once
+  # the binaries are built, so this cannot run at bump time — it lands on staging
+  # and reaches dev with the next release PR.
+  flake:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: staging
+
+      - name: Pin flake to the released binaries
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          BASE="${{ github.server_url }}/${{ github.repository }}/releases/download/v${VERSION}"
+
+          # -f so a missing asset fails the job instead of hashing an error page.
+          X64=$(curl -sfL "$BASE/figma-linux-next_${VERSION}_linux_x64.zip" | sha256sum | cut -d' ' -f1)
+          ARM64=$(curl -sfL "$BASE/figma-linux-next_${VERSION}_linux_arm64.zip" | sha256sum | cut -d' ' -f1)
+
+          python3 scripts/update_flake_release.py "$VERSION" "$X64" "$ARM64" flake.nix
+
+      - name: Commit to staging
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          git config user.name "${{ secrets.USER_NAME }}"
+          git config user.email "${{ secrets.EMAIL }}"
+          git add flake.nix
+          git diff --staged --quiet || git commit -m "chore(nix): pin flake to v${VERSION}"
+          git push origin staging

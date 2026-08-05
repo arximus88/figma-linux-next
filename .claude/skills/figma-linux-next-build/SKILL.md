@@ -189,7 +189,21 @@ aur (needs release, archlinux container)
   update PKGBUILD (pkgver + sha256 via scripts/update_pkgbuild_sha256.py)
   makepkg --printsrcinfo → .SRCINFO (runs as non-root 'builder' user)
   git push → AUR
+
+aur-bin (needs release, archlinux container)
+  same, against figma-linux-next-bin, hashing the release zip
+
+flake (needs release)
+  checkout staging → sha256 of both release zips → SRI
+  scripts/update_flake_release.py VERSION SHA_X64 SHA_ARM64 flake.nix
+  commit + push → staging
 ```
+
+**flake.nix is CI-owned.** Version and hashes live in one `release = { … }` block and are
+rewritten together — the hashes only exist after the binaries are built, so this cannot be
+part of `bump_version.pl`. Editing the version there by hand produces a flake that names one
+release while carrying another's hashes, which fails every `nix build`. The commit goes to
+`staging` because `dev` is protected, so the flake in `dev` is one release behind.
 
 ---
 

@@ -123,6 +123,10 @@ programs.figma-linux-next = {
 
 Enabling registers the `figma://` mime type handler for login redirects.
 
+The flake installs the prebuilt release binaries (x86_64 and aarch64) and is pinned to a
+specific version, which CI updates after each release. Point the input at a tag to pin it
+yourself: `github:arximus88/figma-linux-next/v0.15.0`.
+
 ## Migration from legacy figma-linux
 
 Settings are stored in `~/.config/figma-linux-next`. To carry over settings from the old installation:

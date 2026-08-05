@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **NixOS support** — a Nix flake with a `programs.figma-linux-next.enable` module that also
+  registers the `figma://` handler needed for login redirects. Thanks to
+  [@iamcalledrob](https://github.com/iamcalledrob) ([#42](https://github.com/arximus88/figma-linux-next/pull/42)).
+
 ### Fixed
 
 - **Export video from Figma Motion now works.** The export queue used to open in your web
