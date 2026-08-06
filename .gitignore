@@ -46,7 +46,6 @@ src/renderer/Changelog/_data.ts
 
 # Agents
 .agent
-.gemini/settings.*
-.agent/skills
+.gemini
 .jules/
 tsconfig.tsbuildinfo

@@ -71,6 +71,9 @@ bun run lint
 # Svelte type checking
 bun run check
 
+# Svelte 5 rune antipatterns in a single component (no install needed)
+bunx @sveltejs/mcp svelte-autofixer src/renderer/Panel/App.svelte
+
 # Pre-commit hook (runs Biome on staged files via lint-staged)
 bun run precommit
 ```
@@ -80,6 +83,11 @@ former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicit
 `noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
 `.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
 yet). ESLint and Prettier were removed in favor of Biome.
+
+`svelte-check` covers types; rune antipatterns (assignment to `$derived`, unguarded `bind:this` in
+`$effect`, leftover `on:click`) slip through it. `bunx @sveltejs/mcp svelte-autofixer <file>` catches
+those — one file per invocation, not wired into any script. Runs from the bunx cache and leaves
+`bun.lock` untouched.
 
 ### Testing
 
@@ -219,7 +227,7 @@ The project uses TypeScript path aliases for cleaner imports:
 ```typescript
 import { logger } from "Main/Logger";
 import { CheckBox } from "Common/Input";
-import { defaultSettings } from "Utils/Render/defaultSettings";
+import { BASE_DEFAULT_SETTINGS } from "Utils/Common/defaultSettings";
 ```
 
 Aliases:
@@ -235,7 +243,16 @@ When adding new code, use these aliases instead of relative paths.
 
 ### Settings Structure
 
-Persisted at `~/.config/figma-linux-next/settings.json`. Authoritative source: `src/utils/Render/defaultSettings.ts` and `src/types/` interfaces.
+Persisted at `~/.config/figma-linux-next/settings.json`. Authoritative source:
+`src/utils/Common/defaultSettings.ts` (`BASE_DEFAULT_SETTINGS`) and `src/types/` interfaces.
+
+Three files carry the name `defaultSettings.ts`, and only the first holds values:
+
+| File | Holds |
+|---|---|
+| `Utils/Common/defaultSettings.ts` | `BASE_DEFAULT_SETTINGS` — every environment-independent default |
+| `Utils/Main/defaultSettings.ts` | Main-process layer: `clientId`, `$HOME`-derived paths |
+| `Utils/Render/defaultSettings.ts` | `export { BASE_DEFAULT_SETTINGS as DEFAULT_SETTINGS }` — 4 lines, a shape placeholder; the renderer's real values arrive over the `getSettings` IPC |
 
 ## Extension System
 
@@ -267,10 +284,13 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 ### Window Frame Styles
 
-Three frame styles configurable in settings (`app.frameStyle`):
-- `windows` - Windows-style frame
-- `gnome` - GNOME-style frame
-- `macos` - macOS-style frame
+`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`),
+selected via `app.frameStyle`. Default: `gnome`.
+
+- `gnome` — GNOME-style frame (default)
+- `windows` — Windows-style frame
+- `macos`, `kde` — accepted by the type; README lists both as TBD, so check
+  `src/renderer/Panel/frames/` before assuming a style is fully implemented.
 
 ## Logging
 
@@ -300,16 +320,29 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
 | `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop MessageChannel bridge |
-| `src/utils/Render/defaultSettings.ts` | Default settings — authoritative settings schema |
-| `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
-| `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
+| `src/utils/Common/defaultSettings.ts` | `BASE_DEFAULT_SETTINGS` — authoritative settings schema |
+| `src/utils/Main/defaultSettings.ts` | Env-dependent defaults layered on the base (clientId, `$HOME` paths) |
+| `src/utils/Render/defaultSettings.ts` | Re-export of the base for the renderer — no values of its own |
+| `src/utils/Render/frameTheme.ts` | Frame style icon/component config (`FrameConfig`) |
+| `src/renderer/Panel/frames/` | Per-frame Svelte components (`FramedPanel`, `FramedLeft`, `FramedTabs`, `FramedRight`) |
 | `config/builder.json` | electron-builder package config |
 | `src/package.json` | Production manifest copied to `dist/` during build — **must stay in sync with `package.json` dependencies** |
 
 ## Important Gotchas
 
-### Electron is pinned to 42.0.1 — do NOT bump without manual OAuth test
-`package.json` lists `"electron": "42.0.1"` with no caret. Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) that includes a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validates those headers and silently rejects `/app_auth/redeem` from the new Chromium — the response is the login HTML instead of `Set-Cookie`, breaking first-login and add-account flows. AUR releases ship with bundled 42.0.1 and work fine. Before any Electron bump, manually run `bun run start` and verify both first-login (clean storage) and add-account end-to-end. If either breaks, the bump is not safe.
+### Electron version is exact (no caret) — every bump needs a manual OAuth test
+`package.json` lists an exact version, currently `"electron": "43.3.0"` (Chromium 150.0.7871.212), verified 2026-08-06.
+
+The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
+
+**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands. Two things make this test easy to get wrong:
+
+- **Test the bundled binary from `node_modules`.** Distro Electron packages (Arch's `electronNN`) are rebuilt from source and may not carry the same closed-source components, so a green run there says nothing about what electron-builder ships.
+- **Isolate config via `XDG_CONFIG_HOME`, and copy `~/.config/mimeapps.list` into it.** The default-browser mapping lives in that file; without it gio picks an arbitrary browser and the login opens in the wrong one.
+
+The `figma://` redirect must reach the instance under test. Registering a second `.desktop` does not work — Firefox keeps its own handler list and offers the installed entry. Shadow `/usr/share/applications/figma-linux-next.desktop` with a copy in `~/.local/share/applications` that keeps `Name`/`MimeType` and redirects `Exec`.
+
+Note `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x line (absent in 41.x and 42.0.1, present in 42.8.0+). Guard it with `typeof` before calling — the AUR `figma-linux-next` package runs against whatever system Electron is installed.
 
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
@@ -363,11 +396,17 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 3. **`build-pacman`** — builds `.pacman` in Arch container (electron-builder bundles Electron)
 4. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`
 5. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
+6. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
+7. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
 
-Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`.
+Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`.
+
+**`flake.nix` pins version + hashes together** and is updated by CI, not by `bump_version.pl` — the hashes don't exist until the release binaries are built. Never bump the version in `flake.nix` by hand: it would name a release whose hashes it doesn't have, and every `nix build` would fail on a hash mismatch.
+
+**`RELEASE_PAT`** is a fine-grained PAT (`Contents: Read and write`, this repo only, created 2026-08-05, **expires 2027-08-05**). It exists because Nix resolves `github:arximus88/figma-linux-next` from `dev`, and the default `GITHUB_TOKEN` cannot push to a protected branch — without it NixOS users would always install the previous release. When it expires the `flake` job starts failing with a 403 on push and nothing else changes; regenerate it and `gh secret set RELEASE_PAT`. The job runs last and depends on `release`, so a rejected push never blocks the release itself.
 
 Other workflows:
-- `ci.yml` — runs on PRs to `dev`
+- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (type check, lint, unit tests)
 - `remove_artefacts.yml` — cleanup
 
 ### AUR packages
@@ -389,7 +428,8 @@ bun validates named ESM exports statically before mocks run. `src/utils/Main/net
 When modifying the codebase:
 
 1. **Adding a new setting**:
-   - Update `defaultSettings.ts`
+   - Add the value to `src/utils/Common/defaultSettings.ts` (`BASE_DEFAULT_SETTINGS`) —
+     the `Render/` and `Main/` files of the same name will not do what you want
    - Add to TypeScript interface in `src/types/`
    - Update Settings UI if user-configurable
 
