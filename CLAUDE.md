@@ -71,6 +71,9 @@ bun run lint
 # Svelte type checking
 bun run check
 
+# Svelte 5 rune antipatterns in a single component (no install needed)
+bunx @sveltejs/mcp svelte-autofixer src/renderer/Panel/App.svelte
+
 # Pre-commit hook (runs Biome on staged files via lint-staged)
 bun run precommit
 ```
@@ -80,6 +83,11 @@ former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicit
 `noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
 `.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
 yet). ESLint and Prettier were removed in favor of Biome.
+
+`svelte-check` covers types; rune antipatterns (assignment to `$derived`, unguarded `bind:this` in
+`$effect`, leftover `on:click`) slip through it. `bunx @sveltejs/mcp svelte-autofixer <file>` catches
+those — one file per invocation, not wired into any script. Runs from the bunx cache and leaves
+`bun.lock` untouched.
 
 ### Testing
 
