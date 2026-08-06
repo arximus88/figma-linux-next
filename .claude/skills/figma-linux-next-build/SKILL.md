@@ -147,12 +147,14 @@ git push origin vX.Y.Z
 - [ ] All changes committed and pushed to staging
 - [ ] CHANGELOG.md updated with `## [X.Y.Z]` section
 - [ ] `perl scripts/bump_version.pl X.Y.Z` — verify both package.json files
-- [ ] `git push origin staging && git push origin vX.Y.Z`
+- [ ] `git push origin staging` — branch only, tag stays local
 - [ ] PR created: staging → dev
 - [ ] CI green on PR
 - [ ] PR merged
+- [ ] `git push origin vX.Y.Z` — only now; this is what triggers `release.yml`
 - [ ] GitHub Release visible at `github.com/arximus88/figma-linux-next/releases`
 - [ ] AUR updated: `https://aur.archlinux.org/packages/figma-linux-next`
+- [ ] `flake.nix` on `dev` pins vX.Y.Z (CI commit `chore(nix): pin flake to vX.Y.Z`)
 
 ---
 
@@ -162,8 +164,10 @@ git push origin vX.Y.Z
 |---|---|---|
 | `release.yml` | Tag `v*.*.*` pushed | Build all 9 packages, GitHub Release, AUR push |
 | `ci.yml` | Push/PR to `dev`/`staging` | Type check, lint, unit tests |
-| `push_aur_dev_git.yml` | Manual (`workflow_dispatch`) | Updates `figma-linux-next-dev-git` AUR |
 | `remove_artefacts.yml` | Manual | Clean up old CI artifacts |
+
+Only these three exist. `push_aur_dev_git.yml` was deleted in `3c3a762`; the
+`figma-linux-next-dev-git` AUR package has no automation.
 
 ### release.yml jobs
 
@@ -198,6 +202,12 @@ flake (needs release, RELEASE_PAT)
   scripts/update_flake_release.py VERSION SHA_X64 SHA_ARM64 flake.nix
   commit + push → dev, then the same on staging
 ```
+
+**`aur`, `aur-bin` and `flake` skip pre-release tags.** All three carry
+`if: !contains(ref_name, '-rc') && !contains(..., '-alpha') && !contains(..., '-beta')`.
+Tagging `v0.16.0-rc1` publishes a GitHub Release and nothing else — AUR keeps serving
+the last stable and `flake.nix` keeps its previous pin. That is intended; a pre-release
+must not become what `nix build` or `pacman -S` hands a user.
 
 **flake.nix is CI-owned.** Version and hashes live in one `release = { … }` block and are
 rewritten together — the hashes only exist after the binaries are built, so this cannot be
@@ -237,8 +247,9 @@ git push
 |---|---|---|
 | `GITHUB_TOKEN` | GitHub Releases API | Automatic, no setup needed |
 | `ID_RSA` (base64) | SSH key for AUR push | CI-dedicated key (`~/.ssh/id_ed25519_aur_ci`), registered on AUR only |
-| `USER_NAME` | Git committer name for AUR commits | e.g. `Borys Kharchenko` |
-| `EMAIL` | Git committer email for AUR commits | |
+| `USER_NAME` | Git committer name for AUR + flake commits | e.g. `Borys Kharchenko` |
+| `EMAIL` | Git committer email for AUR + flake commits | |
+| `RELEASE_PAT` | Pushing the pinned `flake.nix` to protected `dev` | Fine-grained, `Contents: write`, this repo only. Created 2026-08-05, **expires 2027-08-05**. Regenerate with `gh secret set RELEASE_PAT`. |
 
 **SSH key setup:** CI uses a dedicated key separate from personal key.
 - Personal key: `~/.ssh/id_ed25519` (GitHub + AUR personal access)
@@ -295,6 +306,8 @@ build/installers/
 | `scripts/bump_version.pl` | Version bump + tag automation (run on staging) |
 | `scripts/generate_release_notes.pl` | Changelog from git log (preview only) |
 | `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
+| `scripts/update_flake_release.py` | Rewrites the `release` block in flake.nix (version + both SRI hashes in one pass) |
+| `flake.nix` | Nix package; `release` block is CI-owned — never edit the version by hand |
 | `.github/workflows/` | All CI/CD automation |
 | `resources/AppRun` | AppImage entry point |
 | `resources/icons/` | Multi-size icons (16–512px) |
