@@ -59,6 +59,11 @@ export const isPrototypeUrl = (url: string): boolean => {
   return /figma\.com\/proto\//.test(url);
 };
 
+/** Figma Motion's video-export queue — see the wake-up workaround in Window.ts. */
+export const isExportQueueUrl = (url: string): boolean => {
+  return /figma\.com\/export\//.test(url);
+};
+
 export const isFigmaUrl = (url: string): boolean =>
   /^(https?:\/\/w{0,3}?\.?figma\.com\/.*)/.test(url);
 

@@ -15,11 +15,17 @@ import {
   isCommunityUrl,
   isFileBrowserUrl,
   isFigmaRunUrl,
+  isExportQueueUrl,
   parseURL,
   getTabDedupKey,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
 import Tab from "./Tab";
+
+/** Settle time after the export-queue page loads, before its view is attached. */
+const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
+/** Attach the export-queue tab regardless, so a failed load can't leave it hidden. */
+const EXPORT_QUEUE_ATTACH_TIMEOUT_MS = 8000;
 
 export default class Window {
   private window: BrowserWindow;
@@ -299,7 +305,13 @@ export default class Window {
         return;
       }
       const tab = this.addTab(url);
-      if (tab) this.setTabFocus(tab.id);
+      if (!tab) return;
+
+      if (isExportQueueUrl(url)) {
+        this.focusTabWhenLoaded(tab);
+      } else {
+        this.setTabFocus(tab.id);
+      }
     }
   }
   public focus() {
@@ -461,6 +473,40 @@ export default class Window {
     }
 
     return tab;
+  }
+
+  /**
+   * Figma's video-export queue never joins the file when its tab is attached
+   * before the page loads: it renders "Your rendering queue is empty" and stays
+   * that way, while the render is in fact queued and progressing. Switching
+   * tabs away and back is the only thing that fixes it — reload, resize,
+   * maximise and window focus all fail, and a CDP session shows nothing that
+   * distinguishes the stuck page from a working one (visibilityState stays
+   * "visible" with no event fired, the size is identical across the switch,
+   * requestAnimationFrame runs at 60fps, and the preload bridge is installed).
+   *
+   * What that manual switch really does is let the page finish loading while
+   * detached, then attach it. So instead of attaching immediately and nudging
+   * afterwards, hold the tab back: it loads in the background at 0x0 exactly
+   * like a warm tab, and gets attached once it is ready. The tab strip still
+   * shows it right away — addTab already sent didTabAdd — only the view is
+   * deferred.
+   *
+   * The timer is a fallback: if did-finish-load never arrives (offline, a
+   * redirect loop), the tab must still become visible rather than hang unseen.
+   */
+  private focusTabWhenLoaded(tab: Tab) {
+    const wc = tab.view.webContents;
+    let shown = false;
+
+    const show = () => {
+      if (shown || wc.isDestroyed()) return;
+      shown = true;
+      this.setTabFocus(tab.id);
+    };
+
+    wc.once("did-finish-load", () => setTimeout(show, EXPORT_QUEUE_ATTACH_DELAY_MS));
+    setTimeout(show, EXPORT_QUEUE_ATTACH_TIMEOUT_MS);
   }
 
   /**

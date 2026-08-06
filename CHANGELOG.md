@@ -26,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Export video from Figma Motion now works.** The export queue used to open in your web
   browser, where it always showed "Your rendering queue is empty" — the queue belongs to the
   app's session, so a browser could never see it. It now opens as a tab inside the app, and
-  pressing Export again reuses that tab instead of stacking duplicates. ([#41](https://github.com/arximus88/figma-linux-next/issues/41))
+  pressing Export again reuses that tab instead of stacking duplicates. The queue also fills
+  in on its own now — it used to open empty and stay empty until you switched tabs away and
+  back. ([#41](https://github.com/arximus88/figma-linux-next/issues/41))
 - WebGPU now follows the "WebGPU shaders" setting on X11 sessions. It was switched on for
   every X11 session regardless of the toggle, so users who had turned it off were still
   paying for it.

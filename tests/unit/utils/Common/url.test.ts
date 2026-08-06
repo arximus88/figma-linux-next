@@ -5,6 +5,7 @@ import {
   getTabDedupKey,
   isFigmaRunUrl,
   isFileBrowserUrl,
+  isExportQueueUrl,
   isExternallyOpenableUrl,
   getEditorTypeFromUrl,
   normalizeEditorType,
@@ -375,5 +376,15 @@ describe("Figma Motion export queue (issue #41)", () => {
 
   test("the export queue is not mistaken for the file browser", () => {
     expect(isFileBrowserUrl(EXPORT_URL)).toBe(false);
+  });
+
+  test("only the queue is flagged for the re-attach workaround", () => {
+    expect(isExportQueueUrl(EXPORT_URL)).toBe(true);
+    expect(isExportQueueUrl("https://www.figma.com/export/ABC123")).toBe(true);
+    // Ordinary tabs must not be re-attached — the workaround is queue-only.
+    expect(isExportQueueUrl("https://www.figma.com/design/5gUR7P3cw4YMjkslNtUHP6/x")).toBe(false);
+    expect(isExportQueueUrl("https://www.figma.com/files/recent")).toBe(false);
+    // A design file that merely mentions "export" in its slug is not the queue.
+    expect(isExportQueueUrl("https://www.figma.com/design/KEY/export-icons")).toBe(false);
   });
 });
