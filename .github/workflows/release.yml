@@ -170,9 +170,16 @@ jobs:
           TARBALL_URL="https://github.com/arximus88/figma-linux-next/archive/refs/tags/v${VERSION}.tar.gz"
           SHA256=$(curl -sL "$TARBALL_URL" | sha256sum | cut -d' ' -f1)
 
+          # package.json carries the SPDX id verbatim, so it is the one source
+          # both this and the AUR package can agree on.
+          LICENSE_ID=$(python3 -c "import json;print(json.load(open('$GITHUB_WORKSPACE/package.json'))['license'])")
+
           cd /tmp/aur-pkg
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          # Rewritten every release because nothing else did: the line sat at MIT
+          # while the project shipped GPL-2.0-only, and no per-release step touched it.
+          sed -i "s/^license=.*/license=('${LICENSE_ID}')/" PKGBUILD
           python3 $GITHUB_WORKSPACE/scripts/update_pkgbuild_sha256.py "$SHA256" PKGBUILD
 
       - name: Generate .SRCINFO
@@ -226,9 +233,13 @@ jobs:
           ZIP_URL="https://github.com/arximus88/figma-linux-next/releases/download/v${VERSION}/figma-linux-next_${VERSION}_linux_x64.zip"
           SHA256=$(curl -sL "$ZIP_URL" | sha256sum | cut -d' ' -f1)
 
+          LICENSE_ID=$(python3 -c "import json;print(json.load(open('$GITHUB_WORKSPACE/package.json'))['license'])")
+
           cd /tmp/aur-bin
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          # See the aur job: this line was stuck at MIT for the same reason.
+          sed -i "s/^license=.*/license=('${LICENSE_ID}')/" PKGBUILD
           python3 $GITHUB_WORKSPACE/scripts/update_pkgbuild_sha256.py "$SHA256" PKGBUILD
 
       - name: Generate .SRCINFO
