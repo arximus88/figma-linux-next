@@ -223,18 +223,39 @@ else in the release is already published by then.
 
 ## AUR Repository
 
-Local AUR repo: `/home/arx/aur/figma-linux-next/`
-Remote: `ssh://aur@aur.archlinux.org/figma-linux-next.git`
+Remotes: `ssh://aur@aur.archlinux.org/figma-linux-next.git` and `…/figma-linux-next-bin.git`
 
-CI updates AUR automatically on tag push. Manual update:
+**CI owns both repos.** The `aur` and `aur-bin` jobs clone from AUR fresh on every tagged
+release, rewrite their fields, and push. Nothing local is consulted.
+
+⚠️ **Never push from a long-lived local clone.** It falls behind by one release every time
+CI runs, and pushing it rolls AUR back that far — CI will not notice, because its next run
+clones whatever is there and edits it in place. A clone under `/home/arx/aur/` was five
+releases stale (0.13.1 vs 0.15.0 live) before this was caught. For any manual edit, clone
+into a throwaway directory:
+
 ```bash
-cd /home/arx/aur/figma-linux-next
-# edit PKGBUILD (pkgver, sha256sums)
-makepkg --printsrcinfo > .SRCINFO
-git add PKGBUILD .SRCINFO
-git commit -m "Update to vX.Y.Z"
-git push
+cd $(mktemp -d)
+git clone ssh://aur@aur.archlinux.org/figma-linux-next.git && cd figma-linux-next
+# edit PKGBUILD
+makepkg --printsrcinfo > .SRCINFO    # regenerate per commit; .SRCINFO must match PKGBUILD
+git commit -am "…" && git push
 ```
+
+Read-only checks work over HTTPS (`https://aur.archlinux.org/figma-linux-next.git`) and the
+RPC API, which is the fastest way to see what is actually published:
+
+```bash
+curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=figma-linux-next' | python3 -m json.tool
+```
+
+During AUR maintenance the **SSH endpoint alone** goes down — `git push` fails with
+"The AUR is down due to maintenance" while the web UI returns 200 and HTTPS git still
+serves reads. A working website says nothing about whether you can push.
+
+**What CI rewrites:** `pkgver`, `pkgrel`, `sha256sums`, and `license` (from `package.json`).
+Every other field — `conflicts`, `depends`, `provides`, `optdepends`, `package()` — is
+whatever the AUR repo already contains, so those only ever change by a manual push.
 
 **PKGBUILD sources:** tarball from GitHub + `figma-linux-next.desktop` + `figma-linux-next-launcher.sh`
 **sha256sums:** first entry = tarball sha256, others = SKIP (local files)
@@ -302,7 +323,7 @@ build/installers/
 | `config/builder.json` | electron-builder targets, app metadata, file associations |
 | `vite.config.ts` | Vite build config (main + renderer bundles) |
 | `package.json` / `src/package.json` | Dev / production manifests |
-| `/home/arx/aur/figma-linux-next/PKGBUILD` | AUR package definition (separate repo) |
+| AUR `PKGBUILD` (both repos) | Package definition; lives only on AUR, clone fresh to edit |
 | `scripts/bump_version.pl` | Version bump + tag automation (run on staging) |
 | `scripts/generate_release_notes.pl` | Changelog from git log (preview only) |
 | `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
