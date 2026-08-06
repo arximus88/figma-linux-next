@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.16.0] - 2026-08-06
 
 ### Added
 
@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebGPU now follows the "WebGPU shaders" setting on X11 sessions. It was switched on for
   every X11 session regardless of the toggle, so users who had turned it off were still
   paying for it.
+- With "Use Zenity for dialogs" enabled, prompts were cut off mid-sentence — the restart
+  prompt never showed which setting needed the restart. Dialogs without a detail line came up
+  empty altogether, and the cancel button read "No" instead of "Cancel". All three fixed.
 
 ### Under the hood
 
