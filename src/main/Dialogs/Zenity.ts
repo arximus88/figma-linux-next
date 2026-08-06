@@ -2,21 +2,25 @@ import { process } from "../Process";
 
 export class ZenityDialogs implements ProviderDialog {
   public showMessageBox = async (options: Dialogs.MessageBoxOptions) => {
-    const cmd = [`zenity --${options.type} --ellipsize`];
+    // --width instead of --ellipsize: the latter keeps the window small by
+    // truncating the text with an ellipsis, which cut the detail line off
+    // mid-sentence. A fixed width wraps it instead.
+    const cmd = [`zenity --${options.type} --width=460`];
 
     if (options.title) {
       cmd.push(`--title="${options.title}"`);
     }
-    if (options.detail) {
-      cmd.push(`--text="${options.message}\n${options.detail}"`);
-    }
+    // Guarding this on `detail` dropped --text entirely for detail-less
+    // dialogs, leaving zenity to render an empty body.
+    const text = options.detail ? `${options.message}\n${options.detail}` : options.message;
+    cmd.push(`--text="${text}"`);
     if (options.textOkButton) {
       cmd.push(`--ok-label="${options.textOkButton}"`);
     }
     if (options.type === "question") {
-      if (options.textCancelButton) {
-        cmd.push(`--cancel-label="${options.textCancelButton}"`);
-      }
+      // zenity labels a question's reject button "No"; the native provider says
+      // "Cancel". Default to the native wording so the two match.
+      cmd.push(`--cancel-label="${options.textCancelButton ?? "Cancel"}"`);
       if (options.defaultFocusedButton === "Cancel") {
         cmd.push(`--default-cancel`);
       }
@@ -30,21 +34,25 @@ export class ZenityDialogs implements ProviderDialog {
     }
   };
   public showMessageBoxSync = (options: Dialogs.MessageBoxOptions) => {
-    const cmd = [`zenity --${options.type} --ellipsize`];
+    // --width instead of --ellipsize: the latter keeps the window small by
+    // truncating the text with an ellipsis, which cut the detail line off
+    // mid-sentence. A fixed width wraps it instead.
+    const cmd = [`zenity --${options.type} --width=460`];
 
     if (options.title) {
       cmd.push(`--title="${options.title}"`);
     }
-    if (options.detail) {
-      cmd.push(`--text="${options.message}\n${options.detail}"`);
-    }
+    // Guarding this on `detail` dropped --text entirely for detail-less
+    // dialogs, leaving zenity to render an empty body.
+    const text = options.detail ? `${options.message}\n${options.detail}` : options.message;
+    cmd.push(`--text="${text}"`);
     if (options.textOkButton) {
       cmd.push(`--ok-label="${options.textOkButton}"`);
     }
     if (options.type === "question") {
-      if (options.textCancelButton) {
-        cmd.push(`--cancel-label="${options.textCancelButton}"`);
-      }
+      // zenity labels a question's reject button "No"; the native provider says
+      // "Cancel". Default to the native wording so the two match.
+      cmd.push(`--cancel-label="${options.textCancelButton ?? "Cancel"}"`);
       if (options.defaultFocusedButton === "Cancel") {
         cmd.push(`--default-cancel`);
       }
