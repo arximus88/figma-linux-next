@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registers the `figma://` handler needed for login redirects. Thanks to
   [@iamcalledrob](https://github.com/iamcalledrob) ([#42](https://github.com/arximus88/figma-linux-next/pull/42)).
 
+### Changed
+
+- **Updated to Electron 43 (Chromium 150)** from Electron 42 / Chromium 148. The app starts
+  noticeably faster — this release boots the main process from a startup snapshot and caches
+  preload scripts as bytecode — and picks up three months of Chromium security fixes along
+  with a newer WebGPU and canvas stack. Login, image paste and window decorations were all
+  verified against the new build.
+
 ### Fixed
 
 - **Export video from Figma Motion now works.** The export queue used to open in your web

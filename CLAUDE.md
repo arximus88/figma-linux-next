@@ -330,8 +330,19 @@ selected via `app.frameStyle`. Default: `gnome`.
 
 ## Important Gotchas
 
-### Electron is pinned to 42.0.1 — do NOT bump without manual OAuth test
-`package.json` lists `"electron": "42.0.1"` with no caret. Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) that includes a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validates those headers and silently rejects `/app_auth/redeem` from the new Chromium — the response is the login HTML instead of `Set-Cookie`, breaking first-login and add-account flows. AUR releases ship with bundled 42.0.1 and work fine. Before any Electron bump, manually run `bun run start` and verify both first-login (clean storage) and add-account end-to-end. If either breaks, the bump is not safe.
+### Electron version is exact (no caret) — every bump needs a manual OAuth test
+`package.json` lists an exact version, currently `"electron": "43.3.0"` (Chromium 150.0.7871.212), verified 2026-08-06.
+
+The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
+
+**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands. Two things make this test easy to get wrong:
+
+- **Test the bundled binary from `node_modules`.** Distro Electron packages (Arch's `electronNN`) are rebuilt from source and may not carry the same closed-source components, so a green run there says nothing about what electron-builder ships.
+- **Isolate config via `XDG_CONFIG_HOME`, and copy `~/.config/mimeapps.list` into it.** The default-browser mapping lives in that file; without it gio picks an arbitrary browser and the login opens in the wrong one.
+
+The `figma://` redirect must reach the instance under test. Registering a second `.desktop` does not work — Firefox keeps its own handler list and offers the installed entry. Shadow `/usr/share/applications/figma-linux-next.desktop` with a copy in `~/.local/share/applications` that keeps `Name`/`MimeType` and redirects `Exec`.
+
+Note `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x line (absent in 41.x and 42.0.1, present in 42.8.0+). Guard it with `typeof` before calling — the AUR `figma-linux-next` package runs against whatever system Electron is installed.
 
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
