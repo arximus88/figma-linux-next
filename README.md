@@ -87,7 +87,7 @@ sudo dpkg -i figma-linux-next_*_arm64.deb
 sudo rpm -i figma-linux-next_*_x86_64.rpm
 
 # AppImage
-chmod +x figma-linux-next-*.AppImage && ./figma-linux-next-*.AppImage
+chmod +x figma-linux-next_*.AppImage && ./figma-linux-next_*.AppImage
 ```
 
 > **AppImage note:** On first launch the app automatically registers the `figma://` URL handler required for login. If login still fails after first launch, register it manually:
@@ -114,12 +114,17 @@ Add to your flake inputs:
 figma-linux-next.url = "github:arximus88/figma-linux-next";
 ```
 
-Then enable with:
+Import the module in your `nixosConfigurations`, then enable it:
 ```nix
+imports = [ figma-linux-next.nixosModules.default ];
+
 programs.figma-linux-next = {
   enable = true;
 };
 ```
+
+Without the `imports` line `programs.figma-linux-next` is not a known option and
+evaluation fails.
 
 Enabling registers the `figma://` mime type handler for login redirects.
 

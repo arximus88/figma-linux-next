@@ -227,7 +227,7 @@ The project uses TypeScript path aliases for cleaner imports:
 ```typescript
 import { logger } from "Main/Logger";
 import { CheckBox } from "Common/Input";
-import { defaultSettings } from "Utils/Render/defaultSettings";
+import { BASE_DEFAULT_SETTINGS } from "Utils/Common/defaultSettings";
 ```
 
 Aliases:
@@ -243,7 +243,16 @@ When adding new code, use these aliases instead of relative paths.
 
 ### Settings Structure
 
-Persisted at `~/.config/figma-linux-next/settings.json`. Authoritative source: `src/utils/Render/defaultSettings.ts` and `src/types/` interfaces.
+Persisted at `~/.config/figma-linux-next/settings.json`. Authoritative source:
+`src/utils/Common/defaultSettings.ts` (`BASE_DEFAULT_SETTINGS`) and `src/types/` interfaces.
+
+Three files carry the name `defaultSettings.ts`, and only the first holds values:
+
+| File | Holds |
+|---|---|
+| `Utils/Common/defaultSettings.ts` | `BASE_DEFAULT_SETTINGS` — every environment-independent default |
+| `Utils/Main/defaultSettings.ts` | Main-process layer: `clientId`, `$HOME`-derived paths |
+| `Utils/Render/defaultSettings.ts` | `export { BASE_DEFAULT_SETTINGS as DEFAULT_SETTINGS }` — 4 lines, a shape placeholder; the renderer's real values arrive over the `getSettings` IPC |
 
 ## Extension System
 
@@ -275,10 +284,13 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 ### Window Frame Styles
 
-Three frame styles configurable in settings (`app.frameStyle`):
-- `windows` - Windows-style frame
-- `gnome` - GNOME-style frame
-- `macos` - macOS-style frame
+`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`),
+selected via `app.frameStyle`. Default: `gnome`.
+
+- `gnome` — GNOME-style frame (default)
+- `windows` — Windows-style frame
+- `macos`, `kde` — accepted by the type; README lists both as TBD, so check
+  `src/renderer/Panel/frames/` before assuming a style is fully implemented.
 
 ## Logging
 
@@ -308,9 +320,11 @@ Three frame styles configurable in settings (`app.frameStyle`):
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
 | `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop MessageChannel bridge |
-| `src/utils/Render/defaultSettings.ts` | Default settings — authoritative settings schema |
-| `src/utils/Render/frameConfig.ts` | Frame style icon/component config |
-| `src/utils/Render/frameStyles.ts` | Frame style CSS variables |
+| `src/utils/Common/defaultSettings.ts` | `BASE_DEFAULT_SETTINGS` — authoritative settings schema |
+| `src/utils/Main/defaultSettings.ts` | Env-dependent defaults layered on the base (clientId, `$HOME` paths) |
+| `src/utils/Render/defaultSettings.ts` | Re-export of the base for the renderer — no values of its own |
+| `src/utils/Render/frameTheme.ts` | Frame style icon/component config (`FrameConfig`) |
+| `src/renderer/Panel/frames/` | Per-frame Svelte components (`FramedPanel`, `FramedLeft`, `FramedTabs`, `FramedRight`) |
 | `config/builder.json` | electron-builder package config |
 | `src/package.json` | Production manifest copied to `dist/` during build — **must stay in sync with `package.json` dependencies** |
 
@@ -381,7 +395,7 @@ Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, 
 **`RELEASE_PAT`** is a fine-grained PAT (`Contents: Read and write`, this repo only, created 2026-08-05, **expires 2027-08-05**). It exists because Nix resolves `github:arximus88/figma-linux-next` from `dev`, and the default `GITHUB_TOKEN` cannot push to a protected branch — without it NixOS users would always install the previous release. When it expires the `flake` job starts failing with a 403 on push and nothing else changes; regenerate it and `gh secret set RELEASE_PAT`. The job runs last and depends on `release`, so a rejected push never blocks the release itself.
 
 Other workflows:
-- `ci.yml` — runs on PRs to `dev`
+- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (type check, lint, unit tests)
 - `remove_artefacts.yml` — cleanup
 
 ### AUR packages
@@ -403,7 +417,8 @@ bun validates named ESM exports statically before mocks run. `src/utils/Main/net
 When modifying the codebase:
 
 1. **Adding a new setting**:
-   - Update `defaultSettings.ts`
+   - Add the value to `src/utils/Common/defaultSettings.ts` (`BASE_DEFAULT_SETTINGS`) —
+     the `Render/` and `Main/` files of the same name will not do what you want
    - Add to TypeScript interface in `src/types/`
    - Update Settings UI if user-configurable
 
