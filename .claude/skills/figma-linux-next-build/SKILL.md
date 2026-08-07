@@ -147,12 +147,14 @@ git push origin vX.Y.Z
 - [ ] All changes committed and pushed to staging
 - [ ] CHANGELOG.md updated with `## [X.Y.Z]` section
 - [ ] `perl scripts/bump_version.pl X.Y.Z` — verify both package.json files
-- [ ] `git push origin staging && git push origin vX.Y.Z`
+- [ ] `git push origin staging` — branch only, tag stays local
 - [ ] PR created: staging → dev
 - [ ] CI green on PR
 - [ ] PR merged
+- [ ] `git push origin vX.Y.Z` — only now; this is what triggers `release.yml`
 - [ ] GitHub Release visible at `github.com/arximus88/figma-linux-next/releases`
 - [ ] AUR updated: `https://aur.archlinux.org/packages/figma-linux-next`
+- [ ] `flake.nix` on `dev` pins vX.Y.Z (CI commit `chore(nix): pin flake to vX.Y.Z`)
 
 ---
 
@@ -162,8 +164,10 @@ git push origin vX.Y.Z
 |---|---|---|
 | `release.yml` | Tag `v*.*.*` pushed | Build all 9 packages, GitHub Release, AUR push |
 | `ci.yml` | Push/PR to `dev`/`staging` | Type check, lint, unit tests |
-| `push_aur_dev_git.yml` | Manual (`workflow_dispatch`) | Updates `figma-linux-next-dev-git` AUR |
 | `remove_artefacts.yml` | Manual | Clean up old CI artifacts |
+
+Only these three exist. `push_aur_dev_git.yml` was deleted in `3c3a762`; the
+`figma-linux-next-dev-git` AUR package has no automation.
 
 ### release.yml jobs
 
@@ -189,24 +193,69 @@ aur (needs release, archlinux container)
   update PKGBUILD (pkgver + sha256 via scripts/update_pkgbuild_sha256.py)
   makepkg --printsrcinfo → .SRCINFO (runs as non-root 'builder' user)
   git push → AUR
+
+aur-bin (needs release, archlinux container)
+  same, against figma-linux-next-bin, hashing the release zip
+
+flake (needs release, RELEASE_PAT)
+  checkout dev → sha256 of both release zips → SRI
+  scripts/update_flake_release.py VERSION SHA_X64 SHA_ARM64 flake.nix
+  commit + push → dev, then the same on staging
 ```
+
+**`aur`, `aur-bin` and `flake` skip pre-release tags.** All three carry
+`if: !contains(ref_name, '-rc') && !contains(..., '-alpha') && !contains(..., '-beta')`.
+Tagging `v0.16.0-rc1` publishes a GitHub Release and nothing else — AUR keeps serving
+the last stable and `flake.nix` keeps its previous pin. That is intended; a pre-release
+must not become what `nix build` or `pacman -S` hands a user.
+
+**flake.nix is CI-owned.** Version and hashes live in one `release = { … }` block and are
+rewritten together — the hashes only exist after the binaries are built, so this cannot be
+part of `bump_version.pl`. Editing the version there by hand produces a flake that names one
+release while carrying another's hashes, which fails every `nix build`.
+
+`dev` is written first because Nix resolves the flake from the default branch. That needs
+`RELEASE_PAT` (fine-grained, `Contents: write`, expires **2027-08-05**) — `GITHUB_TOKEN`
+cannot push to a protected branch. A 403 on that push means the token expired; everything
+else in the release is already published by then.
 
 ---
 
 ## AUR Repository
 
-Local AUR repo: `/home/arx/aur/figma-linux-next/`
-Remote: `ssh://aur@aur.archlinux.org/figma-linux-next.git`
+Remotes: `ssh://aur@aur.archlinux.org/figma-linux-next.git` and `…/figma-linux-next-bin.git`
 
-CI updates AUR automatically on tag push. Manual update:
+**CI owns both repos.** The `aur` and `aur-bin` jobs clone from AUR fresh on every tagged
+release, rewrite their fields, and push. Nothing local is consulted.
+
+⚠️ **Never push from a long-lived local clone.** It falls behind by one release every time
+CI runs, and pushing it rolls AUR back that far — CI will not notice, because its next run
+clones whatever is there and edits it in place. A clone under `/home/arx/aur/` was five
+releases stale (0.13.1 vs 0.15.0 live) before this was caught. For any manual edit, clone
+into a throwaway directory:
+
 ```bash
-cd /home/arx/aur/figma-linux-next
-# edit PKGBUILD (pkgver, sha256sums)
-makepkg --printsrcinfo > .SRCINFO
-git add PKGBUILD .SRCINFO
-git commit -m "Update to vX.Y.Z"
-git push
+cd $(mktemp -d)
+git clone ssh://aur@aur.archlinux.org/figma-linux-next.git && cd figma-linux-next
+# edit PKGBUILD
+makepkg --printsrcinfo > .SRCINFO    # regenerate per commit; .SRCINFO must match PKGBUILD
+git commit -am "…" && git push
 ```
+
+Read-only checks work over HTTPS (`https://aur.archlinux.org/figma-linux-next.git`) and the
+RPC API, which is the fastest way to see what is actually published:
+
+```bash
+curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=figma-linux-next' | python3 -m json.tool
+```
+
+During AUR maintenance the **SSH endpoint alone** goes down — `git push` fails with
+"The AUR is down due to maintenance" while the web UI returns 200 and HTTPS git still
+serves reads. A working website says nothing about whether you can push.
+
+**What CI rewrites:** `pkgver`, `pkgrel`, `sha256sums`, and `license` (from `package.json`).
+Every other field — `conflicts`, `depends`, `provides`, `optdepends`, `package()` — is
+whatever the AUR repo already contains, so those only ever change by a manual push.
 
 **PKGBUILD sources:** tarball from GitHub + `figma-linux-next.desktop` + `figma-linux-next-launcher.sh`
 **sha256sums:** first entry = tarball sha256, others = SKIP (local files)
@@ -219,8 +268,9 @@ git push
 |---|---|---|
 | `GITHUB_TOKEN` | GitHub Releases API | Automatic, no setup needed |
 | `ID_RSA` (base64) | SSH key for AUR push | CI-dedicated key (`~/.ssh/id_ed25519_aur_ci`), registered on AUR only |
-| `USER_NAME` | Git committer name for AUR commits | e.g. `Borys Kharchenko` |
-| `EMAIL` | Git committer email for AUR commits | |
+| `USER_NAME` | Git committer name for AUR + flake commits | e.g. `Borys Kharchenko` |
+| `EMAIL` | Git committer email for AUR + flake commits | |
+| `RELEASE_PAT` | Pushing the pinned `flake.nix` to protected `dev` | Fine-grained, `Contents: write`, this repo only. Created 2026-08-05, **expires 2027-08-05**. Regenerate with `gh secret set RELEASE_PAT`. |
 
 **SSH key setup:** CI uses a dedicated key separate from personal key.
 - Personal key: `~/.ssh/id_ed25519` (GitHub + AUR personal access)
@@ -273,10 +323,12 @@ build/installers/
 | `config/builder.json` | electron-builder targets, app metadata, file associations |
 | `vite.config.ts` | Vite build config (main + renderer bundles) |
 | `package.json` / `src/package.json` | Dev / production manifests |
-| `/home/arx/aur/figma-linux-next/PKGBUILD` | AUR package definition (separate repo) |
+| AUR `PKGBUILD` (both repos) | Package definition; lives only on AUR, clone fresh to edit |
 | `scripts/bump_version.pl` | Version bump + tag automation (run on staging) |
 | `scripts/generate_release_notes.pl` | Changelog from git log (preview only) |
 | `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
+| `scripts/update_flake_release.py` | Rewrites the `release` block in flake.nix (version + both SRI hashes in one pass) |
+| `flake.nix` | Nix package; `release` block is CI-owned — never edit the version by hand |
 | `.github/workflows/` | All CI/CD automation |
 | `resources/AppRun` | AppImage entry point |
 | `resources/icons/` | Multi-size icons (16–512px) |

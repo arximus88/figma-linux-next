@@ -24,6 +24,7 @@ import {
   isFigmaDocLink,
   isFigmaBoardLink,
   isFigmaDesignLink,
+  isExternallyOpenableUrl,
   parseURL,
 } from "Utils/Common";
 import { storage } from "Main/Storage";
@@ -159,11 +160,17 @@ export default class MainTab {
       return;
     }
 
-    shell.openExternal(url);
+    if (isExternallyOpenableUrl(url)) {
+      shell.openExternal(url);
+    }
   }
 
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
+
+    logger.debug(
+      `[MainTab] window.open url="${url}" frameName="${details.frameName}" disposition="${details.disposition}" features="${details.features}"`,
+    );
 
     if (url.startsWith("https://accounts.google.com/") && /start_google_sso/.test(url)) {
       return { action: "allow" as const };
@@ -177,8 +184,10 @@ export default class MainTab {
 
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
-    } else if (url.startsWith("https://") || url.startsWith("http://")) {
+    } else if (isExternallyOpenableUrl(url)) {
       shell.openExternal(url);
+    } else {
+      logger.warn(`[MainTab] window.open blocked, unsupported scheme: ${url}`);
     }
 
     return { action: "deny" as const };

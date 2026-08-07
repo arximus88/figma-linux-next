@@ -18,7 +18,7 @@ Not affiliated with or endorsed by Figma, Inc.
   <a href="https://aur.archlinux.org/packages/figma-linux-next-bin"><img alt="AUR (bin)" src="https://img.shields.io/aur/version/figma-linux-next-bin?style=flat-square&logo=archlinux&logoColor=white&label=AUR%20(bin)"></a>
 </p>
 <p>
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F?style=flat-square&logo=electron&logoColor=white">
   <img alt="Svelte" src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white">
   <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white">
   <img alt="Bun" src="https://img.shields.io/badge/Bun-000000?style=flat-square&logo=bun&logoColor=white">
@@ -35,7 +35,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Shader, Halftone & Noise effects** — Figma's new WebGPU canvas effects render, matching the official app (opt-in, Experimental). They require X11/XWayland: on a Wayland session, enabling them relaunches the app under XWayland, so you trade native Wayland features (fractional scaling, per-monitor DPI) for shaders while they're on.
 - **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
 - **Built-in MCP server for AI assistants** — a [Model Context Protocol](https://modelcontextprotocol.io) server (default port 3845) lets AI tools like Claude Code read **and** write your open design: scene-graph metadata, design context, variables/styles, screenshots, plus create/edit nodes and Mermaid→FigJam diagrams. Read-only by default; write tools, the port, and an optional Chrome DevTools control plane are toggled in Settings. See [AI integration (MCP)](#ai-integration-mcp).
-- **Latest Chromium engine** — Electron 42 / Chromium 148, so the canvas, WebGL and color handling track the current web app.
+- **Latest Chromium engine** — Electron 43 / Chromium 150, so the canvas, WebGL and color handling track the current web app.
 - **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
 - **Runs on both Wayland and X11** — native Wayland on GNOME, KDE Plasma, Sway, Hyprland, with a clean X11 fallback. Tested on Asahi Linux (Apple Silicon), Niri, and openSUSE.
 - **Native window frame styles** — GNOME and Windows frames that match your DE (macOS and KDE TBD), with an option to hide the minimize/maximize buttons for a stock-GNOME look.
@@ -64,7 +64,7 @@ off-by-default and opt-in.
 
 ## Tech Stack
 
-- **Electron 42** (Chromium 148)
+- **Electron 43** (Chromium 150)
 - **Svelte 5** with runes
 - **Vite 8**
 - **Bun**
@@ -87,7 +87,7 @@ sudo dpkg -i figma-linux-next_*_arm64.deb
 sudo rpm -i figma-linux-next_*_x86_64.rpm
 
 # AppImage
-chmod +x figma-linux-next-*.AppImage && ./figma-linux-next-*.AppImage
+chmod +x figma-linux-next_*.AppImage && ./figma-linux-next_*.AppImage
 ```
 
 > **AppImage note:** On first launch the app automatically registers the `figma://` URL handler required for login. If login still fails after first launch, register it manually:
@@ -106,6 +106,31 @@ yay -S figma-linux-next
 ```
 
 Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.org/packages/figma-linux-next)
+
+### NixOS
+
+Add to your flake inputs:
+```nix
+figma-linux-next.url = "github:arximus88/figma-linux-next";
+```
+
+Import the module in your `nixosConfigurations`, then enable it:
+```nix
+imports = [ figma-linux-next.nixosModules.default ];
+
+programs.figma-linux-next = {
+  enable = true;
+};
+```
+
+Without the `imports` line `programs.figma-linux-next` is not a known option and
+evaluation fails.
+
+Enabling registers the `figma://` mime type handler for login redirects.
+
+The flake installs the prebuilt release binaries (x86_64 and aarch64) and is pinned to a
+specific version, which CI updates after each release. Point the input at a tag to pin it
+yourself: `github:arximus88/figma-linux-next/v0.15.0`.
 
 ## Migration from legacy figma-linux
 

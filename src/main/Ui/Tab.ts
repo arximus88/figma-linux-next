@@ -17,6 +17,7 @@ import {
   isAppAuthRedeem,
   isFigmaDocLink,
   isFileBrowserUrl,
+  isExternallyOpenableUrl,
   parseURL,
   getEditorTypeFromUrl,
 } from "Utils/Common";
@@ -176,7 +177,9 @@ export default class Tab {
       return;
     }
 
-    shell.openExternal(url);
+    if (isExternallyOpenableUrl(url)) {
+      shell.openExternal(url);
+    }
   }
 
   private permissionHandler(
@@ -239,10 +242,19 @@ export default class Tab {
   private windowOpenHandler(details: HandlerDetails) {
     const { url } = details;
 
+    logger.debug(
+      `[Tab ${this.id}] window.open url="${url}" frameName="${details.frameName}" disposition="${details.disposition}" features="${details.features}"`,
+    );
+
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
-    } else {
+      return { action: "deny" as const };
+    }
+
+    if (isExternallyOpenableUrl(url)) {
       shell.openExternal(url);
+    } else {
+      logger.warn(`[Tab ${this.id}] window.open blocked, unsupported scheme: ${url}`);
     }
 
     return { action: "deny" as const };
