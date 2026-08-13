@@ -117,6 +117,12 @@ modules:
         url: https://github.com/arximus88/figma-linux-next.git
         tag: v0.16.0
       - generated-sources.json
+      - type: file
+        path: package.json
+        dest: flatpak
+      - type: file
+        path: package-lock.json
+        dest: flatpak
       - type: script
         dest-filename: run.sh
         commands:
