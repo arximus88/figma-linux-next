@@ -1,0 +1,29 @@
+{
+  "name": "figma-linux-next",
+  "version": "0.16.0",
+  "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
+  "private": true,
+  "_comment": "Dependency set for the offline Flatpak build. Mirrors root package.json's build tooling (vite, svelte, electron) minus test/lint/packaging tooling that isn't needed to produce dist/ (no Playwright, no electron-builder — the Flatpak build unzips the electron-builder-managed npm 'electron' package's vendored binary directly via flatpak-node-generator's electron caching instead of running electron-builder, since electron-builder's own auxiliary tool downloads (app-builder etc.) aren't vendored offline). Keep version/name/dependencies/overrides in sync with the root package.json and src/package.json. Regenerate package-lock.json and generated-sources.json after editing (see flatpak/app.borys.FigmaLinuxNext.yml).",
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "chokidar": "^5.0.0",
+    "electron-log": "^5.4.3",
+    "fontkit": "^2.0.4"
+  },
+  "trustedDependencies": [
+    "electron"
+  ],
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tsconfig/svelte": "^5.0.8",
+    "svelte": "^5.56.4",
+    "svelte-preprocess": "^6.0.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "vite-plugin-electron": "^1.1.0",
+    "electron": "43.3.0"
+  },
+  "overrides": {
+    "hosted-git-info": "^7"
+  }
+}
