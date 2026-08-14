@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Flatpak support** — the Flatpak manifest now builds for real. Every npm dependency and the
+  Electron binary itself are vendored up front, so the build works on Flathub's network-less
+  builders. Thanks to [@blossomlabs-gh](https://github.com/blossomlabs-gh)
+  ([#45](https://github.com/arximus88/figma-linux-next/pull/45)).
+
+### Fixed
+
+- Under Flatpak the app no longer crashes on start in a Wayland session. It used to relaunch
+  itself under XWayland to enable WebGPU shaders, which zypak's spawn interception cannot
+  survive; inside a Flatpak the app now stays on Wayland and runs without shaders.
+
 ## [0.16.0] - 2026-08-06
 
 ### Added
