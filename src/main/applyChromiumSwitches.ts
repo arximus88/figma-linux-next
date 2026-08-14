@@ -15,7 +15,12 @@ const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-grap
  *
  * Guards: FIGMA_FORCE_X11 prevents an infinite relaunch loop; dev is skipped (vite owns the
  * Electron process); test is skipped (Playwright drives the launched process directly, so
- * spawning a detached copy + app.exit(0) would orphan it and hang every e2e test).
+ * spawning a detached copy + app.exit(0) would orphan it and hang every e2e test); Flatpak is
+ * skipped because re-exec'ing the ~220MB Electron binary as a detached, unref'd child from an
+ * about-to-exit parent goes through zypak's spawn interception and segfaults it deterministically
+ * (reproduced on AMD, independent of GPU/sandbox/zygote flags and zypak version — the crash is in
+ * libzypak-preload-host-spawn-strategy.so, not in anything Chromium/GPU-related). Under Flatpak we
+ * just fall through to the existing "shaders requested but Wayland" log below and run without them.
  */
 export function shouldRelaunchUnderX11(
   settings: Partial<Types.SettingsInterface["app"]>,
@@ -26,7 +31,8 @@ export function shouldRelaunchUnderX11(
       env.WAYLAND_DISPLAY &&
       !env.FIGMA_FORCE_X11 &&
       env.NODE_ENV !== "dev" &&
-      env.NODE_ENV !== "test",
+      env.NODE_ENV !== "test" &&
+      !env.FLATPAK_ID,
   );
 }
 
@@ -103,7 +109,9 @@ function applyDefaultOptimizations(
     app.commandLine.appendSwitch("ozone-platform", "x11");
   } else if (enableShaders) {
     logger.info(
-      "WebGPU shaders requested but session is Wayland — running without them (a production build relaunches under XWayland automatically; in dev use `env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 bun run dev`)",
+      process.env.FLATPAK_ID
+        ? "WebGPU shaders requested but session is Wayland — running without them (not available under Flatpak: relaunching under XWayland crashes zypak's spawn interception, see applyChromiumSwitches.ts)"
+        : "WebGPU shaders requested but session is Wayland — running without them (a production build relaunches under XWayland automatically; in dev use `env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 bun run dev`)",
     );
   }
 

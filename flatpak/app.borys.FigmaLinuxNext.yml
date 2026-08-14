@@ -1,19 +1,39 @@
 # Flatpak manifest for figma-linux-next (Flathub submission).
 #
-# STATUS: SKELETON — not buildable as-is. The blocking item is offline dependency
-# vendoring (Flathub builds run with NO network). See the `generated-sources`
-# TODO in the main module below.
+# Offline build: Flathub builds run with NO network access. All npm dependencies
+# (including the Electron binary itself) are vendored via generated-sources.json,
+# produced from flatpak/package.json + flatpak/package-lock.json — a build-only
+# dependency set, distinct from the root package.json, that excludes test/lint
+# tooling (Playwright etc.) which flatpak-node-generator can't vendor offline.
+# See flatpak/package.json's description for what to do when deps change.
 #
-# Local test build (once sources are vendored):
+# The main module does NOT run electron-builder: electron-builder fetches its own
+# auxiliary tooling (app-builder etc.) from GitHub releases at build time, and
+# flatpak-node-generator has no special-case support for vendoring that offline.
+# Instead, the build unzips the Electron binary that flatpak-node-generator DOES
+# vendor (via its built-in "electron" package handling — see the cache path in
+# build-commands below) straight into /app/main, then drops the built dist/ (with
+# production node_modules) into /app/main/resources/app, which is Electron's
+# default convention for locating a bundled app without repackaging via asar.
+#
+# Local test build:
 #   flatpak install flathub org.freedesktop.Sdk//24.08 \
+#       org.freedesktop.Sdk.Extension.node22//24.08 \
 #       org.freedesktop.Platform//24.08 org.electronjs.Electron2.BaseApp//24.08
 #   flatpak-builder --user --install --force-clean build-dir \
 #       flatpak/app.borys.FigmaLinuxNext.yml
+#
+# Regenerating vendored deps after a flatpak/package.json change:
+#   cd flatpak && npm install --package-lock-only --ignore-scripts
+#   python3 -m flatpak_node_generator --electron-node-headers \
+#       -o generated-sources.json npm package-lock.json
 
 app-id: app.borys.FigmaLinuxNext
 runtime: org.freedesktop.Platform
 runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node22
 base: org.electronjs.Electron2.BaseApp
 base-version: "24.08"
 
@@ -47,38 +67,63 @@ finish-args:
 # NOTE on figma:// protocol + MCP server (port 3845):
 #   The .desktop MimeType registers x-scheme-handler/figma inside the sandbox.
 #   The MCP server binds localhost:3845; reachable from the host via --share=network.
-#   Both need a manual smoke test inside the flatpak before submission.
+#   Verified so far (headless, this environment had no display): the app boots
+#   under zypak, the IpcRegistry seals with all 69 channels, and the MCP server
+#   comes up ("MCP server running at http://127.0.0.1:3845/mcp"). Still needs a
+#   human check with a real display before Flathub submission: actual window
+#   rendering, the figma:// redirect end-to-end, and a first-login smoke test
+#   (see the Electron-version-bump gotcha in the root CLAUDE.md — same caveats
+#   about isolating XDG_CONFIG_HOME and the .desktop MIME handler apply here).
 
 modules:
   - name: figma-linux-next
     buildsystem: simple
     build-options:
+      append-path: /usr/lib/sdk/node22/bin
       env:
-        # Electron downloads are not allowed offline; build must use cached binary
-        # from the BaseApp or a vendored electron.
+        XDG_CACHE_HOME: /run/build/figma-linux-next/flatpak-node/cache
+        npm_config_cache: /run/build/figma-linux-next/flatpak-node/npm-cache
+        npm_config_nodedir: /usr/lib/sdk/node22
+        npm_config_offline: "true"
+        npm_config_update_notifier: "false"
+        # Skip node_modules/electron's own postinstall download — the build gets
+        # its Electron binary by unzipping the vendored cache entry directly below.
         ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-        npm_config_nodedir: /usr/lib/sdk/node20
     build-commands:
-      # TODO: real build steps. High-level shape:
-      #   1. bun/npm install  (OFFLINE — needs vendored node_modules, see sources)
-      #   2. bun run build     → dist/
-      #   3. copy dist/ into /app/main, install zypak wrapper as /app/bin/figma-linux-next
-      #   4. install desktop file, icon, metainfo
-      - "echo 'TODO: build commands not yet implemented'"
-      - install -Dm644 ../flatpak/app.borys.FigmaLinuxNext.desktop
+      # flatpak/package.json is a build-only dependency set (see its description);
+      # swap it in for the root manifest so `npm install` doesn't need Playwright etc.
+      - cp flatpak/package.json package.json
+      - cp flatpak/package-lock.json package-lock.json
+      - npm install --offline --no-audit --no-fund
+      - npx vite build
+      - cp src/package.json dist/package.json
+      - cp flatpak/package-lock.json dist/package-lock.json
+      - cd dist && npm install --omit=dev --offline --no-audit --no-fund && rm -f package-lock.json && cd ..
+      - mkdir -p /app/main
+      - unzip -q flatpak-node/cache/electron/electron-v43.3.0-linux-x64.zip -d /app/main
+      - mkdir -p /app/main/resources/app
+      - cp -a dist/. /app/main/resources/app/
+      - install -Dm755 run.sh /app/bin/figma-linux-next
+      - install -Dm644 flatpak/app.borys.FigmaLinuxNext.desktop
         /app/share/applications/app.borys.FigmaLinuxNext.desktop
-      - install -Dm644 ../flatpak/app.borys.FigmaLinuxNext.metainfo.xml
+      - install -Dm644 flatpak/app.borys.FigmaLinuxNext.metainfo.xml
         /app/share/metainfo/app.borys.FigmaLinuxNext.metainfo.xml
-      - install -Dm644 ../resources/icons/512x512.png
+      - install -Dm644 resources/icons/512x512.png
         /app/share/icons/hicolor/512x512/apps/app.borys.FigmaLinuxNext.png
-      - install -Dm644 ../resources/icons/scalable.svg
+      - install -Dm644 resources/icons/scalable.svg
         /app/share/icons/hicolor/scalable/apps/app.borys.FigmaLinuxNext.svg
     sources:
       - type: git
         url: https://github.com/arximus88/figma-linux-next.git
-        tag: v0.14.0
-      # TODO: offline dependency manifest. bun is NOT supported by
-      # flatpak-node-generator — generate an npm package-lock.json first, then:
-      #   flatpak-node-generator npm package-lock.json -o generated-sources.json
-      # and uncomment:
-      # - generated-sources.json
+        tag: v0.16.0
+      - generated-sources.json
+      - type: file
+        path: package.json
+        dest: flatpak
+      - type: file
+        path: package-lock.json
+        dest: flatpak
+      - type: script
+        dest-filename: run.sh
+        commands:
+          - zypak-wrapper /app/main/electron "$@"
