@@ -47,6 +47,9 @@ finish-args:
   # Display: prefer Wayland, fall back to X11.
   - --socket=wayland
   - --socket=fallback-x11
+  # GPU rendering and VA-API hardware decode both go through /dev/dri.
+  # --device=all would additionally expose /dev/input, letting the app read every
+  # input device on the system — which is exactly what Wayland's isolation prevents.
   - --device=dri
   # Audio (FigJam, notifications sounds).
   - --socket=pulseaudio
@@ -59,8 +62,6 @@ finish-args:
   - --filesystem=/usr/share/fonts:ro
   - --filesystem=/run/host/fonts:ro
   - --filesystem=xdg-config/fontconfig:ro
-  # GPU/VA-API hardware decode.
-  - --device=all
   # Electron via zypak (provided by the Electron2 BaseApp) — do NOT add --no-sandbox.
   - --env=TMPDIR=/var/tmp
 

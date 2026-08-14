@@ -14,7 +14,7 @@
 
   <description>
     <p>
-      figma-linux-next is an unofficial, community-built desktop application that
+      Figma Linux Next is an unofficial, community-built desktop application that
       wraps the Figma web app with native Linux integration. It is not affiliated
       with, endorsed by, or sponsored by Figma, Inc.
     </p>
@@ -31,12 +31,16 @@
 
   <launchable type="desktop-id">app.borys.FigmaLinuxNext.desktop</launchable>
 
-  <!-- TODO: host screenshots at stable raw URLs (e.g. raw.githubusercontent.com)
-       and replace these placeholders before Flathub submission. -->
+  <!-- Served from the dev branch, which is the stable release branch. Both files are
+       tracked in images/; appstreamcli validation fails on an unreachable URL. -->
   <screenshots>
     <screenshot type="default">
-      <caption>Main editor window</caption>
-      <image>https://raw.githubusercontent.com/arximus88/figma-linux-next/dev/images/screenshot-main.png</image>
+      <caption>Editing a design, with the tab bar in GNOME frame style</caption>
+      <image width="1403" height="857">https://raw.githubusercontent.com/arximus88/figma-linux-next/dev/images/screenshot1.jpg</image>
+    </screenshot>
+    <screenshot>
+      <caption>Creating a file — each tab carries the icon of its Figma file type</caption>
+      <image width="891" height="474">https://raw.githubusercontent.com/arximus88/figma-linux-next/dev/images/update_1.png</image>
     </screenshot>
   </screenshots>
 
