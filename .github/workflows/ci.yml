@@ -30,3 +30,8 @@ jobs:
 
       - name: Unit tests
         run: bun test tests/unit/
+
+      # A stale tag: in the Flatpak manifest builds and installs cleanly while
+      # packaging the previous release, so nothing else would catch it.
+      - name: Flatpak release metadata
+        run: python3 scripts/sync_flatpak_release.py --check

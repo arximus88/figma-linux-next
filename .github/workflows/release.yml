@@ -321,3 +321,46 @@ jobs:
           git add flake.nix
           git diff --staged --quiet || git commit -m "chore(nix): pin flake to v${VERSION}"
           git push origin staging
+
+  # bump_version.pl already wrote the tag into the manifest; only the commit sha
+  # can't be known before the tag exists, so it is pinned here. A bare tag is a
+  # movable pointer — pinning the sha is what makes the Flatpak build reproduce
+  # the exact code this release shipped.
+  #
+  # Runs after `flake` rather than beside it: both push to dev, and in parallel
+  # the loser would be rejected as non-fast-forward.
+  flatpak:
+    needs: [release, flake]
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: dev
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Pin the manifest to this release
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          git config user.name "${{ secrets.USER_NAME }}"
+          git config user.email "${{ secrets.EMAIL }}"
+
+          # Kept outside the worktree so the staging step can still run it after
+          # switching branches, whatever that branch contains.
+          cp scripts/sync_flatpak_release.py /tmp/sync_flatpak_release.py
+
+          python3 /tmp/sync_flatpak_release.py --commit "${{ github.sha }}"
+          git add flatpak/
+          git diff --staged --quiet || git commit -m "chore(flatpak): pin manifest to v${VERSION}"
+          git push origin dev
+
+      - name: Mirror to staging
+        run: |
+          git fetch origin staging:staging
+          git checkout staging
+          python3 /tmp/sync_flatpak_release.py --commit "${{ github.sha }}"
+          git add flatpak/
+          git diff --staged --quiet || git commit -m "chore(flatpak): pin manifest to v${VERSION}"
+          git push origin staging

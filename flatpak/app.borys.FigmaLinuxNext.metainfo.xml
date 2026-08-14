@@ -50,7 +50,10 @@
     <content_attribute id="social-info">intense</content_attribute>
   </content_rating>
 
+  <!-- Newest first; kept in step with package.json by scripts/sync_flatpak_release.py. -->
   <releases>
+    <release version="0.16.0" date="2026-08-06"/>
+    <release version="0.15.0" date="2026-07-01"/>
     <release version="0.14.0" date="2026-06-25"/>
   </releases>
 </component>

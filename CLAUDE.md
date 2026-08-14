@@ -378,7 +378,7 @@ Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('
 
 **Release flow** (tag push triggers CI/release — push tag ONLY after staging merges into dev):
 1. Commit all changes to `staging`, update `CHANGELOG.md`
-2. `perl scripts/bump_version.pl X.Y.Z` — creates version bump commit + tag **locally** on `staging`
+2. `perl scripts/bump_version.pl X.Y.Z` — rewrites `package.json`, `src/package.json` and the Flatpak metadata (via `sync_flatpak_release.py --version`), then creates the version bump commit + tag **locally** on `staging`. It aborts before committing if the Flatpak step fails.
 3. `git push origin staging` — push branch only, **do NOT push the tag yet**
 4. Open PR: `staging → dev` on GitHub, wait for CI green, merge
 5. `git push origin vX.Y.Z` — push tag **after merge** → triggers `release.yml` → GitHub Release + AUR update
@@ -398,15 +398,41 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 5. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
 6. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
 7. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
+8. **`flatpak`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward.
 
 Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`.
 
 **`flake.nix` pins version + hashes together** and is updated by CI, not by `bump_version.pl` — the hashes don't exist until the release binaries are built. Never bump the version in `flake.nix` by hand: it would name a release whose hashes it doesn't have, and every `nix build` would fail on a hash mismatch.
 
+### Flatpak release metadata — `scripts/sync_flatpak_release.py`
+
+The app version appears in four files, and the Flatpak one fails quietly: a stale `tag:` in
+`flatpak/app.borys.FigmaLinuxNext.yml` builds, installs and runs — it just packages the
+*previous* release. Nothing else in the pipeline notices. The script is the single writer:
+
+| Mode | Called by | Does |
+|---|---|---|
+| `--version X.Y.Z` | `bump_version.pl` | rewrites `tag:`, `flatpak/package.json` version, adds a `<release>` to the metainfo, drops the previous `commit:` pin |
+| `--commit SHA` | `release.yml` `flatpak` job | pins the git source to the tag's commit |
+| `--check` | `ci.yml` on every push/PR | fails on any drift |
+
+The split exists because the commit sha does not exist until the tag is pushed, the same
+reason `flake.nix` is CI-owned.
+
+`--check` covers more than the version: the Electron pin across `package.json`,
+`flatpak/package.json`, the `unzip` path and `generated-sources.json`; dependency equality
+between root and `flatpak/package.json`; and the vendored sources themselves — every npm
+tarball's hash against `flatpak/package-lock.json`, plus a host allowlist
+(npm/github.com/electronjs.org) so a hand-added source is rejected.
+
+**Electron bumps are checked, never rewritten** — a new Electron needs
+`flatpak-node-generator` re-run with network access (commands are in the manifest header),
+so the script reports the drift instead of producing a lockfile it cannot vendor.
+
 **`RELEASE_PAT`** is a fine-grained PAT (`Contents: Read and write`, this repo only, created 2026-08-05, **expires 2027-08-05**). It exists because Nix resolves `github:arximus88/figma-linux-next` from `dev`, and the default `GITHUB_TOKEN` cannot push to a protected branch — without it NixOS users would always install the previous release. When it expires the `flake` job starts failing with a 403 on push and nothing else changes; regenerate it and `gh secret set RELEASE_PAT`. The job runs last and depends on `release`, so a rejected push never blocks the release itself.
 
 Other workflows:
-- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (type check, lint, unit tests)
+- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (type check, lint, unit tests, Flatpak metadata check)
 - `remove_artefacts.yml` — cleanup
 
 ### AUR packages
