@@ -23,6 +23,14 @@
 #   flatpak-builder --user --install --force-clean build-dir \
 #       flatpak/app.borys.FigmaLinuxNext.yml
 #
+# That builds the *released tag*, so unmerged work is not in it. To test the
+# working tree instead, copy this file and swap the git source for:
+#   - type: dir
+#     path: ..
+#     skip: [node_modules, dist, build, build-dir, .flatpak-builder, .git]
+# Keep the copy out of the tree — a second manifest is a second place for the
+# version to drift, which is what scripts/sync_flatpak_release.py exists to stop.
+#
 # Regenerating vendored deps after a flatpak/package.json change:
 #   cd flatpak && npm install --package-lock-only --ignore-scripts
 #   python3 -m flatpak_node_generator --electron-node-headers \

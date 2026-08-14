@@ -394,11 +394,12 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 1. **`build-x64`** — builds deb, rpm, AppImage, zip on Ubuntu (electron-builder bundles Electron)
 2. **`build-arm64`** — same formats on native ARM runner
 3. **`build-pacman`** — builds `.pacman` in Arch container (electron-builder bundles Electron)
-4. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`
-5. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
-6. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
-7. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
-8. **`flatpak`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward.
+4. **`build-flatpak`** — builds a `.flatpak` bundle from `flatpak/app.borys.FigmaLinuxNext.yml` in the `bilelmoussaoui/flatpak-github-actions:freedesktop-24.08` container. x64 only (the manifest hardcodes the x64 Electron zip), and `continue-on-error: true` — a Flatpak failure costs the release its `.flatpak` and nothing else. Note this builds the manifest's `tag:`, so `sync_flatpak_release.py` keeping that tag current is what makes the bundle match the release.
+5. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`. The Flatpak download step is `continue-on-error` since the artifact may not exist.
+6. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
+7. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
+8. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
+9. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
 
 Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`.
 

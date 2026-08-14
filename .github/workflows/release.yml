@@ -100,9 +100,47 @@ jobs:
           name: installer-pacman
           path: build/installers/figma-linux-next_*_linux_x64.pacman
 
+  # x64 only — the manifest hardcodes the x64 Electron zip, and adding arm64 means
+  # vendoring a second binary and branching the unzip step.
+  #
+  # continue-on-error so a Flatpak failure costs the release only its .flatpak:
+  # deb/rpm/pacman/AppImage/zip still publish, and `release` still runs.
+  build-flatpak:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v5
+
+      # The manifest builds the released tag, so this checkout supplies only the
+      # manifest and the vendored sources — hence no bun/npm setup here.
+      - name: Install manifest dependencies
+        run: |
+          flatpak remote-add --if-not-exists --user flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install -y --user --noninteractive flathub \
+            org.freedesktop.Sdk.Extension.node22//24.08 \
+            org.electronjs.Electron2.BaseApp//24.08
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: figma-linux-next.flatpak
+          manifest-path: flatpak/app.borys.FigmaLinuxNext.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+
+      - name: Name it like the other installers
+        run: mv figma-linux-next.flatpak "figma-linux-next_${GITHUB_REF_NAME#v}_linux_x64.flatpak"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-flatpak
+          path: figma-linux-next_*_linux_x64.flatpak
+
   # Create GitHub Release with all artifacts
   release:
-    needs: [build-x64, build-arm64, build-pacman]
+    needs: [build-x64, build-arm64, build-pacman, build-flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,6 +154,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: installer-pacman
+          path: ./artifacts
+
+      # Absent when build-flatpak failed; the release goes out without it.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: installer-flatpak
           path: ./artifacts
 
       - uses: actions/download-artifact@v4
@@ -329,7 +374,7 @@ jobs:
   #
   # Runs after `flake` rather than beside it: both push to dev, and in parallel
   # the loser would be rejected as non-fast-forward.
-  flatpak:
+  flatpak-pin:
     needs: [release, flake]
     if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
     runs-on: ubuntu-latest
