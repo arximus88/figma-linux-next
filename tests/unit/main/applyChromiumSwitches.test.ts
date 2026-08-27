@@ -189,4 +189,14 @@ describe("shouldRelaunchUnderX11", () => {
   test("no WAYLAND_DISPLAY (X11 session) → no relaunch", () => {
     expect(shouldRelaunchUnderX11(webgpu, { NODE_ENV: "production" })).toBe(false);
   });
+
+  test("FLATPAK_ID set → no relaunch (regression: zypak spawn interception segfaults)", () => {
+    expect(
+      shouldRelaunchUnderX11(webgpu, {
+        WAYLAND_DISPLAY: "wayland-0",
+        NODE_ENV: "production",
+        FLATPAK_ID: "app.borys.FigmaLinuxNext",
+      }),
+    ).toBe(false);
+  });
 });

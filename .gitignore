@@ -17,6 +17,10 @@ bun.lock
 bun.lockb
 docs
 
+# Flatpak local build output (flatpak-builder --user --install build-dir flatpak/...)
+build-dir
+.flatpak-builder
+
 # OS
 .DS_Store
 Thumbs.db
