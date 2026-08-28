@@ -385,6 +385,8 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
 
       - name: Pin the manifest to this release
+        env:
+          FIGMA_REPO_ROOT: ${{ github.workspace }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -402,6 +404,8 @@ jobs:
           git push origin dev
 
       - name: Mirror to staging
+        env:
+          FIGMA_REPO_ROOT: ${{ github.workspace }}
         run: |
           git fetch origin staging:staging
           git checkout staging
