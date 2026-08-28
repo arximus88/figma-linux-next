@@ -26,13 +26,16 @@ in flatpak/package-lock.json, and no source may point outside npm/Electron.
 import base64
 import binascii
 import json
+import os
 import re
 import sys
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
-ROOT = Path(__file__).resolve().parent.parent
+# The release workflow copies this script outside the worktree so it survives a
+# branch switch; FIGMA_REPO_ROOT tells it where the tree actually lives.
+ROOT = Path(os.environ.get("FIGMA_REPO_ROOT") or Path(__file__).resolve().parent.parent)
 FLATPAK_DIR = ROOT / "flatpak"
 MANIFEST = FLATPAK_DIR / "app.borys.FigmaLinuxNext.yml"
 METAINFO = FLATPAK_DIR / "app.borys.FigmaLinuxNext.metainfo.xml"
