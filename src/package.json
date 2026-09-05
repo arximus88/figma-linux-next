@@ -8,9 +8,9 @@
   "author": "Figma Linux Community",
   "license": "GPL-2.0-only",
   "dependencies": {
-    "adm-zip": "^0.5.17",
+    "adm-zip": "^0.5.18",
     "chokidar": "^5.0.0",
-    "electron-log": "^5.4.3",
+    "electron-log": "^5.4.4",
     "fontkit": "^2.0.4"
   }
 }
