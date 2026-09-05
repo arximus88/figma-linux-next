@@ -9,6 +9,7 @@ import { logger } from "./Logger";
 import { storage } from "./Storage";
 
 import type WindowManager from "./Ui/WindowManager";
+import TrayManager from "./Ui/TrayManager";
 import type Session from "./Session";
 import type FontManager from "./Fonts";
 import { McpServer } from "./MCP";
@@ -27,6 +28,7 @@ import FileController from "./controllers/FileController";
 export default class App {
   private authController: AuthController;
   private mcpServer: McpServer;
+  private trayManager: TrayManager;
 
   constructor(
     private windowManager: WindowManager,
@@ -53,6 +55,7 @@ export default class App {
     registerAppImageUrlHandler();
 
     this.mcpServer = new McpServer(logger);
+    this.trayManager = new TrayManager(this.windowManager);
 
     // Initialize controllers — registers all IPC handlers through the registry
     new SettingsController(this.windowManager);
@@ -79,6 +82,7 @@ export default class App {
 
     this.windowManager.restoreState();
     this.session.handleAppReady();
+    this.trayManager.apply(storage.settings.app.trayEnabled);
 
     // Wire up the FigmaViewProvider — dynamically resolves the last focused window
     const viewProvider: FigmaViewProvider = {
@@ -154,6 +158,12 @@ export default class App {
     );
     const { figmaUrl, newWindow } = Args(safeArgv);
 
+    // Tray mode: the process may be alive with no windows. A launch from the
+    // desktop entry must bring one back, otherwise the click does nothing.
+    if (!this.windowManager.hasWindows()) {
+      this.windowManager.restoreState();
+    }
+
     if (newWindow) {
       this.windowManager.newWindow();
       return;
@@ -175,6 +185,14 @@ export default class App {
   }
 
   private onWindowAllClosed() {
+    // With the tray enabled the process outlives its windows: the tray icon is
+    // the way back in, and "Quit" from its menu goes through quitApp().
+    // State is still persisted so a crash in the background loses nothing.
+    if (this.trayManager.enabled) {
+      this.windowManager.saveState();
+      void storage.save();
+      return;
+    }
     // Persist window/tab state before the app exits — X-button close goes
     // through this path, not through the "Quit" menu, so without this the
     // "save last opened tabs" setting would never actually persist anything.
@@ -206,6 +224,7 @@ export default class App {
     app.on("relaunchApp", this.relaunchApp.bind(this));
     app.on("signOut", () => this.authController.logout());
     app.on("quitApp", this.quitApp.bind(this));
+    app.on("trayEnabledChanged", (enabled: boolean) => this.trayManager.apply(enabled));
     app.on("mcpWriteToolsChanged", (enabled: boolean) => {
       this.mcpServer.setWriteToolsEnabled(enabled);
     });
