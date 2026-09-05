@@ -6,12 +6,24 @@
   import { SecondaryButton } from "Common/Buttons";
   import { TOPPANELHEIGHT } from "Const";
   import { settings, modalBounds } from "../../../store";
-  import { getAvailableFrameStyles } from "../../../../Panel/frames/index";
+  import { getAvailableFrameStyles, getFrameStyleLabel } from "../../../../Panel/frames/index";
 
   import DirectoryListItem from "./DirectoryListItem.svelte";
   import SwitchListItem from "./SwitchListItem.svelte";
 
   const frameStyles = getAvailableFrameStyles();
+
+  // Detected by main from XDG_CURRENT_DESKTOP; shown as the hint under the toggle.
+  let detectedFrameStyle = $state<Types.FrameStyle | null>(null);
+  window.figmaApi
+    .invoke("getRuntimeInfo")
+    .then((info: Types.RuntimeInfo) => {
+      detectedFrameStyle = info?.detectedFrameStyle ?? null;
+    })
+    .catch(() => {
+      detectedFrameStyle = null;
+    });
+  let detectedLabel = $derived(detectedFrameStyle ? getFrameStyleLabel(detectedFrameStyle) : "…");
 
   let items: Types.TabItem[] = $derived($settings.app.fontDirs.map((dir) => ({
     id: dir,
@@ -221,13 +233,20 @@
         <SettingRow title="Export files to" subtitle={$settings.app.exportDir} truncate={true}>
           <SecondaryButton onButtonClick={onChangeExportPath}>Change</SecondaryButton>
         </SettingRow>
-        <SettingRow title="Window frame style">
+        <SettingRow
+          title="Match the desktop environment"
+          subtitle={`Pick the window frame automatically · detected: ${detectedLabel}`}
+        >
+          <Toggle bind:checked={$settings.app.frameStyleAuto} />
+        </SettingRow>
+        <SettingRow title="Window frame style" subtitle={$settings.app.frameStyleAuto ? "Turn off automatic matching to choose manually" : ""}>
           <select
             class="frame-style-select"
             bind:value={$settings.app.frameStyle}
             onchange={onFrameStyleChange}
+            disabled={$settings.app.frameStyleAuto}
           >
-            {#each frameStyles as style}
+            {#each frameStyles as style (style.value)}
               <option value={style.value} disabled={style.disabled}>{style.label}</option>
             {/each}
           </select>
@@ -237,6 +256,15 @@
           subtitle="Show only the close button (stock GNOME)"
         >
           <Toggle bind:checked={$settings.app.hideWindowMinMaxButtons} />
+        </SettingRow>
+        <SettingRow
+          title="System tray icon"
+          subtitle="Keep Figma running in the tray when the last window is closed (GNOME needs the AppIndicator extension)"
+        >
+          <Toggle
+            bind:checked={$settings.app.trayEnabled}
+            onchange={(on: boolean) => window.figmaApi.send("setTrayEnabled", on)}
+          />
         </SettingRow>
       </Card>
     </div>
@@ -419,6 +447,10 @@
     transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
+  .frame-style-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   .frame-style-select:hover {
     background-color: var(--bg-item-hover, var(--bg-panel-hover));
     border-color: var(--text-disabled);

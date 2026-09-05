@@ -284,13 +284,20 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 ### Window Frame Styles
 
-`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`),
-selected via `app.frameStyle`. Default: `gnome`.
+`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`).
 
-- `gnome` — GNOME-style frame (default)
-- `windows` — Windows-style frame
-- `macos`, `kde` — accepted by the type; README lists both as TBD, so check
-  `src/renderer/Panel/frames/` before assuming a style is fully implemented.
+- `app.frameStyleAuto` (default `true`) picks the frame from the desktop environment:
+  `detectFrameStyle()` in `src/utils/Main/desktopEnvironment.ts` reads `XDG_CURRENT_DESKTOP` /
+  `DESKTOP_SESSION` — KDE/Plasma → `kde`, anything else → `gnome`. Only main can see the env,
+  so renderers get the resolved value from the `getRuntimeInfo` invoke, never from `app.frameStyle`.
+- `app.frameStyle` is the manual override, used only when `frameStyleAuto` is off.
+- `gnome` (Adwaita), `kde` (Breeze glyphs, `Icons/Breeze*.svelte`, LGPL) and `windows` are
+  implemented; `macos` is a placeholder on top of the Windows style.
+- Frames are theme-aware: every colour goes through the `--frame-*` palette in
+  `src/renderer/theme.css`, scoped by `#panel[data-frame]` × `html[data-theme]`. Figma's theme
+  choice (`dark`/`light`/`system`) arrives via `setFigmaTheme`, is resolved in `src/main/Theme.ts`
+  (`system` → `nativeTheme.shouldUseDarkColors`) and pushed to panels as `figmaThemeChanged`.
+  Never hardcode a colour in `src/renderer/Panel/frames/`.
 
 ## Logging
 
@@ -331,7 +338,7 @@ selected via `app.frameStyle`. Default: `gnome`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "43.3.0"` (Chromium 150.0.7871.212), verified 2026-08-06.
+`package.json` lists an exact version, currently `"electron": "43.6.0"`, bumped 2026-09-05 (43.3.0 shipped a StatusNotifierItem regression — tray icons invisible on GNOME/AppIndicator, Cinnamon and XFCE — fixed upstream in 43.4.1; see electron#52674). OAuth login re-verified on 43.6.0: pending.
 
 The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
 

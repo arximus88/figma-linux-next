@@ -31,6 +31,7 @@ const SEND_CHANNELS = [
   // Settings
   "closeSettingsView",
   "setFrameStyle",
+  "setTrayEnabled",
   "openSettingsView",
   // Changelog
   "openChangelogView",
@@ -60,10 +61,12 @@ const RECEIVE_CHANNELS = [
   "communityTabWasClose",
   "setLoading",
   "frameStyleChanged",
+  "figmaThemeChanged",
 ] as const;
 
 const INVOKE_CHANNELS = [
   "getSettings",
+  "getRuntimeInfo",
   "selectExportDirectory",
   "updateFigmaUiScale",
   "updatePanelScale",

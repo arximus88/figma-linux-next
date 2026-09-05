@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { size = "24" } = $props();
+  let { size = "24", color = "currentColor" } = $props();
 </script>
 
 <svg
@@ -10,6 +10,6 @@
   xmlns="http://www.w3.org/2000/svg"
 >
   <g transform="translate(4, 4)">
-    <path d="M4 10.0088H12V11.9975H4V10.0088Z" fill="#E6E6E7"/>
+    <path d="M4 10.0088H12V11.9975H4V10.0088Z" fill={color}/>
   </g>
 </svg>

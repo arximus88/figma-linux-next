@@ -8,9 +8,9 @@
   let { style }: { style: Types.FrameStyle } = $props();
 
   const cfg = $derived(getFrameConfig(style));
-  // Class prefix: gnome -> "g", everything else -> "w". Both class families are
-  // defined below; only the active one is emitted, so they never collide.
-  const p = $derived(style === "gnome" ? "g" : "w");
+  // Class prefix: gnome -> "g", kde -> "k", everything else -> "w". All class
+  // families are defined below; only the active one is emitted, so they never collide.
+  const p = $derived(style === "gnome" ? "g" : style === "kde" ? "k" : "w");
 
   let currentTabId = $state<number | undefined>();
   let item: HTMLDivElement;
@@ -117,8 +117,14 @@
 
   :global([data-frame="gnome"]) .tabs {
     gap: 2px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--frame-fg-muted);
     padding: 0;
+  }
+  :global([data-frame="kde"]) .tabs {
+    gap: 0;
+    color: var(--frame-fg-muted);
+    padding: 0 4px;
+    align-self: stretch;
   }
   :global([data-frame="windows"]) .tabs {
     gap: 0px;
@@ -137,7 +143,7 @@
   :global(.g-divider) {
     width: 1px;
     height: 28px;
-    background-color: #4f4f4f;
+    background-color: var(--frame-divider);
     flex-shrink: 0;
     transition: background-color 0.15s ease;
   }
@@ -161,10 +167,10 @@
     box-sizing: border-box;
   }
   :global(.g-tab:hover) {
-    background-color: rgba(61, 61, 64, 0.6);
+    background-color: var(--frame-tab-hover);
   }
   :global(.g-tab--active) {
-    background-color: #3d3d40;
+    background-color: var(--frame-tab-active);
   }
 
   :global(.g-tab-text) {
@@ -178,7 +184,7 @@
     user-select: none;
     cursor: pointer;
     padding: 0 0 0 10px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--frame-fg-muted);
     font-size: var(--text-size-tab, 13px);
     font-weight: 600;
     outline: none !important;
@@ -196,10 +202,10 @@
     text-overflow: ellipsis;
   }
   :global(.g-tab:hover .g-tab-text span) {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--frame-fg);
   }
   :global(.g-tab--active .g-tab-text span) {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--frame-fg);
   }
 
   :global(.g-tab div[role="button"]:not(.g-tab-text)) {
@@ -221,7 +227,105 @@
     opacity: 1;
   }
   :global(.g-tab div[role="button"]:not(.g-tab-text):hover) {
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: var(--frame-btn-hover);
+  }
+
+  /* ── KDE / Breeze tab styles — like Dolphin/Konsole: the active tab takes the
+     view background and an accent line on top, the rest stay flat ────────── */
+  :global(.k-tab-wrapper) {
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    gap: 0;
+  }
+
+  :global(.k-tab) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding-right: 4px;
+    border-radius: 3px 3px 0 0;
+    background-color: transparent;
+    border: none;
+    height: 40px;
+    transition: background-color 0.08s ease;
+    outline: none !important;
+    -webkit-app-region: no-drag;
+    box-sizing: border-box;
+  }
+  :global(.k-tab:hover) {
+    background-color: var(--frame-tab-hover);
+  }
+  :global(.k-tab--active),
+  :global(.k-tab--active:hover) {
+    background-color: var(--frame-tab-active);
+  }
+  :global(.k-tab--active::before) {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    border-radius: 3px 3px 0 0;
+    background-color: var(--frame-accent);
+  }
+
+  :global(.k-tab-text) {
+    display: flex;
+    flex: 1;
+    align-self: stretch;
+    min-width: 60px;
+    max-width: 200px;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    cursor: pointer;
+    padding: 0 0 0 10px;
+    color: var(--frame-fg-muted);
+    font-size: var(--text-size-tab, 14px);
+    outline: none !important;
+  }
+  :global(.k-tab-text > svg) {
+    flex-shrink: 0;
+  }
+  :global(.k-tab-text:focus-visible) {
+    outline: none !important;
+  }
+  :global(.k-tab-text span) {
+    display: inline;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :global(.k-tab:hover .k-tab-text span),
+  :global(.k-tab--active .k-tab-text span) {
+    color: var(--frame-fg);
+  }
+
+  /* Close: hidden until hover/active, round halo like the window controls */
+  :global(.k-tab div[role="button"]:not(.k-tab-text)) {
+    background-color: transparent;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    opacity: 0;
+    transition:
+      opacity 0.08s ease,
+      background-color 0.08s ease;
+  }
+  :global(.k-tab:hover div[role="button"]:not(.k-tab-text)),
+  :global(.k-tab--active div[role="button"]:not(.k-tab-text)) {
+    opacity: 1;
+  }
+  :global(.k-tab div[role="button"]:not(.k-tab-text):hover) {
+    background-color: var(--frame-btn-hover);
   }
 
   /* ── Windows tab styles ─────────────────────────────────────────────── */

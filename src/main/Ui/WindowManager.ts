@@ -1,9 +1,10 @@
-import { app, clipboard, type IpcMainEvent, type WebContents } from "electron";
+import { app, clipboard, nativeTheme, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
 import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
+import { getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
 import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
@@ -15,6 +16,8 @@ export default class WindowManager {
 
   private lastFocusedwindowId: number;
   private windows: Map<number, Window> = new Map();
+  // Set by TrayManager: with a tray icon the process outlives its last window.
+  private keepAliveWithoutWindows = false;
   private closedTabs: Map<string, Types.SavedTab> = new Map();
 
   constructor() {
@@ -150,6 +153,14 @@ export default class WindowManager {
     return true;
   };
 
+  public setKeepAliveWithoutWindows(keep: boolean) {
+    this.keepAliveWithoutWindows = keep;
+  }
+
+  public hasWindows(): boolean {
+    return this.windows.size > 0;
+  }
+
   public focusLastWindow() {
     const window = this.windows.get(this.lastFocusedwindowId);
 
@@ -271,6 +282,7 @@ export default class WindowManager {
 
     // Tab content events (from Figma web app via DesktopAPI)
     ipcRegistry.on("setFigmaTheme", this.setFigmaTheme.bind(this), "WindowManager");
+    ipcRegistry.on("figmaThemeObserved", this.figmaThemeObserved.bind(this), "WindowManager");
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
     ipcRegistry.on("setTabEditorType", this.setTabEditorType.bind(this), "WindowManager");
     ipcRegistry.on("setTabIsLibrary", this.setTabIsLibrary.bind(this), "WindowManager");
@@ -507,7 +519,7 @@ export default class WindowManager {
 
     this.windows.delete(windowId);
 
-    if (this.windows.size === 0) {
+    if (this.windows.size === 0 && !this.keepAliveWithoutWindows) {
       app.emit("quitApp");
     }
   }
@@ -631,11 +643,36 @@ export default class WindowManager {
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
 
-  private setFigmaTheme(_: IpcMainEvent, theme: "dark" | "light") {
-    if (theme !== "dark" && theme !== "light") return;
+  private setFigmaTheme(_: IpcMainEvent, theme: unknown) {
+    logger.debug("[theme] Figma preference:", theme);
+    if (!isFigmaThemePreference(theme)) return;
     if (storage.settings.app.figmaTheme === theme) return;
     storage.settings.app.figmaTheme = theme;
     storage.save();
+    this.broadcastFigmaTheme();
+  }
+  /**
+   * The focused tab measured what Figma actually paints. That beats the stored
+   * preference, which Figma only re-sends when the user touches its Theme menu.
+   * Persisted as the concrete scheme so the next launch starts right; a later
+   * `setFigmaTheme("system")` from Figma switches back to OS tracking.
+   */
+  private figmaThemeObserved(event: IpcMainEvent, theme: unknown) {
+    logger.debug("[theme] observed in tab", event.sender.id, ":", theme);
+    if (theme !== "dark" && theme !== "light") return;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window?.isFocusedTab(event.sender.id)) return;
+    if (storage.settings.app.figmaTheme === theme) return;
+    storage.settings.app.figmaTheme = theme;
+    storage.save();
+    this.broadcastFigmaTheme();
+  }
+  /** Push the resolved colour scheme to every panel (dark/light, never "system"). */
+  public broadcastFigmaTheme() {
+    const theme = getResolvedFigmaTheme();
+    for (const [_, window] of this.windows) {
+      window.setFigmaTheme(theme);
+    }
   }
   private setTabTitle(event: IpcMainEvent, title: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
@@ -694,10 +731,10 @@ export default class WindowManager {
       window.openMainMenuCloseHandler.bind(window),
     );
   }
-  private openSettingsView() {
+  public openSettingsView() {
     const window = this.windows.get(this.lastFocusedwindowId);
 
-    window.openSettingsView();
+    window?.openSettingsView();
   }
   private openChangelogView() {
     this.openChangelogViewForLastWindow();
@@ -730,6 +767,11 @@ export default class WindowManager {
   // ── App-level Events (menu actions, window lifecycle) ─────────────
 
   private registerAppEvents() {
+    // Figma's "System theme" resolves against the OS preference; when that
+    // flips (GNOME dark-mode toggle, Plasma colour scheme) the panel follows.
+    nativeTheme.on("updated", () => {
+      if (storage.settings.app.figmaTheme === "system") this.broadcastFigmaTheme();
+    });
     // Events from main menu
     app.on("newFile", this.newFile.bind(this));
     app.on("newWindow", this.newWindowFromMenu.bind(this));

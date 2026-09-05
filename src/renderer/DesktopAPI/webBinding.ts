@@ -2,6 +2,7 @@ import type { IpcRendererEvent } from "electron";
 import * as E from "electron";
 
 import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render/webBindingsHelpers";
+import { observeFigmaTheme } from "./themeObserver";
 
 import {
   isPrototypeUrl,
@@ -302,8 +303,10 @@ const publicAPI: any = {
   },
   // Real-time collaboration — not applicable on Linux desktop
   initLivegraph(_args: any) {},
+  // Figma sends `{ themePreference: "light" | "dark" | "system" }` — on startup
+  // and whenever the Theme menu changes. Older payload shapes are kept as fallbacks.
   setThemePreference(args: any) {
-    const theme = args?.theme ?? args?.colorScheme ?? args;
+    const theme = args?.themePreference ?? args?.theme ?? args?.colorScheme ?? args;
     sendMsgToMain("setFigmaTheme", theme);
   },
 
@@ -397,7 +400,7 @@ const publicAPI: any = {
     sendMsgToMain("setInitialOptions", args);
   },
   setTheme(args: any) {
-    sendMsgToMain("setFigmaTheme", args.theme ?? args);
+    sendMsgToMain("setFigmaTheme", args?.themePreference ?? args?.theme ?? args);
   },
 
   setFeatureFlags(args: any) {
@@ -582,6 +585,7 @@ const init = (fileBrowser: boolean): void => {
   };
 
   initWebBindings();
+  observeFigmaTheme();
 
   E.webFrame.executeJavaScript(`(${initWebApi.toString()})(${JSON.stringify(initWebOptions)})`);
 

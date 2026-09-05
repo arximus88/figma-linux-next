@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **System tray icon** — an opt-in toggle in Settings → General (applies instantly) puts Figma in
+  the tray and keeps it running when the last window is closed. Left-click or "Show Figma" brings
+  the window back; the menu also offers New Window, Settings and Quit. Uses StatusNotifierItem, so
+  it shows natively on KDE Plasma (colour icon) and on GNOME with the AppIndicator extension
+  (monochrome symbolic glyph, as the top bar expects). The Flatpak manifest gains the matching D-Bus permission.
+  Requested in [#51](https://github.com/arximus88/figma-linux-next/issues/51).
+
+- **KDE Plasma window frame** — a Breeze-styled frame with the Breeze window-control glyphs
+  (minimize/maximize chevrons, the X, hamburger menu) and an accent underline on the active tab.
+  Closes [#50](https://github.com/arximus88/figma-linux-next/issues/50).
+- **Automatic frame selection** — the frame now follows the desktop environment
+  (`XDG_CURRENT_DESKTOP`): KDE gets the Breeze frame, everything else the GNOME one. On by
+  default for everyone; Settings → General has a toggle to turn it off and pick a frame by hand.
+- **Light and dark frames** — the GNOME, KDE and Windows frames follow Figma's Theme menu,
+  including *System theme*, which tracks the OS preference live. Previously the panel was
+  always dark and Figma's *System theme* choice was silently ignored.
+
+### Changed
+
+- Electron 43.3.0 → 43.6.0. 43.3.0 carried an upstream StatusNotifierItem regression that left
+  Electron tray icons blank on GNOME (AppIndicator), Cinnamon and XFCE
+  ([electron#52674](https://github.com/electron/electron/issues/52674)); without this bump the new
+  tray icon would only have worked on Plasma. Build tooling (Vite, Svelte, Biome, Playwright)
+  refreshed to current minors; TypeScript stays on 6.x.
+
+### Fixed
+
+- Figma's Theme menu choice was silently ignored. Figma sends `{ themePreference }`, the app read
+  `theme`, so nothing ever matched; on top of that "System theme" was dropped outright. The panel
+  now also watches what Figma actually paints, so it is right from the first frame after launch.
+- Closing a window now destroys its home and community tabs. They used to survive the window;
+  invisible while every close ended the process, a real leak once the tray keeps it alive.
+
 ## [0.17.0] - 2026-08-27
 
 ### Added

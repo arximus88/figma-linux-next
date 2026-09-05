@@ -7,10 +7,14 @@
  */
 
 export const VALID_FRAME_STYLES = new Set<Types.FrameStyle>(["windows", "gnome", "macos", "kde"]);
-export const IMPLEMENTED_FRAME_STYLES = new Set<Types.FrameStyle>(["gnome", "windows"]);
 
 export function isValidFrameStyle(style: unknown): style is Types.FrameStyle {
   return typeof style === "string" && VALID_FRAME_STYLES.has(style as Types.FrameStyle);
+}
+
+/** Label for a style value, e.g. for the "Detected: …" hint in Settings. */
+export function getFrameStyleLabel(style: Types.FrameStyle): string {
+  return getAvailableFrameStyles().find((s) => s.value === style)?.label ?? style;
 }
 
 export function getAvailableFrameStyles(): Array<{
@@ -20,8 +24,8 @@ export function getAvailableFrameStyles(): Array<{
 }> {
   return [
     { value: "gnome", label: "GNOME / Adwaita" },
+    { value: "kde", label: "KDE Plasma / Breeze" },
     { value: "windows", label: "Windows 11" },
     { value: "macos", label: "macOS (Coming Soon)", disabled: true },
-    { value: "kde", label: "KDE Plasma (Coming Soon)", disabled: true },
   ];
 }

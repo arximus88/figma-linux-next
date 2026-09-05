@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type IpcMainEvent, type Rectangle, type Menu } from "electron";
 import { storage } from "Main/Storage";
+import { getResolvedFigmaTheme } from "Main/Theme";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
 import { ModalViewManager } from "./ModalViewManager";
@@ -339,6 +340,10 @@ export default class Window {
 
   public setFrameStyle(style: Types.FrameStyle) {
     this.window.webContents.send("frameStyleChanged", style);
+  }
+
+  public setFigmaTheme(theme: Types.ResolvedTheme) {
+    this.window.webContents.send("figmaThemeChanged", theme);
   }
 
   public getBounds() {
@@ -713,6 +718,12 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
+  /** True when `webContentsId` belongs to the tab currently shown in this window. */
+  public isFocusedTab(webContentsId: number): boolean {
+    // lastFocusedTab holds a webContents id for every tab kind, mainTab included.
+    return webContentsId === this.tabManager.lastFocusedTab;
+  }
+
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<unknown> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
@@ -889,6 +900,7 @@ export default class Window {
 
   public handleFrontReady() {
     this.pushSettingsToPanel();
+    this.setFigmaTheme(getResolvedFigmaTheme());
     this.showHandler(null);
     this.revealIfHidden();
   }
@@ -908,7 +920,7 @@ export default class Window {
   }
 
   private get figmaThemeBgColor(): string {
-    return storage.settings.app.figmaTheme === "light" ? "#ffffff" : "#1e1e1e";
+    return getResolvedFigmaTheme() === "light" ? "#ffffff" : "#1e1e1e";
   }
 
   private registerEvents() {

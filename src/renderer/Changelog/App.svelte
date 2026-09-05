@@ -1,6 +1,18 @@
 <script lang="ts">
   import { CHANGELOG_HTML, CURRENT_VERSION } from "./_data";
 
+  // Follow Figma's theme like the panel and Settings do. Dark until main
+  // answers, matching the panel's boot default so the two never disagree.
+  document.documentElement.setAttribute("data-theme", "dark");
+  window.figmaApi
+    .invoke("getRuntimeInfo")
+    .then((info: Types.RuntimeInfo) => {
+      if (info?.theme === "light" || info?.theme === "dark") {
+        document.documentElement.setAttribute("data-theme", info.theme);
+      }
+    })
+    .catch(() => {});
+
   function closeChangelog(): void {
     window.figmaApi.send("closeChangelogView");
   }
@@ -42,7 +54,7 @@
     background-color: rgba(0, 0, 0, 0.5);
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: var(--fg-overlay);
+    color: var(--text);
   }
 
   .overlay {
@@ -59,8 +71,8 @@
     flex-direction: column;
     width: min(820px, 92vw);
     height: min(82vh, 800px);
-    background: var(--bg-overlay);
-    border: 1px solid var(--bg-overlay-outline);
+    background: var(--bg-panel);
+    border: 1px solid var(--borders);
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
     overflow: hidden;
@@ -71,7 +83,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 18px 22px;
-    border-bottom: 1px solid var(--bg-overlay-outline);
+    border-bottom: 1px solid var(--borders);
     background: var(--bg-header);
   }
   .title-block {
@@ -87,7 +99,7 @@
   }
   .current-version {
     font-size: 13px;
-    color: var(--fg-toolbar-foldername);
+    color: var(--text-disabled);
   }
   .close {
     background: transparent;
@@ -108,13 +120,13 @@
   }
   .body::-webkit-scrollbar { width: 10px; }
   .body::-webkit-scrollbar-thumb {
-    background: var(--bg-overlay-outline);
+    background: var(--borders);
     border-radius: 6px;
   }
 
   .body :global(.entry) {
     padding: 14px 0 18px;
-    border-bottom: 1px solid var(--bg-overlay-outline);
+    border-bottom: 1px solid var(--borders);
   }
   .body :global(.entry:last-child) { border-bottom: none; }
 
@@ -126,10 +138,10 @@
     align-items: baseline;
     gap: 10px;
   }
-  .body :global(.version) { color: var(--fg-overlay); }
+  .body :global(.version) { color: var(--text-active); }
   .body :global(.date) {
     font-size: 12px;
-    color: var(--fg-toolbar-foldername);
+    color: var(--text-disabled);
     font-weight: 400;
   }
 
@@ -139,14 +151,14 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--fg-toolbar-foldername);
+    color: var(--text-disabled);
   }
-  .body :global(h3.section-added) { color: #4ade80; }
-  .body :global(h3.section-fixed) { color: #60a5fa; }
-  .body :global(h3.section-removed) { color: #f87171; }
+  .body :global(h3.section-added) { color: var(--changelog-added); }
+  .body :global(h3.section-fixed) { color: var(--changelog-fixed); }
+  .body :global(h3.section-removed) { color: var(--changelog-removed); }
   .body :global(h3.section-dependencies),
   .body :global(h3.section-ci-cd),
-  .body :global(h3.section-refactor) { color: #c084fc; }
+  .body :global(h3.section-refactor) { color: var(--changelog-refactor); }
 
   .body :global(ul) {
     margin: 0 0 6px;
@@ -154,11 +166,11 @@
   }
   .body :global(li) { margin: 4px 0; }
   .body :global(strong) {
-    color: var(--fg-overlay);
+    color: var(--text-active);
     font-weight: 600;
   }
   .body :global(code) {
-    background: rgba(255, 255, 255, 0.07);
+    background: var(--bg-card);
     padding: 1px 5px;
     border-radius: 3px;
     font-size: 12px;
@@ -172,7 +184,7 @@
   .body :global(a.cl-link:hover) { text-decoration: underline; }
   .body :global(.empty) {
     text-align: center;
-    color: var(--fg-toolbar-foldername);
+    color: var(--text-disabled);
     margin: 40px 0;
   }
 </style>

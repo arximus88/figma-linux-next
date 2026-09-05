@@ -30,17 +30,25 @@
     -webkit-app-region: drag;
     width: 100%;
     box-sizing: border-box;
+    /* Every frame paints from the --frame-* palette (theme.css), which is what
+       makes light/dark follow Figma's theme. Icons use currentColor. */
+    background: var(--frame-bg);
+    color: var(--frame-fg);
   }
 
   #panel[data-frame="gnome"] {
-    background: #2e2e32;
     padding: 0 8px 0 3px;
     gap: 12px;
     align-items: center;
-    box-shadow: 0 -1px 0px #424242 inset;
+    box-shadow: 0 -1px 0px var(--frame-edge) inset;
+  }
+  #panel[data-frame="kde"] {
+    padding: 0 6px 0 4px;
+    gap: 4px;
+    align-items: stretch;
+    box-shadow: 0 -1px 0px var(--frame-edge) inset;
   }
   #panel[data-frame="windows"] {
-    background-color: var(--bg-header);
     border-bottom: none;
     padding: 0;
     gap: 0px;

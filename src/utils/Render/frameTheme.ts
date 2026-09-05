@@ -1,5 +1,5 @@
 import type { Component } from "svelte";
-import { Figma, Community, Plus, Corner, Minimize, Maximize, Close } from "Icons";
+import { Figma, FigmaColored, Community, Plus, Corner, Minimize, Maximize, Close } from "Icons";
 import {
   GnomeFigma,
   GnomeMenu,
@@ -9,6 +9,7 @@ import {
   GnomeClose,
   GnomeTabClose,
 } from "Icons";
+import { BreezeClose, BreezeMaximize, BreezeMenu, BreezeMinimize } from "Icons";
 
 // ============================================================================
 // Types
@@ -133,8 +134,25 @@ const GNOME_CONFIG: FrameConfig = {
 // TBD: macOS config — uses Windows icons as placeholder
 const MACOS_CONFIG: FrameConfig = { ...WINDOWS_CONFIG };
 
-// TBD: KDE config — uses Windows icons as placeholder
-const KDE_CONFIG: FrameConfig = { ...WINDOWS_CONFIG };
+// KDE Plasma / Breeze — glyphs from breeze-icons (LGPL), see Icons/Breeze*.svelte.
+const KDE_CONFIG: FrameConfig = {
+  left: {
+    // Breeze app icons are full-colour, so the home button carries the brand mark.
+    home: { component: FigmaColored, size: "20" },
+    community: { component: Community, size: "18" },
+    plus: { component: Plus, size: "16" },
+  },
+  right: {
+    menu: { component: BreezeMenu, size: "18" },
+    minimize: { component: BreezeMinimize, size: "18" },
+    maximize: { component: BreezeMaximize, size: "18" },
+    close: { component: BreezeClose, size: "18" },
+  },
+  tabs: {
+    closeIcon: { component: BreezeClose, size: "14" },
+    showDividers: false,
+  },
+};
 
 const FRAME_CONFIGS: Record<Types.FrameStyle, FrameConfig> = {
   windows: WINDOWS_CONFIG,
@@ -194,7 +212,7 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
   gnome: {
     // GNOME/Adwaita style — matching Figlinux prototype reference
     "--panel-height": "40px",
-    "--panel-bg": "#2e2e32",
+    "--panel-bg": "var(--frame-bg)",
     "--panel-border-bottom": "none",
     "--panel-padding": "0 9px",
     "--panel-gap": "12px",
@@ -209,24 +227,24 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
     "--window-control-size": "24px",
     "--window-control-spacing": "12px",
     "--window-control-radius": "20px",
-    "--window-control-hover-bg": "rgba(255, 255, 255, 0.12)",
-    "--window-control-active-bg": "rgba(255, 255, 255, 0.18)",
+    "--window-control-hover-bg": "var(--frame-btn-hover)",
+    "--window-control-active-bg": "var(--frame-btn-active)",
     "--window-control-padding-right": "0px",
-    "--window-close-hover-bg": "#c01c28",
-    "--window-close-hover-fg": "#ffffff",
+    "--window-close-hover-bg": "var(--frame-close-hover)",
+    "--window-close-hover-fg": "var(--frame-close-fg)",
 
     "--tab-height": "34px",
     "--tab-radius": "8px",
     "--tab-padding": "0",
     "--tab-spacing": "2px",
     "--tab-border": "none",
-    "--tab-active-bg": "#3d3d40",
+    "--tab-active-bg": "var(--frame-tab-active)",
     "--tab-close-padding": "0",
     "--tab-close-bg": "transparent",
     "--tab-close-radius": "20px",
     "--tab-divider-width": "1px",
     "--tab-divider-height": "28px",
-    "--tab-divider-color": "#4f4f4f",
+    "--tab-divider-color": "var(--frame-divider)",
     "--tab-divider-active-color": "transparent",
     "--tab-margin": "0",
     "--tab-text-padding": "0 0 0 14px",
@@ -236,13 +254,54 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
 
   // Placeholder: macOS uses Windows style as base (not yet implemented)
   macos: undefined as unknown as FrameStyleVars,
-  // Placeholder: KDE uses Windows style as base (not yet implemented)
-  kde: undefined as unknown as FrameStyleVars,
+  kde: {
+    // KDE Plasma / Breeze — flat titlebar, circular hover on the controls,
+    // accent underline on the active tab. Colours come from the frame palette
+    // in theme.css so light/dark follow Figma's theme.
+    "--panel-height": "40px",
+    "--panel-bg": "var(--frame-bg)",
+    "--panel-border-bottom": "none",
+    "--panel-padding": "0 6px",
+    "--panel-gap": "6px",
+    "--panel-align-items": "center",
+    "--panel-border-radius": "0",
+    "--panel-box-shadow": "none",
+
+    "--left-btn-padding": "0 8px",
+    "--left-btn-size": "auto",
+    "--left-gap": "2px",
+
+    "--window-control-size": "32px",
+    "--window-control-spacing": "4px",
+    "--window-control-radius": "50%",
+    "--window-control-hover-bg": "var(--frame-btn-hover)",
+    "--window-control-active-bg": "var(--frame-btn-active)",
+    "--window-control-padding-right": "0px",
+    "--window-close-hover-bg": "var(--frame-close-hover)",
+    "--window-close-hover-fg": "var(--frame-close-fg)",
+
+    "--tab-height": "40px",
+    "--tab-radius": "3px",
+    "--tab-padding": "0 8px",
+    "--tab-spacing": "2px",
+    "--tab-border": "none",
+    "--tab-active-bg": "var(--frame-tab-active)",
+    "--tab-close-padding": "0 4px",
+    "--tab-close-bg": "transparent",
+    "--tab-close-radius": "50%",
+    "--tab-divider-width": "0px",
+    "--tab-divider-height": "0px",
+    "--tab-divider-color": "transparent",
+    "--tab-divider-active-color": "transparent",
+    "--tab-margin": "0",
+    "--tab-text-padding": "0 0 0 10px",
+
+    "--icon-stroke-width": "1px",
+  },
 };
 
-// Fill placeholders with Windows style as fallback
+// macOS is still a placeholder on top of the Windows style.
 FRAME_STYLES.macos = { ...FRAME_STYLES.windows };
-FRAME_STYLES.kde = { ...FRAME_STYLES.windows };
 
 // ============================================================================
 // Helpers
@@ -272,25 +331,4 @@ export function getFrameStyleVars(style: Types.FrameStyle): string {
   return Object.entries(vars)
     .map(([key, value]) => `${key}: ${value}`)
     .join("; ");
-}
-
-/**
- * Get frame style display name
- */
-export function getFrameStyleName(style: Types.FrameStyle): string {
-  const names: Record<string, string> = {
-    windows: "Windows 11",
-    gnome: "GNOME / Adwaita",
-  };
-  return names[style] ?? "Unknown";
-}
-
-/**
- * Get all available frame styles (only functional ones)
- */
-export function getAvailableFrameStyles(): Array<{ value: Types.FrameStyle; label: string }> {
-  return [
-    { value: "windows", label: "Windows 11" },
-    { value: "gnome", label: "GNOME / Adwaita" },
-  ];
 }

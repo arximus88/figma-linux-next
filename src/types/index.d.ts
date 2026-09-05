@@ -69,6 +69,7 @@ declare namespace Electron {
     on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
     on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "frameStyleChanged", listener: (style: Types.FrameStyle) => void): this;
+    on(event: "figmaThemeChanged", listener: (theme: Types.ResolvedTheme) => void): this;
     on(event: string, listener: (...args: any[]) => void): this;
 
     emit(event: string, ...args: any[]): boolean;

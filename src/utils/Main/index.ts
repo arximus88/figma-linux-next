@@ -8,4 +8,5 @@ export * from "./cookies";
 export * from "./devTools";
 export * from "./defaultSettings";
 export * from "./version";
+export * from "./desktopEnvironment";
 export * from "Utils/Common";

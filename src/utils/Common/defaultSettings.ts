@@ -41,8 +41,10 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     featureFlags: {},
     savedExtensions: [],
     frameStyle: "gnome",
+    frameStyleAuto: true,
     hideWindowMinMaxButtons: false,
-    figmaTheme: "dark" as "dark" | "light",
+    trayEnabled: false,
+    figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",
   },
   mcp: {

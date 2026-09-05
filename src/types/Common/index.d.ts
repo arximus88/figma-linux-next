@@ -74,6 +74,15 @@ declare namespace Types {
   type View = "TopPanel" | "Settings" | "ThemeCreator";
   type SettingsView = "General" | "Themes";
   type FrameStyle = "windows" | "gnome" | "macos" | "kde";
+  type ResolvedTheme = "dark" | "light";
+  /** What Figma reports from its Theme menu; "system" follows the OS. */
+  type FigmaThemePreference = ResolvedTheme | "system";
+  /** Runtime values the main process resolves for the renderers. */
+  interface RuntimeInfo {
+    frameStyle: FrameStyle;
+    detectedFrameStyle: FrameStyle;
+    theme: ResolvedTheme;
+  }
 
   interface FeatureFlags {
     desktop_beta_use_agent_for_fonts?: boolean;
@@ -112,7 +121,9 @@ declare namespace Types {
       recentlyClosedTabs: SavedTab[];
       commandSwitches: CommandSwitch[];
       frameStyle: FrameStyle;
+      frameStyleAuto: boolean;
       hideWindowMinMaxButtons: boolean;
+      trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;
       };
@@ -125,7 +136,7 @@ declare namespace Types {
       savedExtensions: Extensions.ExtensionJson[];
       lastSavedPluginDir?: string;
       lastExportDir?: string;
-      figmaTheme?: "dark" | "light";
+      figmaTheme?: FigmaThemePreference;
       lastSeenChangelogVersion?: string;
     };
     mcp: {
