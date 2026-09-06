@@ -167,7 +167,7 @@ const FRAME_CONFIGS: Record<Types.FrameStyle, FrameConfig> = {
 
 export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
   windows: {
-    // Windows 11 style — square controls, flush edges, no padding
+    // Legacy Windows — Figma's Windows chrome: square controls, flush edges, no padding
     "--panel-height": "40px",
     "--panel-bg": "var(--bg-header)",
     "--panel-border-bottom": "none",
@@ -203,7 +203,7 @@ export const FRAME_STYLES: Record<Types.FrameStyle, FrameStyleVars> = {
     "--tab-divider-height": "0px",
     "--tab-divider-color": "transparent",
     "--tab-divider-active-color": "transparent",
-    "--tab-margin": "0 0 0 2px",
+    "--tab-margin": "0",
     "--tab-text-padding": "0 0 0 12px",
 
     "--icon-stroke-width": "1.5px",

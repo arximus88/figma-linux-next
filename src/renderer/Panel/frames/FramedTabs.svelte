@@ -338,10 +338,12 @@
   :global(.w-tab) {
     display: flex;
     align-items: center;
-    margin: 0 0 0 2px;
+    margin: 0;
     border-radius: 0px;
     background-color: var(--bg-tab, transparent);
     border: none;
+    /* 1px separator on the right, like Figma's Windows tab strip */
+    box-shadow: inset -1px 0 0 var(--frame-divider);
     height: 40px;
     transition: background-color 0.08s ease;
     outline: none !important;
@@ -352,7 +354,11 @@
     background-color: var(--bg-tab-hover, rgba(255, 255, 255, 0.08));
   }
   :global(.w-tab--active) {
-    background-color: var(--bg-tab-hover, rgba(255, 255, 255, 0.08));
+    background-color: var(--bg-tab-active, rgba(255, 255, 255, 0.08));
+    box-shadow: none;
+  }
+  :global(.w-tab--active .w-tab-text) {
+    font-weight: 600;
   }
 
   :global(.w-tab-text) {

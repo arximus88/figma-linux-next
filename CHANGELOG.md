@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automatic frame selection** — the frame now follows the desktop environment
   (`XDG_CURRENT_DESKTOP`): KDE gets the Breeze frame, everything else the GNOME one. On by
   default for everyone; Settings → General has a toggle to turn it off and pick a frame by hand.
+- **Legacy Windows frame** (renamed from "Windows 11") now uses the colours of Figma's own
+  Windows desktop chrome: near-black strip, lighter active tab with a bold title, 1px separators
+  between tabs, grey control glyphs. Light variant to match.
 - **Light and dark frames** — the GNOME, KDE and Windows frames follow Figma's Theme menu,
   including *System theme*, which tracks the OS preference live. Previously the panel was
   always dark and Figma's *System theme* choice was silently ignored.

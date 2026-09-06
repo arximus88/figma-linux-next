@@ -24,20 +24,20 @@
   --bg-overlay-outline: #292828;
   --bg-overlay-inner-outline: #000000;
   /* Header/tab strip — light values; html[data-theme="dark"] below flips them */
-  --bg-tab: #f0f0f0;
-  --bg-tab-hover: #e2e2e2;
-  --bg-tab-active: #e2e2e2;
-  --fg-tab: #333333;
-  --fg-tab-hover: #050505;
-  --fg-tab-active: #050505;
-  --bg-header: #f0f0f0;
-  --fg-header: #1e1e1e;
-  --bg-header-control: #f0f2f3;
-  --bg-header-control-hover: #e2e2e2;
-  --bg-header-control-active: #e2e2e2;
-  --fg-header-control: #1e1e1e;
-  --fg-header-control-hover: #050505;
-  --fg-header-control-active: #050505;
+  --bg-tab: #f5f5f5;
+  --bg-tab-hover: #ffffff;
+  --bg-tab-active: #ffffff;
+  --fg-tab: #6e6e6e;
+  --fg-tab-hover: #1e1e1e;
+  --fg-tab-active: #1e1e1e;
+  --bg-header: #f5f5f5;
+  --fg-header: #4d4d4d;
+  --bg-header-control: #f5f5f5;
+  --bg-header-control-hover: #e6e6e6;
+  --bg-header-control-active: #d9d9d9;
+  --fg-header-control: #4d4d4d;
+  --fg-header-control-hover: #1e1e1e;
+  --fg-header-control-active: #1e1e1e;
   --fg-component: #7b61ff;
   --fg-component-disabled: #4e428a;
   --fg-component-disabled-row-active: #bfbafc;
@@ -159,18 +159,19 @@ html[data-theme="dark"] {
   --bg-card: #262626;
   --bg-card-hover: #2e2e2e;
 
-  --bg-tab: #222222;
+  /* Sampled from Figma's own Windows desktop chrome */
+  --bg-tab: #1e1e1e;
   --bg-tab-hover: #2c2c2c;
   --bg-tab-active: #2c2c2c;
-  --fg-tab: #ffffff;
+  --fg-tab: #b3b3b3;
   --fg-tab-hover: #ffffff;
   --fg-tab-active: #ffffff;
-  --bg-header: #222222;
-  --fg-header: #ffffff;
-  --bg-header-control: #222222;
+  --bg-header: #1e1e1e;
+  --fg-header: #c4c4c4;
+  --bg-header-control: #1e1e1e;
   --bg-header-control-hover: #2c2c2c;
-  --bg-header-control-active: #2c2c2c;
-  --fg-header-control: #ffffff;
+  --bg-header-control-active: #383838;
+  --fg-header-control: #c4c4c4;
   --fg-header-control-hover: #ffffff;
   --fg-header-control-active: #ffffff;
 }
@@ -281,7 +282,7 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-accent: #3daee9;
 }
 
-/* Windows 11 — maps the generic header tokens onto the frame palette */
+/* Legacy Windows — Figma's own Windows chrome, via the generic header tokens */
 #panel[data-frame="windows"],
 #panel[data-frame="macos"] {
   --frame-bg: var(--bg-header);
@@ -293,10 +294,12 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-close-active: #a01010;
   --frame-close-fg: #ffffff;
   --frame-tab-hover: var(--bg-tab-hover);
-  --frame-tab-active: var(--bg-tab-hover);
+  --frame-tab-active: var(--bg-tab-active);
+  --frame-divider: rgba(0, 0, 0, 0.12);
 }
 html[data-theme="dark"] #panel[data-frame="windows"],
 html[data-theme="dark"] #panel[data-frame="macos"] {
-  --frame-btn-hover: rgba(255, 255, 255, 0.1);
-  --frame-btn-active: rgba(255, 255, 255, 0.15);
+  --frame-btn-hover: rgba(255, 255, 255, 0.08);
+  --frame-btn-active: rgba(255, 255, 255, 0.14);
+  --frame-divider: #333333;
 }

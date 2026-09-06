@@ -25,7 +25,7 @@ export function getAvailableFrameStyles(): Array<{
   return [
     { value: "gnome", label: "GNOME / Adwaita" },
     { value: "kde", label: "KDE Plasma / Breeze" },
-    { value: "windows", label: "Windows 11" },
+    { value: "windows", label: "Legacy Windows" },
     { value: "macos", label: "macOS (Coming Soon)", disabled: true },
   ];
 }
