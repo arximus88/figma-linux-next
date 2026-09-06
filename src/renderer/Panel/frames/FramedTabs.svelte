@@ -145,7 +145,7 @@
     height: 28px;
     background-color: var(--frame-divider);
     flex-shrink: 0;
-    transition: background-color 0.15s ease;
+    transition: background-color var(--motion-hover) var(--motion-ease-hover);
   }
   :global(.g-divider--near-active) {
     background-color: transparent;
@@ -161,7 +161,7 @@
     background-color: transparent;
     border: none;
     height: 34px;
-    transition: background-color 0.08s ease;
+    transition: background-color var(--motion-hover) var(--motion-ease-hover);
     outline: none !important;
     -webkit-app-region: no-drag;
     box-sizing: border-box;
@@ -217,8 +217,8 @@
     padding: 0;
     opacity: 0;
     transition:
-      opacity 0.08s ease,
-      background-color 0.08s ease;
+      opacity var(--motion-hover) var(--motion-ease-hover),
+      background-color var(--motion-hover) var(--motion-ease-hover);
   }
   :global(.g-tab:hover div[role="button"]:not(.g-tab-text)) {
     opacity: 1;
@@ -250,7 +250,7 @@
     background-color: transparent;
     border: none;
     height: 40px;
-    transition: background-color 0.08s ease;
+    transition: background-color var(--motion-hover) var(--motion-ease-hover);
     outline: none !important;
     -webkit-app-region: no-drag;
     box-sizing: border-box;
@@ -317,8 +317,8 @@
     padding: 0;
     opacity: 0;
     transition:
-      opacity 0.08s ease,
-      background-color 0.08s ease;
+      opacity var(--motion-hover) var(--motion-ease-hover),
+      background-color var(--motion-hover) var(--motion-ease-hover);
   }
   :global(.k-tab:hover div[role="button"]:not(.k-tab-text)),
   :global(.k-tab--active div[role="button"]:not(.k-tab-text)) {
@@ -345,7 +345,7 @@
     /* 1px separator on the right, like Figma's Windows tab strip */
     box-shadow: inset -1px 0 0 var(--frame-divider);
     height: 40px;
-    transition: background-color 0.08s ease;
+    transition: background-color var(--motion-hover) var(--motion-ease-hover);
     outline: none !important;
     -webkit-app-region: no-drag;
     box-sizing: border-box;

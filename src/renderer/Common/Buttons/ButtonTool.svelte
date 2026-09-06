@@ -47,7 +47,10 @@
     height: var(--height);
     padding: var(--padding);
     opacity: var(--normal-opacity);
-    transition: all 0.1s ease;
+    transition:
+      background-color var(--motion-hover, 100ms) var(--motion-ease-hover, ease),
+      color var(--motion-hover, 100ms) var(--motion-ease-hover, ease),
+      opacity var(--motion-hover, 100ms) var(--motion-ease-hover, ease);
   }
   div:hover {
     fill: var(--hover-fg-color);

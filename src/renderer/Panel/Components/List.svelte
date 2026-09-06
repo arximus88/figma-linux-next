@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Component } from "svelte";
   import { tabReorder } from "./tabReorder";
+  import { tabSlide } from "./motion";
   import { ButtonTool } from "Common/Buttons";
   import { Loader } from "Icons";
   import { Spiner } from "Common";
@@ -65,7 +66,12 @@
 
 <section use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}>
   {#each items as item, index (item.id)}
-    <div class={tabWrapperClass} data-tab-id={item.id} data-loading={item.loading}>
+    <div
+      class={tabWrapperClass}
+      data-tab-id={item.id}
+      data-loading={item.loading}
+      transition:tabSlide
+    >
       {#if showDividers && index > 0}
         <div
           class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"

@@ -216,6 +216,39 @@ html[data-theme="dark"] {
    the panel follows Figma's theme. Windows reads the generic --bg-header/--fg-*
    tokens above instead. */
 
+/* ── Motion ──────────────────────────────────────────────────────────────
+   --motion-hover: hover/pressed colour fades; --motion-open: tab open/close
+   (width unfold + fade, see Panel/Components/motion.ts). GNOME follows
+   libadwaita (200 ms, ease-out-cubic for reveals, ease-out-quad for state
+   changes); Breeze/Plasma is quicker (100 ms hover, 150 ms reveal); the Windows
+   frame keeps Figma's near-instant feel. Chromium maps GTK's
+   gtk-enable-animations=false onto prefers-reduced-motion, so the OS switch
+   turns everything off. */
+#panel {
+  --motion-ease: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --motion-ease-hover: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+#panel[data-frame="gnome"] {
+  --motion-hover: 200ms;
+  --motion-open: 200ms;
+}
+#panel[data-frame="kde"] {
+  --motion-hover: 100ms;
+  --motion-open: 150ms;
+}
+#panel[data-frame="windows"],
+#panel[data-frame="macos"] {
+  --motion-hover: 80ms;
+  --motion-open: 150ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel,
+  #panel[data-frame] {
+    --motion-hover: 0ms;
+    --motion-open: 0ms;
+  }
+}
+
 /* GNOME / Adwaita */
 #panel[data-frame="gnome"] {
   --frame-bg: #ebebeb;

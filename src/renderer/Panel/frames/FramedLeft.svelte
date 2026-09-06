@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ButtonTool, ButtonWindow } from "Common/Buttons";
   import { getFrameConfig } from "Utils/Render/frameTheme";
+  import { tabSlide } from "../Components/motion";
   import { onClickCommunity, onClickHome, onClickNewProject } from "../Components/utils";
   import { communityTabVisible, currentTab, newFileVisible } from "../store";
 
@@ -35,20 +36,22 @@
   </ButtonWindow>
 
   {#if communityTabVisible.value}
-    <ButtonWindow
-      padding={btn.padding}
-      activeBgColor={btn.active}
-      hoverBgColor={btn.hover}
-      isActive={currentTab.value === "communityTab"}
-      onButtonClick={onClickCommunity}
-    >
-      <CommunityIcon size={cfg.left.community.size} color="currentColor" />
-    </ButtonWindow>
+    <span class="slot" transition:tabSlide>
+      <ButtonWindow
+        padding={btn.padding}
+        activeBgColor={btn.active}
+        hoverBgColor={btn.hover}
+        isActive={currentTab.value === "communityTab"}
+        onButtonClick={onClickCommunity}
+      >
+        <CommunityIcon size={cfg.left.community.size} color="currentColor" />
+      </ButtonWindow>
+    </span>
   {/if}
 
   {#if newFileVisible.value}
-    {#if usesToolPlus}
-      <span class="tool-btn">
+    <span class="slot tool-btn" transition:tabSlide>
+      {#if usesToolPlus}
         <ButtonTool
           padding={btn.padding}
           normalBgColor={style === "kde" ? "transparent" : "var(--bg-header)"}
@@ -57,12 +60,12 @@
         >
           <Plus size={cfg.left.plus.size} color="currentColor" />
         </ButtonTool>
-      </span>
-    {:else}
-      <ButtonWindow padding={btn.padding} hoverBgColor={btn.hover} onButtonClick={onClickNewProject}>
-        <Plus size={cfg.left.plus.size} color="currentColor" />
-      </ButtonWindow>
-    {/if}
+      {:else}
+        <ButtonWindow padding={btn.padding} hoverBgColor={btn.hover} onButtonClick={onClickNewProject}>
+          <Plus size={cfg.left.plus.size} color="currentColor" />
+        </ButtonWindow>
+      {/if}
+    </span>
   {/if}
 </div>
 
@@ -72,8 +75,13 @@
     align-items: center;
     -webkit-app-region: no-drag;
   }
-  .tool-btn {
-    display: contents;
+  /* Real boxes (not display: contents) so the open/close transition has a
+     width to fold. They stretch to the row so the buttons inside keep their
+     own height rules. */
+  .slot {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
   }
 
   :global([data-frame="gnome"]) .left {
