@@ -2,15 +2,12 @@
  * Frame helpers. A single FramedPanel renders every style (see
  * FramedPanel.svelte, configured by its `style` prop), so there is no longer a
  * per-style Panel component to resolve. These exports describe which styles are
- * valid / available for the Settings UI.
- * To add a new OS style: add its config to frameTheme.ts and enable it here.
+ * available for the Settings UI; the validity guard lives with the configs in
+ * Utils/Render/frameTheme.ts. To add a new OS style: add its config there and
+ * enable it here.
  */
 
-export const VALID_FRAME_STYLES = new Set<Types.FrameStyle>(["windows", "gnome", "macos", "kde"]);
-
-export function isValidFrameStyle(style: unknown): style is Types.FrameStyle {
-  return typeof style === "string" && VALID_FRAME_STYLES.has(style as Types.FrameStyle);
-}
+export { isValidFrameStyle } from "Utils/Render/frameTheme";
 
 /** Label for a style value, e.g. for the "Detected: …" hint in Settings. */
 export function getFrameStyleLabel(style: Types.FrameStyle): string {

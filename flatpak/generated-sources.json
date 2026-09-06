@@ -245,13 +245,6 @@
     },
     {
         "type": "file",
-        "url": "https://registry.npmjs.org/adm-zip/-/adm-zip-0.6.0.tgz",
-        "sha512": "5e57abc8c85bba4b1d2ada1f9d667d4a4fb80944db9ace0c6ff114df6499c13a00c99e51815a2cfe48bc9fecabd0b5873862ae6a46d74eeb983472d08e175d82",
-        "dest-filename": "abc8c85bba4b1d2ada1f9d667d4a4fb80944db9ace0c6ff114df6499c13a00c99e51815a2cfe48bc9fecabd0b5873862ae6a46d74eeb983472d08e175d82",
-        "dest": "flatpak-node/npm-cache/_cacache/content-v2/sha512/5e/57"
-    },
-    {
-        "type": "file",
         "url": "https://registry.npmjs.org/aria-query/-/aria-query-5.3.1.tgz",
         "sha512": "67f65e3a0565edb712619feefeb8747cea6f129abffcb66675b917c9ceecc95ce33c085f39af5e6ec7534a31010d4e2fb399c2f7c29f76e8f5b85a34ab2113de",
         "dest-filename": "5e3a0565edb712619feefeb8747cea6f129abffcb66675b917c9ceecc95ce33c085f39af5e6ec7534a31010d4e2fb399c2f7c29f76e8f5b85a34ab2113de",
@@ -1129,12 +1122,6 @@
         "contents": "76ac5ed996bc8ef5cd19436e6ec5dacbb1312741\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/vite/-/vite-8.2.2.tgz\", \"integrity\": \"sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==\", \"time\": 0, \"size\": 574405, \"metadata\": {\"url\": \"https://registry.npmjs.org/vite/-/vite-8.2.2.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
         "dest-filename": "0d501c6d24d3bce1012c8e6154c0475644fba055e0cc476a1484f8108abc",
         "dest": "flatpak-node/npm-cache/_cacache/index-v5/00/3c"
-    },
-    {
-        "type": "inline",
-        "contents": "76bd603f9ebb6e959cb698231c7ce80803eea00f\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/adm-zip/-/adm-zip-0.6.0.tgz\", \"integrity\": \"sha512-XleryMhbuksdKtofnWZ9Sk+4CUTbms4Mb/EU32SZwToAyZ5RgVos/ki8n+yr0LWHOGKuakbXTuuYNHLQjhddgg==\", \"time\": 0, \"size\": 32244, \"metadata\": {\"url\": \"https://registry.npmjs.org/adm-zip/-/adm-zip-0.6.0.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
-        "dest-filename": "11689d083aa9a928f678c3f811e4add6b20f36531f8db342f0a55f973075",
-        "dest": "flatpak-node/npm-cache/_cacache/index-v5/f4/c8"
     },
     {
         "type": "inline",

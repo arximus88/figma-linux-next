@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { getFrameConfig, getFrameStyleVars, isValidFrameStyle } from "Utils/Render/frameTheme";
+import { getFrameConfig, isValidFrameStyle } from "Utils/Render/frameTheme";
 
 describe("frameTheme utils", () => {
   describe("isValidFrameStyle", () => {
@@ -40,33 +40,6 @@ describe("frameTheme utils", () => {
       const unknownConfig = getFrameConfig("unknown" as any);
       const windowsConfig = getFrameConfig("windows");
       expect(unknownConfig).toEqual(windowsConfig);
-    });
-  });
-
-  describe("getFrameStyleVars", () => {
-    it("returns CSS variables string for valid styles", () => {
-      const windowsVars = getFrameStyleVars("windows");
-      expect(windowsVars).toContain("--panel-height: ");
-      expect(windowsVars).toContain("--panel-bg: ");
-
-      const gnomeVars = getFrameStyleVars("gnome");
-      expect(gnomeVars).toContain("--panel-height: ");
-
-      const kdeVars = getFrameStyleVars("kde");
-      expect(kdeVars).toContain("--window-control-radius: 50%");
-      expect(kdeVars).not.toEqual(getFrameStyleVars("windows"));
-    });
-
-    it("routes every frame colour through the theme palette", () => {
-      for (const style of ["gnome", "kde"] as const) {
-        expect(getFrameStyleVars(style)).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-      }
-    });
-
-    it("returns gnome style vars as fallback for unknown style", () => {
-      const unknownVars = getFrameStyleVars("unknown" as any);
-      const gnomeVars = getFrameStyleVars("gnome");
-      expect(unknownVars).toEqual(gnomeVars);
     });
   });
 });

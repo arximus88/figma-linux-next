@@ -4,8 +4,8 @@
   let {
     padding = "0px",
     normalBgColor = "transparent",
-    activeBgColor = "var(--window-control-active-bg, rgba(255, 255, 255, 0.15))",
-    hoverBgColor = "var(--window-control-hover-bg, rgba(255, 255, 255, 0.1))",
+    activeBgColor = "var(--frame-btn-active, rgba(255, 255, 255, 0.15))",
+    hoverBgColor = "var(--frame-btn-hover, rgba(255, 255, 255, 0.1))",
     isActive = false,
     onButtonClick,
     children,

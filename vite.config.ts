@@ -67,7 +67,6 @@ export default defineConfig({
                 "node:fs",
                 "electron-log",
                 "electron-log/main",
-                "adm-zip",
                 "crypto",
                 "url",
               ],

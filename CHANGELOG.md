@@ -41,8 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([electron#52674](https://github.com/electron/electron/issues/52674)); without the bump the new
   tray icon would only have worked on Plasma. Electron 44 also rewrote the clipboard module, so
   copy/paste between Figma and the system clipboard now goes through the main process with the
-  new async API — behaviour is unchanged. `adm-zip` 0.5 → 0.6 (CVE-2026-39244 fix). Build tooling
-  (Vite, Svelte, Biome, Playwright) refreshed to current minors; TypeScript stays on 6.x.
+  new async API — behaviour is unchanged. Build tooling (Vite, Svelte, Biome, Playwright)
+  refreshed to current minors; TypeScript stays on 6.x.
+
+### Removed
+
+- `adm-zip`. It unpacked theme archives for the theme system that was removed in February 2026;
+  nothing has imported it since, yet every package — deb, rpm, AppImage, the Flatpak vendored
+  sources — still shipped it. Gone from all three manifests and the Flatpak lockfile.
+- The per-frame CSS-variable tables (`FRAME_STYLES`) that were injected inline on the panel on
+  every render. Of the ~35 variables per frame only two were ever read, and those now resolve
+  through the `--frame-*` palette like everything else. `isValidFrameStyle` also had two copies;
+  one remains.
 
 ### Fixed
 

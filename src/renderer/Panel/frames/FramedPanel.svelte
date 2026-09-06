@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { getFrameStyleVars } from "Utils/Render/frameTheme";
   import FramedLeft from "./FramedLeft.svelte";
   import FramedRight from "./FramedRight.svelte";
   import FramedTabs from "./FramedTabs.svelte";
@@ -17,7 +16,7 @@
   });
 </script>
 
-<div id="panel" data-frame={style} style="zoom: {zoom}; {getFrameStyleVars(style)}">
+<div id="panel" data-frame={style} style="zoom: {zoom};">
   <FramedLeft {style} />
   <FramedTabs {style} />
   <FramedRight {style} />
