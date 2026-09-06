@@ -1,15 +1,14 @@
 <script lang="ts">
-  import { ButtonTool, ButtonWindow } from "Common/Buttons";
+  import { ButtonWindow } from "Common/Buttons";
   import { getFrameConfig } from "Utils/Render/frameTheme";
   import { tabSlide } from "../Components/motion";
-  import { onClickCommunity, onClickHome, onClickNewProject } from "../Components/utils";
-  import { communityTabVisible, currentTab, newFileVisible } from "../store";
+  import { onClickCommunity, onClickHome } from "../Components/utils";
+  import { communityTabVisible, currentTab, layout, newFileVisible } from "../store";
+  import NewTabButton from "./NewTabButton.svelte";
 
   let { style }: { style: Types.FrameStyle } = $props();
 
   const cfg = $derived(getFrameConfig(style));
-  // Gnome's new-file button is a ButtonWindow (round), Windows uses ButtonTool.
-  const usesToolPlus = $derived(style !== "gnome");
   // Colours resolve through the frame palette so they follow light/dark.
   const btn = $derived(
     style === "gnome"
@@ -21,7 +20,6 @@
 
   const Home = $derived(cfg.left.home.component);
   const CommunityIcon = $derived(cfg.left.community.component);
-  const Plus = $derived(cfg.left.plus.component);
 </script>
 
 <div class="left">
@@ -49,22 +47,9 @@
     </span>
   {/if}
 
-  {#if newFileVisible.value}
-    <span class="slot tool-btn" transition:tabSlide>
-      {#if usesToolPlus}
-        <ButtonTool
-          padding={btn.padding}
-          normalBgColor={style === "kde" ? "transparent" : "var(--bg-header)"}
-          hoverBgColor={style === "kde" ? "var(--frame-btn-hover)" : "var(--bg-tab-hover)"}
-          onButtonClick={onClickNewProject}
-        >
-          <Plus size={cfg.left.plus.size} color="currentColor" />
-        </ButtonTool>
-      {:else}
-        <ButtonWindow padding={btn.padding} hoverBgColor={btn.hover} onButtonClick={onClickNewProject}>
-          <Plus size={cfg.left.plus.size} color="currentColor" />
-        </ButtonWindow>
-      {/if}
+  {#if newFileVisible.value && !layout.newTabAfterTabs}
+    <span class="slot" transition:tabSlide>
+      <NewTabButton {style} />
     </span>
   {/if}
 </div>
@@ -111,12 +96,6 @@
     border-radius: 3px 3px 0 0;
     background-color: var(--frame-accent);
   }
-  :global([data-frame="kde"]) .left :global(.tool-btn div[role="button"]) {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-  }
-
   :global([data-frame="gnome"]) .left :global(div[role="button"]) {
     width: 34px;
     height: 34px;

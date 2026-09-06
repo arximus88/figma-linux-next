@@ -1,4 +1,5 @@
 import { NEW_FILE_TAB_TITLE } from "Const";
+import { applyLayoutSettings, newFileTabOrder } from "./Components/utils";
 
 import {
   currentTab,
@@ -22,7 +23,7 @@ export function initIpc() {
       url: data.url,
       title: data.title,
       focused: data.focused,
-      order: data.title === NEW_FILE_TAB_TITLE ? 0 : undefined,
+      order: data.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : undefined,
       editorType: data.editorType,
       loading: data.loading,
     });
@@ -77,6 +78,7 @@ export function initIpc() {
   window.figmaApi.on("loadSettings", (settings: Types.SettingsInterface) => {
     panelZoom.set(settings.ui.scalePanel);
     windowControls.setHideMinMax(!!settings.app?.hideWindowMinMaxButtons);
+    applyLayoutSettings(settings);
   });
   window.figmaApi.on("openCommunity", () => {
     communityTabVisible.set(true);

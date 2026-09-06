@@ -1,5 +1,18 @@
 import { NEW_FILE_TAB_TITLE } from "Const";
-import { currentTab, tabs, newFileVisible, communityTabVisible } from "../store";
+import { currentTab, tabs, newFileVisible, communityTabVisible, layout } from "../store";
+
+/**
+ * Where the New file tab is pinned in the strip: first when the "+" lives in
+ * the left corner, last when it follows the tabs — the tab should open where
+ * the button that created it was.
+ */
+export const newFileTabOrder = () => (layout.newTabAfterTabs ? Number.MAX_SAFE_INTEGER : 0);
+
+/** Apply the panel-layout part of the settings (boot and every Settings close). */
+export function applyLayoutSettings(settings: Types.SettingsInterface | undefined) {
+  layout.setNewTabAfterTabs(!!settings?.app?.newTabButtonAfterTabs);
+  tabs.repinNewFileTab(newFileTabOrder());
+}
 
 export function closeNewFileTab() {
   const tab = tabs.getTabByTitle(NEW_FILE_TAB_TITLE);

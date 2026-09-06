@@ -80,8 +80,9 @@ export default class SettingsController {
       app.emit("chromiumFlagsChanged", true);
     }
 
-    const minMaxChanged =
-      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons;
+    const panelLayoutChanged =
+      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons ||
+      storage.settings.app.newTabButtonAfterTabs !== settings.app.newTabButtonAfterTabs;
     const frameChanged =
       storage.settings.app.frameStyleAuto !== settings.app.frameStyleAuto ||
       storage.settings.app.frameStyle !== settings.app.frameStyle;
@@ -93,7 +94,7 @@ export default class SettingsController {
       this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(settings.app));
     }
 
-    if (minMaxChanged) {
+    if (panelLayoutChanged) {
       this.windowManager.broadcastSettingsToPanels();
     }
 

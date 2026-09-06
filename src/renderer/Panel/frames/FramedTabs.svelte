@@ -2,8 +2,10 @@
   import { getFrameConfig } from "Utils/Render/frameTheme";
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
   import List from "../Components/List.svelte";
-  import { closeTab, tabFocus } from "../Components/utils";
-  import { currentTab, tabs } from "../store";
+  import { tabSlide } from "../Components/motion";
+  import { closeTab, newFileTabOrder, tabFocus } from "../Components/utils";
+  import { currentTab, layout, newFileVisible, tabs } from "../store";
+  import NewTabButton from "./NewTabButton.svelte";
 
   let { style }: { style: Types.FrameStyle } = $props();
 
@@ -46,7 +48,8 @@
   }
 
   // The strip was reordered by drag. Renumber `order` from the new visual
-  // sequence (New file stays pinned first) and push it to the main process so
+  // sequence (New file stays pinned first or last, see newFileTabOrder) and
+  // push it to the main process so
   // the tab Map — and thus Ctrl+(Shift+)Tab cycling — follows the visual order
   // immediately, not only on window close.
   function onReorder(orderedIds: number[]) {
@@ -54,7 +57,10 @@
     const next = orderedIds
       .map((id) => byId.get(id))
       .filter((t): t is Types.TabFront => !!t)
-      .map((tab, index) => ({ ...tab, order: tab.title === NEW_FILE_TAB_TITLE ? 0 : index + 1 }))
+      .map((tab, index) => ({
+        ...tab,
+        order: tab.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : index + 1,
+      }))
       .sort((a, b) => (a.order > b.order ? 1 : -1));
     tabs.set(next);
     window.figmaApi.send("reorderTabs", $state.snapshot(next));
@@ -92,6 +98,11 @@
     {onReorder}
     onActivate={tabFocus}
   />
+  {#if layout.newTabAfterTabs && newFileVisible.value}
+    <span class="strip-plus" transition:tabSlide>
+      <NewTabButton {style} />
+    </span>
+  {/if}
 </div>
 
 <style>
@@ -113,6 +124,25 @@
   }
   .tabs::-webkit-scrollbar {
     display: none;
+  }
+  /* "+" after the last tab (app.newTabButtonAfterTabs). It flows right after the
+     strip while there is room and sticks to the strip's right edge once the tabs
+     overflow, so it never scrolls out of reach — Firefox's behaviour. The panel
+     background under it hides the tab it then covers. */
+  .strip-plus {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    flex-shrink: 0;
+    padding-left: 4px;
+    background: var(--frame-bg);
+    -webkit-app-region: no-drag;
+  }
+  :global([data-frame="windows"]) .strip-plus {
+    padding-left: 0;
   }
 
   :global([data-frame="gnome"]) .tabs {

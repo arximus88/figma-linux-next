@@ -1,3 +1,5 @@
+import { NEW_FILE_TAB_TITLE } from "Const";
+
 let tabList = $state<Types.TabFront[]>([]);
 
 function addTab(data: Types.AddTabProps) {
@@ -33,6 +35,14 @@ function updateTab(tab: Partial<Types.TabFront> & { id: number }) {
     .sort((a, b) => (a.order > b.order ? 1 : -1));
 }
 
+/** Move the New file tab to `order` (0 = first, MAX_SAFE_INTEGER = last) when the layout flips. */
+function repinNewFileTab(order: number) {
+  if (!tabList.some((t) => t.title === NEW_FILE_TAB_TITLE && t.order !== order)) return;
+  tabList = tabList
+    .map((t) => (t.title === NEW_FILE_TAB_TITLE ? { ...t, order } : t))
+    .sort((a, b) => (a.order > b.order ? 1 : -1));
+}
+
 function getTab(id: number) {
   return tabList.find((tab) => tab.id === id);
 }
@@ -52,6 +62,7 @@ export const tabs = {
   deleteTab,
   clear,
   updateTab,
+  repinNewFileTab,
   getTab,
   getTabByTitle,
 };

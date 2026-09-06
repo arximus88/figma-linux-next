@@ -123,6 +123,8 @@ declare namespace Types {
       frameStyle: FrameStyle;
       frameStyleAuto: boolean;
       hideWindowMinMaxButtons: boolean;
+      /** Render the new-tab "+" after the last tab instead of in the left corner. */
+      newTabButtonAfterTabs: boolean;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;

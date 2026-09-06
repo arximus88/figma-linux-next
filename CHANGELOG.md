@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Legacy Windows frame** (renamed from "Windows 11") now uses the colours of Figma's own
   Windows desktop chrome: near-black strip, lighter active tab with a bold title, 1px separators
   between tabs, grey control glyphs. Light variant to match.
+- **New tab button after the tabs** — Settings → General, off by default. Moves the `+` from the
+  left corner to the end of the tab strip, like Figma's own desktop app; the New file tab then
+  opens at the end too. When the strip overflows the button stays pinned at the right edge.
+- **Tab motion** — tabs unfold when opened and fold away when closed, and the strip's hover
+  fades use each frame's native timing (libadwaita's 200 ms on GNOME, Breeze's 100–150 ms on
+  Plasma). Honours the desktop's "disable animations" switch via `prefers-reduced-motion`.
 - **Light and dark frames** — the GNOME, KDE and Windows frames follow Figma's Theme menu,
   including *System theme*, which tracks the OS preference live. Previously the panel was
   always dark and Figma's *System theme* choice was silently ignored.

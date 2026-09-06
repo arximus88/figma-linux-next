@@ -43,6 +43,7 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     frameStyle: "gnome",
     frameStyleAuto: true,
     hideWindowMinMaxButtons: false,
+    newTabButtonAfterTabs: false,
     trayEnabled: false,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",

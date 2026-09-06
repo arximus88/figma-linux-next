@@ -258,6 +258,12 @@
           <Toggle bind:checked={$settings.app.hideWindowMinMaxButtons} />
         </SettingRow>
         <SettingRow
+          title="New tab button after the tabs"
+          subtitle="Move the + from the left corner to the end of the tab strip, like Figma's own desktop app"
+        >
+          <Toggle bind:checked={$settings.app.newTabButtonAfterTabs} />
+        </SettingRow>
+        <SettingRow
           title="System tray icon"
           subtitle="Keep Figma running in the tray when the last window is closed (GNOME needs the AppIndicator extension)"
         >

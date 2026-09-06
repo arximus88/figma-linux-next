@@ -3,6 +3,7 @@
   import { initIpc } from "./ipc.svelte";
   import { panelZoom, windowControls } from "./store";
   import { isValidFrameStyle } from "./frames/index";
+  import { applyLayoutSettings } from "./Components/utils";
   import FramedPanel from "./frames/FramedPanel.svelte";
 
   initCommonIpc();
@@ -35,6 +36,7 @@
     .invoke("getSettings")
     .then((settings: Types.SettingsInterface) => {
       windowControls.setHideMinMax(!!settings?.app?.hideWindowMinMaxButtons);
+      applyLayoutSettings(settings);
     })
     .catch((e: Error) => {
       console.error("App.svelte: failed to get settings:", e);
