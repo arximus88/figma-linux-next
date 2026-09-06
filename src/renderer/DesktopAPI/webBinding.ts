@@ -498,61 +498,21 @@ const publicAPI: any = {
     return { data: fontBuffer, transferList: [fontBuffer] };
   },
 
-  getClipboardData(args: any) {
-    return new Promise((resolve, reject) => {
-      if (E.clipboard.has("org.nspasteboard.ConcealedType")) {
-        sendMsgToMain("logError", "Clipboard unavailable");
-        reject(new Error("Clipboard unavailable"));
-        return;
-      }
+  // Electron 44 removed `clipboard` from renderers; main reads it (ClipboardController)
+  // and returns the first format that has data, in Figma's requested order.
+  async getClipboardData(args: any) {
+    const formats: string[] = args.getArray("formats");
+    const result: { data: ArrayBuffer; format: string } | null = await E.ipcRenderer.invoke(
+      "getClipboardData",
+      formats,
+    );
 
-      const whitelistedFormats = ["com.adobe.pdf", "com.adobe.xd", "com.bohemiancoding.sketch.v3"];
-
-      const formats = args.getArray("formats");
-
-      for (const format of formats) {
-        let data = null;
-
-        if (format === "text/html") {
-          const unsafeHTML = E.clipboard.readHTML().trim();
-
-          if (unsafeHTML.includes("<!--(figma)") && unsafeHTML.includes("(/figma)-->")) {
-            data = Buffer.from(unsafeHTML);
-          }
-        } else if (format === "image/svg+xml") {
-          data = E.clipboard.readBuffer(format);
-          data = data.byteLength > 0 ? data : E.clipboard.readBuffer("Scalable Vector Graphics");
-          data =
-            data.byteLength > 0
-              ? data
-              : E.clipboard.readBuffer("CorePasteboardFlavorType 0x53564720");
-
-          if (data.byteLength === 0) {
-            const unsafeText = E.clipboard.readText().trim();
-            if (unsafeText.startsWith("<svg") && unsafeText.endsWith("</svg>")) {
-              data = Buffer.from(unsafeText);
-            }
-          }
-        } else if (format === "image/jpeg" || format === "image/png") {
-          data = E.clipboard.readImage().toBitmap();
-        } else if (whitelistedFormats.indexOf(format) !== -1) {
-          data = E.clipboard.readBuffer(format);
-        }
-
-        if (data && data.byteLength > 0) {
-          const result = {
-            data: data.buffer,
-            format: format,
-          };
-
-          resolve({ data: result, transferList: [data.buffer] });
-          return;
-        }
-      }
-
+    if (!result) {
       sendMsgToMain("logError", "Formats not found. Formats: ", formats);
-      reject(new Error("Formats not found"));
-    });
+      throw new Error("Formats not found");
+    }
+
+    return { data: result, transferList: [result.data] };
   },
 
   setClipboardData(args: WebApi.SetClipboardData) {

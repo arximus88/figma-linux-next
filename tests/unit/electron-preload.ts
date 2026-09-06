@@ -22,7 +22,8 @@ mock.module("electron", () => ({
     showSaveDialogSync: () => {},
   },
   shell: { openExternal: () => {}, showItemInFolder: () => {} },
-  clipboard: {},
+  clipboard: { write: async () => {}, readText: async () => "", writeText: async () => {} },
+  ClipboardItem: class {},
   nativeImage: { createFromPath: () => ({}) },
   Menu: class {
     static buildFromTemplate = () => ({ popup: () => {} });

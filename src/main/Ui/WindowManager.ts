@@ -437,11 +437,11 @@ export default class WindowManager {
 
     window.addTab(CHROME_GPU, CHROME_GPU);
   }
-  private openFileUrlClipboard() {
+  private async openFileUrlClipboard() {
     const window = this.windows.get(this.lastFocusedwindowId);
-    const uri = clipboard.readText();
+    const uri = await clipboard.readText();
 
-    window.openUrl(uri);
+    window?.openUrl(uri);
   }
   private openFileBrowser() {
     const window = this.windows.get(this.lastFocusedwindowId);

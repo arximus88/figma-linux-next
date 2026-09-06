@@ -36,11 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Electron 43.3.0 → 43.6.0. 43.3.0 carried an upstream StatusNotifierItem regression that left
-  Electron tray icons blank on GNOME (AppIndicator), Cinnamon and XFCE
-  ([electron#52674](https://github.com/electron/electron/issues/52674)); without this bump the new
-  tray icon would only have worked on Plasma. Build tooling (Vite, Svelte, Biome, Playwright)
-  refreshed to current minors; TypeScript stays on 6.x.
+- Electron 43.3.0 → 44.2.0 (Chromium 152, Node 24). 43.3.0 carried an upstream StatusNotifierItem
+  regression that left Electron tray icons blank on GNOME (AppIndicator), Cinnamon and XFCE
+  ([electron#52674](https://github.com/electron/electron/issues/52674)); without the bump the new
+  tray icon would only have worked on Plasma. Electron 44 also rewrote the clipboard module, so
+  copy/paste between Figma and the system clipboard now goes through the main process with the
+  new async API — behaviour is unchanged. `adm-zip` 0.5 → 0.6 (CVE-2026-39244 fix). Build tooling
+  (Vite, Svelte, Biome, Playwright) refreshed to current minors; TypeScript stays on 6.x.
 
 ### Fixed
 

@@ -87,7 +87,7 @@ export default class MenuManager {
         id: "copyUrl",
         label: "Copy Url",
         click: (): void => {
-          clipboard.writeText(encodeURI(url));
+          void clipboard.writeText(encodeURI(url));
         },
       },
       {
@@ -112,7 +112,7 @@ export default class MenuManager {
         id: "copyUrl",
         label: "Copy Url",
         click: (): void => {
-          clipboard.writeText(encodeURI(url));
+          void clipboard.writeText(encodeURI(url));
         },
       },
       { type: "separator" },
@@ -155,7 +155,7 @@ export default class MenuManager {
         id: "copyUrl",
         label: "Copy Url",
         click: (): void => {
-          clipboard.writeText(encodeURI(url));
+          void clipboard.writeText(encodeURI(url));
         },
       },
       { type: "separator" },

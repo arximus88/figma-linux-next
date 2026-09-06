@@ -338,7 +338,9 @@ Custom switches can be added in settings under `app.commandSwitches`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "43.6.0"`, bumped 2026-09-05 (43.3.0 shipped a StatusNotifierItem regression — tray icons invisible on GNOME/AppIndicator, Cinnamon and XFCE — fixed upstream in 43.4.1; see electron#52674). OAuth login re-verified on 43.6.0: pending.
+`package.json` lists an exact version, currently `"electron": "44.2.0"` (Chromium 152, Node 24), bumped 2026-09-07. OAuth login re-verification on 44.2.0: **pending**.
+
+History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on GNOME/AppIndicator, Cinnamon, XFCE; electron#52674, fixed in 43.4.1). 44.0 rebuilt the `clipboard` module: every method is async, payloads are `ClipboardItem` → `Blob` by MIME type, `readImage/writeImage/readBuffer/writeBuffer` are gone, and the module no longer exists in renderers — which is why `ClipboardController` now owns both read and write and the tab preload only forwards `getClipboardData`/`setClipboardData`.
 
 The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
 
