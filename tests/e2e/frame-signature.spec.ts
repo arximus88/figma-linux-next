@@ -100,11 +100,14 @@ async function panelSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) 
 }
 
 test.describe("Frame-style DOM signature", () => {
-  for (const style of ["gnome", "windows"] as const) {
+  for (const style of ["gnome", "kde", "windows"] as const) {
     test(`${style} panel signature is stable`, async () => {
       // Boot directly in the target frame via pre-seeded settings — no flaky
-      // runtime IPC toggle.
-      const handle = await launchApp({ settings: { app: { frameStyle: style } } });
+      // runtime IPC toggle. `frameStyleAuto` defaults to on and would replace
+      // the seeded style with the one detected from the desktop environment.
+      const handle = await launchApp({
+        settings: { app: { frameStyle: style, frameStyleAuto: false } },
+      });
       const panel = await findPanelPage(handle.app);
       await waitForFrame(panel, style);
       await panel.waitForTimeout(200);
