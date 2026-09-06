@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automatic frame selection** — the frame now follows the desktop environment
   (`XDG_CURRENT_DESKTOP`): KDE gets the Breeze frame, everything else the GNOME one. On by
   default for everyone; Settings → General has a toggle to turn it off and pick a frame by hand.
+- **Flatpak repository with automatic updates** — every release is now published into a signed
+  OSTree repository on GitHub Pages (https://arximus88.github.io/figma-linux-next/). Install once
+  from the `.flatpakref` there and later versions arrive through `flatpak update`, GNOME Software
+  or Discover; the standalone `.flatpak` bundle on Releases stays as a manual option.
+  Closes [#52](https://github.com/arximus88/figma-linux-next/issues/52).
 - **Legacy Windows frame** (renamed from "Windows 11") now uses the colours of Figma's own
   Windows desktop chrome: near-black strip, lighter active tab with a bold title, 1px separators
   between tabs, grey control glyphs. Light variant to match.

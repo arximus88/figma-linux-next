@@ -99,6 +99,19 @@ chmod +x figma-linux-next_*.AppImage && ./figma-linux-next_*.AppImage
 > update-desktop-database ~/.local/share/applications/
 > ```
 
+### Flatpak
+
+One click: open **https://arximus88.github.io/figma-linux-next/** and use the install button
+(GNOME Software and KDE Discover handle `.flatpakref` files directly). Or from the terminal:
+
+```bash
+flatpak install --user https://arximus88.github.io/figma-linux-next/figma-linux-next.flatpakref
+```
+
+This adds the project's own signed Flatpak repository, so later releases arrive through
+`flatpak update` and the software centre like any other Flatpak. The standalone `.flatpak`
+bundle on the Releases page still works but does not update itself.
+
 ### AUR (Arch / CachyOS)
 
 ```bash

@@ -406,9 +406,19 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 6. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
 7. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
 8. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
-9. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
+9. **`flatpak-repo`** — runs after `release`: pulls the previous repository state back from the live
+   Pages site (`ostree pull --mirror --depth=1`), imports this release's `.flatpak` with
+   `flatpak build-import-bundle`, signs and prunes (`--prune-depth=1`), writes the `.flatpakrepo` /
+   `.flatpakref` files and `flatpak/pages/index.html`, then deploys the whole site with
+   `actions/deploy-pages`. Pages is in **workflow** build mode (switched 2026-09-06), so the old
+   Jekyll rendering of README at the same URL is gone — the site is now the Flatpak repo. Skipped
+   when `build-flatpak` produced no bundle. Signing key: `FLATPAK_GPG_KEY` secret (armored private
+   key, fingerprint `0519BE241207E6F2F0E18F0788A28A2C84E355F9`); public half committed as
+   `flatpak/figma-linux-next-repo.gpg`. Losing the private key means every existing install must
+   re-add the remote — keep a copy outside GitHub.
+10. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
 
-Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`.
+Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`, `FLATPAK_GPG_KEY` (armored GPG private key that signs the Pages Flatpak repo).
 
 **`flake.nix` pins version + hashes together** and is updated by CI, not by `bump_version.pl` — the hashes don't exist until the release binaries are built. Never bump the version in `flake.nix` by hand: it would name a release whose hashes it doesn't have, and every `nix build` would fail on a hash mismatch.
 
