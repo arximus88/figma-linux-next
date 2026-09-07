@@ -335,7 +335,7 @@ export default class WindowManager {
     const recentlyClosedTabs = storage.settings.app.recentlyClosedTabs;
 
     if (recentlyClosedTabs?.length > 0) {
-      for (const tabInfo of recentlyClosedTabs.reverse()) {
+      for (const tabInfo of [...recentlyClosedTabs].reverse()) {
         this.closedTabs.set(tabInfo.title, {
           title: tabInfo.title,
           url: tabInfo.url,

@@ -5,7 +5,9 @@ import type { IpcMainInvokeEvent } from "electron";
 
 import { storage } from "../Storage";
 import type FontManager from "../Fonts";
+import { logger } from "../Logger";
 import { ipcRegistry } from "./registry";
+import { isInsideDirs } from "Utils/Main/safePath";
 
 export default class FontController {
   constructor(private fontManager: FontManager) {
@@ -24,6 +26,12 @@ export default class FontController {
   }
 
   private async getFontFile(_: IpcMainInvokeEvent, data: WebApi.GetFontFile) {
+    // The path comes from the Figma page. Only files under the configured
+    // font directories may be read — otherwise this is an arbitrary file read.
+    if (!isInsideDirs(data.path, storage.settings.app.fontDirs)) {
+      logger.warn(`getFontFile: refused path outside fontDirs: ${data.path}`);
+      return null;
+    }
     const file = await this.fontManager.getFontFile(data.path);
 
     if (file && file.byteLength > 0) {

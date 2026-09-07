@@ -240,8 +240,8 @@ export default class TabManager {
     this.tabs.forEach((tab) => {
       const pathname = parseURL(tab.url ?? tab.getUrl())?.pathname;
       if (!pathname) return;
-      const reg = new RegExp(pathname);
-      if (reg.test(path)) {
+      // Plain substring match — the pathname is user data, not a pattern.
+      if (path.includes(pathname)) {
         foundTab = tab;
       }
     });

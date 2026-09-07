@@ -392,7 +392,7 @@ export default class Window {
 
     this.tabManager.closeAll();
 
-    this.window.webContents.send("closeAllTab");
+    this.window.webContents.send("closeAllTabs");
   }
   public loadLoginPageAllWindows() {
     this.tabManager.loadLoginPage();
