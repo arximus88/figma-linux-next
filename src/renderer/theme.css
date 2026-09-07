@@ -255,6 +255,8 @@ html[data-theme="dark"] {
   --frame-fg: #2e2e2e;
   --frame-fg-muted: rgba(0, 0, 0, 0.7);
   --frame-edge: rgba(0, 0, 0, 0.1);
+  /* libadwaita's 1px inner highlight along the window's top edge */
+  --frame-highlight: rgba(255, 255, 255, 0.8);
   --frame-btn-normal: rgba(0, 0, 0, 0.06);
   --frame-btn-hover: rgba(0, 0, 0, 0.1);
   --frame-btn-active: rgba(0, 0, 0, 0.16);
@@ -270,6 +272,7 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-fg: #e6e6e7;
   --frame-fg-muted: rgba(255, 255, 255, 0.7);
   --frame-edge: #424242;
+  --frame-highlight: rgba(255, 255, 255, 0.1);
   --frame-btn-normal: rgba(255, 255, 255, 0.06);
   --frame-btn-hover: rgba(255, 255, 255, 0.12);
   --frame-btn-active: rgba(255, 255, 255, 0.18);

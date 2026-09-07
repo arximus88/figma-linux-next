@@ -39,7 +39,9 @@
     padding: 0 8px 0 3px;
     gap: 12px;
     align-items: center;
-    box-shadow: 0 -1px 0px var(--frame-edge) inset;
+    box-shadow:
+      0 1px 0 var(--frame-highlight) inset,
+      0 -1px 0 var(--frame-edge) inset;
   }
   #panel[data-frame="kde"] {
     padding: 0 6px 0 4px;

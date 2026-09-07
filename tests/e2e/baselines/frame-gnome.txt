@@ -1,6 +1,6 @@
 data-frame=gnome
 div
-  {display:flex; width:1200px; height:40px; padding:0px 8px 0px 3px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgb(46, 46, 50); border-radius:0px; box-shadow:rgb(66, 66, 66) 0px -1px 0px 0px inset; font-size:16px; font-weight:400; color:rgb(230, 230, 231); opacity:1}
+  {display:flex; width:1200px; height:40px; padding:0px 8px 0px 3px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgb(46, 46, 50); border-radius:0px; box-shadow:rgba(255, 255, 255, 0.1) 0px 1px 0px 0px inset, rgb(66, 66, 66) 0px -1px 0px 0px inset; font-size:16px; font-weight:400; color:rgb(230, 230, 231); opacity:1}
   div.left
     {display:flex; width:80px; height:34px; padding:0px; margin:0px; gap:12px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(230, 230, 231); opacity:1}
     div.button__active[role=button]
