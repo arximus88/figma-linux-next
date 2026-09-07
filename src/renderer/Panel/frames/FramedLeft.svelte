@@ -1,23 +1,25 @@
 <script lang="ts">
-  import { ButtonTool, ButtonWindow } from "Common/Buttons";
+  import { ButtonWindow } from "Common/Buttons";
   import { getFrameConfig } from "Utils/Render/frameTheme";
-  import { onClickCommunity, onClickHome, onClickNewProject } from "../Components/utils";
-  import { communityTabVisible, currentTab, newFileVisible } from "../store";
+  import { tabSlide } from "../Components/motion";
+  import { onClickCommunity, onClickHome } from "../Components/utils";
+  import { communityTabVisible, currentTab, layout, newFileVisible } from "../store";
+  import NewTabButton from "./NewTabButton.svelte";
 
   let { style }: { style: Types.FrameStyle } = $props();
 
   const cfg = $derived(getFrameConfig(style));
-  // Gnome's new-file button is a ButtonWindow (round), Windows uses ButtonTool.
-  const usesToolPlus = $derived(style !== "gnome");
+  // Colours resolve through the frame palette so they follow light/dark.
   const btn = $derived(
     style === "gnome"
-      ? { padding: "0", active: "rgba(255,255,255,0.12)", hover: "rgba(255,255,255,0.08)" }
-      : { padding: "0 10px", active: "rgba(255,255,255,0.15)", hover: "rgba(255,255,255,0.1)" },
+      ? { padding: "0", active: "var(--frame-btn-active)", hover: "var(--frame-btn-hover)" }
+      : style === "kde"
+        ? { padding: "0", active: "var(--frame-tab-active)", hover: "var(--frame-tab-hover)" }
+        : { padding: "0 10px", active: "var(--frame-btn-active)", hover: "var(--frame-btn-hover)" },
   );
 
   const Home = $derived(cfg.left.home.component);
   const CommunityIcon = $derived(cfg.left.community.component);
-  const Plus = $derived(cfg.left.plus.component);
 </script>
 
 <div class="left">
@@ -28,31 +30,27 @@
     isActive={currentTab.value === "mainTab"}
     onButtonClick={onClickHome}
   >
-    <Home size={cfg.left.home.size} />
+    <Home size={cfg.left.home.size} color="currentColor" />
   </ButtonWindow>
 
   {#if communityTabVisible.value}
-    <ButtonWindow
-      padding={btn.padding}
-      activeBgColor={btn.active}
-      hoverBgColor={btn.hover}
-      isActive={currentTab.value === "communityTab"}
-      onButtonClick={onClickCommunity}
-    >
-      <CommunityIcon size={cfg.left.community.size} />
-    </ButtonWindow>
+    <span class="slot" transition:tabSlide>
+      <ButtonWindow
+        padding={btn.padding}
+        activeBgColor={btn.active}
+        hoverBgColor={btn.hover}
+        isActive={currentTab.value === "communityTab"}
+        onButtonClick={onClickCommunity}
+      >
+        <CommunityIcon size={cfg.left.community.size} color="currentColor" />
+      </ButtonWindow>
+    </span>
   {/if}
 
-  {#if newFileVisible.value}
-    {#if usesToolPlus}
-      <ButtonTool padding={btn.padding} onButtonClick={onClickNewProject}>
-        <Plus size={cfg.left.plus.size} />
-      </ButtonTool>
-    {:else}
-      <ButtonWindow padding={btn.padding} hoverBgColor={btn.hover} onButtonClick={onClickNewProject}>
-        <Plus size={cfg.left.plus.size} />
-      </ButtonWindow>
-    {/if}
+  {#if newFileVisible.value && !layout.newTabAfterTabs}
+    <span class="slot" transition:tabSlide>
+      <NewTabButton {style} />
+    </span>
   {/if}
 </div>
 
@@ -62,6 +60,14 @@
     align-items: center;
     -webkit-app-region: no-drag;
   }
+  /* Real boxes (not display: contents) so the open/close transition has a
+     width to fold. They stretch to the row so the buttons inside keep their
+     own height rules. */
+  .slot {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+  }
 
   :global([data-frame="gnome"]) .left {
     gap: 12px;
@@ -69,7 +75,27 @@
   :global([data-frame="windows"]) .left {
     gap: 0px;
   }
-
+  /* KDE: Home/Community behave like tabs (flat, accent underline when active);
+     the new-file "+" is a round control like the ones on the right. */
+  :global([data-frame="kde"]) .left {
+    gap: 4px;
+  }
+  :global([data-frame="kde"]) .left :global(div[role="button"]) {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 3px 3px 0 0;
+  }
+  :global([data-frame="kde"]) .left :global(div[role="button"].button__active::before) {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    border-radius: 3px 3px 0 0;
+    background-color: var(--frame-accent);
+  }
   :global([data-frame="gnome"]) .left :global(div[role="button"]) {
     width: 34px;
     height: 34px;

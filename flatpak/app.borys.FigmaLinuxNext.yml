@@ -63,6 +63,8 @@ finish-args:
   - --socket=pulseaudio
   # Desktop notifications.
   - --talk-name=org.freedesktop.Notifications
+  # System tray icon (StatusNotifierItem — KDE Plasma, GNOME with AppIndicator).
+  - --talk-name=org.kde.StatusNotifierWatcher
   # Export / open files.
   - --filesystem=xdg-download
   - --filesystem=xdg-documents
@@ -109,7 +111,7 @@ modules:
       - cp flatpak/package-lock.json dist/package-lock.json
       - cd dist && npm install --omit=dev --offline --no-audit --no-fund && rm -f package-lock.json && cd ..
       - mkdir -p /app/main
-      - unzip -q flatpak-node/cache/electron/electron-v43.3.0-linux-x64.zip -d /app/main
+      - unzip -q flatpak-node/cache/electron/electron-v44.2.0-linux-x64.zip -d /app/main
       - mkdir -p /app/main/resources/app
       - cp -a dist/. /app/main/resources/app/
       - install -Dm755 run.sh /app/bin/figma-linux-next
@@ -124,8 +126,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/arximus88/figma-linux-next.git
-        tag: v0.17.0
-        commit: bb4eb2f2e50be0efe0f24d4e096a45da12f4baf8
+        tag: v0.20.0
       - generated-sources.json
       # These four overwrite what the git checkout brought in. Packaging metadata
       # is edited here and takes effect on the next build; read from the tag it

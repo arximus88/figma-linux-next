@@ -1,6 +1,8 @@
 <script lang="ts">
   let { active = false, size = "16" } = $props<{ active?: boolean; size?: string }>();
-  const color = $derived(active ? "#D1A8FF" : "#E6E6E7");
+  // Inactive follows the tab text; active picks the per-type accent from theme.css
+  // (light/dark variants) so it reads on both panel themes.
+  const color = $derived(active ? "var(--tabicon-figjam)" : "currentColor");
 </script>
 
 <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

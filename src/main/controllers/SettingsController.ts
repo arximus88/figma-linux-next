@@ -5,6 +5,8 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { app } from "electron";
 
 import { storage } from "../Storage";
+import { getResolvedFigmaTheme } from "../Theme";
+import { detectFrameStyle, resolveFrameStyle } from "Utils/Main/desktopEnvironment";
 import { dialogs } from "../Dialogs";
 import { ipcRegistry } from "./registry";
 import type WindowManager from "../Ui/WindowManager";
@@ -16,6 +18,7 @@ export default class SettingsController {
 
   private register() {
     ipcRegistry.handle("getSettings", () => storage.getSettings(), "SettingsController");
+    ipcRegistry.handle("getRuntimeInfo", () => this.getRuntimeInfo(), "SettingsController");
     ipcRegistry.on("setFeatureFlags", storage.setFeatureFlags.bind(storage), "SettingsController");
     ipcRegistry.on("closeSettingsView", this.closeSettingsView.bind(this), "SettingsController");
     ipcRegistry.handle(
@@ -35,6 +38,7 @@ export default class SettingsController {
       "SettingsController",
     );
     ipcRegistry.on("setFrameStyle", this.setFrameStyle.bind(this), "SettingsController");
+    ipcRegistry.on("setTrayEnabled", this.setTrayEnabled.bind(this), "SettingsController");
   }
 
   private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
@@ -50,6 +54,9 @@ export default class SettingsController {
       JSON.stringify(settings.app.commandSwitches)
     ) {
       app.emit("chromiumFlagsChanged", true);
+    }
+    if (storage.settings.app.trayEnabled !== settings.app.trayEnabled) {
+      app.emit("trayEnabledChanged", !!settings.app.trayEnabled);
     }
     if (storage.settings.app.useZenity !== settings.app.useZenity) {
       dialogs.switchProvider(settings.app.useZenity);
@@ -73,13 +80,22 @@ export default class SettingsController {
       app.emit("chromiumFlagsChanged", true);
     }
 
-    const minMaxChanged =
-      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons;
+    const panelLayoutChanged =
+      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons ||
+      storage.settings.app.newTabButtonAfterTabs !== settings.app.newTabButtonAfterTabs ||
+      storage.settings.app.tabHoverPreviews !== settings.app.tabHoverPreviews;
+    const frameChanged =
+      storage.settings.app.frameStyleAuto !== settings.app.frameStyleAuto ||
+      storage.settings.app.frameStyle !== settings.app.frameStyle;
 
     storage.settings = settings;
     await storage.save();
 
-    if (minMaxChanged) {
+    if (frameChanged) {
+      this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(settings.app));
+    }
+
+    if (panelLayoutChanged) {
       this.windowManager.broadcastSettingsToPanels();
     }
 
@@ -104,11 +120,32 @@ export default class SettingsController {
     this.windowManager.updateFigmaUiScaleAllWindows(scale);
   }
 
+  /** Values only main can resolve (env, nativeTheme) — the renderers ask for these on boot. */
+  private getRuntimeInfo(): Types.RuntimeInfo {
+    return {
+      frameStyle: resolveFrameStyle(storage.settings.app),
+      detectedFrameStyle: detectFrameStyle(),
+      theme: getResolvedFigmaTheme(),
+    };
+  }
+
+  /** Live change from the Settings toggle — the tray appears/disappears immediately. */
+  private setTrayEnabled(_: IpcMainEvent, enabled: unknown) {
+    const on = !!enabled;
+    if (storage.settings.app.trayEnabled === on) return;
+    storage.settings.app.trayEnabled = on;
+    storage.save();
+    app.emit("trayEnabledChanged", on);
+  }
+
+  /** Live change from the Settings select. Only visible while auto-detect is off. */
   private setFrameStyle(_: IpcMainEvent, style: Types.FrameStyle) {
     if (storage.settings.app.frameStyle === style) return;
 
     storage.settings.app.frameStyle = style;
     storage.save();
-    this.windowManager.setFrameStyleAllWindows(style);
+    if (!storage.settings.app.frameStyleAuto) {
+      this.windowManager.setFrameStyleAllWindows(style);
+    }
   }
 }

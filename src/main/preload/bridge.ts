@@ -28,9 +28,12 @@ const SEND_CHANNELS = [
   "openCommunityTabMenu",
   "newProject",
   "openTabMenu",
+  "tabHoverStart",
+  "tabHoverEnd",
   // Settings
   "closeSettingsView",
   "setFrameStyle",
+  "setTrayEnabled",
   "openSettingsView",
   // Changelog
   "openChangelogView",
@@ -60,10 +63,14 @@ const RECEIVE_CHANNELS = [
   "communityTabWasClose",
   "setLoading",
   "frameStyleChanged",
+  "figmaThemeChanged",
+  // Tab preview card (renderer/Preview)
+  "tabPreviewData",
 ] as const;
 
 const INVOKE_CHANNELS = [
   "getSettings",
+  "getRuntimeInfo",
   "selectExportDirectory",
   "updateFigmaUiScale",
   "updatePanelScale",

@@ -25,6 +25,10 @@ import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
 import { logger } from "Main/Logger";
 
+/** Thumbnail width in device pixels: the card is 280 CSS px wide, so this stays crisp at 2×. */
+const THUMBNAIL_WIDTH = 560;
+const THUMBNAIL_JPEG_QUALITY = 72;
+
 export default class Tab {
   public id: number;
   public title?: string;
@@ -34,6 +38,8 @@ export default class Tab {
   public isUsingMicrophone?: boolean;
   public isInVoiceCall?: boolean;
   public view: WebContentsView;
+  /** Last snapshot of the page as a JPEG data URL, for the hover preview card. */
+  public thumbnail?: string;
 
   private _editorType: Types.EditorType | undefined;
   private _isLibrary = false;
@@ -89,6 +95,32 @@ export default class Tab {
 
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
+  }
+
+  /**
+   * Snapshot the page for the hover preview. Must be *called* while the view
+   * is still visible: a hidden or detached WebContentsView has no compositor
+   * surface to copy from (capturePage rejects with UnknownVizError). The call
+   * queues a copy of the surface that exists right now, so Window fires it and
+   * hides the view in the same tick (see Window.swapTo). Nothing waits on the
+   * result — a stalled capture only means a stale thumbnail.
+   */
+  public async captureThumbnail(): Promise<void> {
+    const wc = this.view.webContents;
+    if (wc.isDestroyed()) return;
+    try {
+      const image = await wc.capturePage();
+      if (image.isEmpty()) {
+        logger.debug(`[Tab ${this.id}] thumbnail capture returned an empty image`);
+        return;
+      }
+      const { width } = image.getSize();
+      const thumb = width > THUMBNAIL_WIDTH ? image.resize({ width: THUMBNAIL_WIDTH }) : image;
+      this.thumbnail = `data:image/jpeg;base64,${thumb.toJPEG(THUMBNAIL_JPEG_QUALITY).toString("base64")}`;
+    } catch (error) {
+      // Window hidden/minimised mid-switch, view already gone — keep the previous thumbnail.
+      logger.debug(`[Tab ${this.id}] thumbnail capture skipped:`, error);
+    }
   }
 
   private initTab() {

@@ -35,9 +35,7 @@
     "types": [
       "node",
       "bun",
-      "adm-zip",
-      "fontkit",
-      "lodash"
+      "fontkit"
     ],
     "paths": {
       "Main": ["./src/main"],

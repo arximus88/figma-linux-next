@@ -8,6 +8,7 @@ import type { IpcMainInvokeEvent } from "electron";
 import { storage } from "../Storage";
 import { dialogs } from "../Dialogs";
 import { mkPath } from "Utils/Main";
+import { safeExportName } from "Utils/Main/safePath";
 import { ipcRegistry } from "./registry";
 import type WindowManager from "../Ui/WindowManager";
 
@@ -75,7 +76,10 @@ export default class FileController {
     }
 
     for (const file of files) {
-      const outputPath = path.join(directoryPath, file.name);
+      // Names come from the web app; keep every write inside the chosen directory.
+      const name = safeExportName(file.name);
+      if (!name) continue;
+      const outputPath = path.join(directoryPath, name);
       await mkPath(path.dirname(outputPath));
 
       try {

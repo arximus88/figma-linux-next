@@ -1,6 +1,12 @@
-<script lang="ts"></script>
+<script lang="ts">
+  // Height-driven; width keeps the 2283:3432 aspect. `color` is accepted for API
+  // parity with the monochrome icons and intentionally ignored.
+  let { size = "30", color: _color = undefined } = $props();
+  const h = $derived(Number(size));
+  const w = $derived(Math.round(h * 0.665));
+</script>
 
-<svg width="18" height="30" viewBox="0 0 2283 3432" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width={w} height={h} viewBox="0 0 2283 3432" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path
     d="M570.99 3431.45C885.839 3431.45 1141.37 3175.24 1141.37 2859.56V2287.67H570.99C256.14 2287.67 0.609863 2543.88 0.609863 2859.56C0.609863 3175.24 256.14 3431.45 570.99 3431.45Z"
     fill="#0ACF83"

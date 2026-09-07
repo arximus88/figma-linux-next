@@ -6,6 +6,8 @@ export interface ChangelogSection {
 export interface ChangelogEntry {
   version: string;
   date: string;
+  /** Prose paragraphs between the version heading and the first `###` section. */
+  intro: string[];
   sections: ChangelogSection[];
 }
 
@@ -18,13 +20,11 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
   let buffer: string[] = [];
 
   const flushBuffer = () => {
-    if (!currentSection || buffer.length === 0) {
-      buffer = [];
-      return;
-    }
     const joined = buffer.join(" ").trim();
-    if (joined) currentSection.items.push(joined);
     buffer = [];
+    if (!joined || !current) return;
+    if (currentSection) currentSection.items.push(joined);
+    else current.intro.push(joined);
   };
 
   const flushSection = () => {
@@ -42,7 +42,7 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
         current = null;
         continue;
       }
-      current = { version, date: (date ?? "").trim(), sections: [] };
+      current = { version, date: (date ?? "").trim(), intro: [], sections: [] };
       entries.push(current);
       continue;
     }
@@ -57,8 +57,6 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
       continue;
     }
 
-    if (!currentSection) continue;
-
     const bulletMatch = /^\s*[-*]\s+(.*)$/.exec(line);
     if (bulletMatch) {
       flushBuffer();
@@ -71,9 +69,13 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
       continue;
     }
 
-    if (buffer.length > 0 && /^\s+/.test(rawLine)) {
-      buffer.push(line.trim());
+    if (currentSection) {
+      // Inside a section only indented lines continue the current bullet.
+      if (buffer.length > 0 && /^\s+/.test(rawLine)) buffer.push(line.trim());
+      continue;
     }
+    if (/^#/.test(line)) continue;
+    buffer.push(line.trim());
   }
 
   flushSection();

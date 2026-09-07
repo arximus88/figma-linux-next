@@ -35,11 +35,12 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Shader, Halftone & Noise effects** — Figma's new WebGPU canvas effects render, matching the official app (opt-in, Experimental). They require X11/XWayland: on a Wayland session, enabling them relaunches the app under XWayland, so you trade native Wayland features (fractional scaling, per-monitor DPI) for shaders while they're on.
 - **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
 - **Built-in MCP server for AI assistants** — a [Model Context Protocol](https://modelcontextprotocol.io) server (default port 3845) lets AI tools like Claude Code read **and** write your open design: scene-graph metadata, design context, variables/styles, screenshots, plus create/edit nodes and Mermaid→FigJam diagrams. Read-only by default; write tools, the port, and an optional Chrome DevTools control plane are toggled in Settings. See [AI integration (MCP)](#ai-integration-mcp).
-- **Latest Chromium engine** — Electron 43 / Chromium 150, so the canvas, WebGL and color handling track the current web app.
+- **Latest Chromium engine** — Electron 44 / Chromium 152, so the canvas, WebGL and color handling track the current web app.
 - **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
 - **Runs on both Wayland and X11** — native Wayland on GNOME, KDE Plasma, Sway, Hyprland, with a clean X11 fallback. Tested on Asahi Linux (Apple Silicon), Niri, and openSUSE.
-- **Native window frame styles** — GNOME and Windows frames that match your DE (macOS and KDE TBD), with an option to hide the minimize/maximize buttons for a stock-GNOME look.
+- **Native window frame styles** — GNOME (Adwaita), KDE Plasma (Breeze) and Legacy Windows (Figma's own Windows chrome) frames, picked automatically from your desktop environment with a manual override in Settings (macOS TBD). The frame follows Figma's Light/Dark/System theme, the minimize/maximize buttons can be hidden for a stock-GNOME look, and the new-tab `+` can sit after the last tab (as in Figma's own desktop app) instead of the left corner. Resting the pointer on a tab shows a card with its title, link and last thumbnail (off switch in Settings).
 - **Instant new-file tab** — pre-loaded in the background after login, opens with no delay.
+- **System tray** — opt-in in Settings: Figma stays in the tray when the last window closes; "Show Figma" brings it back (restoring a minimised window), with New Window, Settings and Quit alongside. Native on KDE Plasma, needs the AppIndicator extension on GNOME.
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations.
 
 ## AI integration (MCP)
@@ -64,7 +65,7 @@ off-by-default and opt-in.
 
 ## Tech Stack
 
-- **Electron 43** (Chromium 150)
+- **Electron 44** (Chromium 152)
 - **Svelte 5** with runes
 - **Vite 8**
 - **Bun**
@@ -98,6 +99,19 @@ chmod +x figma-linux-next_*.AppImage && ./figma-linux-next_*.AppImage
 > xdg-mime default figma-linux-next-appimage.desktop x-scheme-handler/figma
 > update-desktop-database ~/.local/share/applications/
 > ```
+
+### Flatpak
+
+One click: open **https://arximus88.github.io/figma-linux-next/** and use the install button
+(GNOME Software and KDE Discover handle `.flatpakref` files directly). Or from the terminal:
+
+```bash
+flatpak install --user https://arximus88.github.io/figma-linux-next/figma-linux-next.flatpakref
+```
+
+This adds the project's own signed Flatpak repository, so later releases arrive through
+`flatpak update` and the software centre like any other Flatpak. The standalone `.flatpak`
+bundle on the Releases page still works but does not update itself.
 
 ### AUR (Arch / CachyOS)
 

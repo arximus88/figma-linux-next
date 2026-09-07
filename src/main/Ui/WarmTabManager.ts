@@ -10,6 +10,16 @@ import Tab from "./Tab";
 export interface WarmTabHost {
   getUserId(): string;
   getBgColor(): string;
+  /**
+   * Put a freshly created warm tab into the window's view tree, hidden. It
+   * must load while already attached: a view that loads detached and is
+   * attached later can stay invisible for good on Wayland with Electron 44
+   * (see Window.swapTo), and the promoted tab is only ever shown via
+   * setVisible.
+   */
+  attachHidden(tab: Tab): void;
+  /** Take a warm tab that is about to be destroyed out of the view tree. */
+  detach(tab: Tab): void;
 }
 
 /**
@@ -54,9 +64,7 @@ export class WarmTabManager {
     // Skip when previousId is undefined (first boot) or equal (the warm tab's
     // own setUser cascade after it bootstraps).
     if (previousId && previousId !== newId && this.warmTab) {
-      if (!this.warmTab.view.webContents.isDestroyed()) {
-        this.warmTab.view.webContents.destroy();
-      }
+      this.discardWarmTab();
       this.warmTab = null;
       this.warmTabBootstrapped = false;
       this.warmTabScheduled = false;
@@ -112,10 +120,18 @@ export class WarmTabManager {
   }
 
   destroy(): void {
-    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      this.warmTab.view.webContents.destroy();
-    }
+    this.discardWarmTab();
     this.warmTab = null;
+  }
+
+  /** Detach and destroy the current warm tab, if any (idempotent). */
+  private discardWarmTab(): void {
+    const tab = this.warmTab;
+    if (!tab) return;
+    this.host.detach(tab);
+    if (!tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.destroy();
+    }
   }
 
   private scheduleWarmTab(delayMs: number): void {
@@ -132,12 +148,11 @@ export class WarmTabManager {
     if (!userId) return;
 
     // Destroy previous warm tab if still alive
-    if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      this.warmTab.view.webContents.destroy();
-    }
+    this.discardWarmTab();
 
     const tab = new Tab(this.windowId);
     tab.view.setBackgroundColor(this.host.getBgColor());
+    this.host.attachHidden(tab);
     const url = new URL(NEW_PROJECT_TAB_URL);
     url.searchParams.set("fuid", userId);
     tab.loadUrl(url.toString());

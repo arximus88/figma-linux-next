@@ -11,7 +11,15 @@
   let pallet = $state<string[]>([]);
 
   $effect(() => {
-    const theme = $settings.app.figmaTheme ?? "dark";
+    const pref = $settings.app.figmaTheme ?? "dark";
+    // "system" (Figma's System theme) → Chromium's colour-scheme, which is the
+    // same nativeTheme source the main process resolves against.
+    const theme =
+      pref === "system"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+        : pref;
     document.documentElement.setAttribute("data-theme", theme);
     return () => document.documentElement.removeAttribute("data-theme");
   });

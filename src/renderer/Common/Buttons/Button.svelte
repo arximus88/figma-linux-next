@@ -66,7 +66,10 @@
     height: var(--height, 100%);
     padding: var(--padding);
     margin: var(--margin);
-    transition: all 0.08s ease;
+    transition:
+      background-color var(--motion-hover, 80ms) var(--motion-ease-hover, ease),
+      color var(--motion-hover, 80ms) var(--motion-ease-hover, ease),
+      border-color var(--motion-hover, 80ms) var(--motion-ease-hover, ease);
     user-select: none;
   }
   div:hover {

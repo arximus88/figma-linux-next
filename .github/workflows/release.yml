@@ -182,6 +182,123 @@ jobs:
             ./artifacts/figma-linux-next_*
             ./artifacts/SHA256SUMS
 
+  # Publish the .flatpak into a signed OSTree repository on GitHub Pages so
+  # Flatpak installs update through `flatpak update` / GNOME Software / Discover
+  # instead of a manual bundle download (#52).
+  #
+  # The site is rebuilt from scratch on every release: the previous repo state
+  # is pulled back from the live Pages URL (depth 1), the new bundle imported on
+  # top, static deltas generated, and everything older than one release pruned
+  # so the site stays well under the Pages 1 GB limit. First run finds no repo
+  # and just starts one. Nothing here touches git branches.
+  flatpak-repo:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      APP_ID: app.borys.FigmaLinuxNext
+      SITE_URL: https://arximus88.github.io/figma-linux-next
+    steps:
+      - uses: actions/checkout@v5
+
+      # Absent when build-flatpak failed; then there is nothing to publish.
+      - uses: actions/download-artifact@v4
+        id: bundle
+        continue-on-error: true
+        with:
+          name: installer-flatpak
+          path: ./bundle
+
+      - name: Install flatpak and ostree
+        if: steps.bundle.outcome == 'success'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q flatpak ostree
+
+      - name: Import the signing key
+        if: steps.bundle.outcome == 'success'
+        run: |
+          echo "${{ secrets.FLATPAK_GPG_KEY }}" | gpg --batch --import
+          echo "GPG_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')" >> "$GITHUB_ENV"
+
+      - name: Rebuild the repository from the live site plus this release
+        if: steps.bundle.outcome == 'success'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p site/repo
+          ostree init --repo=site/repo --mode=archive
+
+          # Previous state, if any. --mirror keeps the objects verbatim so the
+          # existing commit stays valid as the parent of the one imported below.
+          ostree remote add --repo=site/repo --no-gpg-verify previous "$SITE_URL/repo"
+          if ostree pull --repo=site/repo --mirror --depth=1 previous "app/$APP_ID/x86_64/master"; then
+            echo "pulled previous release from $SITE_URL/repo"
+          else
+            echo "no previous repository at $SITE_URL/repo — starting fresh"
+          fi
+          ostree remote delete --repo=site/repo previous
+
+          flatpak build-import-bundle --gpg-sign="$GPG_KEY" site/repo bundle/figma-linux-next_*_linux_x64.flatpak
+          flatpak build-update-repo --gpg-sign="$GPG_KEY" \
+            --title="figma-linux-next" \
+            --default-branch=master \
+            --generate-static-deltas \
+            --prune --prune-depth=1 \
+            site/repo
+
+          gpg --export "$GPG_KEY" > site/repo/figma-linux-next-repo.gpg
+          GPG_B64=$(base64 -w0 site/repo/figma-linux-next-repo.gpg)
+          FPR=$(gpg --list-keys --with-colons "$GPG_KEY" | awk -F: '/^fpr/{print $10; exit}')
+
+          cat > site/figma-linux-next.flatpakrepo <<EOF
+          [Flatpak Repo]
+          Title=figma-linux-next
+          Url=$SITE_URL/repo/
+          Homepage=https://github.com/arximus88/figma-linux-next
+          Comment=Unofficial Figma desktop client for Linux
+          Description=Unofficial Figma desktop client for Linux — native Wayland, GPU acceleration, system fonts, tray, KDE/GNOME frames.
+          Icon=https://raw.githubusercontent.com/arximus88/figma-linux-next/dev/resources/icons/256x256.png
+          GPGKey=$GPG_B64
+          EOF
+
+          cat > site/figma-linux-next.flatpakref <<EOF
+          [Flatpak Ref]
+          Name=$APP_ID
+          Branch=master
+          Title=figma-linux-next
+          Url=$SITE_URL/repo/
+          Homepage=https://github.com/arximus88/figma-linux-next
+          Comment=Unofficial Figma desktop client for Linux
+          IsRuntime=false
+          RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          GPGKey=$GPG_B64
+          EOF
+
+          sed -e "s|__VERSION__|$VERSION|g" \
+              -e "s|__HOST__|arximus88.github.io|g" \
+              -e "s|__PATH__|figma-linux-next|g" \
+              -e "s|__FPR__|$FPR|g" \
+              flatpak/pages/index.html > site/index.html
+          touch site/.nojekyll
+
+          echo "--- refs:"; ostree refs --repo=site/repo
+          echo "--- size:"; du -sh site
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.bundle.outcome == 'success'
+        with:
+          path: site
+
+      - uses: actions/deploy-pages@v4
+        if: steps.bundle.outcome == 'success'
+        id: deploy
+
   # Push updated PKGBUILD to AUR (both packages in parallel)
   # Skipped on pre-release tags (-rc, -alpha, -beta) so dry-runs don't publish to AUR.
   aur:

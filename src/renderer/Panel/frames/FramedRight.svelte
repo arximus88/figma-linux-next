@@ -7,13 +7,18 @@
 
   const cfg = $derived(getFrameConfig(style));
   // Gnome groups the window controls in .menu-btn/.close-group wrappers;
-  // Windows lays them out flat in .controls.
+  // Windows and KDE lay them out flat in .controls (KDE rounds them via CSS).
   const grouped = $derived(style === "gnome");
 
   const Menu = $derived(cfg.right.menu?.component);
   const Min = $derived(cfg.right.minimize.component);
   const Max = $derived(cfg.right.maximize.component);
   const Close = $derived(cfg.right.close.component);
+
+  // All colours resolve through the --frame-* palette (theme.css) so the
+  // controls follow light/dark. Gnome's min/max/close sit on a faint disc
+  // (--frame-btn-normal); the flat frames have no resting background.
+  const flatNormal = $derived(grouped ? "var(--frame-btn-normal)" : "transparent");
 
   function clickMenu() {
     if (isMenuOpen.value) return;
@@ -26,96 +31,67 @@
   }
 </script>
 
-<div class="controls">
-  {#if grouped}
-    <div class="menu-btn">
-      {#if Menu}
-        <ButtonWindow
-          padding="0"
-          isActive={isMenuOpen.value}
-          hoverBgColor="rgba(255,255,255,0.08)"
-          activeBgColor="rgba(255,255,255,0.12)"
-          onButtonClick={clickMenu}
-        >
-          <Menu size={cfg.right.menu?.size} />
-        </ButtonWindow>
-      {/if}
-    </div>
+{#snippet menuButton()}
+  {#if Menu}
+    <ButtonWindow
+      padding="0"
+      isActive={isMenuOpen.value}
+      hoverBgColor="var(--frame-btn-hover)"
+      activeBgColor="var(--frame-btn-active)"
+      onButtonClick={clickMenu}
+    >
+      <Menu size={cfg.right.menu?.size} color="currentColor" />
+    </ButtonWindow>
+  {/if}
+{/snippet}
 
-    <div class="close-group">
-      {#if !windowControls.hideMinMax}
-        <ButtonWindow
-          padding="0"
-          normalBgColor="rgba(255,255,255,0.06)"
-          hoverBgColor="rgba(255,255,255,0.12)"
-          activeBgColor="rgba(255,255,255,0.18)"
-          onButtonClick={() => window.figmaApi.send("windowMinimize")}
-        >
-          <Min size={cfg.right.minimize.size} />
-        </ButtonWindow>
-
-        <ButtonWindow
-          padding="0"
-          normalBgColor="rgba(255,255,255,0.06)"
-          hoverBgColor="rgba(255,255,255,0.12)"
-          activeBgColor="rgba(255,255,255,0.18)"
-          onButtonClick={() => window.figmaApi.send("windowMaximize")}
-        >
-          <Max size={cfg.right.maximize.size} />
-        </ButtonWindow>
-      {/if}
-
-      <ButtonWindow
-        padding="0"
-        normalBgColor="rgba(255,255,255,0.06)"
-        hoverBgColor="#c01c28"
-        activeBgColor="#a01020"
-        onButtonClick={closeHandler}
-      >
-        <Close size={cfg.right.close.size} />
-      </ButtonWindow>
-    </div>
-  {:else}
-    {#if Menu}
-      <ButtonWindow
-        padding="0"
-        isActive={isMenuOpen.value}
-        hoverBgColor="rgba(255,255,255,0.1)"
-        activeBgColor="rgba(255,255,255,0.15)"
-        onButtonClick={clickMenu}
-      >
-        <Menu size={cfg.right.menu?.size} />
-      </ButtonWindow>
-    {/if}
-
-    {#if !windowControls.hideMinMax}
-      <ButtonWindow
-        padding="0"
-        hoverBgColor="rgba(255,255,255,0.1)"
-        activeBgColor="rgba(255,255,255,0.15)"
-        onButtonClick={() => window.figmaApi.send("windowMinimize")}
-      >
-        <Min size={cfg.right.minimize.size} />
-      </ButtonWindow>
-
-      <ButtonWindow
-        padding="0"
-        hoverBgColor="rgba(255,255,255,0.1)"
-        activeBgColor="rgba(255,255,255,0.15)"
-        onButtonClick={() => window.figmaApi.send("windowMaximize")}
-      >
-        <Max size={cfg.right.maximize.size} />
-      </ButtonWindow>
-    {/if}
+{#snippet windowButtons()}
+  {#if !windowControls.hideMinMax}
+    <ButtonWindow
+      padding="0"
+      normalBgColor={flatNormal}
+      hoverBgColor="var(--frame-btn-hover)"
+      activeBgColor="var(--frame-btn-active)"
+      onButtonClick={() => window.figmaApi.send("windowMinimize")}
+    >
+      <Min size={cfg.right.minimize.size} color="currentColor" />
+    </ButtonWindow>
 
     <ButtonWindow
       padding="0"
-      hoverBgColor="#c42b1c"
-      activeBgColor="#a01010"
+      normalBgColor={flatNormal}
+      hoverBgColor="var(--frame-btn-hover)"
+      activeBgColor="var(--frame-btn-active)"
+      onButtonClick={() => window.figmaApi.send("windowMaximize")}
+    >
+      <Max size={cfg.right.maximize.size} color="currentColor" />
+    </ButtonWindow>
+  {/if}
+
+  <span class="close-btn">
+    <ButtonWindow
+      padding="0"
+      normalBgColor={flatNormal}
+      hoverBgColor="var(--frame-close-hover)"
+      activeBgColor="var(--frame-close-active)"
       onButtonClick={closeHandler}
     >
-      <Close size={cfg.right.close.size} />
+      <Close size={cfg.right.close.size} color="currentColor" />
     </ButtonWindow>
+  </span>
+{/snippet}
+
+<div class="controls">
+  {#if grouped}
+    <div class="menu-btn">
+      {@render menuButton()}
+    </div>
+    <div class="close-group">
+      {@render windowButtons()}
+    </div>
+  {:else}
+    {@render menuButton()}
+    {@render windowButtons()}
   {/if}
 </div>
 
@@ -133,12 +109,32 @@
     align-items: stretch;
     gap: 0px;
   }
+  :global([data-frame="kde"]) .controls {
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* The close glyph flips to the on-red colour while hovered/pressed. */
+  .close-btn {
+    display: contents;
+  }
+  .close-btn :global(div[role="button"]:hover),
+  .close-btn :global(div[role="button"].button__active) {
+    color: var(--frame-close-fg);
+  }
 
   /* Windows: uniform flat buttons */
   :global([data-frame="windows"]) .controls :global(div[role="button"]) {
     width: 40px;
     height: 40px;
     border-radius: 0px;
+  }
+
+  /* KDE / Breeze: circular hover halo behind each control */
+  :global([data-frame="kde"]) .controls :global(div[role="button"]) {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
   }
 
   /* Gnome: grouped round buttons */

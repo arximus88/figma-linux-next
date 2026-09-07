@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>figma-linux-next — Flatpak repository</title>
+  <style>
+    :root { color-scheme: light dark; --accent: #3daee9; }
+    body { max-width: 720px; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.55 system-ui, sans-serif; }
+    h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+    .sub { opacity: .7; margin-top: 0; }
+    pre { padding: .9rem 1rem; border-radius: 8px; background: rgba(127,127,127,.12); overflow-x: auto; }
+    a { color: var(--accent); }
+    .btn { display: inline-block; padding: .55rem 1rem; border-radius: 8px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
+    small { opacity: .7; }
+  </style>
+</head>
+<body>
+  <h1>figma-linux-next</h1>
+  <p class="sub">Unofficial Figma desktop client for Linux — Flatpak repository. Current release: <strong>v__VERSION__</strong>.</p>
+
+  <p><a class="btn" href="figma-linux-next.flatpakref">Install with one click</a>
+     <small>(GNOME Software / KDE Discover open <code>.flatpakref</code> files directly)</small></p>
+
+  <h2>Or from the terminal</h2>
+  <pre>flatpak install --user https://__HOST__/__PATH__/figma-linux-next.flatpakref</pre>
+
+  <p>To add the repository only, so updates arrive with <code>flatpak update</code>:</p>
+  <pre>flatpak remote-add --user --if-not-exists figma-linux-next \
+    https://__HOST__/__PATH__/figma-linux-next.flatpakrepo
+flatpak install --user figma-linux-next app.borys.FigmaLinuxNext</pre>
+
+  <p>Every commit and the repository summary are signed with the key
+     <code>__FPR__</code>; it is embedded in the <code>.flatpakrepo</code>
+     file and also published as <a href="repo/figma-linux-next-repo.gpg">figma-linux-next-repo.gpg</a>.</p>
+
+  <p><small>Source, release notes and other installers (deb, rpm, AppImage, AUR, Nix):
+     <a href="https://github.com/arximus88/figma-linux-next">github.com/arximus88/figma-linux-next</a>.
+     Not affiliated with or endorsed by Figma, Inc.</small></p>
+</body>
+</html>

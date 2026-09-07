@@ -66,9 +66,13 @@ declare namespace Electron {
     on(event: "requestBoundsForTabView", listener: (windowId: number) => void): this;
     on(event: "windowFocus", listener: (windowId: number) => void): this;
     on(event: "windowClose", listener: (windowId: number) => void): this;
+    /** A Window was registered or removed — the tray relabels "Show"/"Open" on it. */
+    on(event: "windowsChanged", listener: () => void): this;
+    off(event: "windowsChanged", listener: () => void): this;
     on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
     on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "frameStyleChanged", listener: (style: Types.FrameStyle) => void): this;
+    on(event: "figmaThemeChanged", listener: (theme: Types.ResolvedTheme) => void): this;
     on(event: string, listener: (...args: any[]) => void): this;
 
     emit(event: string, ...args: any[]): boolean;

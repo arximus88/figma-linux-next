@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseChangelog, renderInline } from "../../../../src/renderer/Changelog/parseChangelog";
+import {
+  parseChangelog,
+  renderInline,
+} from "../../../../src/renderer/Changelog/parseChangelog.mjs";
 
 const SAMPLE = `# Changelog
 
@@ -8,6 +11,9 @@ const SAMPLE = `# Changelog
 ---
 
 ## [0.13.5] - 2026-04-14
+
+A release that mostly fixes things.
+Two lines of prose.
 
 ### Fixed
 
@@ -39,6 +45,13 @@ describe("parseChangelog", () => {
     expect(entries[0].sections.map((s) => s.category)).toEqual(["Fixed", "Added"]);
     expect(entries[0].sections[0].items).toHaveLength(2);
     expect(entries[0].sections[1].items).toHaveLength(1);
+  });
+
+  it("keeps prose before the first section as intro and leaves other entries empty", () => {
+    const entries = parseChangelog(SAMPLE);
+    expect(entries[0].intro).toEqual(["A release that mostly fixes things. Two lines of prose."]);
+    expect(entries[1].intro).toEqual([]);
+    expect(entries[0].sections[0].items).toHaveLength(2);
   });
 
   it("returns empty list for input without versioned sections", () => {

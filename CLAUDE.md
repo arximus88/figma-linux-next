@@ -30,7 +30,7 @@ bun run run:watch
 ### Build System
 
 The project uses **Vite** with `vite-plugin-electron`:
-- `vite.config.ts` - Unified build config for main + renderer processes
+- `vite.config.mts` - Unified build config for main + renderer processes
 
 Build outputs to `dist/`:
 - `dist/main/main.js` - Main process entry point
@@ -162,8 +162,12 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Manages closed tabs history
 
 **Window** (`src/main/Ui/Window.ts`):
-- Wraps a `BrowserWindow` with a `TabManager` and a `SettingsView`
-- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes). Pre-warming happens after a file tab is opened.
+- Wraps a `BrowserWindow` with a `TabManager`, a `SettingsView` and a lazily created `TabPreviewView`
+  (the hover card, `src/main/Ui/TabPreviewView.ts` + `src/renderer/Preview/`)
+- Child views (tabs, the hover card, the Settings / What's New overlays) are attached to the
+  `BrowserWindow` once and switched with `view.setVisible()`; `swapTo()` shows the next tab and
+  hides the previous one. See the gotcha "Child views are attached once" below.
+- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
 - Per-window tab management
@@ -284,13 +288,20 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 ### Window Frame Styles
 
-`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`),
-selected via `app.frameStyle`. Default: `gnome`.
+`Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`).
 
-- `gnome` — GNOME-style frame (default)
-- `windows` — Windows-style frame
-- `macos`, `kde` — accepted by the type; README lists both as TBD, so check
-  `src/renderer/Panel/frames/` before assuming a style is fully implemented.
+- `app.frameStyleAuto` (default `true`) picks the frame from the desktop environment:
+  `detectFrameStyle()` in `src/utils/Main/desktopEnvironment.ts` reads `XDG_CURRENT_DESKTOP` /
+  `DESKTOP_SESSION` — KDE/Plasma → `kde`, anything else → `gnome`. Only main can see the env,
+  so renderers get the resolved value from the `getRuntimeInfo` invoke, never from `app.frameStyle`.
+- `app.frameStyle` is the manual override, used only when `frameStyleAuto` is off.
+- `gnome` (Adwaita), `kde` (Breeze glyphs, `Icons/Breeze*.svelte`, LGPL) and `windows` are
+  implemented; `macos` is a placeholder on top of the Windows style.
+- Frames are theme-aware: every colour goes through the `--frame-*` palette in
+  `src/renderer/theme.css`, scoped by `#panel[data-frame]` × `html[data-theme]`. Figma's theme
+  choice (`dark`/`light`/`system`) arrives via `setFigmaTheme`, is resolved in `src/main/Theme.ts`
+  (`system` → `nativeTheme.shouldUseDarkColors`) and pushed to panels as `figmaThemeChanged`.
+  Never hardcode a colour in `src/renderer/Panel/frames/`.
 
 ## Logging
 
@@ -303,7 +314,7 @@ selected via `app.frameStyle`. Default: `gnome`.
 
 | File | Purpose |
 |------|---------|
-| `vite.config.ts` | Vite build config (main + renderer) |
+| `vite.config.mts` | Vite build config (main + renderer) |
 | `src/main/index.ts` | App entry point; initializes storage, dialogs, dependencies |
 | `src/main/App.ts` | Lifecycle orchestration, Chromium switches, controller wiring |
 | `src/main/controllers/registry.ts` | IPC channel registry (seal-on-startup pattern) |
@@ -331,7 +342,9 @@ selected via `app.frameStyle`. Default: `gnome`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "43.3.0"` (Chromium 150.0.7871.212), verified 2026-08-06.
+`package.json` lists an exact version, currently `"electron": "44.2.0"` (Chromium 152, Node 24), bumped 2026-09-07. OAuth login re-verification on 44.2.0: **pending**.
+
+History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on GNOME/AppIndicator, Cinnamon, XFCE; electron#52674, fixed in 43.4.1). 44.0 rebuilt the `clipboard` module: every method is async, payloads are `ClipboardItem` → `Blob` by MIME type, `readImage/writeImage/readBuffer/writeBuffer` are gone, and the module no longer exists in renderers — which is why `ClipboardController` now owns both read and write and the tab preload only forwards `getClipboardData`/`setClipboardData`.
 
 The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
 
@@ -355,6 +368,22 @@ Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message 
 
 ### Warm tab and double-close
 When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
+
+### Child views are attached once — switch with setVisible, never detach and re-attach
+Tab views, the tab preview card and the Settings / What's New overlays are added to
+`window.contentView` once, hidden, the moment they are created (`Window.attachHidden()`; the
+overlays in the `ModalViewManager` constructor) and afterwards only toggled with
+`view.setVisible()`. On Wayland with Electron 44 a `WebContentsView` that is `removeChildView`ed and
+later `addChildView`ed again never becomes visible: `document.visibilityState` stays `hidden`,
+nothing paints and the tab shows white until a relayout (verified 2026-09-07 on GNOME 50 with a
+minimal repro; Electron 43 was fine, and X11/xvfb — where the e2e suite runs — never reproduces it).
+Re-adding an *attached* view is safe and is how overlays raise themselves above tabs attached since
+(`addChildView` on a current child reorders it to the top). `removeChildView` is reserved for views
+about to be destroyed (`closeTab`, `closeAllTab`, community close, warm-tab discard).
+
+Tab thumbnails: `captureThumbnail()` is fired *before* the outgoing tab is hidden — a hidden view
+has no compositor surface and `capturePage()` rejects with `UnknownVizError`. Do not try to capture
+a background tab on demand; `tab.thumbnail` is the only source the hover card has.
 
 ### openFile must close the New File tab
 `Window.openFile()` must call `closeNewFileTab()` after opening the file tab. Without this, the New File tab stays visible as a leftover. `createFile()` already does this — keep them consistent.
@@ -399,9 +428,19 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 6. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
 7. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
 8. **`flake`** — recomputes the release zip hashes as SRI, runs `scripts/update_flake_release.py`, commits the pinned `flake.nix` to `dev` first, then mirrors it to `staging`
-9. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
+9. **`flatpak-repo`** — runs after `release`: pulls the previous repository state back from the live
+   Pages site (`ostree pull --mirror --depth=1`), imports this release's `.flatpak` with
+   `flatpak build-import-bundle`, signs and prunes (`--prune-depth=1`), writes the `.flatpakrepo` /
+   `.flatpakref` files and `flatpak/pages/index.html`, then deploys the whole site with
+   `actions/deploy-pages`. Pages is in **workflow** build mode (switched 2026-09-06), so the old
+   Jekyll rendering of README at the same URL is gone — the site is now the Flatpak repo. Skipped
+   when `build-flatpak` produced no bundle. Signing key: `FLATPAK_GPG_KEY` secret (armored private
+   key, fingerprint `0519BE241207E6F2F0E18F0788A28A2C84E355F9`); public half committed as
+   `flatpak/figma-linux-next-repo.gpg`. Losing the private key means every existing install must
+   re-add the remote — keep a copy outside GitHub.
+10. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
 
-Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`.
+Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`, `FLATPAK_GPG_KEY` (armored GPG private key that signs the Pages Flatpak repo).
 
 **`flake.nix` pins version + hashes together** and is updated by CI, not by `bump_version.pl` — the hashes don't exist until the release binaries are built. Never bump the version in `flake.nix` by hand: it would name a release whose hashes it doesn't have, and every `nix build` would fail on a hash mismatch.
 

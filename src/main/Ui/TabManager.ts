@@ -78,6 +78,14 @@ export default class TabManager {
       }
     }
     this.tabs.clear();
+
+    // mainTab and communityTab live outside the map. Leaving them behind was
+    // invisible while every window close ended the process; with the tray
+    // keeping the app alive each close would leak a full Figma page.
+    if (this.communityTab) this.closeCommunityTab();
+    if (!this.mainTab.view.webContents.isDestroyed()) {
+      this.mainTab.view.webContents.destroy();
+    }
   }
   public close(tabId: number): Types.TabIdType {
     const tab = this.tabs.get(tabId);
@@ -232,8 +240,8 @@ export default class TabManager {
     this.tabs.forEach((tab) => {
       const pathname = parseURL(tab.url ?? tab.getUrl())?.pathname;
       if (!pathname) return;
-      const reg = new RegExp(pathname);
-      if (reg.test(path)) {
+      // Plain substring match — the pathname is user data, not a pattern.
+      if (path.includes(pathname)) {
         foundTab = tab;
       }
     });

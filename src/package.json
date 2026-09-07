@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.17.0",
+  "version": "0.20.0",
   "description": "Optimized Figma desktop application for Linux with native Wayland support, GPU acceleration, and system integration.",
   "main": "main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
@@ -8,9 +8,8 @@
   "author": "Figma Linux Community",
   "license": "GPL-2.0-only",
   "dependencies": {
-    "adm-zip": "^0.5.17",
     "chokidar": "^5.0.0",
-    "electron-log": "^5.4.3",
+    "electron-log": "^5.4.4",
     "fontkit": "^2.0.4"
   }
 }

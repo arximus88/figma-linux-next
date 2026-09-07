@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { Component } from "svelte";
   import { tabReorder } from "./tabReorder";
+  import { tabSlide } from "./motion";
+  import { tabHover } from "./tabHover";
+  import { layout } from "../store";
   import { ButtonTool } from "Common/Buttons";
   import { Loader } from "Icons";
   import { Spiner } from "Common";
@@ -63,9 +66,17 @@
   });
 </script>
 
-<section use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}>
+<section
+  use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}
+  use:tabHover={{ enabled: layout.tabHoverPreviews }}
+>
   {#each items as item, index (item.id)}
-    <div class={tabWrapperClass} data-tab-id={item.id} data-loading={item.loading}>
+    <div
+      class={tabWrapperClass}
+      data-tab-id={item.id}
+      data-loading={item.loading}
+      transition:tabSlide
+    >
       {#if showDividers && index > 0}
         <div
           class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"
@@ -141,7 +152,9 @@
     width: 16px;
     height: 16px;
     border-radius: 4px;
-    background: #5a5a5c;
+    /* Loading placeholder for the tab's icon/title; per-frame shade, the
+       Legacy Windows frame keeps the neutral grey. */
+    background: var(--frame-skeleton, #5a5a5c);
     flex-shrink: 0;
   }
   :global(.tab-skeleton-title) {
@@ -149,7 +162,7 @@
     width: 100px;
     height: 10px;
     border-radius: 3px;
-    background: #5a5a5c;
+    background: var(--frame-skeleton, #5a5a5c);
     animation: tab-skeleton-pulse 1.4s ease-in-out infinite;
   }
   @keyframes tab-skeleton-pulse {

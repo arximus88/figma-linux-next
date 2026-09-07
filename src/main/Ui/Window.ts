@@ -1,7 +1,9 @@
 import { app, BrowserWindow, type IpcMainEvent, type Rectangle, type Menu } from "electron";
 import { storage } from "Main/Storage";
+import { getResolvedFigmaTheme } from "Main/Theme";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
+import TabPreviewView from "./TabPreviewView";
 import { ModalViewManager } from "./ModalViewManager";
 import TabManager from "./TabManager";
 import { WarmTabManager } from "./WarmTabManager";
@@ -19,8 +21,11 @@ import {
   parseURL,
   getTabDedupKey,
 } from "Utils/Common";
-import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
+import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
+import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
 import Tab from "./Tab";
+import type MainTab from "./MainTab";
+import type CommunityTab from "./CommunityTab";
 
 /** Settle time after the export-queue page loads, before its view is attached. */
 const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
@@ -34,6 +39,8 @@ export default class Window {
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
   private modalViews: ModalViewManager;
+  // Hover card for strip tabs; created on the first hover (app.tabHoverPreviews).
+  private tabPreview: TabPreviewView | null = null;
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
   // not overwritten by the BrowserWindow `close` event firing later with
@@ -70,6 +77,15 @@ export default class Window {
     this.warmTabs = new WarmTabManager(this.window.id, {
       getUserId: () => this._userId,
       getBgColor: () => this.figmaThemeBgColor,
+      attachHidden: (tab) => this.attachHidden(tab.view),
+      detach: (tab) => {
+        if (this.window.isDestroyed()) return;
+        try {
+          this.window.contentView.removeChildView(tab.view);
+        } catch {
+          // never attached
+        }
+      },
     });
     this.state = state;
 
@@ -139,6 +155,9 @@ export default class Window {
 
     if (this.tabManager.communityTabWebContentId) {
       ids.add(this.tabManager.communityTabWebContentId);
+    }
+    if (this.tabPreview) {
+      ids.add(this.tabPreview.webContentsId);
     }
     // Include warm tab so IPC messages from it can be routed to this window
     const warmId = this.warmTabs.activeWebContentsId;
@@ -315,6 +334,10 @@ export default class Window {
     }
   }
   public focus() {
+    // Reached from the tray as well, where the window may be minimised or
+    // hidden — focus() alone does not un-minimise on any platform.
+    if (this.window.isMinimized()) this.window.restore();
+    if (!this.window.isVisible()) this.window.show();
     this.window.focus();
   }
   public showHandler(event: IpcMainEvent) {
@@ -341,6 +364,10 @@ export default class Window {
     this.window.webContents.send("frameStyleChanged", style);
   }
 
+  public setFigmaTheme(theme: Types.ResolvedTheme) {
+    this.window.webContents.send("figmaThemeChanged", theme);
+  }
+
   public getBounds() {
     return this.window.getBounds();
   }
@@ -348,6 +375,7 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForActiveTab(bounds);
     this.modalViews.syncBounds(this.window.getBounds());
+    this.hideTabPreview();
   }
 
   public updateAllTabsBounds() {
@@ -364,7 +392,7 @@ export default class Window {
 
     this.tabManager.closeAll();
 
-    this.window.webContents.send("closeAllTab");
+    this.window.webContents.send("closeAllTabs");
   }
   public loadLoginPageAllWindows() {
     this.tabManager.loadLoginPage();
@@ -454,6 +482,7 @@ export default class Window {
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
+    this.attachHidden(tab.view);
 
     // Non-Figma tabs (chrome://gpu, about:*) don't run figmaApi, so Figma's
     // setLoading IPC never arrives. Without this flag the renderer skeleton
@@ -674,6 +703,7 @@ export default class Window {
 
     const isNewFileTab = this.tabManager.isNewFileTab(tabId);
 
+    this.hideTabPreview();
     this.window.contentView.removeChildView(tab.view);
 
     const nextTabId = this.tabManager.close(tabId);
@@ -713,6 +743,12 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
+  /** True when `webContentsId` belongs to the tab currently shown in this window. */
+  public isFocusedTab(webContentsId: number): boolean {
+    // lastFocusedTab holds a webContents id for every tab kind, mainTab included.
+    return webContentsId === this.tabManager.lastFocusedTab;
+  }
+
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<unknown> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
@@ -736,8 +772,7 @@ export default class Window {
   public setFocusToMainTab() {
     const mainTab = this.tabManager.mainTab;
 
-    this.detachLastFocusedTab();
-    this.window.contentView.addChildView(mainTab.view);
+    this.swapTo(mainTab);
     this.tabManager.focusMainTab();
     this.closeNewFileTab();
     this.window.webContents.send("focusTab", "mainTab");
@@ -748,8 +783,7 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
     const communityTab = this.tabManager.communityTab;
 
-    this.detachLastFocusedTab();
-    this.window.contentView.addChildView(communityTab.view);
+    this.swapTo(communityTab);
     this.tabManager.focusCommunityTab();
     this.closeNewFileTab();
     this.tabManager.communityTab.setBounds(bounds);
@@ -790,9 +824,8 @@ export default class Window {
 
     const bounds = this.calcBoundsForTabView();
 
-    this.detachLastFocusedTab();
-    this.window.contentView.addChildView(tab.view);
-
+    this.hideTabPreview();
+    this.swapTo(tab);
     this.tabManager.focusTab(tabId);
     this.tabManager.setBounds(tabId, bounds);
     this.window.webContents.send("focusTab", tabId);
@@ -865,10 +898,9 @@ export default class Window {
       this.tabManager.addCommunityTab();
       this.tabManager.communityTab.userId = args.userId;
       this.tabManager.communityTab.loadUrl(url);
-      this.window.contentView.addChildView(this.tabManager.communityTab.view);
     }
 
-    this.window.contentView.addChildView(this.tabManager.communityTab.view);
+    // setFocusToCommunityTab() below attaches the view (once) and shows it.
     this.tabManager.communityTab.setBounds(bounds);
 
     this.window.webContents.send("openCommunity");
@@ -883,12 +915,53 @@ export default class Window {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
+  /**
+   * Hover card for a strip tab (app.tabHoverPreviews). `anchor` is the tab's
+   * rect in the panel; the card is laid out just under the strip, left-aligned
+   * with the tab. The active tab gets title/URL only — its page is on screen.
+   */
+  public showTabPreview(tabId: number, anchor: PreviewAnchor) {
+    if (!storage.settings.app.tabHoverPreviews || this.window.isDestroyed()) return;
+    const tab = this.tabManager.getAll().get(tabId);
+    if (!tab) return;
+
+    const active = this.tabManager.lastFocusedTab === tab.id;
+    const image = active ? null : (tab.thumbnail ?? null);
+    const content = this.window.getContentBounds();
+    const payload: Types.TabPreviewPayload = {
+      id: tab.id,
+      title: tab.title ?? "",
+      url: displayUrl(tab.url ?? tab.getUrl()),
+      editorType: tab.editorType,
+      isLibrary: tab.isLibrary,
+      image,
+      active,
+      frame: resolveFrameStyle(storage.settings.app),
+      theme: getResolvedFigmaTheme(),
+    };
+    const bounds = computeTabPreviewBounds({
+      anchor,
+      panelHeight: storage.settings.app.panelHeight || TOPPANELHEIGHT,
+      contentWidth: content.width,
+      contentHeight: content.height,
+      hasImage: !!image,
+    });
+
+    this.tabPreview ??= new TabPreviewView(this.window);
+    this.tabPreview.show(bounds, payload);
+  }
+
+  public hideTabPreview() {
+    this.tabPreview?.hide();
+  }
+
   public pushSettingsToPanel() {
     this.window.webContents.send("loadSettings", storage.settings);
   }
 
   public handleFrontReady() {
     this.pushSettingsToPanel();
+    this.setFigmaTheme(getResolvedFigmaTheme());
     this.showHandler(null);
     this.revealIfHidden();
   }
@@ -903,12 +976,13 @@ export default class Window {
 
     this.warmTabs.destroy();
     this.modalViews.destroy();
+    this.tabPreview?.destroy();
     this.tabManager.closeAll();
     this.window.close();
   }
 
   private get figmaThemeBgColor(): string {
-    return storage.settings.app.figmaTheme === "light" ? "#ffffff" : "#1e1e1e";
+    return getResolvedFigmaTheme() === "light" ? "#ffffff" : "#1e1e1e";
   }
 
   private registerEvents() {
@@ -923,23 +997,59 @@ export default class Window {
       app.emit("windowFocus", this.window.id);
       this.warmTabs.refreshIfStale();
     });
+    this.window.on("blur", () => this.hideTabPreview());
     this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
     this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 
-  private detachLastFocusedTab() {
-    const lastFocusedId = this.tabManager.lastFocusedTab;
-    if (lastFocusedId) {
-      const lastTab = this.tabManager.getById(lastFocusedId);
-      if (lastTab?.view) {
-        // Ensure we don't try to remove a view that isn't attached or is destroyed
-        try {
-          this.window.contentView.removeChildView(lastTab.view);
-        } catch {
-          // Ignore errors if child is not attached
-        }
+  /** The tab on screen (last focused), if any. */
+  private shownTab(): Tab | MainTab | CommunityTab | undefined {
+    const id = this.tabManager.lastFocusedTab;
+    return id ? this.tabManager.getById(id) : undefined;
+  }
+
+  /**
+   * Put `next` on screen and take the current tab off it. Tab views are
+   * attached to the window once and stay attached until the tab closes;
+   * switching only toggles visibility. Detaching and re-attaching is not an
+   * option: on Wayland with Electron 44 a re-attached WebContentsView never
+   * becomes visible again — document.visibilityState stays "hidden", nothing
+   * paints and the tab shows white until a relayout — whereas setVisible
+   * round-trips reliably (verified 2026-09-07, GNOME 50; Electron 43 was fine
+   * either way). Hidden views neither paint nor occlude, so their z-order is
+   * irrelevant; overlays raise themselves on show (see TabPreviewView).
+   * The outgoing tab's hover-preview snapshot is fired before it is hidden.
+   */
+  private swapTo(next: Tab | MainTab | CommunityTab) {
+    const previous = this.shownTab();
+    if (previous && previous !== next) {
+      if (
+        previous instanceof Tab &&
+        storage.settings.app.tabHoverPreviews &&
+        this.tabManager.getAll().has(previous.id)
+      ) {
+        void previous.captureThumbnail();
       }
+      previous.view.setVisible(false);
+    }
+    if (!this.window.contentView.children.includes(next.view)) {
+      this.window.contentView.addChildView(next.view);
+    }
+    next.view.setBounds(this.calcBoundsForTabView());
+    next.view.setVisible(true);
+  }
+
+  /**
+   * Put a tab view into the window's view tree without showing it. Every tab
+   * view is attached the moment it exists — before its page loads — and only
+   * ever toggled with setVisible afterwards (see swapTo).
+   */
+  private attachHidden(view: Tab["view"]) {
+    view.setVisible(false);
+    view.setBounds(this.calcBoundsForTabView());
+    if (!this.window.contentView.children.includes(view)) {
+      this.window.contentView.addChildView(view);
     }
   }
 }

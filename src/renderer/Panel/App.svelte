@@ -3,6 +3,7 @@
   import { initIpc } from "./ipc.svelte";
   import { panelZoom, windowControls } from "./store";
   import { isValidFrameStyle } from "./frames/index";
+  import { applyLayoutSettings } from "./Components/utils";
   import FramedPanel from "./frames/FramedPanel.svelte";
 
   initCommonIpc();
@@ -10,21 +11,43 @@
 
   let frameStyle = $state<Types.FrameStyle>("gnome");
 
-  // Async bootstrap — load saved frame style
-  window.figmaApi.invoke("getSettings").then((settings: Types.SettingsInterface) => {
-    if (settings?.app?.frameStyle && isValidFrameStyle(settings.app.frameStyle)) {
-      frameStyle = settings.app.frameStyle;
+  // Dark until main tells us otherwise — the panel was dark-only for years, so
+  // this avoids a light flash for every existing user while getRuntimeInfo is
+  // in flight.
+  document.documentElement.setAttribute("data-theme", "dark");
+
+  function applyTheme(theme: Types.ResolvedTheme) {
+    if (theme === "dark" || theme === "light") {
+      document.documentElement.setAttribute("data-theme", theme);
     }
-    windowControls.setHideMinMax(!!settings?.app?.hideWindowMinMaxButtons);
-  }).catch((e: Error) => {
-    console.error("App.svelte: failed to get settings:", e);
-  });
+  }
+
+  // Async bootstrap — frame style and theme are resolved by main (env, nativeTheme)
+  window.figmaApi
+    .invoke("getRuntimeInfo")
+    .then((info: Types.RuntimeInfo) => {
+      if (isValidFrameStyle(info?.frameStyle)) frameStyle = info.frameStyle;
+      applyTheme(info?.theme);
+    })
+    .catch((e: Error) => {
+      console.error("App.svelte: failed to get runtime info:", e);
+    });
+  window.figmaApi
+    .invoke("getSettings")
+    .then((settings: Types.SettingsInterface) => {
+      windowControls.setHideMinMax(!!settings?.app?.hideWindowMinMaxButtons);
+      applyLayoutSettings(settings);
+    })
+    .catch((e: Error) => {
+      console.error("App.svelte: failed to get settings:", e);
+    });
 
   window.figmaApi.on("frameStyleChanged", (newStyle: Types.FrameStyle) => {
     if (isValidFrameStyle(newStyle)) {
       frameStyle = newStyle;
     }
   });
+  window.figmaApi.on("figmaThemeChanged", applyTheme);
 </script>
 
 <FramedPanel style={frameStyle} zoom={panelZoom.value} />

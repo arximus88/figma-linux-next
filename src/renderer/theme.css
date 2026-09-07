@@ -23,20 +23,21 @@
   --fg-overlay: #ffffff;
   --bg-overlay-outline: #292828;
   --bg-overlay-inner-outline: #000000;
-  --bg-tab: #222222;
-  --bg-tab-hover: #2c2c2c;
-  --bg-tab-active: #2c2c2c;
-  --fg-tab: #ffffff;
-  --fg-tab-hover: #ffffff;
-  --fg-tab-active: #ffffff;
-  --bg-header: #222222;
-  --fg-header: #ffffff;
-  --bg-header-control: #222222;
-  --bg-header-control-hover: #2c2c2c;
-  --bg-header-control-active: #2c2c2c;
-  --fg-header-control: #ffffff;
-  --fg-header-control-hover: #ffffff;
-  --fg-header-control-active: #ffffff;
+  /* Header/tab strip — light values; html[data-theme="dark"] below flips them */
+  --bg-tab: #f5f5f5;
+  --bg-tab-hover: #ffffff;
+  --bg-tab-active: #ffffff;
+  --fg-tab: #6e6e6e;
+  --fg-tab-hover: #1e1e1e;
+  --fg-tab-active: #1e1e1e;
+  --bg-header: #f5f5f5;
+  --fg-header: #4d4d4d;
+  --bg-header-control: #f5f5f5;
+  --bg-header-control-hover: #e6e6e6;
+  --bg-header-control-active: #d9d9d9;
+  --fg-header-control: #4d4d4d;
+  --fg-header-control-hover: #1e1e1e;
+  --fg-header-control-active: #1e1e1e;
   --fg-component: #7b61ff;
   --fg-component-disabled: #4e428a;
   --fg-component-disabled-row-active: #bfbafc;
@@ -157,4 +158,190 @@ html[data-theme="dark"] {
   --bg-item-hover: #2a2a2a;
   --bg-card: #262626;
   --bg-card-hover: #2e2e2e;
+
+  /* Sampled from Figma's own Windows desktop chrome */
+  --bg-tab: #1e1e1e;
+  --bg-tab-hover: #2c2c2c;
+  --bg-tab-active: #2c2c2c;
+  --fg-tab: #b3b3b3;
+  --fg-tab-hover: #ffffff;
+  --fg-tab-active: #ffffff;
+  --bg-header: #1e1e1e;
+  --fg-header: #c4c4c4;
+  --bg-header-control: #1e1e1e;
+  --bg-header-control-hover: #2c2c2c;
+  --bg-header-control-active: #383838;
+  --fg-header-control: #c4c4c4;
+  --fg-header-control-hover: #ffffff;
+  --fg-header-control-active: #ffffff;
+}
+
+/* ── Changelog section labels — light defaults, dark overrides ── */
+:root {
+  --changelog-added: #15803d;
+  --changelog-fixed: #1d4ed8;
+  --changelog-removed: #b91c1c;
+  --changelog-refactor: #7e22ce;
+}
+html[data-theme="dark"] {
+  --changelog-added: #4ade80;
+  --changelog-fixed: #60a5fa;
+  --changelog-removed: #f87171;
+  --changelog-refactor: #c084fc;
+}
+
+/* ── Tab-type icon accents (active tab) — light defaults, dark overrides ── */
+:root {
+  --tabicon-design: #0c8ce9;
+  --tabicon-figjam: #7b3fe4;
+  --tabicon-slides: #e8590c;
+  --tabicon-buzz: #d6336c;
+  --tabicon-site: #5b4de6;
+  --tabicon-prototype: #0f9d6b;
+  --tabicon-make: currentColor;
+}
+html[data-theme="dark"] {
+  --tabicon-design: #7cc4f8;
+  --tabicon-figjam: #d1a8ff;
+  --tabicon-slides: #ffa27a;
+  --tabicon-buzz: #fc9ce0;
+  --tabicon-site: #b9b8ff;
+  --tabicon-prototype: #34d399;
+  --tabicon-make: #ffffff;
+}
+
+/* ── Window-frame palettes ──────────────────────────────────────────────
+   Consumed by src/renderer/Panel/frames/*. Each frame defines the same set of
+   --frame-* tokens for light (default) and dark (html[data-theme="dark"]) so
+   the panel follows Figma's theme. Windows reads the generic --bg-header/--fg-*
+   tokens above instead. */
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+   --motion-hover: hover/pressed colour fades; --motion-open: tab open/close
+   (width unfold + fade, see Panel/Components/motion.ts). GNOME follows
+   libadwaita (200 ms, ease-out-cubic for reveals, ease-out-quad for state
+   changes); Breeze/Plasma is quicker (100 ms hover, 150 ms reveal); the Windows
+   frame keeps Figma's near-instant feel. Chromium maps GTK's
+   gtk-enable-animations=false onto prefers-reduced-motion, so the OS switch
+   turns everything off. */
+#panel {
+  --motion-ease: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --motion-ease-hover: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+#panel[data-frame="gnome"] {
+  --motion-hover: 200ms;
+  --motion-open: 200ms;
+}
+#panel[data-frame="kde"] {
+  --motion-hover: 100ms;
+  --motion-open: 150ms;
+}
+#panel[data-frame="windows"],
+#panel[data-frame="macos"] {
+  --motion-hover: 80ms;
+  --motion-open: 150ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel,
+  #panel[data-frame] {
+    --motion-hover: 0ms;
+    --motion-open: 0ms;
+  }
+}
+
+/* GNOME / Adwaita */
+/* Light: libadwaita's white headerbar with the AdwTabBar tab shades (a tab
+   gets *darker* on hover/selection, not lighter). */
+#panel[data-frame="gnome"] {
+  --frame-bg: #ffffff;
+  --frame-fg: #2e2e2e;
+  --frame-fg-muted: rgba(0, 0, 0, 0.7);
+  --frame-skeleton: rgba(0, 0, 0, 0.12);
+  --frame-edge: rgba(0, 0, 0, 0.1);
+  /* libadwaita's 1px inner highlight along the window's top edge */
+  --frame-highlight: rgba(255, 255, 255, 0.8);
+  --frame-btn-normal: rgba(0, 0, 0, 0.06);
+  --frame-btn-hover: rgba(0, 0, 0, 0.1);
+  --frame-btn-active: rgba(0, 0, 0, 0.16);
+  --frame-close-hover: #c01c28;
+  --frame-close-active: #a01020;
+  --frame-close-fg: #ffffff;
+  --frame-tab-hover: rgba(0, 0, 0, 0.05);
+  --frame-tab-active: rgba(0, 0, 0, 0.09);
+  --frame-divider: #dcdcdc;
+}
+html[data-theme="dark"] #panel[data-frame="gnome"] {
+  --frame-bg: #2e2e32;
+  --frame-fg: #e6e6e7;
+  --frame-fg-muted: rgba(255, 255, 255, 0.7);
+  --frame-skeleton: rgba(255, 255, 255, 0.18);
+  --frame-edge: #424242;
+  --frame-highlight: rgba(255, 255, 255, 0.1);
+  --frame-btn-normal: rgba(255, 255, 255, 0.06);
+  --frame-btn-hover: rgba(255, 255, 255, 0.12);
+  --frame-btn-active: rgba(255, 255, 255, 0.18);
+  --frame-close-hover: #c01c28;
+  --frame-close-active: #a01020;
+  --frame-close-fg: #ffffff;
+  --frame-tab-hover: rgba(61, 61, 64, 0.6);
+  --frame-tab-active: #3d3d40;
+  --frame-divider: #4f4f4f;
+}
+
+/* KDE Plasma / Breeze */
+#panel[data-frame="kde"] {
+  --frame-bg: #eff0f1;
+  --frame-fg: #232629;
+  --frame-fg-muted: rgba(35, 38, 41, 0.75);
+  --frame-skeleton: rgba(35, 38, 41, 0.12);
+  --frame-edge: rgba(0, 0, 0, 0.12);
+  --frame-btn-normal: transparent;
+  --frame-btn-hover: rgba(35, 38, 41, 0.1);
+  --frame-btn-active: rgba(35, 38, 41, 0.18);
+  --frame-close-hover: #da4453;
+  --frame-close-active: #bf3040;
+  --frame-close-fg: #fcfcfc;
+  --frame-tab-hover: rgba(35, 38, 41, 0.06);
+  --frame-tab-active: #fcfcfc;
+  --frame-divider: transparent;
+  --frame-accent: #3daee9;
+}
+html[data-theme="dark"] #panel[data-frame="kde"] {
+  --frame-bg: #31363b;
+  --frame-fg: #fcfcfc;
+  --frame-fg-muted: rgba(252, 252, 252, 0.75);
+  --frame-skeleton: rgba(252, 252, 252, 0.16);
+  --frame-edge: rgba(0, 0, 0, 0.35);
+  --frame-btn-normal: transparent;
+  --frame-btn-hover: rgba(252, 252, 252, 0.12);
+  --frame-btn-active: rgba(252, 252, 252, 0.2);
+  --frame-close-hover: #da4453;
+  --frame-close-active: #bf3040;
+  --frame-close-fg: #fcfcfc;
+  --frame-tab-hover: rgba(252, 252, 252, 0.06);
+  --frame-tab-active: #232629;
+  --frame-divider: transparent;
+  --frame-accent: #3daee9;
+}
+
+/* Legacy Windows — Figma's own Windows chrome, via the generic header tokens */
+#panel[data-frame="windows"],
+#panel[data-frame="macos"] {
+  --frame-bg: var(--bg-header);
+  --frame-fg: var(--fg-header);
+  --frame-fg-muted: var(--fg-tab);
+  --frame-btn-hover: rgba(0, 0, 0, 0.08);
+  --frame-btn-active: rgba(0, 0, 0, 0.14);
+  --frame-close-hover: #c42b1c;
+  --frame-close-active: #a01010;
+  --frame-close-fg: #ffffff;
+  --frame-tab-hover: var(--bg-tab-hover);
+  --frame-tab-active: var(--bg-tab-active);
+  --frame-divider: rgba(0, 0, 0, 0.12);
+}
+html[data-theme="dark"] #panel[data-frame="windows"],
+html[data-theme="dark"] #panel[data-frame="macos"] {
+  --frame-btn-hover: rgba(255, 255, 255, 0.08);
+  --frame-btn-active: rgba(255, 255, 255, 0.14);
+  --frame-divider: #333333;
 }

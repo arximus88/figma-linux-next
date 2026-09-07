@@ -8,6 +8,9 @@
   "files": {
     "includes": [
       "src/**/*.ts",
+      "src/**/*.mts",
+      "scripts/**/*.mts",
+      "vite.config.mts",
       "tests/**/*.ts",
       "!**/*.svelte",
       "!src/renderer/Changelog/_data.ts",

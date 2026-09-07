@@ -5,3 +5,4 @@ export { panelZoom } from "./panelZoom.svelte";
 export { newFileVisible } from "./NewFileVisible.svelte";
 export { communityTabVisible } from "./communityTabVisible.svelte";
 export { windowControls } from "./windowControls.svelte";
+export { layout } from "./layout.svelte";

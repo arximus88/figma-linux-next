@@ -43,3 +43,8 @@ export { default as GnomeClose } from "./GnomeClose.svelte";
 export { default as GnomeMenu } from "./GnomeMenu.svelte";
 export { default as GnomePlus } from "./GnomePlus.svelte";
 export { default as GnomeFigma } from "./GnomeFigma.svelte";
+export { default as BreezeClose } from "./BreezeClose.svelte";
+export { default as BreezeMinimize } from "./BreezeMinimize.svelte";
+export { default as BreezeMaximize } from "./BreezeMaximize.svelte";
+export { default as BreezeRestore } from "./BreezeRestore.svelte";
+export { default as BreezeMenu } from "./BreezeMenu.svelte";

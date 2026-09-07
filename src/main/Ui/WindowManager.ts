@@ -1,12 +1,14 @@
-import { app, clipboard, type IpcMainEvent, type WebContents } from "electron";
+import { app, clipboard, nativeTheme, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
 import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
+import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
 import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
+import { isPreviewAnchor } from "Utils/Main/tabPreview";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
 
@@ -15,6 +17,8 @@ export default class WindowManager {
 
   private lastFocusedwindowId: number;
   private windows: Map<number, Window> = new Map();
+  // Set by TrayManager: with a tray icon the process outlives its last window.
+  private keepAliveWithoutWindows = false;
   private closedTabs: Map<string, Types.SavedTab> = new Map();
 
   constructor() {
@@ -150,6 +154,14 @@ export default class WindowManager {
     return true;
   };
 
+  public setKeepAliveWithoutWindows(keep: boolean) {
+    this.keepAliveWithoutWindows = keep;
+  }
+
+  public hasWindows(): boolean {
+    return this.windows.size > 0;
+  }
+
   public focusLastWindow() {
     const window = this.windows.get(this.lastFocusedwindowId);
 
@@ -202,6 +214,7 @@ export default class WindowManager {
 
     this.lastFocusedwindowId = window.id;
     this.windows.set(window.id, window);
+    app.emit("windowsChanged");
 
     // Force initial bounds update now that the window is registered
     window.updateTabsBounds();
@@ -251,6 +264,10 @@ export default class WindowManager {
     ipcRegistry.on("openSettingsView", this.openSettingsView.bind(this), "WindowManager");
     ipcRegistry.on("openChangelogView", this.openChangelogView.bind(this), "WindowManager");
 
+    // Tab hover previews (panel → main)
+    ipcRegistry.on("tabHoverStart", this.tabHoverStart.bind(this), "WindowManager");
+    ipcRegistry.on("tabHoverEnd", this.tabHoverEnd.bind(this), "WindowManager");
+
     // Community tab
     ipcRegistry.on("closeCommunityTab", this.closeCommunityTab.bind(this), "WindowManager");
     ipcRegistry.on(
@@ -271,6 +288,7 @@ export default class WindowManager {
 
     // Tab content events (from Figma web app via DesktopAPI)
     ipcRegistry.on("setFigmaTheme", this.setFigmaTheme.bind(this), "WindowManager");
+    ipcRegistry.on("figmaThemeObserved", this.figmaThemeObserved.bind(this), "WindowManager");
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
     ipcRegistry.on("setTabEditorType", this.setTabEditorType.bind(this), "WindowManager");
     ipcRegistry.on("setTabIsLibrary", this.setTabIsLibrary.bind(this), "WindowManager");
@@ -317,7 +335,7 @@ export default class WindowManager {
     const recentlyClosedTabs = storage.settings.app.recentlyClosedTabs;
 
     if (recentlyClosedTabs?.length > 0) {
-      for (const tabInfo of recentlyClosedTabs.reverse()) {
+      for (const tabInfo of [...recentlyClosedTabs].reverse()) {
         this.closedTabs.set(tabInfo.title, {
           title: tabInfo.title,
           url: tabInfo.url,
@@ -425,11 +443,11 @@ export default class WindowManager {
 
     window.addTab(CHROME_GPU, CHROME_GPU);
   }
-  private openFileUrlClipboard() {
+  private async openFileUrlClipboard() {
     const window = this.windows.get(this.lastFocusedwindowId);
-    const uri = clipboard.readText();
+    const uri = await clipboard.readText();
 
-    window.openUrl(uri);
+    window?.openUrl(uri);
   }
   private openFileBrowser() {
     const window = this.windows.get(this.lastFocusedwindowId);
@@ -466,6 +484,14 @@ export default class WindowManager {
     const window = this.windows.get(this.lastFocusedwindowId);
 
     window.setTabFocus(tabId);
+  }
+
+  private tabHoverStart(event: IpcMainEvent, tabId: unknown, anchor: unknown) {
+    if (typeof tabId !== "number" || !isPreviewAnchor(anchor)) return;
+    this.getWindowByWebContentsId(event.sender.id)?.showTabPreview(tabId, anchor);
+  }
+  private tabHoverEnd(event: IpcMainEvent) {
+    this.getWindowByWebContentsId(event.sender.id)?.hideTabPreview();
   }
 
   private windowFocus(windowId: number) {
@@ -506,8 +532,9 @@ export default class WindowManager {
     }
 
     this.windows.delete(windowId);
+    app.emit("windowsChanged");
 
-    if (this.windows.size === 0) {
+    if (this.windows.size === 0 && !this.keepAliveWithoutWindows) {
       app.emit("quitApp");
     }
   }
@@ -631,11 +658,36 @@ export default class WindowManager {
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
 
-  private setFigmaTheme(_: IpcMainEvent, theme: "dark" | "light") {
-    if (theme !== "dark" && theme !== "light") return;
+  private setFigmaTheme(_: IpcMainEvent, theme: unknown) {
+    logger.debug("[theme] Figma preference:", theme);
+    if (!isFigmaThemePreference(theme)) return;
     if (storage.settings.app.figmaTheme === theme) return;
     storage.settings.app.figmaTheme = theme;
     storage.save();
+    this.broadcastFigmaTheme();
+  }
+  /**
+   * The focused tab measured what Figma actually paints. That beats the stored
+   * preference, which Figma only re-sends when the user touches its Theme menu.
+   * Persisted as the concrete scheme so the next launch starts right; a later
+   * `setFigmaTheme("system")` from Figma switches back to OS tracking.
+   */
+  private figmaThemeObserved(event: IpcMainEvent, theme: unknown) {
+    logger.debug("[theme] observed in tab", event.sender.id, ":", theme);
+    if (theme !== "dark" && theme !== "light") return;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window?.isFocusedTab(event.sender.id)) return;
+    if (storage.settings.app.figmaTheme === theme) return;
+    storage.settings.app.figmaTheme = theme;
+    storage.save();
+    this.broadcastFigmaTheme();
+  }
+  /** Push the resolved colour scheme to every panel (dark/light, never "system"). */
+  public broadcastFigmaTheme() {
+    const theme = getResolvedFigmaTheme();
+    for (const [_, window] of this.windows) {
+      window.setFigmaTheme(theme);
+    }
   }
   private setTabTitle(event: IpcMainEvent, title: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
@@ -694,10 +746,10 @@ export default class WindowManager {
       window.openMainMenuCloseHandler.bind(window),
     );
   }
-  private openSettingsView() {
+  public openSettingsView() {
     const window = this.windows.get(this.lastFocusedwindowId);
 
-    window.openSettingsView();
+    window?.openSettingsView();
   }
   private openChangelogView() {
     this.openChangelogViewForLastWindow();
@@ -730,6 +782,20 @@ export default class WindowManager {
   // ── App-level Events (menu actions, window lifecycle) ─────────────
 
   private registerAppEvents() {
+    // Figma's "System theme" resolves against the OS preference; when that
+    // flips (GNOME dark-mode toggle, Plasma colour scheme) the panel follows.
+    nativeTheme.on("updated", () => {
+      if (storage.settings.app.figmaTheme === "system") this.broadcastFigmaTheme();
+    });
+    // The portal preference has no push channel here; re-read it on start and
+    // whenever a window regains focus (the user was just in Settings).
+    const syncSystemTheme = (): void => {
+      void refreshSystemTheme().then((changed) => {
+        if (changed && storage.settings.app.figmaTheme === "system") this.broadcastFigmaTheme();
+      });
+    };
+    syncSystemTheme();
+    app.on("windowFocus", syncSystemTheme);
     // Events from main menu
     app.on("newFile", this.newFile.bind(this));
     app.on("newWindow", this.newWindowFromMenu.bind(this));
