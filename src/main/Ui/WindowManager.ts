@@ -4,7 +4,7 @@ import Window from "./Window";
 import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
-import { getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
+import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
 import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
@@ -787,6 +787,15 @@ export default class WindowManager {
     nativeTheme.on("updated", () => {
       if (storage.settings.app.figmaTheme === "system") this.broadcastFigmaTheme();
     });
+    // The portal preference has no push channel here; re-read it on start and
+    // whenever a window regains focus (the user was just in Settings).
+    const syncSystemTheme = (): void => {
+      void refreshSystemTheme().then((changed) => {
+        if (changed && storage.settings.app.figmaTheme === "system") this.broadcastFigmaTheme();
+      });
+    };
+    syncSystemTheme();
+    app.on("windowFocus", syncSystemTheme);
     // Events from main menu
     app.on("newFile", this.newFile.bind(this));
     app.on("newWindow", this.newWindowFromMenu.bind(this));

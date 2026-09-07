@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **"System theme" on a light GTK theme with dark mode on** (stock GNOME with adw-gtk3): the
+  panel resolved *System* through Chromium's GTK-name check and came out light. The freedesktop
+  settings portal is now asked first, so the frame follows the desktop's dark/light switch on
+  GNOME, Plasma and inside Flatpak.
 - **White tab after switching on Wayland** — with Electron 44 a tab view that was detached and
   re-attached never became visible again: the page stayed `hidden` and nothing painted until the
   window was resized or the strip was hovered. Tab views, the hover card and the Settings /
