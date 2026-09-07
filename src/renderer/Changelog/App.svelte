@@ -145,6 +145,11 @@
     font-weight: 400;
   }
 
+  .body :global(p.intro) {
+    margin: 8px 0 12px;
+    line-height: 1.5;
+  }
+
   .body :global(h3.section) {
     margin: 12px 0 4px;
     font-size: 11.5px;
@@ -153,9 +158,11 @@
     letter-spacing: 0.05em;
     color: var(--text-disabled);
   }
+  .body :global(h3.section-new),
   .body :global(h3.section-added) { color: var(--changelog-added); }
   .body :global(h3.section-fixed) { color: var(--changelog-fixed); }
   .body :global(h3.section-removed) { color: var(--changelog-removed); }
+  .body :global(h3.section-under-the-hood),
   .body :global(h3.section-dependencies),
   .body :global(h3.section-ci-cd),
   .body :global(h3.section-refactor) { color: var(--changelog-refactor); }

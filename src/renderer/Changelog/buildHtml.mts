@@ -11,9 +11,11 @@ function renderEntry(entry: ChangelogEntry): string {
     })
     .join("");
 
+  const intro = entry.intro.map((p) => `<p class="intro">${renderInline(p)}</p>`).join("");
+
   const date = entry.date ? `<span class="date">${entry.date}</span>` : "";
 
-  return `<section class="entry"><h2><span class="version">v${entry.version}</span>${date}</h2>${sections}</section>`;
+  return `<section class="entry"><h2><span class="version">v${entry.version}</span>${date}</h2>${intro}${sections}</section>`;
 }
 
 export function renderChangelogHtml(markdown: string): string {

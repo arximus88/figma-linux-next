@@ -9,84 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.20.0] - 2026-09-07
 
-### Added
+Figma on Linux finally feels like it belongs on your desktop. The window frame now picks
+itself: Breeze on KDE Plasma, Adwaita on GNOME, both in light and dark following Figma's
+own theme. Hover a tab and you get a little preview card of the page. Tabs slide in and out
+instead of popping. There's a tray icon, so closing the last window doesn't have to quit.
+And Flatpak users get real updates now: install once, then `flatpak update` does the rest.
+Plus the big one for Wayland folks: no more white tab after switching.
 
-- **System tray icon** — an opt-in toggle in Settings → General (applies instantly) puts Figma in
-  the tray and keeps it running when the last window is closed. Left-click or "Show Figma" brings
-  the window back; the menu also offers New Window, Settings and Quit. Uses StatusNotifierItem, so
-  it shows natively on KDE Plasma (colour icon) and on GNOME with the AppIndicator extension
-  (monochrome symbolic glyph, as the top bar expects). The Flatpak manifest gains the matching D-Bus permission.
-  Requested in [#51](https://github.com/arximus88/figma-linux-next/issues/51).
+### New
 
-- **KDE Plasma window frame** — a Breeze-styled frame with the Breeze window-control glyphs
-  (minimize/maximize chevrons, the X, hamburger menu) and an accent underline on the active tab.
-  Closes [#50](https://github.com/arximus88/figma-linux-next/issues/50).
-- **Automatic frame selection** — the frame now follows the desktop environment
-  (`XDG_CURRENT_DESKTOP`): KDE gets the Breeze frame, everything else the GNOME one. On by
-  default for everyone; Settings → General has a toggle to turn it off and pick a frame by hand.
-- **Flatpak repository with automatic updates** — every release is now published into a signed
-  OSTree repository on GitHub Pages (https://arximus88.github.io/figma-linux-next/). Install once
-  from the `.flatpakref` there and later versions arrive through `flatpak update`, GNOME Software
-  or Discover; the standalone `.flatpak` bundle on Releases stays as a manual option.
-  Closes [#52](https://github.com/arximus88/figma-linux-next/issues/52).
-- **Legacy Windows frame** (renamed from "Windows 11") now uses the colours of Figma's own
-  Windows desktop chrome: near-black strip, lighter active tab with a bold title, 1px separators
-  between tabs, grey control glyphs. Light variant to match.
-- **New tab button after the tabs** — Settings → General, off by default. Moves the `+` from the
-  left corner to the end of the tab strip, like Figma's own desktop app; the New file tab then
-  opens at the end too. When the strip overflows the button stays pinned at the right edge.
-- **Tab previews on hover** — rest the pointer on a background tab and a card appears under it
-  with the tab's title, link and a thumbnail of the page as it looked when you last left it (the
-  active tab gets title and link only). Thumbnails are taken at the moment a tab loses focus, so
-  they cost nothing while you work. On by default; Settings → General turns it off.
-- **Tab motion** — tabs unfold when opened and fold away when closed, and the strip's hover
-  fades use each frame's native timing (libadwaita's 200 ms on GNOME, Breeze's 100–150 ms on
-  Plasma). Honours the desktop's "disable animations" switch via `prefers-reduced-motion`.
-- **Light and dark frames** — the GNOME, KDE and Windows frames follow Figma's Theme menu,
-  including *System theme*, which tracks the OS preference live. Previously the panel was
-  always dark and Figma's *System theme* choice was silently ignored.
-
-### Changed
-
-- Electron 43.3.0 → 44.2.0 (Chromium 152, Node 24). 43.3.0 carried an upstream StatusNotifierItem
-  regression that left Electron tray icons blank on GNOME (AppIndicator), Cinnamon and XFCE
-  ([electron#52674](https://github.com/electron/electron/issues/52674)); without the bump the new
-  tray icon would only have worked on Plasma. Electron 44 also rewrote the clipboard module, so
-  copy/paste between Figma and the system clipboard now goes through the main process with the
-  new async API — behaviour is unchanged. Build tooling (Vite, Svelte, Biome, Playwright)
-  refreshed to current minors; TypeScript stays on 6.x.
-
-### Removed
-
-- `adm-zip`. It unpacked theme archives for the theme system that was removed in February 2026;
-  nothing has imported it since, yet every package — deb, rpm, AppImage, the Flatpak vendored
-  sources — still shipped it. Gone from all three manifests and the Flatpak lockfile.
-- The per-frame CSS-variable tables (`FRAME_STYLES`) that were injected inline on the panel on
-  every render. Of the ~35 variables per frame only two were ever read, and those now resolve
-  through the `--frame-*` palette like everything else. `isValidFrameStyle` also had two copies;
-  one remains.
+- **Frame follows your desktop** ([#50](https://github.com/arximus88/figma-linux-next/issues/50)):
+  a Breeze-styled KDE frame, auto-selected on Plasma; GNOME everywhere else. Turn auto off in
+  Settings → General to pick one by hand.
+- **Light and dark frames** that follow Figma's Theme menu, including *System theme*, which
+  tracks the desktop's light/dark switch live.
+- **Tab previews**: rest the pointer on a background tab to see its title, link and a
+  thumbnail from the last time you were there. Off switch in Settings → General.
+- **System tray icon** ([#51](https://github.com/arximus88/figma-linux-next/issues/51)),
+  opt-in. Keeps Figma running when the last window is closed; works on Plasma and on GNOME with
+  the AppIndicator extension.
+- **Flatpak repository with automatic updates**
+  ([#52](https://github.com/arximus88/figma-linux-next/issues/52)): install from
+  https://arximus88.github.io/figma-linux-next/ and later versions arrive via `flatpak update`,
+  GNOME Software or Discover.
+- **New tab button after the tabs**, Figma-desktop style, as an option in Settings → General.
+- **Tab motion**: tabs unfold when opened and fold when closed, with each desktop's native
+  timing. Respects "disable animations".
+- **Legacy Windows frame** restyled after Figma's own Windows chrome, with a light variant.
 
 ### Fixed
 
-- **Light frame on the login screen** — the login page (always white, no theme stamp) was
-  measured as "light" and stored as the theme; the frame now keeps your preference until
-  Figma itself reports what it paints.
-- **"System theme" on a light GTK theme with dark mode on** (stock GNOME with adw-gtk3): the
-  panel resolved *System* through Chromium's GTK-name check and came out light. The freedesktop
-  settings portal is now asked first, so the frame follows the desktop's dark/light switch on
-  GNOME, Plasma and inside Flatpak.
-- **White tab after switching on Wayland** — with Electron 44 a tab view that was detached and
-  re-attached never became visible again: the page stayed `hidden` and nothing painted until the
-  window was resized or the strip was hovered. Tab views, the hover card and the Settings /
-  What's New overlays are now attached once and switched with `setVisible`. The same cause made
-  tab previews stop appearing after the first hover.
-- **Tray "Show Figma"** now restores a minimised window; while no window is open the entry reads
-  "Open Figma" and opens one.
-- Figma's Theme menu choice was silently ignored. Figma sends `{ themePreference }`, the app read
-  `theme`, so nothing ever matched; on top of that "System theme" was dropped outright. The panel
-  now also watches what Figma actually paints, so it is right from the first frame after launch.
-- Closing a window now destroys its home and community tabs. They used to survive the window;
-  invisible while every close ended the process, a real leak once the tray keeps it alive.
+- **White tab after switching on Wayland.** Electron 44 never shows a tab view again once it
+  has been detached and re-attached; views are now attached once and toggled instead. The same
+  bug made tab previews vanish after the first hover.
+- **Figma's theme choice was ignored**, and "System theme" came out light on a light GTK theme
+  with dark mode on. The app now reads the freedesktop settings portal and watches what Figma
+  actually paints, so the login screen no longer flashes a light frame either.
+- **Tray "Show Figma"** now restores a minimised window and reads "Open Figma" when there is
+  none.
+- Closing a window destroys its home and community tabs, a leak once the tray keeps the app
+  alive.
+
+### Under the hood
+
+- Electron 43.3.0 → 44.2.0 (Chromium 152, Node 24). 43.3 had an upstream tray-icon regression
+  on GNOME, Cinnamon and XFCE ([electron#52674](https://github.com/electron/electron/issues/52674)).
+  Electron 44's async clipboard API now lives in the main process; behaviour is unchanged.
+- Renderer paths from the tab are checked against their directories before fonts or exports
+  are served.
+- Removed `adm-zip` (unused since the theme system left) and the inline per-frame CSS-variable
+  tables; every frame colour now goes through one `--frame-*` palette.
+- Build tooling refreshed (Vite, Svelte, Biome, Playwright); build scripts moved to ESM.
 
 ## [0.17.0] - 2026-08-27
 
