@@ -23,7 +23,7 @@ async function findPanelPage(app: Awaited<ReturnType<typeof launchApp>>["app"]) 
 
 /**
  * Tab open/close motion (Panel/Components/motion.ts). A freshly added tab must
- * be mid-animation right after it appears and settle to its natural width; a
+ * be mid-animation right after it appears and settle to its natural space; a
  * closing tab must linger for the fold animation before it leaves the DOM. The
  * timing tokens come from the frame, so each frame is checked for its value.
  */
@@ -45,8 +45,8 @@ test.describe("Tab open/close motion", () => {
           const anims = el.getAnimations();
           return {
             animating: anims.length > 0,
-            width: el.getBoundingClientRect().width,
-            maxWidth: getComputedStyle(el).maxWidth,
+            marginRight: Number.parseFloat(getComputedStyle(el).marginRight),
+            clipPath: getComputedStyle(el).clipPath,
           };
         }
         await new Promise((r) => setTimeout(r, 5));
@@ -55,23 +55,26 @@ test.describe("Tab open/close motion", () => {
     });
     expect(during).not.toBeNull();
     expect(during!.animating).toBe(true);
-    // Still unfolding: max-width is a clamped pixel value, not the default.
-    expect(during!.maxWidth).not.toBe("none");
+    // Still unfolding: the right edge is clipped, not the default.
+    expect(during!.clipPath).not.toBe("none");
 
     await panel.waitForTimeout(500);
     const settled = await panel.evaluate(() => {
       const el = document.querySelector<HTMLElement>("[data-tab-id]")!;
       return {
         animating: el.getAnimations().length > 0,
-        width: el.getBoundingClientRect().width,
-        maxWidth: getComputedStyle(el).maxWidth,
+        marginRight: Number.parseFloat(getComputedStyle(el).marginRight),
+        clipPath: getComputedStyle(el).clipPath,
         opacity: getComputedStyle(el).opacity,
       };
     });
     expect(settled.animating).toBe(false);
-    expect(settled.maxWidth).toBe("none");
+    expect(settled.clipPath).toBe("none");
     expect(settled.opacity).toBe("1");
-    expect(settled.width).toBeGreaterThan(during!.width);
+    // The box keeps its width; the space it takes is what unfolds (negative
+    // right margin shrinking to 0).
+    expect(during!.marginRight).toBeLessThan(0);
+    expect(settled.marginRight).toBe(0);
 
     // Close it: the wrapper stays for the fold, then leaves.
     const tabId = await panel.evaluate(() =>

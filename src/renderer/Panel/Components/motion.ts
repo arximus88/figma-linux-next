@@ -32,11 +32,14 @@ export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 /**
  * A tab (or strip button) growing out of nothing / shrinking to nothing: the
- * width unfolds from 0 to its natural size while it fades in, and the same in
- * reverse on close — AdwTabBar's open/close animation. Neighbours slide along
- * because the collapsing width is real layout, not a transform. The parent's
- * column gap is folded into a negative margin so the row does not jump by one
- * gap when the element finally disappears.
+ * space it takes unfolds from 0 to its natural width while it fades in, and
+ * the same in reverse on close — AdwTabBar's open/close animation. The element
+ * keeps its full width the whole time and is clipped on the right, so its
+ * content stays put and is revealed from the left edge instead of re-flowing
+ * around a shrinking box; the occupied space is collapsed with a negative
+ * right margin, which is real layout, so neighbours slide along. The parent's
+ * column gap is folded into that margin so the row does not jump by one gap
+ * when the element finally disappears.
  */
 export function tabSlide(node: HTMLElement): TransitionConfig {
   const duration = openDuration();
@@ -50,12 +53,12 @@ export function tabSlide(node: HTMLElement): TransitionConfig {
     easing: easeOutCubic,
     css: (t, u) =>
       [
-        "overflow: hidden",
+        `width: ${width.toFixed(2)}px`,
         "min-width: 0",
         "flex-shrink: 0",
         "pointer-events: none",
-        `max-width: ${(t * width).toFixed(2)}px`,
-        `margin-right: ${(-gap * u).toFixed(2)}px`,
+        `clip-path: inset(0 ${(u * width).toFixed(2)}px 0 0)`,
+        `margin-right: ${(-u * (width + gap)).toFixed(2)}px`,
         `opacity: ${t.toFixed(3)}`,
       ].join("; "),
   };
