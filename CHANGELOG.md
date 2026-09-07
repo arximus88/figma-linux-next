@@ -68,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Light frame on the login screen** — the login page (always white, no theme stamp) was
+  measured as "light" and stored as the theme; the frame now keeps your preference until
+  Figma itself reports what it paints.
 - **"System theme" on a light GTK theme with dark mode on** (stock GNOME with adw-gtk3): the
   panel resolved *System* through Chromium's GTK-name check and came out light. The freedesktop
   settings portal is now asked first, so the frame follows the desktop's dark/light switch on
