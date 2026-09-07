@@ -77,6 +77,21 @@ declare namespace Types {
   type ResolvedTheme = "dark" | "light";
   /** What Figma reports from its Theme menu; "system" follows the OS. */
   type FigmaThemePreference = ResolvedTheme | "system";
+  /** What main sends the tab hover card (Main/Ui/TabPreviewView → renderer/Preview). */
+  interface TabPreviewPayload {
+    id: number;
+    title: string;
+    /** Trimmed for display: host + path, no scheme or query. */
+    url: string;
+    editorType?: EditorType;
+    isLibrary?: boolean;
+    /** JPEG data URL captured when the tab lost focus; null for the active tab or before any capture. */
+    image: string | null;
+    active: boolean;
+    frame: FrameStyle;
+    theme: ResolvedTheme;
+  }
+
   /** Runtime values the main process resolves for the renderers. */
   interface RuntimeInfo {
     frameStyle: FrameStyle;
@@ -125,6 +140,8 @@ declare namespace Types {
       hideWindowMinMaxButtons: boolean;
       /** Render the new-tab "+" after the last tab instead of in the left corner. */
       newTabButtonAfterTabs: boolean;
+      /** Show a card with the tab's last thumbnail when the pointer rests on it. */
+      tabHoverPreviews: boolean;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;

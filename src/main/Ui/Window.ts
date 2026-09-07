@@ -3,6 +3,7 @@ import { storage } from "Main/Storage";
 import { getResolvedFigmaTheme } from "Main/Theme";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
+import TabPreviewView from "./TabPreviewView";
 import { ModalViewManager } from "./ModalViewManager";
 import TabManager from "./TabManager";
 import { WarmTabManager } from "./WarmTabManager";
@@ -20,8 +21,11 @@ import {
   parseURL,
   getTabDedupKey,
 } from "Utils/Common";
-import { panelUrlDev, panelUrlProd, toggleDetachedDevTools } from "Utils/Main";
+import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
+import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
 import Tab from "./Tab";
+import type MainTab from "./MainTab";
+import type CommunityTab from "./CommunityTab";
 
 /** Settle time after the export-queue page loads, before its view is attached. */
 const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
@@ -35,6 +39,8 @@ export default class Window {
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
   private modalViews: ModalViewManager;
+  // Hover card for strip tabs; created on the first hover (app.tabHoverPreviews).
+  private tabPreview: TabPreviewView | null = null;
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
   // not overwritten by the BrowserWindow `close` event firing later with
@@ -140,6 +146,9 @@ export default class Window {
 
     if (this.tabManager.communityTabWebContentId) {
       ids.add(this.tabManager.communityTabWebContentId);
+    }
+    if (this.tabPreview) {
+      ids.add(this.tabPreview.webContentsId);
     }
     // Include warm tab so IPC messages from it can be routed to this window
     const warmId = this.warmTabs.activeWebContentsId;
@@ -353,6 +362,7 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForActiveTab(bounds);
     this.modalViews.syncBounds(this.window.getBounds());
+    this.hideTabPreview();
   }
 
   public updateAllTabsBounds() {
@@ -679,6 +689,7 @@ export default class Window {
 
     const isNewFileTab = this.tabManager.isNewFileTab(tabId);
 
+    this.hideTabPreview();
     this.window.contentView.removeChildView(tab.view);
 
     const nextTabId = this.tabManager.close(tabId);
@@ -746,11 +757,12 @@ export default class Window {
   }
   public setFocusToMainTab() {
     const mainTab = this.tabManager.mainTab;
+    const previous = this.attachedTab();
 
-    this.detachLastFocusedTab();
     this.window.contentView.addChildView(mainTab.view);
     this.tabManager.focusMainTab();
     this.closeNewFileTab();
+    void this.retire(previous, mainTab);
     this.window.webContents.send("focusTab", "mainTab");
 
     app.emit("needUpdateMenu", this.id, null, { "close-tab": false });
@@ -758,12 +770,13 @@ export default class Window {
   public setFocusToCommunityTab() {
     const bounds = this.calcBoundsForTabView();
     const communityTab = this.tabManager.communityTab;
+    const previous = this.attachedTab();
 
-    this.detachLastFocusedTab();
     this.window.contentView.addChildView(communityTab.view);
     this.tabManager.focusCommunityTab();
     this.closeNewFileTab();
     this.tabManager.communityTab.setBounds(bounds);
+    void this.retire(previous, communityTab);
     this.window.webContents.send("focusTab", "communityTab");
 
     app.emit("needUpdateMenu", this.id, null, { "close-tab": true });
@@ -800,12 +813,13 @@ export default class Window {
     if (!tab) return;
 
     const bounds = this.calcBoundsForTabView();
+    const previous = this.attachedTab();
 
-    this.detachLastFocusedTab();
+    this.hideTabPreview();
     this.window.contentView.addChildView(tab.view);
-
     this.tabManager.focusTab(tabId);
     this.tabManager.setBounds(tabId, bounds);
+    void this.retire(previous, tab);
     this.window.webContents.send("focusTab", tabId);
 
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
@@ -894,6 +908,46 @@ export default class Window {
     this.tabManager.handleCallbackForTab(webContentsId, cbId, args);
   }
 
+  /**
+   * Hover card for a strip tab (app.tabHoverPreviews). `anchor` is the tab's
+   * rect in the panel; the card is laid out just under the strip, left-aligned
+   * with the tab. The active tab gets title/URL only — its page is on screen.
+   */
+  public showTabPreview(tabId: number, anchor: PreviewAnchor) {
+    if (!storage.settings.app.tabHoverPreviews || this.window.isDestroyed()) return;
+    const tab = this.tabManager.getAll().get(tabId);
+    if (!tab) return;
+
+    const active = this.tabManager.lastFocusedTab === tab.id;
+    const image = active ? null : (tab.thumbnail ?? null);
+    const content = this.window.getContentBounds();
+    const payload: Types.TabPreviewPayload = {
+      id: tab.id,
+      title: tab.title ?? "",
+      url: displayUrl(tab.url ?? tab.getUrl()),
+      editorType: tab.editorType,
+      isLibrary: tab.isLibrary,
+      image,
+      active,
+      frame: resolveFrameStyle(storage.settings.app),
+      theme: getResolvedFigmaTheme(),
+    };
+    const bounds = computeTabPreviewBounds({
+      anchor,
+      panelHeight: storage.settings.app.panelHeight || TOPPANELHEIGHT,
+      contentWidth: content.width,
+      contentHeight: content.height,
+      hasImage: !!image,
+    });
+
+    this.tabPreview ??= new TabPreviewView(this.window);
+    this.tabPreview.show(bounds, payload);
+  }
+
+  public hideTabPreview() {
+    this.tabPreview?.hide();
+  }
+
   public pushSettingsToPanel() {
     this.window.webContents.send("loadSettings", storage.settings);
   }
@@ -915,6 +969,7 @@ export default class Window {
 
     this.warmTabs.destroy();
     this.modalViews.destroy();
+    this.tabPreview?.destroy();
     this.tabManager.closeAll();
     this.window.close();
   }
@@ -935,23 +990,43 @@ export default class Window {
       app.emit("windowFocus", this.window.id);
       this.warmTabs.refreshIfStale();
     });
+    this.window.on("blur", () => this.hideTabPreview());
     this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
     this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 
-  private detachLastFocusedTab() {
-    const lastFocusedId = this.tabManager.lastFocusedTab;
-    if (lastFocusedId) {
-      const lastTab = this.tabManager.getById(lastFocusedId);
-      if (lastTab?.view) {
-        // Ensure we don't try to remove a view that isn't attached or is destroyed
-        try {
-          this.window.contentView.removeChildView(lastTab.view);
-        } catch {
-          // Ignore errors if child is not attached
-        }
-      }
+  /** The tab whose view is currently attached (last focused), if any. */
+  private attachedTab(): Tab | MainTab | CommunityTab | undefined {
+    const id = this.tabManager.lastFocusedTab;
+    return id ? this.tabManager.getById(id) : undefined;
+  }
+
+  /**
+   * Detach the tab we just switched away from. The next tab is already
+   * attached on top, so first snapshot the outgoing one for its hover
+   * preview — capturePage only works while the view is attached (a detached
+   * view has no compositor surface and rejects), and an occluded view still
+   * yields its last frame. The user sees the new tab immediately; the old one
+   * sits underneath for the ~10 ms the capture takes.
+   */
+  private async retire(
+    previous: Tab | MainTab | CommunityTab | undefined,
+    next: { view: { webContents: { id: number } } },
+  ) {
+    if (!previous || previous === next) return;
+    if (
+      previous instanceof Tab &&
+      storage.settings.app.tabHoverPreviews &&
+      this.tabManager.getAll().has(previous.id)
+    ) {
+      await previous.captureThumbnail();
+    }
+    if (this.window.isDestroyed()) return;
+    try {
+      this.window.contentView.removeChildView(previous.view);
+    } catch {
+      // not attached any more (closed meanwhile)
     }
   }
 }

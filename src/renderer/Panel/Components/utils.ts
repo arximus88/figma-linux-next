@@ -11,6 +11,7 @@ export const newFileTabOrder = () => (layout.newTabAfterTabs ? Number.MAX_SAFE_I
 /** Apply the panel-layout part of the settings (boot and every Settings close). */
 export function applyLayoutSettings(settings: Types.SettingsInterface | undefined) {
   layout.setNewTabAfterTabs(!!settings?.app?.newTabButtonAfterTabs);
+  layout.setTabHoverPreviews(settings?.app?.tabHoverPreviews ?? true);
   tabs.repinNewFileTab(newFileTabOrder());
 }
 

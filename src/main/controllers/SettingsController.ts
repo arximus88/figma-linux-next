@@ -82,7 +82,8 @@ export default class SettingsController {
 
     const panelLayoutChanged =
       storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons ||
-      storage.settings.app.newTabButtonAfterTabs !== settings.app.newTabButtonAfterTabs;
+      storage.settings.app.newTabButtonAfterTabs !== settings.app.newTabButtonAfterTabs ||
+      storage.settings.app.tabHoverPreviews !== settings.app.tabHoverPreviews;
     const frameChanged =
       storage.settings.app.frameStyleAuto !== settings.app.frameStyleAuto ||
       storage.settings.app.frameStyle !== settings.app.frameStyle;

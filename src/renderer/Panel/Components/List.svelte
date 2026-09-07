@@ -2,6 +2,8 @@
   import type { Component } from "svelte";
   import { tabReorder } from "./tabReorder";
   import { tabSlide } from "./motion";
+  import { tabHover } from "./tabHover";
+  import { layout } from "../store";
   import { ButtonTool } from "Common/Buttons";
   import { Loader } from "Icons";
   import { Spiner } from "Common";
@@ -64,7 +66,10 @@
   });
 </script>
 
-<section use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}>
+<section
+  use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}
+  use:tabHover={{ enabled: layout.tabHoverPreviews }}
+>
   {#each items as item, index (item.id)}
     <div
       class={tabWrapperClass}

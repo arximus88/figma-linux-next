@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New tab button after the tabs** — Settings → General, off by default. Moves the `+` from the
   left corner to the end of the tab strip, like Figma's own desktop app; the New file tab then
   opens at the end too. When the strip overflows the button stays pinned at the right edge.
+- **Tab previews on hover** — rest the pointer on a background tab and a card appears under it
+  with the tab's title, link and a thumbnail of the page as it looked when you last left it (the
+  active tab gets title and link only). Thumbnails are taken at the moment a tab loses focus, so
+  they cost nothing while you work. On by default; Settings → General turns it off.
 - **Tab motion** — tabs unfold when opened and fold away when closed, and the strip's hover
   fades use each frame's native timing (libadwaita's 200 ms on GNOME, Breeze's 100–150 ms on
   Plasma). Honours the desktop's "disable animations" switch via `prefers-reduced-motion`.

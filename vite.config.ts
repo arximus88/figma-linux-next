@@ -173,6 +173,7 @@ export default defineConfig({
         app: path.resolve(__dirname, "src/index.html"),
         settings: path.resolve(__dirname, "src/settings.html"),
         changelog: path.resolve(__dirname, "src/changelog.html"),
+        preview: path.resolve(__dirname, "src/preview.html"),
       },
       // NOTE: No Node.js modules here! This builds for the browser (renderer with contextIsolation).
       // Only the electron plugin entries (main, preloads) should have Node.js externals.

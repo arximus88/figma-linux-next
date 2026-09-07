@@ -28,6 +28,8 @@ const SEND_CHANNELS = [
   "openCommunityTabMenu",
   "newProject",
   "openTabMenu",
+  "tabHoverStart",
+  "tabHoverEnd",
   // Settings
   "closeSettingsView",
   "setFrameStyle",
@@ -62,6 +64,8 @@ const RECEIVE_CHANNELS = [
   "setLoading",
   "frameStyleChanged",
   "figmaThemeChanged",
+  // Tab preview card (renderer/Preview)
+  "tabPreviewData",
 ] as const;
 
 const INVOKE_CHANNELS = [

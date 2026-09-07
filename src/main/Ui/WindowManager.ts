@@ -8,6 +8,7 @@ import { getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
 import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
+import { isPreviewAnchor } from "Utils/Main/tabPreview";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
 
@@ -262,6 +263,10 @@ export default class WindowManager {
     ipcRegistry.on("openSettingsView", this.openSettingsView.bind(this), "WindowManager");
     ipcRegistry.on("openChangelogView", this.openChangelogView.bind(this), "WindowManager");
 
+    // Tab hover previews (panel → main)
+    ipcRegistry.on("tabHoverStart", this.tabHoverStart.bind(this), "WindowManager");
+    ipcRegistry.on("tabHoverEnd", this.tabHoverEnd.bind(this), "WindowManager");
+
     // Community tab
     ipcRegistry.on("closeCommunityTab", this.closeCommunityTab.bind(this), "WindowManager");
     ipcRegistry.on(
@@ -478,6 +483,14 @@ export default class WindowManager {
     const window = this.windows.get(this.lastFocusedwindowId);
 
     window.setTabFocus(tabId);
+  }
+
+  private tabHoverStart(event: IpcMainEvent, tabId: unknown, anchor: unknown) {
+    if (typeof tabId !== "number" || !isPreviewAnchor(anchor)) return;
+    this.getWindowByWebContentsId(event.sender.id)?.showTabPreview(tabId, anchor);
+  }
+  private tabHoverEnd(event: IpcMainEvent) {
+    this.getWindowByWebContentsId(event.sender.id)?.hideTabPreview();
   }
 
   private windowFocus(windowId: number) {

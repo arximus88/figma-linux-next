@@ -25,6 +25,11 @@ import { NEW_FILE_TAB_TITLE } from "Const";
 import { dialogs } from "Main/Dialogs";
 import { logger } from "Main/Logger";
 
+/** Thumbnail width in device pixels: the card is 280 CSS px wide, so this stays crisp at 2×. */
+const THUMBNAIL_WIDTH = 560;
+const THUMBNAIL_JPEG_QUALITY = 72;
+const THUMBNAIL_CAPTURE_TIMEOUT_MS = 400;
+
 export default class Tab {
   public id: number;
   public title?: string;
@@ -34,6 +39,8 @@ export default class Tab {
   public isUsingMicrophone?: boolean;
   public isInVoiceCall?: boolean;
   public view: WebContentsView;
+  /** Last snapshot of the page as a JPEG data URL, for the hover preview card. */
+  public thumbnail?: string;
 
   private _editorType: Types.EditorType | undefined;
   private _isLibrary = false;
@@ -89,6 +96,37 @@ export default class Tab {
 
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
+  }
+
+  /**
+   * Snapshot the page for the hover preview. Only possible while the view is
+   * still attached to the window: a detached WebContentsView has no compositor
+   * surface and capturePage rejects (UnknownVizError). Window therefore calls
+   * this on the tab it is switching away from *after* attaching the next tab
+   * on top and *before* detaching this one — an occluded view still returns its
+   * last frame, and the user already sees the new tab.
+   */
+  public async captureThumbnail(): Promise<void> {
+    const wc = this.view.webContents;
+    if (wc.isDestroyed()) return;
+    try {
+      // A view that has not produced a frame yet (window minimised, page still
+      // blank) can leave capturePage pending indefinitely; the caller is
+      // holding the old view attached until this settles, so give up quickly.
+      const image = await Promise.race([
+        wc.capturePage(),
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), THUMBNAIL_CAPTURE_TIMEOUT_MS),
+        ),
+      ]);
+      if (!image || image.isEmpty()) return;
+      const { width } = image.getSize();
+      const thumb = width > THUMBNAIL_WIDTH ? image.resize({ width: THUMBNAIL_WIDTH }) : image;
+      this.thumbnail = `data:image/jpeg;base64,${thumb.toJPEG(THUMBNAIL_JPEG_QUALITY).toString("base64")}`;
+    } catch (error) {
+      // Window hidden/minimised mid-switch, view already gone — keep the previous thumbnail.
+      logger.debug(`[Tab ${this.id}] thumbnail capture skipped:`, error);
+    }
   }
 
   private initTab() {
