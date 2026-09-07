@@ -65,6 +65,15 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # System tray icon (StatusNotifierItem — KDE Plasma, GNOME with AppIndicator).
   - --talk-name=org.kde.StatusNotifierWatcher
+  # Chromium registers the item by *owning* org.freedesktop.StatusNotifierItem-<pid>-1
+  # (org.kde.* on older Chromium). Talk access alone is not enough: xdg-dbus-proxy rejects the
+  # RequestName ("policy: 0 (required 3)") and the icon never appears — verified 2026-09-07 on
+  # Fedora 44 Plasma 6.7. The pid is the one inside the sandbox's pid namespace: bwrap is 1,
+  # run.sh is 2, electron is 3. Both are listed in case the wrapper ever execs directly.
+  - --own-name=org.freedesktop.StatusNotifierItem-2-1
+  - --own-name=org.freedesktop.StatusNotifierItem-3-1
+  - --own-name=org.kde.StatusNotifierItem-2-1
+  - --own-name=org.kde.StatusNotifierItem-3-1
   # Export / open files.
   - --filesystem=xdg-download
   - --filesystem=xdg-documents

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Flatpak: tray icon missing on KDE Plasma.** Chromium registers the tray item by owning a
+  `StatusNotifierItem-<pid>-1` D-Bus name, and the sandbox only allowed talking to the watcher,
+  so the request was silently rejected. The manifest now grants the name. Existing installs pick
+  it up with the next `flatpak update`.
+
 ## [0.20.0] - 2026-09-07
 
 Figma on Linux finally feels like it belongs on your desktop. The window frame now picks
