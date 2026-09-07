@@ -30,7 +30,7 @@ bun run run:watch
 ### Build System
 
 The project uses **Vite** with `vite-plugin-electron`:
-- `vite.config.ts` - Unified build config for main + renderer processes
+- `vite.config.mts` - Unified build config for main + renderer processes
 
 Build outputs to `dist/`:
 - `dist/main/main.js` - Main process entry point
@@ -314,7 +314,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 | File | Purpose |
 |------|---------|
-| `vite.config.ts` | Vite build config (main + renderer) |
+| `vite.config.mts` | Vite build config (main + renderer) |
 | `src/main/index.ts` | App entry point; initializes storage, dialogs, dependencies |
 | `src/main/App.ts` | Lifecycle orchestration, Chromium switches, controller wiring |
 | `src/main/controllers/registry.ts` | IPC channel registry (seal-on-startup pattern) |

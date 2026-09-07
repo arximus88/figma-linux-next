@@ -1,4 +1,4 @@
-import { parseChangelog, renderInline, type ChangelogEntry } from "./parseChangelog";
+import { parseChangelog, renderInline, type ChangelogEntry } from "./parseChangelog.mjs";
 
 const categoryClass = (category: string) =>
   `section-${category.toLowerCase().replace(/\W+/g, "-")}`;

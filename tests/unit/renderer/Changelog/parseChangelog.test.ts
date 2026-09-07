@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseChangelog, renderInline } from "../../../../src/renderer/Changelog/parseChangelog";
+import {
+  parseChangelog,
+  renderInline,
+} from "../../../../src/renderer/Changelog/parseChangelog.mjs";
 
 const SAMPLE = `# Changelog
 
