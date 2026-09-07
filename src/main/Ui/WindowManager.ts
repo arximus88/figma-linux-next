@@ -214,6 +214,7 @@ export default class WindowManager {
 
     this.lastFocusedwindowId = window.id;
     this.windows.set(window.id, window);
+    app.emit("windowsChanged");
 
     // Force initial bounds update now that the window is registered
     window.updateTabsBounds();
@@ -531,6 +532,7 @@ export default class WindowManager {
     }
 
     this.windows.delete(windowId);
+    app.emit("windowsChanged");
 
     if (this.windows.size === 0 && !this.keepAliveWithoutWindows) {
       app.emit("quitApp");

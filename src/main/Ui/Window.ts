@@ -325,6 +325,10 @@ export default class Window {
     }
   }
   public focus() {
+    // Reached from the tray as well, where the window may be minimised or
+    // hidden — focus() alone does not un-minimise on any platform.
+    if (this.window.isMinimized()) this.window.restore();
+    if (!this.window.isVisible()) this.window.show();
     this.window.focus();
   }
   public showHandler(event: IpcMainEvent) {

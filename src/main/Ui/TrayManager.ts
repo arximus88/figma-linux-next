@@ -2,6 +2,7 @@ import { app, Menu, nativeImage, Tray } from "electron";
 
 import { logger } from "Main/Logger";
 import { detectFrameStyle } from "Utils/Main/desktopEnvironment";
+import { trayShowLabel } from "Utils/Main/tray";
 import colorIconDataUrl from "../../../resources/icons/48x48.png?inline";
 import symbolicIconDataUrl from "../../../resources/icons/tray-symbolic.png?inline";
 
@@ -60,9 +61,28 @@ export default class TrayManager {
     }
 
     this.tray.setToolTip("Figma");
+    this.refreshMenu();
+    // StatusNotifierItem menus are exported to the shell up front — there is
+    // no "about to open" hook to relabel lazily, so rebuild on window changes.
+    app.on("windowsChanged", this.refreshMenu);
+    this.tray.on("click", () => this.showWindow());
+
+    logger.info("Tray icon created");
+  }
+
+  private destroy(): void {
+    if (!this.tray) return;
+    app.off("windowsChanged", this.refreshMenu);
+    this.tray.destroy();
+    this.tray = null;
+    logger.info("Tray icon destroyed");
+  }
+
+  private readonly refreshMenu = (): void => {
+    if (!this.tray) return;
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: "Show Figma", click: () => this.showWindow() },
+        { label: trayShowLabel(this.windowManager.hasWindows()), click: () => this.showWindow() },
         { label: "New Window", click: () => this.windowManager.newWindow() },
         { type: "separator" },
         {
@@ -76,17 +96,7 @@ export default class TrayManager {
         { label: "Quit", click: () => app.emit("quitApp") },
       ]),
     );
-    this.tray.on("click", () => this.showWindow());
-
-    logger.info("Tray icon created");
-  }
-
-  private destroy(): void {
-    if (!this.tray) return;
-    this.tray.destroy();
-    this.tray = null;
-    logger.info("Tray icon destroyed");
-  }
+  };
 
   private showWindow(): void {
     if (this.windowManager.hasWindows()) {

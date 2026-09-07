@@ -66,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tray "Show Figma"** now restores a minimised window; while no window is open the entry reads
+  "Open Figma" and opens one.
 - Figma's Theme menu choice was silently ignored. Figma sends `{ themePreference }`, the app read
   `theme`, so nothing ever matched; on top of that "System theme" was dropped outright. The panel
   now also watches what Figma actually paints, so it is right from the first frame after launch.
