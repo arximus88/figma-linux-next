@@ -34,21 +34,23 @@ async function findPanelPage(app: App) {
   throw new Error("panel page (#panel) not found");
 }
 
-/** Number of child views attached to the first window (tab + overlays). */
-const childViews = (app: App) =>
-  app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.length);
-
-/** Bounds of the topmost child view — the preview card while it is showing. */
-const topChildBounds = (app: App) =>
+/**
+ * The preview card's child view, if the window has created one. Views are
+ * attached once and toggled with setVisible (see Window.swapTo), so "showing"
+ * is `visible`, not membership in `children`.
+ */
+const previewView = (app: App) =>
   app.evaluate(({ BrowserWindow }) => {
-    const kids = BrowserWindow.getAllWindows()[0].contentView.children;
-    return kids[kids.length - 1].getBounds();
+    const kids = BrowserWindow.getAllWindows()[0].contentView
+      .children as Electron.WebContentsView[];
+    const card = kids.find((v) => v.webContents?.getURL().includes("preview.html"));
+    return card ? { attached: true, visible: card.getVisible(), bounds: card.getBounds() } : null;
   });
 
 /**
- * Tab hover previews: resting the pointer on a background tab attaches the
+ * Tab hover previews: resting the pointer on a background tab shows the
  * preview WebContentsView under that tab with the thumbnail captured when the
- * tab lost focus; leaving detaches it. `app.tabHoverPreviews` gates all of it.
+ * tab lost focus; leaving hides it. `app.tabHoverPreviews` gates all of it.
  */
 test.describe("Tab hover previews", () => {
   test("shows a card with the background tab's thumbnail and hides on leave", async () => {
@@ -60,16 +62,16 @@ test.describe("Tab hover previews", () => {
 
     await openTab(handle.app, FILE_URL_A);
     await panel.waitForTimeout(700);
-    // Focus moves to B: A is captured while still attached, then detached.
+    // Focus moves to B: A is captured while still visible, then hidden.
     await openTab(handle.app, FILE_URL_B);
     await panel.waitForTimeout(700);
 
-    const before = await childViews(handle.app);
+    expect(await previewView(handle.app)).toBeNull();
     const first = panel.locator("[data-tab-id]").first();
     await first.hover();
     await panel.waitForTimeout(900);
 
-    expect(await childViews(handle.app)).toBe(before + 1);
+    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: true });
 
     const preview = await findPage(handle.app, "preview.html");
     const card = await preview.evaluate(async () => {
@@ -94,14 +96,20 @@ test.describe("Tab hover previews", () => {
 
     // Left-aligned with the hovered tab, right under the 40px panel.
     const anchor = (await first.boundingBox())!;
-    const bounds = await topChildBounds(handle.app);
+    const bounds = (await previewView(handle.app))!.bounds;
     expect(bounds.y).toBe(40);
     expect(Math.abs(bounds.x + 12 - anchor.x)).toBeLessThanOrEqual(2);
 
-    // Leave the strip: the card goes away.
+    // Leave the strip: the card hides but stays attached for the next hover.
     await panel.mouse.move(700, 20);
     await panel.waitForTimeout(400);
-    expect(await childViews(handle.app)).toBe(before);
+    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: false });
+
+    // Hover again: the same view comes back (a re-attached view would stay
+    // invisible on Wayland with Electron 44).
+    await first.hover();
+    await panel.waitForTimeout(900);
+    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: true });
 
     await closeApp(handle);
   });
@@ -137,10 +145,9 @@ test.describe("Tab hover previews", () => {
     await openTab(handle.app, FILE_URL_B);
     await panel.waitForTimeout(500);
 
-    const before = await childViews(handle.app);
     await panel.locator("[data-tab-id]").first().hover();
     await panel.waitForTimeout(900);
-    expect(await childViews(handle.app)).toBe(before);
+    expect(await previewView(handle.app)).toBeNull();
 
     await closeApp(handle);
   });
@@ -163,7 +170,7 @@ test.describe("Tab hover previews", () => {
     await first.hover();
     await panel.waitForTimeout(900);
     const anchor = (await first.boundingBox())!;
-    const bounds = await topChildBounds(handle.app);
+    const bounds = (await previewView(handle.app))!.bounds;
     expect(bounds.y).toBe(50);
     expect(Math.abs(bounds.x + 12 - anchor.x)).toBeLessThanOrEqual(2);
 

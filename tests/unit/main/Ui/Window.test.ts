@@ -56,7 +56,7 @@ mock.module("electron", () => {
         once: mock(),
         getURL: () => "http://figma.com",
       };
-      contentView = { addChildView: mock(), removeChildView: mock() };
+      contentView = { addChildView: mock(), removeChildView: mock(), children: [] as unknown[] };
       loadURL = mock();
       getBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
       getContentBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
@@ -74,6 +74,8 @@ mock.module("electron", () => {
       setBounds = mock();
     },
     WebContentsView: class {
+      setVisible = mock();
+      getVisible = () => true;
       webContents = {
         id: Math.random(),
         send: mock(),

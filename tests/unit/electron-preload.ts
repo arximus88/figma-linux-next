@@ -47,7 +47,7 @@ mock.module("electron", () => ({
       once: () => {},
       getURL: () => "http://figma.com",
     };
-    contentView = { addChildView: () => {}, removeChildView: () => {} };
+    contentView = { addChildView: () => {}, removeChildView: () => {}, children: [] as unknown[] };
     loadURL = () => {};
     getBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
     getContentBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
@@ -71,6 +71,8 @@ mock.module("electron", () => ({
     };
     setBackgroundColor = () => {};
     setBounds = () => {};
+    setVisible = () => {};
+    getVisible = () => true;
   },
   BrowserView: class {},
   MessageChannelMain: class {},

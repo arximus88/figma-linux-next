@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **White tab after switching on Wayland** — with Electron 44 a tab view that was detached and
+  re-attached never became visible again: the page stayed `hidden` and nothing painted until the
+  window was resized or the strip was hovered. Tab views, the hover card and the Settings /
+  What's New overlays are now attached once and switched with `setVisible`. The same cause made
+  tab previews stop appearing after the first hover.
 - **Tray "Show Figma"** now restores a minimised window; while no window is open the entry reads
   "Open Figma" and opens one.
 - Figma's Theme menu choice was silently ignored. Figma sends `{ themePreference }`, the app read

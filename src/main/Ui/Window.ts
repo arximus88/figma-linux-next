@@ -77,6 +77,15 @@ export default class Window {
     this.warmTabs = new WarmTabManager(this.window.id, {
       getUserId: () => this._userId,
       getBgColor: () => this.figmaThemeBgColor,
+      attachHidden: (tab) => this.attachHidden(tab.view),
+      detach: (tab) => {
+        if (this.window.isDestroyed()) return;
+        try {
+          this.window.contentView.removeChildView(tab.view);
+        } catch {
+          // never attached
+        }
+      },
     });
     this.state = state;
 
@@ -473,6 +482,7 @@ export default class Window {
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
+    this.attachHidden(tab.view);
 
     // Non-Figma tabs (chrome://gpu, about:*) don't run figmaApi, so Figma's
     // setLoading IPC never arrives. Without this flag the renderer skeleton
@@ -761,12 +771,10 @@ export default class Window {
   }
   public setFocusToMainTab() {
     const mainTab = this.tabManager.mainTab;
-    const previous = this.attachedTab();
 
-    this.window.contentView.addChildView(mainTab.view);
+    this.swapTo(mainTab);
     this.tabManager.focusMainTab();
     this.closeNewFileTab();
-    void this.retire(previous, mainTab);
     this.window.webContents.send("focusTab", "mainTab");
 
     app.emit("needUpdateMenu", this.id, null, { "close-tab": false });
@@ -774,13 +782,11 @@ export default class Window {
   public setFocusToCommunityTab() {
     const bounds = this.calcBoundsForTabView();
     const communityTab = this.tabManager.communityTab;
-    const previous = this.attachedTab();
 
-    this.window.contentView.addChildView(communityTab.view);
+    this.swapTo(communityTab);
     this.tabManager.focusCommunityTab();
     this.closeNewFileTab();
     this.tabManager.communityTab.setBounds(bounds);
-    void this.retire(previous, communityTab);
     this.window.webContents.send("focusTab", "communityTab");
 
     app.emit("needUpdateMenu", this.id, null, { "close-tab": true });
@@ -817,13 +823,11 @@ export default class Window {
     if (!tab) return;
 
     const bounds = this.calcBoundsForTabView();
-    const previous = this.attachedTab();
 
     this.hideTabPreview();
-    this.window.contentView.addChildView(tab.view);
+    this.swapTo(tab);
     this.tabManager.focusTab(tabId);
     this.tabManager.setBounds(tabId, bounds);
-    void this.retire(previous, tab);
     this.window.webContents.send("focusTab", tabId);
 
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
@@ -894,10 +898,9 @@ export default class Window {
       this.tabManager.addCommunityTab();
       this.tabManager.communityTab.userId = args.userId;
       this.tabManager.communityTab.loadUrl(url);
-      this.window.contentView.addChildView(this.tabManager.communityTab.view);
     }
 
-    this.window.contentView.addChildView(this.tabManager.communityTab.view);
+    // setFocusToCommunityTab() below attaches the view (once) and shows it.
     this.tabManager.communityTab.setBounds(bounds);
 
     this.window.webContents.send("openCommunity");
@@ -1000,37 +1003,53 @@ export default class Window {
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 
-  /** The tab whose view is currently attached (last focused), if any. */
-  private attachedTab(): Tab | MainTab | CommunityTab | undefined {
+  /** The tab on screen (last focused), if any. */
+  private shownTab(): Tab | MainTab | CommunityTab | undefined {
     const id = this.tabManager.lastFocusedTab;
     return id ? this.tabManager.getById(id) : undefined;
   }
 
   /**
-   * Detach the tab we just switched away from. The next tab is already
-   * attached on top, so first snapshot the outgoing one for its hover
-   * preview — capturePage only works while the view is attached (a detached
-   * view has no compositor surface and rejects), and an occluded view still
-   * yields its last frame. The user sees the new tab immediately; the old one
-   * sits underneath for the ~10 ms the capture takes.
+   * Put `next` on screen and take the current tab off it. Tab views are
+   * attached to the window once and stay attached until the tab closes;
+   * switching only toggles visibility. Detaching and re-attaching is not an
+   * option: on Wayland with Electron 44 a re-attached WebContentsView never
+   * becomes visible again — document.visibilityState stays "hidden", nothing
+   * paints and the tab shows white until a relayout — whereas setVisible
+   * round-trips reliably (verified 2026-09-07, GNOME 50; Electron 43 was fine
+   * either way). Hidden views neither paint nor occlude, so their z-order is
+   * irrelevant; overlays raise themselves on show (see TabPreviewView).
+   * The outgoing tab's hover-preview snapshot is fired before it is hidden.
    */
-  private async retire(
-    previous: Tab | MainTab | CommunityTab | undefined,
-    next: { view: { webContents: { id: number } } },
-  ) {
-    if (!previous || previous === next) return;
-    if (
-      previous instanceof Tab &&
-      storage.settings.app.tabHoverPreviews &&
-      this.tabManager.getAll().has(previous.id)
-    ) {
-      await previous.captureThumbnail();
+  private swapTo(next: Tab | MainTab | CommunityTab) {
+    const previous = this.shownTab();
+    if (previous && previous !== next) {
+      if (
+        previous instanceof Tab &&
+        storage.settings.app.tabHoverPreviews &&
+        this.tabManager.getAll().has(previous.id)
+      ) {
+        void previous.captureThumbnail();
+      }
+      previous.view.setVisible(false);
     }
-    if (this.window.isDestroyed()) return;
-    try {
-      this.window.contentView.removeChildView(previous.view);
-    } catch {
-      // not attached any more (closed meanwhile)
+    if (!this.window.contentView.children.includes(next.view)) {
+      this.window.contentView.addChildView(next.view);
+    }
+    next.view.setBounds(this.calcBoundsForTabView());
+    next.view.setVisible(true);
+  }
+
+  /**
+   * Put a tab view into the window's view tree without showing it. Every tab
+   * view is attached the moment it exists — before its page loads — and only
+   * ever toggled with setVisible afterwards (see swapTo).
+   */
+  private attachHidden(view: Tab["view"]) {
+    view.setVisible(false);
+    view.setBounds(this.calcBoundsForTabView());
+    if (!this.window.contentView.children.includes(view)) {
+      this.window.contentView.addChildView(view);
     }
   }
 }

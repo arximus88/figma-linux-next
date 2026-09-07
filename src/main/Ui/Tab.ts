@@ -28,7 +28,6 @@ import { logger } from "Main/Logger";
 /** Thumbnail width in device pixels: the card is 280 CSS px wide, so this stays crisp at 2×. */
 const THUMBNAIL_WIDTH = 560;
 const THUMBNAIL_JPEG_QUALITY = 72;
-const THUMBNAIL_CAPTURE_TIMEOUT_MS = 400;
 
 export default class Tab {
   public id: number;
@@ -99,27 +98,22 @@ export default class Tab {
   }
 
   /**
-   * Snapshot the page for the hover preview. Only possible while the view is
-   * still attached to the window: a detached WebContentsView has no compositor
-   * surface and capturePage rejects (UnknownVizError). Window therefore calls
-   * this on the tab it is switching away from *after* attaching the next tab
-   * on top and *before* detaching this one — an occluded view still returns its
-   * last frame, and the user already sees the new tab.
+   * Snapshot the page for the hover preview. Must be *called* while the view
+   * is still visible: a hidden or detached WebContentsView has no compositor
+   * surface to copy from (capturePage rejects with UnknownVizError). The call
+   * queues a copy of the surface that exists right now, so Window fires it and
+   * hides the view in the same tick (see Window.swapTo). Nothing waits on the
+   * result — a stalled capture only means a stale thumbnail.
    */
   public async captureThumbnail(): Promise<void> {
     const wc = this.view.webContents;
     if (wc.isDestroyed()) return;
     try {
-      // A view that has not produced a frame yet (window minimised, page still
-      // blank) can leave capturePage pending indefinitely; the caller is
-      // holding the old view attached until this settles, so give up quickly.
-      const image = await Promise.race([
-        wc.capturePage(),
-        new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), THUMBNAIL_CAPTURE_TIMEOUT_MS),
-        ),
-      ]);
-      if (!image || image.isEmpty()) return;
+      const image = await wc.capturePage();
+      if (image.isEmpty()) {
+        logger.debug(`[Tab ${this.id}] thumbnail capture returned an empty image`);
+        return;
+      }
       const { width } = image.getSize();
       const thumb = width > THUMBNAIL_WIDTH ? image.resize({ width: THUMBNAIL_WIDTH }) : image;
       this.thumbnail = `data:image/jpeg;base64,${thumb.toJPEG(THUMBNAIL_JPEG_QUALITY).toString("base64")}`;

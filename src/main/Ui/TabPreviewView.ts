@@ -16,14 +16,17 @@ import {
  * only the top strip of it is visible — every tab is a child view laid over the
  * rest of the window, and child views always paint above the host page. A card
  * drawn by the panel itself would be hidden behind the tab. So the card is a
- * child view too, attached on hover and detached on leave, exactly like the
- * Settings overlay. It is created lazily on the first hover and kept for the
- * window's lifetime; only its bounds and payload change afterwards.
+ * child view too, shown on hover and hidden on leave, exactly like the
+ * Settings overlay. It is created lazily on the first hover and kept attached
+ * for the window's lifetime; only its bounds, visibility and payload change
+ * afterwards. (Never detach and re-attach it: on Wayland with Electron 44 a
+ * re-attached view stays invisible for good — see Window.swapTo.)
  */
 export default class TabPreviewView {
   public view: WebContentsView;
 
   private attached = false;
+  private shown = false;
   private ready = false;
   private pending: Types.TabPreviewPayload | null = null;
 
@@ -39,9 +42,18 @@ export default class TabPreviewView {
     // Transparent so the card's rounded corners and shadow sit on the tab content.
     this.view.setBackgroundColor("#00000000");
 
-    this.view.webContents.once("did-finish-load", () => {
+    this.view.webContents.on("did-finish-load", () => {
       this.ready = true;
       if (this.pending) this.push(this.pending);
+    });
+    // A dead card renderer would otherwise read as "previews stopped working":
+    // the view still attaches, nothing paints. Reload it; the next hover
+    // re-sends its payload through `pending`.
+    this.view.webContents.on("render-process-gone", (_event, details) => {
+      this.ready = false;
+      this.hide();
+      if (details.reason === "clean-exit" || this.view.webContents.isDestroyed()) return;
+      this.view.webContents.loadURL(isDev ? previewUrlDev : previewUrlProd);
     });
     this.view.webContents.loadURL(isDev ? previewUrlDev : previewUrlProd);
   }
@@ -53,23 +65,21 @@ export default class TabPreviewView {
   public show(bounds: Rectangle, payload: Types.TabPreviewPayload) {
     if (this.window.isDestroyed() || this.view.webContents.isDestroyed()) return;
     this.view.setBounds(bounds);
-    if (!this.attached) {
-      this.window.contentView.addChildView(this.view);
-      this.attached = true;
-    }
+    // Attaches on the first show; afterwards re-adding only moves the view to
+    // the top, above any tab attached since — the card must overlay them all.
+    this.window.contentView.addChildView(this.view);
+    this.attached = true;
+    this.view.setVisible(true);
+    this.shown = true;
     this.push(payload);
   }
 
   public hide() {
-    if (!this.attached) return;
-    this.attached = false;
+    if (!this.shown) return;
+    this.shown = false;
     this.pending = null;
     if (this.window.isDestroyed()) return;
-    try {
-      this.window.contentView.removeChildView(this.view);
-    } catch {
-      // already detached
-    }
+    this.view.setVisible(false);
   }
 
   private push(payload: Types.TabPreviewPayload) {
@@ -83,6 +93,14 @@ export default class TabPreviewView {
 
   public destroy() {
     this.hide();
+    if (this.attached && !this.window.isDestroyed()) {
+      this.attached = false;
+      try {
+        this.window.contentView.removeChildView(this.view);
+      } catch {
+        // window tearing down
+      }
+    }
     if (!this.view.webContents.isDestroyed()) {
       this.view.webContents.destroy();
     }

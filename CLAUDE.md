@@ -164,9 +164,10 @@ new App(new WindowManager(), new Session(), new FontManager());
 **Window** (`src/main/Ui/Window.ts`):
 - Wraps a `BrowserWindow` with a `TabManager`, a `SettingsView` and a lazily created `TabPreviewView`
   (the hover card, `src/main/Ui/TabPreviewView.ts` + `src/renderer/Preview/`)
-- Switching tabs attaches the new view first and only then detaches the old one (`retire()`),
-  capturing the old tab's thumbnail in between — see the gotcha below
-- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes). Pre-warming happens after a file tab is opened.
+- Child views (tabs, the hover card, the Settings / What's New overlays) are attached to the
+  `BrowserWindow` once and switched with `view.setVisible()`; `swapTo()` shows the next tab and
+  hides the previous one. See the gotcha "Child views are attached once" below.
+- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
 - Per-window tab management
@@ -368,13 +369,21 @@ Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message 
 ### Warm tab and double-close
 When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
 
-### Tab thumbnails: capture before detach, never after
-`webContents.capturePage()` rejects with `UnknownVizError` on a `WebContentsView` that is not
-attached to a window (no compositor surface), and this app detaches every background tab. So
-`Window.retire()` snapshots the outgoing tab *after* the incoming one is attached on top and
-*before* `removeChildView` — an occluded view still returns its last frame. Do not reorder those
-calls, and do not try to capture a background tab on demand; `tab.thumbnail` is the only source
-the hover card has.
+### Child views are attached once — switch with setVisible, never detach and re-attach
+Tab views, the tab preview card and the Settings / What's New overlays are added to
+`window.contentView` once, hidden, the moment they are created (`Window.attachHidden()`; the
+overlays in the `ModalViewManager` constructor) and afterwards only toggled with
+`view.setVisible()`. On Wayland with Electron 44 a `WebContentsView` that is `removeChildView`ed and
+later `addChildView`ed again never becomes visible: `document.visibilityState` stays `hidden`,
+nothing paints and the tab shows white until a relayout (verified 2026-09-07 on GNOME 50 with a
+minimal repro; Electron 43 was fine, and X11/xvfb — where the e2e suite runs — never reproduces it).
+Re-adding an *attached* view is safe and is how overlays raise themselves above tabs attached since
+(`addChildView` on a current child reorders it to the top). `removeChildView` is reserved for views
+about to be destroyed (`closeTab`, `closeAllTab`, community close, warm-tab discard).
+
+Tab thumbnails: `captureThumbnail()` is fired *before* the outgoing tab is hidden — a hidden view
+has no compositor surface and `capturePage()` rejects with `UnknownVizError`. Do not try to capture
+a background tab on demand; `tab.thumbnail` is the only source the hover card has.
 
 ### openFile must close the New File tab
 `Window.openFile()` must call `closeNewFileTab()` after opening the file tab. Without this, the New File tab stays visible as a leftover. `createFile()` already does this — keep them consistent.
