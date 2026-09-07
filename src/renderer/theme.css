@@ -250,8 +250,10 @@ html[data-theme="dark"] {
 }
 
 /* GNOME / Adwaita */
+/* Light: libadwaita's white headerbar with the AdwTabBar tab shades (a tab
+   gets *darker* on hover/selection, not lighter). */
 #panel[data-frame="gnome"] {
-  --frame-bg: #ebebeb;
+  --frame-bg: #ffffff;
   --frame-fg: #2e2e2e;
   --frame-fg-muted: rgba(0, 0, 0, 0.7);
   --frame-edge: rgba(0, 0, 0, 0.1);
@@ -263,9 +265,9 @@ html[data-theme="dark"] {
   --frame-close-hover: #c01c28;
   --frame-close-active: #a01020;
   --frame-close-fg: #ffffff;
-  --frame-tab-hover: rgba(255, 255, 255, 0.6);
-  --frame-tab-active: #ffffff;
-  --frame-divider: #cfcfcf;
+  --frame-tab-hover: rgba(0, 0, 0, 0.05);
+  --frame-tab-active: rgba(0, 0, 0, 0.09);
+  --frame-divider: #dcdcdc;
 }
 html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-bg: #2e2e32;
