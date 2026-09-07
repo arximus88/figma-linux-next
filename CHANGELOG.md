@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-07
+
 ### Added
 
 - **System tray icon** — an opt-in toggle in Settings → General (applies instantly) puts Figma in
