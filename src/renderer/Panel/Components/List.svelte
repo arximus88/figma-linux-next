@@ -152,7 +152,9 @@
     width: 16px;
     height: 16px;
     border-radius: 4px;
-    background: #5a5a5c;
+    /* Loading placeholder for the tab's icon/title; per-frame shade, the
+       Legacy Windows frame keeps the neutral grey. */
+    background: var(--frame-skeleton, #5a5a5c);
     flex-shrink: 0;
   }
   :global(.tab-skeleton-title) {
@@ -160,7 +162,7 @@
     width: 100px;
     height: 10px;
     border-radius: 3px;
-    background: #5a5a5c;
+    background: var(--frame-skeleton, #5a5a5c);
     animation: tab-skeleton-pulse 1.4s ease-in-out infinite;
   }
   @keyframes tab-skeleton-pulse {

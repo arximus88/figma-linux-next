@@ -256,6 +256,7 @@ html[data-theme="dark"] {
   --frame-bg: #ffffff;
   --frame-fg: #2e2e2e;
   --frame-fg-muted: rgba(0, 0, 0, 0.7);
+  --frame-skeleton: rgba(0, 0, 0, 0.12);
   --frame-edge: rgba(0, 0, 0, 0.1);
   /* libadwaita's 1px inner highlight along the window's top edge */
   --frame-highlight: rgba(255, 255, 255, 0.8);
@@ -273,6 +274,7 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-bg: #2e2e32;
   --frame-fg: #e6e6e7;
   --frame-fg-muted: rgba(255, 255, 255, 0.7);
+  --frame-skeleton: rgba(255, 255, 255, 0.18);
   --frame-edge: #424242;
   --frame-highlight: rgba(255, 255, 255, 0.1);
   --frame-btn-normal: rgba(255, 255, 255, 0.06);
@@ -291,6 +293,7 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-bg: #eff0f1;
   --frame-fg: #232629;
   --frame-fg-muted: rgba(35, 38, 41, 0.75);
+  --frame-skeleton: rgba(35, 38, 41, 0.12);
   --frame-edge: rgba(0, 0, 0, 0.12);
   --frame-btn-normal: transparent;
   --frame-btn-hover: rgba(35, 38, 41, 0.1);
@@ -307,6 +310,7 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-bg: #31363b;
   --frame-fg: #fcfcfc;
   --frame-fg-muted: rgba(252, 252, 252, 0.75);
+  --frame-skeleton: rgba(252, 252, 252, 0.16);
   --frame-edge: rgba(0, 0, 0, 0.35);
   --frame-btn-normal: transparent;
   --frame-btn-hover: rgba(252, 252, 252, 0.12);
