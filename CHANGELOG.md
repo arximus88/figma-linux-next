@@ -9,38 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.20.1] - 2026-09-08
 
-A first pass over what real desktops outside GNOME turned up: the tray icon now shows on
-Plasma from the Flatpak, tab previews use Figma's own thumbnails, the main menu stays under
-its button in fullscreen, and launching the app while its window is minimised brings the
-window back instead of looking like nothing happened.
+A polish release from testing on Plasma and Pantheon: the tray icon works from the Flatpak
+on KDE, tab previews use Figma's own thumbnails, and a few rough edges outside GNOME are gone.
 
 ### Changed
 
-- **Tab previews come from Figma.** The hover card now shows the file's server thumbnail
-  and "Edited 3 days ago", the same data the official app uses, for the active tab too. The
-  screenshot taken when a tab loses focus remains the fallback for tabs Figma has no
-  thumbnail for (community, non-file pages) and when the thumbnail link has expired.
-- **Legacy frame by default outside GNOME and KDE.** Automatic frame selection used to give
-  every non-Plasma desktop the Adwaita headerbar; Pantheon, Cinnamon, XFCE, MATE and tiling
-  compositors now get the Legacy Windows frame instead, which mimics no desktop and so looks
-  intentional there. GNOME and Budgie keep Adwaita, Plasma keeps Breeze.
-- **`figma://` registers itself when nothing else did.** `nix run`, an unpacked release zip
-  or any other bare launch now writes a user-level `.desktop` entry when no handler exists,
-  so "Log in with browser" comes back to the app without a manual `xdg-mime`. Installed
-  packages keep their own handler; the AppImage keeps refreshing its entry as before.
+- **Tab previews use Figma's thumbnails** and show "Edited 3 days ago", like the official app.
+  The screenshot fallback stays for tabs without one.
+- **Legacy frame by default outside GNOME and KDE** (Pantheon, Cinnamon, XFCE, tiling WMs).
+- **`figma://` registers itself** on bare launches (`nix run`, unpacked zip) when no handler
+  exists, so browser login works without a manual `xdg-mime`.
 
 ### Fixed
 
-- **Flatpak: tray icon missing on KDE Plasma.** Chromium registers the tray item by owning a
-  `StatusNotifierItem-<pid>-1` D-Bus name, and the sandbox only allowed talking to the watcher,
-  so the request was silently rejected. The manifest now grants the name. Existing installs pick
-  it up with the next `flatpak update`.
-- **Main menu opened in the middle of the window in fullscreen** on Wayland: its position was
-  computed from the window width, which the compositor reports stale there. The panel now sends
-  the "…" button's own rectangle and the menu drops from it.
-- **Second launch with a minimised window did nothing.** Running `figma-linux-next` again
-  while the window was minimised handed off to the running instance, which left the window
-  where it was. It is now restored and raised.
+- **Flatpak: tray icon missing on KDE Plasma.** The sandbox now lets Chromium own the
+  StatusNotifierItem D-Bus name.
+- **Main menu opened mid-window in fullscreen on Wayland.** It now drops from the "…" button.
+- **Relaunching with a minimised window did nothing.** The window is restored and raised.
 
 ## [0.20.0] - 2026-09-07
 
