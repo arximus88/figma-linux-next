@@ -20,9 +20,17 @@
   // (--frame-btn-normal); the flat frames have no resting background.
   const flatNormal = $derived(grouped ? "var(--frame-btn-normal)" : "transparent");
 
-  function clickMenu() {
+  function clickMenu(event?: MouseEvent) {
     if (isMenuOpen.value) return;
-    window.figmaApi.send("openMainMenu");
+    // The menu drops from the button itself. Main used to place it from the
+    // window width, which Wayland reports stale in fullscreen — the menu then
+    // opened in the middle of the window.
+    const el = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    const r = el?.getBoundingClientRect();
+    window.figmaApi.send(
+      "openMainMenu",
+      r ? { left: r.left, right: r.right, bottom: r.bottom } : undefined,
+    );
     isMenuOpen.toggle();
   }
 

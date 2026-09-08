@@ -8,14 +8,19 @@
  */
 
 const KDE_MARKERS = ["kde", "plasma"];
+/** Desktops whose windows carry an Adwaita-style headerbar. */
+const GNOME_MARKERS = ["gnome", "budgie"];
 
 /**
  * Pick the frame style that matches the running desktop.
  *
  * `XDG_CURRENT_DESKTOP` is a colon-separated list ("ubuntu:GNOME", "KDE"),
- * `DESKTOP_SESSION` a single name ("plasma", "gnome-xorg"). Anything that is
- * not recognisably KDE falls back to the GNOME frame, which is what the app
- * shipped as its default before auto-detection existed.
+ * `DESKTOP_SESSION` a single name ("plasma", "gnome-xorg"). KDE/Plasma gets the
+ * Breeze frame, GNOME and its headerbar relatives (Budgie) the Adwaita one.
+ * Everything else — Pantheon, Cinnamon, XFCE, MATE, tiling compositors, an
+ * empty environment — gets the Legacy Windows frame: it mimics no particular
+ * desktop, so it looks intentional where a borrowed Adwaita headerbar looks
+ * out of place.
  */
 export function detectFrameStyle(env: NodeJS.ProcessEnv = process.env): Types.FrameStyle {
   const haystack = [env.XDG_CURRENT_DESKTOP, env.DESKTOP_SESSION]
@@ -27,7 +32,11 @@ export function detectFrameStyle(env: NodeJS.ProcessEnv = process.env): Types.Fr
     return "kde";
   }
 
-  return "gnome";
+  if (haystack.some((token) => GNOME_MARKERS.some((marker) => token.includes(marker)))) {
+    return "gnome";
+  }
+
+  return "windows";
 }
 
 /** Human label for the detected style, shown as a hint in Settings. */

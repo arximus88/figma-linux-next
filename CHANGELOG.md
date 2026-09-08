@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-09-08
+
+A polish release from testing on Plasma and Pantheon: the tray icon works from the Flatpak
+on KDE, tab previews use Figma's own thumbnails, and a few rough edges outside GNOME are gone.
+
+### Changed
+
+- **Tab previews use Figma's thumbnails** and show "Edited 3 days ago", like the official app.
+  The screenshot fallback stays for tabs without one.
+- **Legacy frame by default outside GNOME and KDE** (Pantheon, Cinnamon, XFCE, tiling WMs).
+- **`figma://` registers itself** on bare launches (`nix run`, unpacked zip) when no handler
+  exists, so browser login works without a manual `xdg-mime`.
+
+### Fixed
+
+- **Flatpak: tray icon missing on KDE Plasma.** The sandbox now lets Chromium own the
+  StatusNotifierItem D-Bus name.
+- **Main menu opened mid-window in fullscreen on Wayland.** It now drops from the "…" button.
+- **Relaunching with a minimised window did nothing.** The window is restored and raised.
+
 ## [0.20.0] - 2026-09-07
 
 Figma on Linux finally feels like it belongs on your desktop. The window frame now picks

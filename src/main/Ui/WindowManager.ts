@@ -9,6 +9,7 @@ import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { isPreviewAnchor } from "Utils/Main/tabPreview";
+import { isMenuAnchor } from "Utils/Main/menuPosition";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
 
@@ -292,6 +293,7 @@ export default class WindowManager {
     ipcRegistry.on("setTitle", this.setTabTitle.bind(this), "WindowManager");
     ipcRegistry.on("setTabEditorType", this.setTabEditorType.bind(this), "WindowManager");
     ipcRegistry.on("setTabIsLibrary", this.setTabIsLibrary.bind(this), "WindowManager");
+    ipcRegistry.on("setTabPreviewData", this.setTabPreviewData.bind(this), "WindowManager");
     ipcRegistry.on("setTabUrl", this.setTabUrl.bind(this), "WindowManager");
     ipcRegistry.on("openFile", this.openFile.bind(this), "WindowManager");
     ipcRegistry.on("openCommunity", this.openCommunity.bind(this), "WindowManager");
@@ -709,6 +711,16 @@ export default class WindowManager {
     const tab = window.tabs.get(event.sender.id);
     if (tab instanceof Tab) tab.setIsLibrary(isLibrary);
   }
+  private setTabPreviewData(event: IpcMainEvent, data: unknown) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    const tab = window.tabs.get(event.sender.id);
+    if (!(tab instanceof Tab)) return;
+    // Re-validated here: the renderer is Figma's page and could send anything.
+    const d = data as Types.TabPreviewData | null;
+    tab.previewData =
+      d && typeof d.thumbnailUrl === "string" && /^https:\/\//i.test(d.thumbnailUrl) ? d : null;
+  }
   private setTabUrl(event: IpcMainEvent, url: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
@@ -736,13 +748,13 @@ export default class WindowManager {
 
     window.handleFrontReady();
   }
-  private openMainMenuHandler(event: IpcMainEvent) {
+  private openMainMenuHandler(event: IpcMainEvent, anchor?: unknown) {
     const window = this.getWindowByWebContentsId(event.sender.id);
-    const width = window.getBounds().width;
+    if (!window) return;
 
     this.menuManager.openMainMenuHandler(
-      width,
       window.win,
+      isMenuAnchor(anchor) ? anchor : null,
       window.openMainMenuCloseHandler.bind(window),
     );
   }

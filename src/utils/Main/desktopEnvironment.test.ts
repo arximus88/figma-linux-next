@@ -9,10 +9,14 @@ describe("detectFrameStyle", () => {
     ["KDE listed second", { XDG_CURRENT_DESKTOP: "X-Generic:KDE" }, "kde"],
     ["GNOME", { XDG_CURRENT_DESKTOP: "GNOME" }, "gnome"],
     ["Ubuntu GNOME", { XDG_CURRENT_DESKTOP: "ubuntu:GNOME" }, "gnome"],
-    ["Cinnamon falls back to gnome", { XDG_CURRENT_DESKTOP: "X-Cinnamon" }, "gnome"],
-    ["XFCE falls back to gnome", { XDG_CURRENT_DESKTOP: "XFCE" }, "gnome"],
-    ["empty env", {}, "gnome"],
-    ["empty strings", { XDG_CURRENT_DESKTOP: "", DESKTOP_SESSION: "" }, "gnome"],
+    ["gnome-xorg session", { DESKTOP_SESSION: "gnome-xorg" }, "gnome"],
+    ["Budgie uses the GNOME frame", { XDG_CURRENT_DESKTOP: "Budgie:GNOME" }, "gnome"],
+    ["Pantheon gets Legacy", { XDG_CURRENT_DESKTOP: "Pantheon" }, "windows"],
+    ["Cinnamon gets Legacy", { XDG_CURRENT_DESKTOP: "X-Cinnamon" }, "windows"],
+    ["XFCE gets Legacy", { XDG_CURRENT_DESKTOP: "XFCE" }, "windows"],
+    ["Hyprland gets Legacy", { XDG_CURRENT_DESKTOP: "Hyprland" }, "windows"],
+    ["empty env", {}, "windows"],
+    ["empty strings", { XDG_CURRENT_DESKTOP: "", DESKTOP_SESSION: "" }, "windows"],
   ];
 
   for (const [name, env, expected] of cases) {

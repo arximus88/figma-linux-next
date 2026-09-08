@@ -926,6 +926,11 @@ export default class Window {
     if (!tab) return;
 
     const active = this.tabManager.lastFocusedTab === tab.id;
+    // Figma's server thumbnail is shown for any file tab, active included —
+    // that is what the official app does. The screenshot is the fallback for
+    // tabs Figma sent nothing for (community, non-file pages) and is only
+    // useful for background tabs: the active one is already on screen.
+    const preview = tab.previewData;
     const image = active ? null : (tab.thumbnail ?? null);
     const content = this.window.getContentBounds();
     const payload: Types.TabPreviewPayload = {
@@ -934,6 +939,7 @@ export default class Window {
       url: displayUrl(tab.url ?? tab.getUrl()),
       editorType: tab.editorType,
       isLibrary: tab.isLibrary,
+      preview,
       image,
       active,
       frame: resolveFrameStyle(storage.settings.app),
@@ -944,7 +950,7 @@ export default class Window {
       panelHeight: storage.settings.app.panelHeight || TOPPANELHEIGHT,
       contentWidth: content.width,
       contentHeight: content.height,
-      hasImage: !!image,
+      hasImage: !!(preview || image),
     });
 
     this.tabPreview ??= new TabPreviewView(this.window);

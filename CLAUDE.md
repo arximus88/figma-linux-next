@@ -196,8 +196,8 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
 
-**AppImageIntegration** (`src/main/AppImageIntegration.ts`):
-- On first AppImage launch, writes a `.desktop` file and calls `xdg-mime` to register the `figma://` URL scheme handler
+**UrlHandlerIntegration** (`src/main/UrlHandlerIntegration.ts`):
+- Makes sure `figma://` reaches the app when no package registered it: an AppImage always writes/refreshes its own `.desktop` (path may move); a bare binary (`nix run`, unpacked zip) writes a "local" entry only if `xdg-mime` reports no handler at all. Flatpak and dev are skipped. Rules live in the pure `planUrlHandler()` (unit-tested)
 
 ### Renderer Process Structure
 
@@ -292,7 +292,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 - `app.frameStyleAuto` (default `true`) picks the frame from the desktop environment:
   `detectFrameStyle()` in `src/utils/Main/desktopEnvironment.ts` reads `XDG_CURRENT_DESKTOP` /
-  `DESKTOP_SESSION` — KDE/Plasma → `kde`, anything else → `gnome`. Only main can see the env,
+  `DESKTOP_SESSION` — KDE/Plasma → `kde`, GNOME/Budgie → `gnome`, anything else → `windows` (Legacy). Only main can see the env,
   so renderers get the resolved value from the `getRuntimeInfo` invoke, never from `app.frameStyle`.
 - `app.frameStyle` is the manual override, used only when `frameStyleAuto` is off.
 - `gnome` (Adwaita), `kde` (Breeze glyphs, `Icons/Breeze*.svelte`, LGPL) and `windows` are
@@ -326,7 +326,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 | `src/main/Ui/TabManager.ts` | Tab management per window |
 | `src/main/Dialogs/index.ts` | Dialog provider (Native / Zenity) |
 | `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
-| `src/main/AppImageIntegration.ts` | AppImage figma:// URL handler registration |
+| `src/main/UrlHandlerIntegration.ts` | figma:// handler registration for AppImage / bare-binary launches |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
@@ -437,7 +437,11 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
    when `build-flatpak` produced no bundle. Signing key: `FLATPAK_GPG_KEY` secret (armored private
    key, fingerprint `0519BE241207E6F2F0E18F0788A28A2C84E355F9`); public half committed as
    `flatpak/figma-linux-next-repo.gpg`. Losing the private key means every existing install must
-   re-add the remote — keep a copy outside GitHub.
+   re-add the remote — keep a copy outside GitHub. The `github-pages` environment has a
+   deployment-branch policy; the job runs from a *tag*, so the policy must include a `v*` rule of
+   type `tag` next to `dev` (added 2026-09-07 after v0.20.0 failed with "Tag is not allowed to
+   deploy to github-pages"). Check with
+   `gh api repos/arximus88/figma-linux-next/environments/github-pages/deployment-branch-policies`.
 10. **`flatpak-pin`** — runs `scripts/sync_flatpak_release.py --commit <tag sha>` and commits the pinned manifest to `dev`, then `staging`. Depends on `flake` as well as `release`: both push to `dev`, and run in parallel the loser is rejected as non-fast-forward. Distinct from `build-flatpak`, which produces the bundle.
 
 Secrets required: `ID_RSA` (AUR SSH key, base64-encoded), `USER_NAME`, `EMAIL`, `RELEASE_PAT`, `FLATPAK_GPG_KEY` (armored GPG private key that signs the Pages Flatpak repo).
