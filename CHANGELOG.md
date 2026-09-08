@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Legacy frame by default outside GNOME and KDE.** Automatic frame selection used to give
+  every non-Plasma desktop the Adwaita headerbar; Pantheon, Cinnamon, XFCE, MATE and tiling
+  compositors now get the Legacy Windows frame instead, which mimics no desktop and so looks
+  intentional there. GNOME and Budgie keep Adwaita, Plasma keeps Breeze.
+
 ### Fixed
 
 - **Flatpak: tray icon missing on KDE Plasma.** Chromium registers the tray item by owning a

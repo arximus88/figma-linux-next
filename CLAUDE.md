@@ -292,7 +292,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 
 - `app.frameStyleAuto` (default `true`) picks the frame from the desktop environment:
   `detectFrameStyle()` in `src/utils/Main/desktopEnvironment.ts` reads `XDG_CURRENT_DESKTOP` /
-  `DESKTOP_SESSION` — KDE/Plasma → `kde`, anything else → `gnome`. Only main can see the env,
+  `DESKTOP_SESSION` — KDE/Plasma → `kde`, GNOME/Budgie → `gnome`, anything else → `windows` (Legacy). Only main can see the env,
   so renderers get the resolved value from the `getRuntimeInfo` invoke, never from `app.frameStyle`.
 - `app.frameStyle` is the manual override, used only when `frameStyleAuto` is off.
 - `gnome` (Adwaita), `kde` (Breeze glyphs, `Icons/Breeze*.svelte`, LGPL) and `windows` are

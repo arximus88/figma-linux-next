@@ -38,7 +38,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Latest Chromium engine** — Electron 44 / Chromium 152, so the canvas, WebGL and color handling track the current web app.
 - **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
 - **Runs on both Wayland and X11** — native Wayland on GNOME, KDE Plasma, Sway, Hyprland, with a clean X11 fallback. Tested on Asahi Linux (Apple Silicon), Niri, and openSUSE.
-- **Native window frame styles** — GNOME (Adwaita), KDE Plasma (Breeze) and Legacy Windows (Figma's own Windows chrome) frames, picked automatically from your desktop environment with a manual override in Settings (macOS TBD). The frame follows Figma's Light/Dark/System theme, the minimize/maximize buttons can be hidden for a stock-GNOME look, and the new-tab `+` can sit after the last tab (as in Figma's own desktop app) instead of the left corner. Resting the pointer on a tab shows a card with its title, link and last thumbnail (off switch in Settings).
+- **Native window frame styles** — GNOME (Adwaita), KDE Plasma (Breeze) and Legacy Windows (Figma's own Windows chrome) frames, picked automatically from your desktop environment (Plasma → Breeze, GNOME → Adwaita, anything else → Legacy) with a manual override in Settings (macOS TBD). The frame follows Figma's Light/Dark/System theme, the minimize/maximize buttons can be hidden for a stock-GNOME look, and the new-tab `+` can sit after the last tab (as in Figma's own desktop app) instead of the left corner. Resting the pointer on a tab shows a card with its title, link and last thumbnail (off switch in Settings).
 - **Instant new-file tab** — pre-loaded in the background after login, opens with no delay.
 - **System tray** — opt-in in Settings: Figma stays in the tray when the last window closes; "Show Figma" brings it back (restoring a minimised window), with New Window, Settings and Quit alongside. Native on KDE Plasma, needs the AppIndicator extension on GNOME.
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations.
@@ -123,28 +123,40 @@ Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.
 
 ### NixOS
 
-Add to your flake inputs:
-```nix
-figma-linux-next.url = "github:arximus88/figma-linux-next";
+Three ways, from quickest to most permanent. The first two are terminal commands; the
+`--extra-experimental-features` part is only needed until flakes are enabled in your config
+(`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
+
+**Have a look without installing** (login does not work here: nothing registers the
+`figma://` handler, so the browser has nowhere to send you back):
+```bash
+nix run --extra-experimental-features "nix-command flakes" github:arximus88/figma-linux-next
 ```
 
-Import the module in your `nixosConfigurations`, then enable it:
+**Install for your user**, no system config, no rebuild:
+```bash
+nix profile add --extra-experimental-features "nix-command flakes" github:arximus88/figma-linux-next
+xdg-mime default figma-linux-next.desktop x-scheme-handler/figma
+```
+The second line is what makes "Log in with browser" come back to the app. Log in from Firefox
+or a Chromium-based browser: GNOME Web (Epiphany) does not hand `figma://` links over to the
+app. Update later with
+`nix profile upgrade figma-linux-next` (older Nix: `install` instead of `add`).
+
+**Declarative (NixOS module):** add the flake input and enable the program:
 ```nix
+inputs.figma-linux-next.url = "github:arximus88/figma-linux-next";
+
+# in your nixosConfiguration
 imports = [ figma-linux-next.nixosModules.default ];
-
-programs.figma-linux-next = {
-  enable = true;
-};
+programs.figma-linux-next.enable = true;
 ```
+The module installs the package and registers the `figma://` handler for you. Without the
+`imports` line `programs.figma-linux-next` is not a known option and evaluation fails.
 
-Without the `imports` line `programs.figma-linux-next` is not a known option and
-evaluation fails.
-
-Enabling registers the `figma://` mime type handler for login redirects.
-
-The flake installs the prebuilt release binaries (x86_64 and aarch64) and is pinned to a
-specific version, which CI updates after each release. Point the input at a tag to pin it
-yourself: `github:arximus88/figma-linux-next/v0.15.0`.
+The flake ships the prebuilt release binaries (x86_64 and aarch64) and is pinned to a specific
+version, which CI updates after each release. Pin it yourself by pointing at a tag:
+`github:arximus88/figma-linux-next/v0.20.0`.
 
 ## Migration from legacy figma-linux
 
