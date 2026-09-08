@@ -135,8 +135,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/arximus88/figma-linux-next.git
-        tag: v0.20.0
-        commit: c4cde061c56c9b41f1f5108c4e63dbc8f2c3dc29
+        tag: v0.20.1
       - generated-sources.json
       # These four overwrite what the git checkout brought in. Packaging metadata
       # is edited here and takes effect on the next build; read from the tag it
