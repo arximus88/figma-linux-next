@@ -123,9 +123,8 @@ Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.
 
 ### NixOS
 
-Three ways, from quickest to most permanent. The first two are terminal commands; the
-`--extra-experimental-features` part is only needed until flakes are enabled in your config
-(`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
+The `--extra-experimental-features` part is only needed until flakes are enabled in your
+config (`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
 
 **Install for your user**, no system config, no rebuild:
 ```bash
@@ -150,7 +149,7 @@ The module installs the package and registers the `figma://` handler for you. Wi
 
 The flake ships the prebuilt release binaries (x86_64 and aarch64) and is pinned to a specific
 version, which CI updates after each release. Pin it yourself by pointing at a tag:
-`github:arximus88/figma-linux-next/v0.20.0`.
+`github:arximus88/figma-linux-next/v0.20.1`.
 
 ## Migration from legacy figma-linux
 
