@@ -211,7 +211,10 @@ declare namespace Electron {
       channel: "openExtensionDirectory",
       listener: (event: IpcMainInvokeEvent, id: number) => void,
     ): this;
-    on(channel: "openMainMenu", listener: (event: IpcMainInvokeEvent) => void): this;
+    on(
+      channel: "openMainMenu",
+      listener: (event: IpcMainInvokeEvent, anchor?: unknown) => void,
+    ): this;
     on(channel: "openMainTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openCommunityTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openTabMenu", listener: (event: IpcMainInvokeEvent, tabId: number) => void): this;
@@ -397,7 +400,7 @@ declare namespace Electron {
     send(channel: "logError", ...args: any[]): this;
     send(channel: "removeLocalFileExtension", id: number): this;
     send(channel: "openExtensionDirectory", id: number): this;
-    send(channel: "openMainMenu"): this;
+    send(channel: "openMainMenu", anchor?: Types.MenuAnchor): this;
     send(channel: "openMainTabMenu"): this;
     send(channel: "openCommunityTabMenu"): this;
     send(channel: "openTabMenu", tabId: number): this;

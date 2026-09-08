@@ -78,6 +78,24 @@ declare namespace Types {
   /** What Figma reports from its Theme menu; "system" follows the OS. */
   type FigmaThemePreference = ResolvedTheme | "system";
   /** What main sends the tab hover card (Main/Ui/TabPreviewView → renderer/Preview). */
+  /** Panel-space rect of the "…" button (window DIP), sent with openMainMenu. */
+  interface MenuAnchor {
+    left: number;
+    right: number;
+    bottom: number;
+  }
+
+  /** What Figma tells the desktop app about a file tab via `setTabPreviewData`. */
+  interface TabPreviewData {
+    /** Signed S3 URL of the file's server-rendered thumbnail (expires after days). */
+    thumbnailUrl: string;
+    backgroundColor?: string;
+    /** Figma's hint: the thumbnail is a full-width crop rather than a fitted page. */
+    fullWidth?: boolean;
+    /** ISO timestamp of the last edit. */
+    editedAt?: string;
+  }
+
   interface TabPreviewPayload {
     id: number;
     title: string;
@@ -85,6 +103,8 @@ declare namespace Types {
     url: string;
     editorType?: EditorType;
     isLibrary?: boolean;
+    /** Figma's own preview for the file, when it sent one. Preferred over `image`. */
+    preview: TabPreviewData | null;
     /** JPEG data URL captured when the tab lost focus; null for the active tab or before any capture. */
     image: string | null;
     active: boolean;

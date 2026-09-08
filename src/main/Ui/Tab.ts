@@ -40,6 +40,8 @@ export default class Tab {
   public view: WebContentsView;
   /** Last snapshot of the page as a JPEG data URL, for the hover preview card. */
   public thumbnail?: string;
+  /** Figma's own preview for the file (setTabPreviewData); the card prefers it over `thumbnail`. */
+  public previewData: Types.TabPreviewData | null = null;
 
   private _editorType: Types.EditorType | undefined;
   private _isLibrary = false;

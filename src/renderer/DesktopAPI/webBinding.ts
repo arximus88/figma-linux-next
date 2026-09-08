@@ -3,6 +3,7 @@ import * as E from "electron";
 
 import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render/webBindingsHelpers";
 import { observeFigmaTheme } from "./themeObserver";
+import { normalizeTabPreviewData } from "Utils/Common/tabPreviewData";
 
 import {
   isPrototypeUrl,
@@ -345,7 +346,9 @@ const publicAPI: any = {
     if (import.meta.env.DEV) console.debug("[stub] setLocales", args);
   },
   setTabPreviewData(args: any) {
-    if (import.meta.env.DEV) console.debug("[stub] setTabPreviewData", args);
+    // Figma's own server thumbnail + last-edit time for this file tab; main
+    // stores it on the Tab and the hover card prefers it over a screenshot.
+    sendMsgToMain("setTabPreviewData", normalizeTabPreviewData(args));
   },
   setIsLibrary(args: any) {
     if (import.meta.env.DEV) console.debug("[setIsLibrary]", args);

@@ -8,7 +8,8 @@ import {
 } from "electron";
 
 import { storage } from "Main/Storage";
-import { MENU_WIDTH, LINKS } from "Const";
+import { LINKS } from "Const";
+import { mainMenuPosition } from "Utils/Main/menuPosition";
 import { logger } from "Main/Logger";
 
 type MICO = MenuItemConstructorOptions;
@@ -72,13 +73,22 @@ export default class MenuManager {
     return this.menu;
   }
 
-  public openMainMenuHandler(width: number, window: BrowserWindow, callback?: () => void) {
-    this.menu.popup({
-      callback,
-      window,
-      x: width - MENU_WIDTH,
-      y: storage.settings.app.panelHeight,
-    });
+  /**
+   * Open the main menu under the panel's "…" button. `anchor` is the button
+   * rect from the renderer; without it (old panel, tests) the menu is placed
+   * from the window width, which Wayland reports stale in fullscreen.
+   */
+  public openMainMenuHandler(
+    window: BrowserWindow,
+    anchor: Types.MenuAnchor | null,
+    callback?: () => void,
+  ) {
+    const position = mainMenuPosition(
+      anchor,
+      window.getBounds().width,
+      storage.settings.app.panelHeight,
+    );
+    this.menu.popup({ callback, window, ...position });
   }
 
   public openMainTabMenuHandler(window: BrowserWindow, tabId: number, url: string) {

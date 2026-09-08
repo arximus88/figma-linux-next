@@ -196,8 +196,8 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
 
-**AppImageIntegration** (`src/main/AppImageIntegration.ts`):
-- On first AppImage launch, writes a `.desktop` file and calls `xdg-mime` to register the `figma://` URL scheme handler
+**UrlHandlerIntegration** (`src/main/UrlHandlerIntegration.ts`):
+- Makes sure `figma://` reaches the app when no package registered it: an AppImage always writes/refreshes its own `.desktop` (path may move); a bare binary (`nix run`, unpacked zip) writes a "local" entry only if `xdg-mime` reports no handler at all. Flatpak and dev are skipped. Rules live in the pure `planUrlHandler()` (unit-tested)
 
 ### Renderer Process Structure
 
@@ -326,7 +326,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 | `src/main/Ui/TabManager.ts` | Tab management per window |
 | `src/main/Dialogs/index.ts` | Dialog provider (Native / Zenity) |
 | `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
-| `src/main/AppImageIntegration.ts` | AppImage figma:// URL handler registration |
+| `src/main/UrlHandlerIntegration.ts` | figma:// handler registration for AppImage / bare-binary launches |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |

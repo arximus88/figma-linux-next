@@ -38,7 +38,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Latest Chromium engine** — Electron 44 / Chromium 152, so the canvas, WebGL and color handling track the current web app.
 - **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
 - **Runs on both Wayland and X11** — native Wayland on GNOME, KDE Plasma, Sway, Hyprland, with a clean X11 fallback. Tested on Asahi Linux (Apple Silicon), Niri, and openSUSE.
-- **Native window frame styles** — GNOME (Adwaita), KDE Plasma (Breeze) and Legacy Windows (Figma's own Windows chrome) frames, picked automatically from your desktop environment (Plasma → Breeze, GNOME → Adwaita, anything else → Legacy) with a manual override in Settings (macOS TBD). The frame follows Figma's Light/Dark/System theme, the minimize/maximize buttons can be hidden for a stock-GNOME look, and the new-tab `+` can sit after the last tab (as in Figma's own desktop app) instead of the left corner. Resting the pointer on a tab shows a card with its title, link and last thumbnail (off switch in Settings).
+- **Native window frame styles** — GNOME (Adwaita), KDE Plasma (Breeze) and Legacy Windows (Figma's own Windows chrome) frames, picked automatically from your desktop environment (Plasma → Breeze, GNOME → Adwaita, anything else → Legacy) with a manual override in Settings (macOS TBD). The frame follows Figma's Light/Dark/System theme, the minimize/maximize buttons can be hidden for a stock-GNOME look, and the new-tab `+` can sit after the last tab (as in Figma's own desktop app) instead of the left corner. Resting the pointer on a tab shows a card with its title, Figma's thumbnail of the file and when it was last edited (off switch in Settings).
 - **Instant new-file tab** — pre-loaded in the background after login, opens with no delay.
 - **System tray** — opt-in in Settings: Figma stays in the tray when the last window closes; "Show Figma" brings it back (restoring a minimised window), with New Window, Settings and Quit alongside. Native on KDE Plasma, needs the AppIndicator extension on GNOME.
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations.
@@ -126,12 +126,6 @@ Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.
 Three ways, from quickest to most permanent. The first two are terminal commands; the
 `--extra-experimental-features` part is only needed until flakes are enabled in your config
 (`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
-
-**Have a look without installing** (login does not work here: nothing registers the
-`figma://` handler, so the browser has nowhere to send you back):
-```bash
-nix run --extra-experimental-features "nix-command flakes" github:arximus88/figma-linux-next
-```
 
 **Install for your user**, no system config, no rebuild:
 ```bash

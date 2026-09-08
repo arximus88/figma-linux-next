@@ -7,12 +7,24 @@
    * thumbnail (none for the active tab — it is already on screen), plus the
    * frame and theme to dress like the panel above it.
    */
+  import { relativeTime } from "Utils/Common/tabPreviewData";
+
   let data = $state<Types.TabPreviewPayload | null>(null);
+  // Figma's thumbnail URL is signed and expires; when it fails to load the
+  // card falls back to the screenshot, if there is one.
+  let previewBroken = $state(false);
 
   window.figmaApi.on("tabPreviewData", (payload: Types.TabPreviewPayload) => {
+    if (payload.preview?.thumbnailUrl !== data?.preview?.thumbnailUrl) previewBroken = false;
     data = payload;
     document.documentElement.setAttribute("data-theme", payload.theme);
   });
+
+  const meta = $derived.by(() => {
+    const edited = data?.preview?.editedAt ? relativeTime(data.preview.editedAt) : "";
+    return edited ? `Edited ${edited}` : (data?.url ?? "");
+  });
+  const showPreview = $derived(!!data?.preview && !previewBroken);
 </script>
 
 {#if data}
@@ -30,12 +42,22 @@
         </span>
         <div class="text">
           <span class="title">{data.title || "Untitled"}</span>
-          {#if data.url}
-            <span class="url">{data.url}</span>
+          {#if meta}
+            <span class="url">{meta}</span>
           {/if}
         </div>
       </div>
-      {#if data.image}
+      {#if showPreview && data.preview}
+        <div class="shot preview" style:background={data.preview.backgroundColor ?? "transparent"}>
+          <img
+            src={data.preview.thumbnailUrl}
+            class:cover={data.preview.fullWidth}
+            alt=""
+            draggable="false"
+            onerror={() => (previewBroken = true)}
+          />
+        </div>
+      {:else if data.image}
         <img class="shot" src={data.image} alt="" draggable="false" />
       {/if}
     </div>
@@ -117,6 +139,21 @@
     object-fit: cover;
     object-position: center;
     border-top: 1px solid var(--borders);
+  }
+  /* Figma's thumbnail is a fitted render of the page: letterbox it on the
+     file's own background, as the file browser does; `fullWidth` ones crop. */
+  .preview {
+    box-sizing: border-box;
+  }
+  .preview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+  }
+  .preview img.cover {
+    object-fit: cover;
   }
 
   @keyframes card-in {

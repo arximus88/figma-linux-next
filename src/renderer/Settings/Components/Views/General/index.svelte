@@ -265,13 +265,13 @@
         </SettingRow>
         <SettingRow
           title="Tab previews on hover"
-          subtitle="Rest the pointer on a tab to see its title, link and last thumbnail"
+          subtitle="Rest the pointer on a tab to see its title, thumbnail and last edit"
         >
           <Toggle bind:checked={$settings.app.tabHoverPreviews} />
         </SettingRow>
         <SettingRow
           title="System tray icon"
-          subtitle="Keep Figma running in the tray when the last window is closed (GNOME needs the AppIndicator extension)"
+          subtitle="Keep Figma running in the tray when the last window is closed. Works on KDE Plasma and on GNOME with the AppIndicator extension; other desktops may show no icon"
         >
           <Toggle
             bind:checked={$settings.app.trayEnabled}

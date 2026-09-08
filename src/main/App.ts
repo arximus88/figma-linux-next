@@ -4,7 +4,7 @@ import * as Const from "Const";
 import { isAppAuthLink, isValidProjectLink } from "Utils/Common";
 import { readAppVersion } from "Utils/Main";
 import Args from "./Args";
-import { registerAppImageUrlHandler } from "./AppImageIntegration";
+import { registerUrlHandler } from "./UrlHandlerIntegration";
 import { logger } from "./Logger";
 import { storage } from "./Storage";
 
@@ -52,7 +52,7 @@ export default class App {
       app.setAsDefaultProtocolClient(Const.PROTOCOL);
     }
 
-    registerAppImageUrlHandler();
+    registerUrlHandler();
 
     this.mcpServer = new McpServer(logger);
     this.trayManager = new TrayManager(this.windowManager);
@@ -181,7 +181,13 @@ export default class App {
     if (projectLinkIdx !== -1) {
       this.windowManager.focusLastWindow();
       this.windowManager.openUrl(argv[projectLinkIdx]);
+      return;
     }
+
+    // A plain relaunch (dock icon, `figma-linux-next` in a terminal) with a
+    // window already open: bring it up. focus() also restores a minimised
+    // window — a user who cannot see it assumes the app hung.
+    this.windowManager.focusLastWindow();
   }
 
   private onWindowAllClosed() {

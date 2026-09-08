@@ -43,6 +43,7 @@ const SEND_CHANNELS = [
   "setTabEditorType",
   "setTabIsLibrary",
   "setTabUrl",
+  "setTabPreviewData",
 ] as const;
 
 const RECEIVE_CHANNELS = [
