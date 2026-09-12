@@ -73,6 +73,20 @@ export default class TabManager {
 
     parsedUrl.searchParams.set("fuid", userId);
     tab.loadUrl(parsedUrl.toString());
+
+    // Same family of issue as the "reattached view stays blank" gotcha
+    // (Window.swapTo): a loadURL() on an already-visible WebContentsView can
+    // land its first frame without the compositor actually presenting it on
+    // Wayland/Electron 44 — the page is genuinely showing the new account,
+    // it just doesn't paint until another visibility toggle, which is what a
+    // manual second click/focus accidentally provides. Force that toggle
+    // ourselves once the new page has actually loaded, but only if this tab
+    // is still the one on screen (the user may have switched away by then).
+    tab.view.webContents.once("did-finish-load", () => {
+      if (tab.view.webContents.isDestroyed() || this.lastFocusedTab !== tab.id) return;
+      tab.view.setVisible(false);
+      tab.view.setVisible(true);
+    });
   }
   public addTab(url = RECENT_FILES, title?: string): Tab {
     const tab = new Tab(this.windowId);
