@@ -250,6 +250,12 @@ export default class TabManager {
   }
   public getAll = () => this.tabs;
 
+  /** Direct map lookup — avoids the getById() fallback-to-mainTab footgun for a dynamic id. */
+  public setGroupId(tabId: number, groupId: string | undefined) {
+    const tab = this.tabs.get(tabId);
+    if (tab) tab.groupId = groupId;
+  }
+
   public focusTab(id: Types.TabIdType) {
     const tab = this.getById(id);
 

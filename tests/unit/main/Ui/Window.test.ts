@@ -48,6 +48,7 @@ mock.module("electron", () => {
     ipcMain: { on: mock(), handle: mock(), removeHandler: mock() },
     dialog: { showMessageBoxSync: mock(), showOpenDialogSync: mock() },
     BrowserWindow: class {
+      static fromId = (): undefined => undefined;
       id = 1;
       webContents = {
         id: 2,
@@ -104,6 +105,7 @@ mock.module("electron", () => {
 });
 
 import type { IpcMainEvent } from "electron";
+import { storage } from "Main/Storage";
 import Tab from "Main/Ui/Tab";
 import Window from "Main/Ui/Window";
 
@@ -231,6 +233,173 @@ describe("Window Tab Routing", () => {
       expect(state.tabs.length).toBe(2);
       expect(state.tabs[0].url).toBe("https://www.figma.com/design/abc/A");
       expect(state.tabs[1].url).toBe("https://www.figma.com/design/def/B");
+    });
+  });
+
+  describe("Tab groups (Phase 1: metadata + membership, no drag-and-drop)", () => {
+    test("createTabGroupWithTab assigns the tab and broadcasts the new group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.createTabGroupWithTab(tab.id, "  Design  ", "#4285f4");
+
+      const groups = windowInstance.getTabGroups();
+      expect(groups.length).toBe(1);
+      expect(groups[0].label).toBe("Design"); // trimmed
+      expect(groups[0].color).toBe("#4285f4");
+      expect(groups[0].collapsed).toBe(false);
+      expect(tab.groupId).toBe(groups[0].id);
+
+      const setTabGroupCall = send.mock.calls.find((c: any[]) => c[0] === "setTabGroup");
+      expect(setTabGroupCall?.[1]).toEqual({ id: tab.id, groupId: groups[0].id });
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(true);
+    });
+
+    test("createTabGroupWithTab ignores a blank label", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+
+      windowInstance.createTabGroupWithTab(tab.id, "   ", "#4285f4");
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+      expect(tab.groupId).toBeUndefined();
+    });
+
+    test("addTabToGroup moves a tab into another group and prunes the one it left empty", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+
+      windowInstance.createTabGroupWithTab(tabA.id, "Group A", "#4285f4");
+      const groupAId = windowInstance.getTabGroups()[0].id;
+      windowInstance.createTabGroupWithTab(tabB.id, "Group B", "#ea4335");
+      const groupBId = windowInstance.getTabGroups().find((g) => g.id !== groupAId)!.id;
+
+      windowInstance.addTabToGroup(tabA.id, groupBId);
+
+      expect(tabA.groupId).toBe(groupBId);
+      const groups = windowInstance.getTabGroups();
+      expect(groups.length).toBe(1);
+      expect(groups[0].id).toBe(groupBId);
+    });
+
+    test("removeTabFromGroup clears membership and deletes a now-empty group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      windowInstance.removeTabFromGroup(tab.id);
+
+      expect(tab.groupId).toBeUndefined();
+      expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("removeTabFromGroup keeps the group while another tab is still a member", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Design", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+
+      windowInstance.removeTabFromGroup(tabA.id);
+
+      expect(tabA.groupId).toBeUndefined();
+      expect(windowInstance.getTabGroups().length).toBe(1);
+      expect(tabB.groupId).toBe(groupId);
+    });
+
+    test("setTabGroupCollapsed toggles the group's collapsed flag", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.setTabGroupCollapsed(groupId, true);
+      expect(windowInstance.getTabGroups()[0].collapsed).toBe(true);
+
+      windowInstance.setTabGroupCollapsed(groupId, false);
+      expect(windowInstance.getTabGroups()[0].collapsed).toBe(false);
+    });
+
+    test("closing a group's last tab prunes the group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      windowInstance.closeTab(tab.id);
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("getState persists each tab's groupId alongside the group metadata", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A", "File A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      const state = windowInstance.getState();
+
+      expect(state.tabs[0].groupId).toBe(state.tabGroups[0].id);
+      expect(state.tabGroups[0]).toEqual({
+        id: state.tabGroups[0].id,
+        label: "Design",
+        color: "#4285f4",
+        collapsed: false,
+        order: 0,
+      });
+    });
+
+    test("applyState pre-populates groups from persisted state, and restoreTabs restores groupId", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      storage.settings.app.saveLastOpenedTabs = true;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "",
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [{ id: "g1", label: "Design", color: "#4285f4", collapsed: false, order: 0 }],
+        };
+
+        const restored = new Window(persisted);
+
+        // applyState() runs synchronously in the constructor.
+        expect(restored.getTabGroups()).toEqual([
+          { id: "g1", label: "Design", color: "#4285f4", collapsed: false, order: 0 },
+        ]);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab").mockReturnValue({ id: 1 } as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A", groupId: "g1" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        expect(addTabSpy).toHaveBeenCalledWith(
+          "https://www.figma.com/design/abc/A",
+          "File A",
+          "g1",
+        );
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+      }
     });
   });
 });

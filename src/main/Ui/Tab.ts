@@ -37,6 +37,8 @@ export default class Tab {
   public fileKey?: string;
   public isUsingMicrophone?: boolean;
   public isInVoiceCall?: boolean;
+  /** Tab group this tab belongs to, if any. Set/cleared by TabManager.setGroupId. */
+  public groupId?: string;
   public view: WebContentsView;
   /** Last snapshot of the page as a JPEG data URL, for the hover preview card. */
   public thumbnail?: string;

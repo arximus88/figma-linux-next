@@ -4,7 +4,7 @@
   import List from "../Components/List.svelte";
   import { tabSlide } from "../Components/motion";
   import { closeTab, newFileTabOrder, tabFocus } from "../Components/utils";
-  import { currentTab, layout, newFileVisible, tabs } from "../store";
+  import { currentTab, layout, newFileVisible, tabGroups, tabs } from "../store";
   import NewTabButton from "./NewTabButton.svelte";
 
   let { style }: { style: Types.FrameStyle } = $props();
@@ -54,16 +54,32 @@
   // immediately, not only on window close.
   function onReorder(orderedIds: number[]) {
     const byId = new Map(tabs.value.map((t) => [t.id, t]));
-    const next = orderedIds
+    const reordered = orderedIds
       .map((id) => byId.get(id))
       .filter((t): t is Types.TabFront => !!t)
       .map((tab, index) => ({
         ...tab,
         order: tab.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : index + 1,
-      }))
+      }));
+    const reorderedById = new Map(reordered.map((t) => [t.id, t]));
+
+    // Tabs hidden inside a collapsed group never reach the drag strip (their
+    // wrapper isn't rendered — see List.svelte), so `orderedIds` omits them.
+    // Keep those untouched in their existing slot instead of dropping them.
+    const next = tabs.value
+      .map((tab) => reorderedById.get(tab.id) ?? tab)
       .sort((a, b) => (a.order > b.order ? 1 : -1));
+
     tabs.set(next);
     window.figmaApi.send("reorderTabs", $state.snapshot(next));
+  }
+
+  function onToggleGroupCollapse(groupId: string) {
+    const group = tabGroups.getGroup(groupId);
+    if (!group) return;
+    const collapsed = !group.collapsed;
+    tabGroups.setCollapsedLocal(groupId, collapsed);
+    window.figmaApi.send("setTabGroupCollapsed", { groupId, collapsed });
   }
 
   $effect(() => {
@@ -82,6 +98,7 @@
 >
   <List
     items={tabs.value}
+    groups={tabGroups.value}
     {currentTabId}
     closeIcon={cfg.tabs.closeIcon.component}
     closeIconSize={cfg.tabs.closeIcon.size}
@@ -96,6 +113,7 @@
     {onClickTitle}
     {onClickClose}
     {onReorder}
+    {onToggleGroupCollapse}
     onActivate={tabFocus}
   />
   {#if layout.newTabAfterTabs && newFileVisible.value}
