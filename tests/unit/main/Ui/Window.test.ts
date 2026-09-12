@@ -210,6 +210,26 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("Account switch: deferred tab refresh applied on focus", () => {
+    test("setTabFocus applies a deferred fuid update before showing the tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      spyOn(tabManager, "getById").mockReturnValue({ id: 42, setBounds: mock() });
+      const applySpy = spyOn(tabManager, "applyPendingUserId");
+      spyOn(windowInstance, "calcBoundsForTabView").mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+      });
+      spyOn(windowInstance, "hideTabPreview").mockReturnValue(undefined);
+      spyOn(windowInstance as any, "swapTo").mockReturnValue(undefined);
+
+      windowInstance.setTabFocus(42);
+
+      expect(applySpy).toHaveBeenCalledWith(42);
+    });
+  });
+
   describe("Bug 3: saveLastOpenedTabs persisted empty tabs after closeAll", () => {
     test("getState returns cached snapshot after cacheStateBeforeClose, even when live tabs map has been cleared", () => {
       const tabManager: any = (windowInstance as any).tabManager;
@@ -393,5 +413,36 @@ describe("Warm tab lifecycle", () => {
     // Stale warm tab destroyed and a fresh schedule queued for the new user.
     expect(destroySpy).toHaveBeenCalled();
     expect(scheduled.some((t) => t.delay === 2000)).toBe(true);
+  });
+
+  test("switching user re-navigates open project tabs with the new fuid", () => {
+    w.setUserId("user-1"); // first boot — no previous id yet
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-2");
+
+    expect(reapplySpy).toHaveBeenCalledWith("user-2");
+  });
+
+  test("first setUserId does not re-navigate project tabs", () => {
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-1");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
+  });
+
+  test("re-entrant setUserId with the same id does not re-navigate project tabs", () => {
+    w.setUserId("user-1");
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-1");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
   });
 });
