@@ -117,6 +117,12 @@ export default class WindowManager {
     }
   }
 
+  public setUserIdOnAllWindows(userId: string) {
+    for (const [_, window] of this.windows) {
+      window.setUserId(userId);
+    }
+  }
+
   public handleUrl(urlPath: string) {
     const window = this.windows.get(this.lastFocusedwindowId);
     if (window) {

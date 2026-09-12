@@ -176,6 +176,12 @@ export default class Window {
     // The warm tab bakes the user id into its URL, so an account switch
     // invalidates it. Tear down + reschedule (and schedule on first boot).
     this.warmTabs.onUserIdChanged(previousId, id);
+
+    // Open project tabs also loaded under the previous account. Re-navigate
+    // them with the new fuid on an actual switch (never on first boot).
+    if (previousId && previousId !== id) {
+      this.tabManager.reapplyUserId(id);
+    }
   }
   public sortTabs(tabs: Types.TabFront[]) {
     this.tabManager.sortTabs(tabs);
@@ -826,6 +832,15 @@ export default class Window {
 
     this.hideTabPreview();
     this.swapTo(tab);
+
+    // Catch up a tab whose account-switch refresh was deferred while it was
+    // in the background (see TabManager.reapplyUserId) — a no-op otherwise.
+    // Applied AFTER swapTo, not before: navigating a WebContentsView while
+    // it's still hidden and only then calling setVisible can leave it
+    // unpainted until another visibility toggle on Wayland/Electron 44 (the
+    // "Child views are attached once" gotcha).
+    this.tabManager.applyPendingUserId(tabId);
+
     this.tabManager.focusTab(tabId);
     this.tabManager.setBounds(tabId, bounds);
     this.window.webContents.send("focusTab", tabId);

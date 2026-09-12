@@ -42,6 +42,13 @@ export default class Tab {
   public thumbnail?: string;
   /** Figma's own preview for the file (setTabPreviewData); the card prefers it over `thumbnail`. */
   public previewData: Types.TabPreviewData | null = null;
+  /**
+   * Set by TabManager.reapplyUserId when this tab is in the background during
+   * an account switch: the fuid refresh is deferred until the tab is actually
+   * focused (TabManager.applyPendingUserId), instead of reloading every open
+   * tab at once.
+   */
+  public pendingUserId?: string;
 
   private _editorType: Types.EditorType | undefined;
   private _isLibrary = false;
