@@ -17,6 +17,7 @@ function addTab(data: Types.AddTabProps) {
       isUsingMicrophone: false,
       isInVoiceCall: false,
       loading: data.loading ?? true,
+      groupId: data.groupId,
     },
   ].sort((a, b) => (a.order > b.order ? 1 : -1));
 }

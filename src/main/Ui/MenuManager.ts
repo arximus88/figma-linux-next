@@ -159,7 +159,13 @@ export default class MenuManager {
       window,
     });
   }
-  public openTabMenuHandler(window: BrowserWindow, tabId: number, url: string) {
+  public openTabMenuHandler(
+    window: BrowserWindow,
+    tabId: number,
+    url: string,
+    groups: Types.TabGroup[] = [],
+    currentGroupId?: string,
+  ) {
     const context: MenuItemConstructorOptions[] = [
       {
         id: "copyUrl",
@@ -187,6 +193,43 @@ export default class MenuManager {
       },
       { type: "separator" },
       {
+        id: "newTabGroup",
+        label: "New Group with This Tab",
+        click: (_, window) => {
+          app.emit("promptNewTabGroup", window?.id, tabId);
+        },
+      },
+    ];
+
+    // Offer every *other* group — adding to the tab's own current group is a no-op.
+    const otherGroups = groups.filter((g) => g.id !== currentGroupId);
+    if (otherGroups.length > 0) {
+      context.push({
+        id: "addToTabGroup",
+        label: "Add to Group",
+        submenu: otherGroups.map((g) => ({
+          id: `addToTabGroup-${g.id}`,
+          label: g.label,
+          click: (_, window) => {
+            app.emit("addTabToGroup", window?.id, tabId, g.id);
+          },
+        })),
+      });
+    }
+
+    if (currentGroupId) {
+      context.push({
+        id: "removeFromTabGroup",
+        label: "Remove from Group",
+        click: (_, window) => {
+          app.emit("removeTabFromGroup", window?.id, tabId);
+        },
+      });
+    }
+
+    context.push(
+      { type: "separator" },
+      {
         id: "close",
         label: "Close",
         visible: true,
@@ -194,7 +237,7 @@ export default class MenuManager {
           app.emit("closeTab", window?.id, tabId);
         },
       },
-    ];
+    );
 
     const menu = Menu.buildFromTemplate(context);
 
