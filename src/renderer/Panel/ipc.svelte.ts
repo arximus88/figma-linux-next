@@ -4,6 +4,7 @@ import { applyLayoutSettings, newFileTabOrder } from "./Components/utils";
 import {
   currentTab,
   tabs,
+  tabGroups,
   isMenuOpen,
   panelZoom,
   newFileVisible,
@@ -11,11 +12,41 @@ import {
   windowControls,
 } from "./store";
 
+/**
+ * Keeps grouped tabs clustered together and pushed ahead of ungrouped ones,
+ * ordered by each group's creation order — otherwise a tab added to a group
+ * whose other members sit elsewhere in the strip would render as a second,
+ * identically-labeled group header instead of joining the existing one.
+ * Re-run on every group membership/list change (setTabGroup, tabGroupsChanged).
+ */
+function resortGroupsToFront() {
+  const groupOrder = new Map(tabGroups.value.map((g, index) => [g.id, index]));
+  const newFileOrder = newFileTabOrder();
+  const UNGROUPED = Number.MAX_SAFE_INTEGER;
+
+  const next = tabs.value
+    .map((tab, index) => ({ tab, index }))
+    .sort((a, b) => {
+      const ga = a.tab.groupId ? (groupOrder.get(a.tab.groupId) ?? UNGROUPED) : UNGROUPED;
+      const gb = b.tab.groupId ? (groupOrder.get(b.tab.groupId) ?? UNGROUPED) : UNGROUPED;
+      // Same group (or both ungrouped) — preserve their existing relative order.
+      return ga !== gb ? ga - gb : a.index - b.index;
+    })
+    .map(({ tab }, index) => ({
+      ...tab,
+      order: tab.title === NEW_FILE_TAB_TITLE ? newFileOrder : index + 1,
+    }));
+
+  tabs.set(next);
+  window.figmaApi.send("reorderTabs", $state.snapshot(next));
+}
+
 export function initIpc() {
   window.figmaApi.send("frontReady");
 
   window.figmaApi.on("closeAllTabs", () => {
     tabs.set([]);
+    tabGroups.clear();
   });
   window.figmaApi.on("didTabAdd", (data: any) => {
     tabs.addTab({
@@ -26,6 +57,7 @@ export function initIpc() {
       order: data.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : undefined,
       editorType: data.editorType,
       loading: data.loading,
+      groupId: data.groupId,
     });
 
     if (data.focused) {
@@ -90,5 +122,17 @@ export function initIpc() {
   });
   window.figmaApi.on("setLoading", (tabId: number, loading: boolean) => {
     tabs.updateTab({ id: tabId, loading });
+  });
+
+  window.figmaApi.on("tabGroupsChanged", (groups: Types.TabGroup[]) => {
+    tabGroups.set(groups);
+    resortGroupsToFront();
+  });
+  window.figmaApi.on("setTabGroup", (data: any) => {
+    tabs.updateTab({ id: data.id, groupId: data.groupId });
+    resortGroupsToFront();
+  });
+  window.figmaApi.on("promptNewTabGroup", (tabId: number) => {
+    tabGroups.openPrompt(tabId);
   });
 }

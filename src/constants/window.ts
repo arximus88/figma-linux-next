@@ -13,6 +13,7 @@ export const WINDOW_DEFAULT_OPTIONS: Types.WindowState & {
   hasOpenedCommunityTab: false,
   userId: "",
   tabs: [],
+  tabGroups: [],
   frame: false,
   webPreferences: {
     nodeIntegration: false,
