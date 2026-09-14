@@ -50,6 +50,7 @@ export default class Window {
   // lives on each live Tab (tab.groupId) — this map only holds label/color/
   // collapsed/order. Persisted as `tabGroups` in Types.WindowState.
   private tabGroups: Map<string, Types.TabGroup> = new Map();
+  private recentlyPrunedGroups: Map<string, Types.TabGroup> = new Map();
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
   // not overwritten by the BrowserWindow `close` event firing later with
@@ -197,6 +198,19 @@ export default class Window {
   }
   public sortTabs(tabs: Types.TabFront[]) {
     this.tabManager.sortTabs(tabs);
+    const previousGroupIds = new Set<string>();
+    for (const t of tabs) {
+      const tab = this.tabManager.getById(t.id);
+      if (tab instanceof Tab) {
+        if (tab.groupId && tab.groupId !== t.groupId) {
+          previousGroupIds.add(tab.groupId);
+        }
+        tab.groupId = t.groupId;
+      }
+    }
+    for (const prevId of previousGroupIds) {
+      this.pruneEmptyGroup(prevId);
+    }
   }
   public getState(): Types.WindowState & { windowId: number } {
     // During close, cacheStateBeforeClose() snapshots state into this.state
@@ -424,7 +438,19 @@ export default class Window {
   public loadLoginPageAllWindows() {
     this.tabManager.loadLoginPage();
   }
-  public newProject() {
+  public newTabInGroup(groupId: string): void {
+    if (this.tabManager.hasOpenedNewFileTab) {
+      const existing = this.tabManager.getByTitle(NEW_FILE_TAB_TITLE);
+      if (existing) {
+        this.addTabToGroup(existing.id, groupId);
+        this.setTabFocus(existing.id);
+      }
+      return;
+    }
+    this.newProject(groupId);
+  }
+
+  public newProject(groupId?: string) {
     if (this.tabManager.hasOpenedNewFileTab) {
       return;
     }
@@ -433,6 +459,9 @@ export default class Window {
     if (ready) {
       // Promote the pre-warmed tab — instant, no loading delay
       this.tabManager.promoteWarmTab(ready.tab);
+      if (groupId) {
+        ready.tab.groupId = groupId;
+      }
       this.window.webContents.send("didTabAdd", {
         id: ready.tab.id,
         url: ready.tab.url,
@@ -442,18 +471,30 @@ export default class Window {
         // Without this flag, the renderer never paints a placeholder and
         // a not-yet-bootstrapped warm tab promotion shows a blank page.
         loading: !ready.wasBootstrapped,
+        groupId: ready.tab.groupId,
       });
       this.setTabFocus(ready.tab.id);
     } else {
       // Fallback: warm tab not ready yet, create normally
-      this.addTab(`${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`, NEW_FILE_TAB_TITLE);
+      const tab = this.addTab(
+        `${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`,
+        NEW_FILE_TAB_TITLE,
+        groupId,
+      );
+      if (tab) {
+        this.setTabFocus(tab.id);
+      }
     }
 
     this.window.webContents.send("newFileBtnVisible", false);
   }
   public createFile(args: WebApi.CreateFile) {
     const newFileTab = this.tabManager.getByTitle(NEW_FILE_TAB_TITLE);
-    const tab = this.addTab(args.url);
+    const tab = this.addTab(
+      args.url,
+      undefined,
+      newFileTab instanceof Tab ? newFileTab.groupId : undefined,
+    );
     if (!tab) return false;
 
     tab.loadUrl(args.url);
@@ -575,6 +616,35 @@ export default class Window {
     const stillUsed = [...this.tabManager.getAll().values()].some((t) => t.groupId === groupId);
     if (stillUsed) return;
 
+    const group = this.tabGroups.get(groupId);
+    if (group) {
+      this.recentlyPrunedGroups.set(groupId, group);
+    }
+    this.tabGroups.delete(groupId);
+    this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
+  }
+
+  public ungroup(groupId: string): void {
+    for (const tab of this.tabManager.getAll().values()) {
+      if (tab.groupId === groupId) {
+        tab.groupId = undefined;
+        this.window.webContents.send("setTabGroup", { id: tab.id, groupId: undefined });
+      }
+    }
+    this.tabGroups.delete(groupId);
+    this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
+  }
+
+  public closeTabGroup(groupId: string): void {
+    const toClose: number[] = [];
+    for (const tab of this.tabManager.getAll().values()) {
+      if (tab.groupId === groupId) {
+        toClose.push(tab.id);
+      }
+    }
+    for (const tabId of toClose) {
+      this.closeTab(tabId);
+    }
     this.tabGroups.delete(groupId);
     this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
   }
@@ -595,6 +665,7 @@ export default class Window {
       id: tabId,
       title: tab instanceof Tab ? tab.title : "",
       url,
+      groupId: tab instanceof Tab ? tab.groupId : undefined,
     };
   }
 
@@ -607,7 +678,17 @@ export default class Window {
     parsedUrl.searchParams.set("fuid", this._userId);
 
     const tab = this.tabManager.addTab(parsedUrl.toString(), title);
-    if (groupId) tab.groupId = groupId;
+    if (groupId) {
+      if (!this.tabGroups.has(groupId) && this.recentlyPrunedGroups.has(groupId)) {
+        const group = this.recentlyPrunedGroups.get(groupId)!;
+        this.tabGroups.set(groupId, group);
+        this.recentlyPrunedGroups.delete(groupId);
+        this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
+      }
+      if (this.tabGroups.has(groupId)) {
+        tab.groupId = groupId;
+      }
+    }
     tab.view.setBackgroundColor(this.figmaThemeBgColor);
     this.attachHidden(tab.view);
 
@@ -1016,14 +1097,20 @@ export default class Window {
       return;
     }
 
+    const newFileTab = this.tabManager.getByTitle(NEW_FILE_TAB_TITLE);
+    const targetGroupId = newFileTab instanceof Tab ? newFileTab.groupId : undefined;
+
     const existing = this.findTabForUrl(url);
     if (existing) {
+      if (targetGroupId && !existing.groupId) {
+        this.addTabToGroup(existing.id, targetGroupId);
+      }
       this.closeNewFileTab();
       this.setTabFocus(existing.id);
       return;
     }
 
-    const tab = this.addTab(url);
+    const tab = this.addTab(url, undefined, targetGroupId);
     if (tab) {
       this.closeNewFileTab();
       this.setTabFocus(tab.id);

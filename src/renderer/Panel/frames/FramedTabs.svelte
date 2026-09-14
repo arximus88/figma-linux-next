@@ -3,7 +3,7 @@
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
   import List from "../Components/List.svelte";
   import { tabSlide } from "../Components/motion";
-  import { closeTab, newFileTabOrder, tabFocus } from "../Components/utils";
+  import { closeTab, newFileTabOrder, tabFocus, clusterGroupedTabs } from "../Components/utils";
   import { currentTab, layout, newFileVisible, tabGroups, tabs } from "../store";
   import NewTabButton from "./NewTabButton.svelte";
 
@@ -43,7 +43,8 @@
     }
   }
 
-  function onClickClose(_event: MouseEvent, id: number) {
+  function onClickClose(event: MouseEvent, id: number) {
+    if (event && event.button !== undefined && event.button !== 0) return;
     closeTab(id);
   }
 
@@ -52,23 +53,37 @@
   // push it to the main process so
   // the tab Map — and thus Ctrl+(Shift+)Tab cycling — follows the visual order
   // immediately, not only on window close.
-  function onReorder(orderedIds: number[]) {
+  function onReorder(orderedIds: number[], groupAssignments?: Map<number, string | undefined>) {
     const byId = new Map(tabs.value.map((t) => [t.id, t]));
     const reordered = orderedIds
       .map((id) => byId.get(id))
       .filter((t): t is Types.TabFront => !!t)
-      .map((tab, index) => ({
-        ...tab,
-        order: tab.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : index + 1,
-      }));
+      .map((tab, index) => {
+        const newGroupId = groupAssignments?.has(tab.id)
+          ? groupAssignments.get(tab.id)
+          : tab.groupId;
+        return {
+          ...tab,
+          groupId: newGroupId,
+          order: tab.title === NEW_FILE_TAB_TITLE && !newGroupId ? newFileTabOrder() : index + 1,
+        };
+      });
     const reorderedById = new Map(reordered.map((t) => [t.id, t]));
 
     // Tabs hidden inside a collapsed group never reach the drag strip (their
     // wrapper isn't rendered — see List.svelte), so `orderedIds` omits them.
     // Keep those untouched in their existing slot instead of dropping them.
-    const next = tabs.value
-      .map((tab) => reorderedById.get(tab.id) ?? tab)
-      .sort((a, b) => (a.order > b.order ? 1 : -1));
+    const merged = tabs.value
+      .map((tab) => reorderedById.get(tab.id) ?? tab);
+
+    const next = clusterGroupedTabs(merged);
+
+    // Prune groups that have lost all their member tabs
+    const activeGroupIds = new Set(next.map((t) => t.groupId).filter(Boolean));
+    const prunedGroups = tabGroups.value.filter((g) => activeGroupIds.has(g.id));
+    if (prunedGroups.length !== tabGroups.value.length) {
+      tabGroups.set(prunedGroups);
+    }
 
     tabs.set(next);
     window.figmaApi.send("reorderTabs", $state.snapshot(next));
@@ -80,6 +95,12 @@
     const collapsed = !group.collapsed;
     tabGroups.setCollapsedLocal(groupId, collapsed);
     window.figmaApi.send("setTabGroupCollapsed", { groupId, collapsed });
+  }
+
+  function onContextMenuGroup(e: MouseEvent, groupId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.figmaApi.send("openTabGroupMenu", groupId);
   }
 
   $effect(() => {
@@ -100,6 +121,7 @@
     items={tabs.value}
     groups={tabGroups.value}
     {currentTabId}
+    frameStyle={style}
     closeIcon={cfg.tabs.closeIcon.component}
     closeIconSize={cfg.tabs.closeIcon.size}
     showDividers={cfg.tabs.showDividers}
@@ -114,6 +136,7 @@
     {onClickClose}
     {onReorder}
     {onToggleGroupCollapse}
+    {onContextMenuGroup}
     onActivate={tabFocus}
   />
   {#if layout.newTabAfterTabs && newFileVisible.value}

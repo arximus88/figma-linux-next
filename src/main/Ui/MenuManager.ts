@@ -42,7 +42,7 @@ export default class MenuManager {
           type: "normal",
           label: data.title,
           click: (_, window) => {
-            app.emit("restoreClosedTab", window?.id, data.title, data.url);
+            app.emit("restoreClosedTab", window?.id, data.title, data.url, data.groupId);
           },
         })),
       });
@@ -238,6 +238,39 @@ export default class MenuManager {
         },
       },
     );
+
+    const menu = Menu.buildFromTemplate(context);
+
+    menu.popup({
+      window,
+    });
+  }
+
+  public openTabGroupMenuHandler(window: BrowserWindow, groupId: string) {
+    const context: MenuItemConstructorOptions[] = [
+      {
+        id: "newTabInGroup",
+        label: "New Tab in Group",
+        click: (_, window) => {
+          app.emit("newTabInGroup", window?.id, groupId);
+        },
+      },
+      { type: "separator" },
+      {
+        id: "ungroup",
+        label: "Ungroup",
+        click: (_, window) => {
+          app.emit("ungroupTabGroup", window?.id, groupId);
+        },
+      },
+      {
+        id: "closeGroup",
+        label: "Close Group",
+        click: (_, window) => {
+          app.emit("closeTabGroup", window?.id, groupId);
+        },
+      },
+    ];
 
     const menu = Menu.buildFromTemplate(context);
 

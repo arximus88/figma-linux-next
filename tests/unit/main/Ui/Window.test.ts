@@ -109,6 +109,7 @@ import { storage } from "Main/Storage";
 import Tab from "Main/Ui/Tab";
 import TabGroupPromptView from "Main/Ui/TabGroupPromptView";
 import Window from "Main/Ui/Window";
+import { NEW_FILE_TAB_TITLE } from "Const";
 
 describe("Window Tab Routing", () => {
   let windowInstance: Window;
@@ -353,6 +354,126 @@ describe("Window Tab Routing", () => {
       windowInstance.closeTab(tab.id);
 
       expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("ungroup clears groupId on member tabs and deletes the group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+
+      windowInstance.ungroup(groupId);
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+      expect(tabA.groupId).toBeUndefined();
+      expect(tabB.groupId).toBeUndefined();
+    });
+
+    test("closeTabGroup closes all member tabs and removes the group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      const tabC = tabManager.addTab("https://figma.com/file/c", "C");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+
+      windowInstance.closeTabGroup(groupId);
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+      expect(tabManager.getAll().has(tabA.id)).toBe(false);
+      expect(tabManager.getAll().has(tabB.id)).toBe(false);
+      expect(tabManager.getAll().has(tabC.id)).toBe(true);
+    });
+
+    test("newTabInGroup creates a new project tab in group and focuses it", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      const setTabFocusSpy = spyOn(windowInstance, "setTabFocus").mockReturnValue(undefined as any);
+      windowInstance.newTabInGroup(groupId);
+
+      const allTabs = [...tabManager.getAll().values()];
+      const newTab = allTabs.find((t: any) => t.groupId === groupId && t.id !== tabA.id);
+      expect(newTab).toBeDefined();
+      expect(newTab?.title).toBe(NEW_FILE_TAB_TITLE);
+      expect(setTabFocusSpy).toHaveBeenCalledWith(newTab?.id);
+    });
+
+    test("sortTabs syncs tab groupId and prunes empty groups", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.sortTabs([
+        { id: tabA.id, groupId: undefined } as any,
+        { id: tabB.id, groupId } as any,
+      ]);
+
+      expect(tabA.groupId).toBeUndefined();
+      expect(tabB.groupId).toBe(groupId);
+      expect(windowInstance.getTabGroups().length).toBe(1);
+
+      windowInstance.sortTabs([
+        { id: tabB.id, groupId: undefined } as any,
+        { id: tabA.id, groupId: undefined } as any,
+      ]);
+
+      expect(tabB.groupId).toBeUndefined();
+      expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("createTabGroupWithTab does not get deleted when sortTabs is called with existing group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.sortTabs([{ id: tabA.id, groupId: tabA.groupId } as any]);
+
+      expect(windowInstance.getTabGroups().length).toBe(1);
+      expect(windowInstance.getTabGroups()[0].id).toBe(groupId);
+    });
+
+    test("openFile inherits groupId from New File tab opened in a group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.newTabInGroup(groupId);
+      const newFileTab = tabManager.getByTitle(NEW_FILE_TAB_TITLE);
+      expect(newFileTab?.groupId).toBe(groupId);
+
+      windowInstance.openFile(null as any, "/file/new-item");
+
+      const openedTab =
+        tabManager.getByTitle("new-item") ??
+        [...tabManager.getAll().values()].find((t: any) => t.url.includes("/file/new-item"));
+      expect(openedTab).toBeDefined();
+      expect(openedTab?.groupId).toBe(groupId);
+      expect(tabManager.getByTitle(NEW_FILE_TAB_TITLE)).toBeUndefined();
+    });
+
+    test("addTab restores a recently pruned group when reopening a closed tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.closeTab(tabA.id);
+      expect(windowInstance.getTabGroups().length).toBe(0);
+
+      const restored = windowInstance.addTab("https://figma.com/file/a", "A", groupId);
+      expect(windowInstance.getTabGroups().length).toBe(1);
+      expect(windowInstance.getTabGroups()[0].id).toBe(groupId);
+      expect(restored?.groupId).toBe(groupId);
     });
 
     test("getState persists each tab's groupId alongside the group metadata", () => {

@@ -29,7 +29,7 @@ declare namespace Electron {
     on(event: "openFileBrowser", listener: (sender: Electron.WebContents) => void): this;
     on(
       event: "restoreClosedTab",
-      listener: (windowId: number, title: string, uri: string) => void,
+      listener: (windowId: number, title: string, uri: string, groupId?: string) => void,
     ): this;
     on(event: "handle-page-command", listener: (item: any, window: BrowserWindow) => void): this;
     on(event: "log", listener: (data: any) => void): this;
@@ -93,7 +93,13 @@ declare namespace Electron {
     emit(event: "chromeGpu", windowId: number): boolean;
     emit(event: "openFileUrlClipboard", sender: Electron.WebContents): boolean;
     emit(event: "openFileBrowser", sender: Electron.WebContents): boolean;
-    emit(event: "restoreClosedTab", windowId: number, title: string, uri: string): boolean;
+    emit(
+      event: "restoreClosedTab",
+      windowId: number,
+      title: string,
+      uri: string,
+      groupId?: string,
+    ): boolean;
     emit(event: "handle-page-command", item: any, window: BrowserWindow): boolean;
     emit(event: "log", data: any): boolean;
     emit(event: "signOut"): boolean;
@@ -218,6 +224,10 @@ declare namespace Electron {
     on(channel: "openMainTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openCommunityTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openTabMenu", listener: (event: IpcMainInvokeEvent, tabId: number) => void): this;
+    on(
+      channel: "openTabGroupMenu",
+      listener: (event: IpcMainInvokeEvent, groupId: string) => void,
+    ): this;
     on(channel: "appExit", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "newProject", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "closeCommunityTab", listener: (event: IpcMainInvokeEvent) => void): this;
@@ -404,6 +414,7 @@ declare namespace Electron {
     send(channel: "openMainTabMenu"): this;
     send(channel: "openCommunityTabMenu"): this;
     send(channel: "openTabMenu", tabId: number): this;
+    send(channel: "openTabGroupMenu", groupId: string): this;
     send(channel: "newProject"): this;
     send(channel: "closeCommunityTab"): this;
     send(channel: "appExit"): this;

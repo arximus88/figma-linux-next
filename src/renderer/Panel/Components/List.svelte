@@ -14,11 +14,13 @@
     currentTabId,
     items = $bindable([]),
     groups = [],
+    frameStyle = "gnome",
     onClickTitle = (event: MouseEvent, id: number) => {},
     onClickClose = (event: any, id: number) => {},
-    onReorder = (orderedIds: number[]) => {},
+    onReorder = (orderedIds: number[], groupAssignments?: Map<number, string | undefined>) => {},
     onActivate = (id: number) => {},
     onToggleGroupCollapse = (groupId: string) => {},
+    onContextMenuGroup = (event: MouseEvent, groupId: string) => {},
     // Style props — provided by each frame's Tabs component
     closeIcon,
     closeIconSize,
@@ -34,11 +36,13 @@
     currentTabId: number | undefined;
     items: Types.TabFront[];
     groups?: Types.TabGroup[];
+    frameStyle?: Types.FrameStyle;
     onClickTitle: (event: MouseEvent, id: number) => void;
     onClickClose: (event: any, id: number) => void;
-    onReorder: (orderedIds: number[]) => void;
+    onReorder: (orderedIds: number[], groupAssignments?: Map<number, string | undefined>) => void;
     onActivate: (id: number) => void;
     onToggleGroupCollapse?: (groupId: string) => void;
+    onContextMenuGroup?: (event: MouseEvent, groupId: string) => void;
     closeIcon: Component<any>;
     closeIconSize: string;
     showDividers?: boolean;
@@ -109,16 +113,31 @@
 </script>
 
 <section
-  use:tabReorder={{ onReorder, onActivate, enabled: items.length > 1 }}
+  use:tabReorder={{
+    onReorder,
+    onActivate,
+    onToggleGroupCollapse,
+    enabled: items.length > 1 || groups.length > 0,
+  }}
   use:tabHover={{ enabled: layout.tabHoverPreviews }}
 >
-  {#each rows as row (row.type === "group" ? `group-${row.group.id}` : `tab-${row.tab.id}`)}
+  {#each rows as row (row.type === "group" ? `group-${row.group.id}-${row.tabs[0]?.tab.id ?? "empty"}` : `tab-${row.tab.id}`)}
     {#if row.type === "group"}
-      <div class="tab-group-container" style="--group-color: {row.group.color}">
+      <div
+        role="group"
+        aria-label={row.group.label}
+        class="tab-group-container"
+        data-group-id={row.group.id}
+        data-frame={frameStyle}
+        style="--group-color: {row.group.color}"
+        ondblclick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           class="tab-group-header"
           onclick={() => onToggleGroupCollapse(row.group.id)}
+          ondblclick={(e) => e.stopPropagation()}
+          oncontextmenu={(e) => onContextMenuGroup(e, row.group.id)}
           aria-expanded={!row.group.collapsed}
           aria-label={row.group.collapsed
             ? `Expand group ${row.group.label}`
@@ -126,28 +145,27 @@
         >
           <span class="tab-group-dot"></span>
           <span class="tab-group-label">{row.group.label}</span>
-          <span class="tab-group-chevron" class:collapsed={row.group.collapsed}>▾</span>
         </button>
         {#if !row.group.collapsed}
-          {#each row.tabs as entry (entry.tab.id)}
-            {@render tabRow(entry.tab, entry.index, true)}
+          {#each row.tabs as entry, tabIdx (entry.tab.id)}
+            {@render tabRow(entry.tab, entry.index, true, tabIdx)}
           {/each}
         {/if}
       </div>
     {:else}
-      {@render tabRow(row.tab, row.index, false)}
+      {@render tabRow(row.tab, row.index, false, 0)}
     {/if}
   {/each}
 </section>
 
-{#snippet tabRow(item: Types.TabFront, index: number, grouped: boolean)}
+{#snippet tabRow(item: Types.TabFront, index: number, grouped: boolean, tabIdx: number = 0)}
   <div
     class={tabWrapperClass}
     data-tab-id={item.id}
     data-loading={item.loading}
     transition:tabSlide
   >
-    {#if showDividers && index > 0}
+    {#if showDividers && (grouped ? tabIdx > 0 : index > 0)}
       <div
         class="{dividerClass} {currentTabId === item.id || currentTabId === items[index - 1]?.id ? dividerNearActiveClass : ''}"
       ></div>
@@ -162,6 +180,12 @@
         class={tabTextClass}
         data-drag-handle
         onmouseup={(e) => onClickTitle(e, item.id)}
+        oncontextmenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.figmaApi.send("openTabMenu", item.id);
+        }}
+        ondblclick={(e) => e.stopPropagation()}
       >
         {#if (item.loading || !item.title) && item.title !== NEW_FILE_TAB_TITLE}
           <span class="tab-skeleton-icon"></span>
@@ -181,6 +205,11 @@
         {normalBgColor}
         {hoverBgColor}
         onButtonClick={(e: any) => onClickClose(e, item.id)}
+        onContextmenu={(e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.figmaApi.send("openTabMenu", item.id);
+        }}
         onMouseenter={(e: any) => onHover(e, item.id)}
         onMouseleave={(e: any) => onLeave(e, item.id)}
       >
@@ -218,6 +247,19 @@
        even the New file tab, which isn't activated on grab. */
     background: #3d3d40;
   }
+  :global(.group-dragging) {
+    z-index: 25 !important;
+    opacity: 0.95;
+    cursor: grabbing !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+  :global(.tab-group-drop-target) {
+    box-shadow: 0 0 0 2px var(--group-color), 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+    transition: box-shadow 0.15s ease;
+  }
+  .tab-group-header:active {
+    cursor: grabbing;
+  }
 
   /* The group is a real flex parent of its header + tabs (see `rows` above),
      not a run of siblings the CSS has to line up — `gap: 0` alone guarantees
@@ -241,59 +283,192 @@
      with the bottom edge) instead of adding to it — no compensating negative
      margin is needed, and the container's rendered height stays exactly
      equal to an ungrouped tab wrapper's height for the same frame. */
+  /* ── Tab Group Container ──────────────────────────────────────────── */
   .tab-group-container {
-    --group-radius: 10px;
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0;
-    margin: 0 6px;
     flex-shrink: 0;
-  }
-  .tab-group-container::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 3px;
-    /* Larger than the bar is tall, so the browser clamps it to half the
-       bar's height — a guaranteed full pill cap at both ends regardless of
-       cluster width. */
-    border-radius: 999px;
-    background: var(--group-color);
-    pointer-events: none;
+    box-sizing: border-box;
   }
 
-  .tab-group-header {
+  /* ── GNOME Frame ──────────────────────────────────────────────────── */
+  .tab-group-container[data-frame="gnome"] {
+    height: 34px;
+    border: 1px solid color-mix(in srgb, var(--group-color) 45%, transparent);
+    border-radius: 8px;
+    margin: 0 4px;
+    padding-left: 5px;
+    padding-right: 3px;
+    gap: 2px;
+    background-color: transparent;
+  }
+
+  .tab-group-container[data-frame="gnome"] .tab-group-header {
     display: flex;
     align-items: center;
     gap: 6px;
     height: 24px;
     box-sizing: border-box;
     margin: 0;
-    padding: 0 8px;
+    padding: 0 8px 0 6px;
     border: none;
-    border-top-left-radius: var(--group-radius);
-    border-bottom-left-radius: var(--group-radius);
+    border-radius: 4px;
     background: color-mix(in srgb, var(--group-color) 32%, transparent);
-    color: var(--frame-fg-muted, rgba(255, 255, 255, 0.8));
+    color: var(--frame-fg, rgba(255, 255, 255, 0.9));
     font-size: 12px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     flex-shrink: 0;
     -webkit-app-region: no-drag;
+    transition: background-color var(--motion-hover, 0.15s) ease;
   }
-  .tab-group-header:hover {
-    background: color-mix(in srgb, var(--group-color) 45%, transparent);
+  .tab-group-container[data-frame="gnome"] .tab-group-header:hover {
+    background: color-mix(in srgb, var(--group-color) 48%, transparent);
   }
-  /* Collapsed group: the header is the only (and therefore last) child, so
-     it reads as a standalone chip — round all four corners instead of just
-     the left ones. */
-  .tab-group-header:last-child {
-    border-radius: var(--group-radius);
+
+  :global(.tab-group-container[data-frame="gnome"] .g-tab) {
+    height: 28px !important;
+    border-radius: 6px !important;
+    background-color: transparent !important;
   }
+  :global(.tab-group-container[data-frame="gnome"] .g-tab:not(.g-tab--active):hover) {
+    background-color: var(--frame-tab-hover) !important;
+  }
+  :global(.tab-group-container[data-frame="gnome"] .g-tab--active) {
+    background-color: color-mix(in srgb, var(--group-color) 38%, var(--frame-tab-active, rgba(255, 255, 255, 0.15))) !important;
+    border-radius: 6px !important;
+    color: var(--frame-fg) !important;
+  }
+  :global(.tab-group-container[data-frame="gnome"] .g-divider) {
+    height: 18px !important;
+    background-color: color-mix(in srgb, var(--group-color) 35%, var(--frame-divider)) !important;
+  }
+  :global(.tab-group-container[data-frame="gnome"] .g-divider--near-active) {
+    background-color: transparent !important;
+  }
+
+  /* ── KDE Frame ────────────────────────────────────────────────────── */
+  .tab-group-container[data-frame="kde"] {
+    height: 40px;
+    border: none;
+    border-radius: 3px 3px 0 0;
+    margin: 0 4px;
+    padding-left: 5px;
+    padding-right: 2px;
+    gap: 0;
+    background-color: transparent;
+  }
+  .tab-group-container[data-frame="kde"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: var(--group-color);
+    border-radius: 3px 3px 0 0;
+  }
+  .tab-group-container[data-frame="kde"] .tab-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    box-sizing: border-box;
+    margin: 0 4px 0 0;
+    padding: 0 8px 0 6px;
+    border: none;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--group-color) 28%, transparent);
+    color: var(--frame-fg, rgba(255, 255, 255, 0.9));
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+    transition: background-color var(--motion-hover, 0.15s) ease;
+  }
+  .tab-group-container[data-frame="kde"] .tab-group-header:hover {
+    background: color-mix(in srgb, var(--group-color) 42%, transparent);
+  }
+  :global(.tab-group-container[data-frame="kde"] .k-tab) {
+    height: 38px !important;
+    background-color: transparent !important;
+  }
+  :global(.tab-group-container[data-frame="kde"] .k-tab:not(.k-tab--active):hover) {
+    background-color: var(--frame-tab-hover) !important;
+  }
+  :global(.tab-group-container[data-frame="kde"] .k-tab--active) {
+    background-color: color-mix(in srgb, var(--group-color) 25%, var(--frame-tab-active)) !important;
+  }
+  :global(.tab-group-container[data-frame="kde"] .k-tab--active::before) {
+    background-color: var(--group-color) !important;
+  }
+
+  /* ── Windows Frame ────────────────────────────────────────────────── */
+  .tab-group-container[data-frame="windows"],
+  .tab-group-container[data-frame="macos"] {
+    height: 40px;
+    border: none;
+    border-radius: 0;
+    margin: 0 4px;
+    padding-left: 5px;
+    padding-right: 0;
+    gap: 0;
+    background-color: transparent;
+  }
+  .tab-group-container[data-frame="windows"]::after,
+  .tab-group-container[data-frame="macos"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--group-color);
+    pointer-events: none;
+  }
+  .tab-group-container[data-frame="windows"] .tab-group-header,
+  .tab-group-container[data-frame="macos"] .tab-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    box-sizing: border-box;
+    margin: 0 4px 0 0;
+    padding: 0 8px 0 6px;
+    border: none;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--group-color) 25%, transparent);
+    color: var(--fg-tab, rgba(255, 255, 255, 0.9));
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+    transition: background-color var(--motion-hover, 0.15s) ease;
+  }
+  .tab-group-container[data-frame="windows"] .tab-group-header:hover,
+  .tab-group-container[data-frame="macos"] .tab-group-header:hover {
+    background: color-mix(in srgb, var(--group-color) 38%, transparent);
+  }
+  :global(.tab-group-container[data-frame="windows"] .w-tab),
+  :global(.tab-group-container[data-frame="macos"] .w-tab) {
+    background-color: transparent !important;
+  }
+  :global(.tab-group-container[data-frame="windows"] .w-tab:not(.w-tab--active):hover),
+  :global(.tab-group-container[data-frame="macos"] .w-tab:not(.w-tab--active):hover) {
+    background-color: var(--bg-tab-hover, rgba(255, 255, 255, 0.08)) !important;
+  }
+  :global(.tab-group-container[data-frame="windows"] .w-tab--active),
+  :global(.tab-group-container[data-frame="macos"] .w-tab--active) {
+    background-color: color-mix(in srgb, var(--group-color) 25%, var(--bg-tab-active, rgba(255, 255, 255, 0.08))) !important;
+  }
+
+  /* ── Group Dot and Label ──────────────────────────────────────────── */
   .tab-group-dot {
     width: 8px;
     height: 8px;
@@ -306,43 +481,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 140px;
-  }
-  .tab-group-chevron {
-    font-size: 9px;
-    opacity: 0.7;
-    transition: transform var(--motion-hover, 0.15s) ease;
-  }
-  .tab-group-chevron.collapsed {
-    transform: rotate(-90deg);
-  }
-
-  /* Grouped-tab affordance: a light tint of the group's color, matching the
-     header's own tint — the bracket bar lives once on `.tab-group-container`
-     (the parent, via ::after) instead of here, so header + tabs just get
-     the tint. Applied to the inner {tabClass} element (not the wrapper) so it's the
-     same element that owns the tab's own background — it naturally respects
-     that element's own border-radius.
-     Specificity note: `.g-tab`/`.k-tab`/`.w-tab` (FramedTabs.svelte) each set
-     their own base `background-color`. Since that rule lives in a different
-     component, its position in the final bundled stylesheet isn't under our
-     control, so a plain `.tab-grouped` class (equal specificity) could lose
-     to it on source order alone. The `div` type selector bumps specificity
-     just enough to always win the *base* state, without reaching for
-     !important — hover/active still show their own state color on top,
-     which is the desired behavior (the active tab keeps its own look). */
-  :global(div.tab-grouped) {
-    background-color: color-mix(in srgb, var(--group-color) 32%, transparent);
-  }
-  /* Outer-right end of the cluster: round the last grouped tab's right
-     corners to match the header chip's rounded left corners, so the whole
-     header→tabs run reads as one bracket with soft ends. Left corners are
-     left alone (whatever the frame's own base radius is) since that side
-     abuts the previous tab/header, not the outer edge. Same specificity-bump
-     rationale as above — a plain class selector isn't guaranteed to win
-     against `.g-tab`/`.k-tab`/`.w-tab`'s own border-radius. */
-  :global(.tab-group-container > div:last-child div.tab-grouped) {
-    border-top-right-radius: var(--group-radius, 10px);
-    border-bottom-right-radius: var(--group-radius, 10px);
   }
 
   :global(.tab-skeleton-icon) {

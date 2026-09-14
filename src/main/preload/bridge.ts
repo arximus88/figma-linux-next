@@ -28,6 +28,7 @@ const SEND_CHANNELS = [
   "openCommunityTabMenu",
   "newProject",
   "openTabMenu",
+  "openTabGroupMenu",
   "tabHoverStart",
   "tabHoverEnd",
   "createTabGroupWithTab",

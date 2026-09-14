@@ -304,6 +304,7 @@ export default class WindowManager {
     // Menu operations
     ipcRegistry.on("openMainMenu", this.openMainMenuHandler.bind(this), "WindowManager");
     ipcRegistry.on("openTabMenu", this.openTabMenuHandler.bind(this), "WindowManager");
+    ipcRegistry.on("openTabGroupMenu", this.openTabGroupMenuHandler.bind(this), "WindowManager");
     ipcRegistry.on("openMainTabMenu", this.openMainTabMenuHandler.bind(this), "WindowManager");
     ipcRegistry.on(
       "openCommunityTabMenu",
@@ -445,7 +446,7 @@ export default class WindowManager {
     this.closedTabs.delete(last);
     storage.settings.app.recentlyClosedTabs = this.closedTabsForMenu;
 
-    window.addTab(tabInfo.url, tabInfo.title);
+    window.addTab(tabInfo.url, tabInfo.title, tabInfo.groupId);
   }
   private handleCloseTab(window: Window, tabId: number) {
     const tabInfo = window.getTabInfo(tabId);
@@ -455,6 +456,7 @@ export default class WindowManager {
       this.closedTabs.set(tabInfo.title, {
         title: tabInfo.title,
         url: tabInfo.url,
+        groupId: tabInfo.groupId,
       });
     }
 
@@ -480,10 +482,10 @@ export default class WindowManager {
 
     window.setFocusToMainTab();
   }
-  private restoreClosedTab(windowId: number, title: string, uri: string) {
+  private restoreClosedTab(windowId: number, title: string, uri: string, groupId?: string) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
 
-    window.addTab(uri, title);
+    window.addTab(uri, title, groupId);
   }
   private openDevTools(event: IpcMainEvent, mode: "right" | "bottom" | "undocked" | "detach") {
     if (event.sender) {
@@ -581,6 +583,23 @@ export default class WindowManager {
   private removeTabFromGroupFromMenu(windowId: number, tabId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
     window?.removeTabFromGroup(tabId);
+  }
+  private openTabGroupMenuHandler(event: IpcMainEvent, groupId: string) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    if (!window) return;
+    this.menuManager.openTabGroupMenuHandler(window.win, groupId);
+  }
+  private newTabInGroupFromMenu(windowId: number, groupId: string) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.newTabInGroup(groupId);
+  }
+  private ungroupTabGroupFromMenu(windowId: number, groupId: string) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.ungroup(groupId);
+  }
+  private closeTabGroupFromMenu(windowId: number, groupId: string) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.closeTabGroup(groupId);
   }
 
   private windowClose(windowId: number) {
@@ -906,6 +925,9 @@ export default class WindowManager {
     app.on("promptNewTabGroup", this.promptNewTabGroupFromMenu.bind(this));
     app.on("addTabToGroup", this.addTabToGroupFromMenu.bind(this));
     app.on("removeTabFromGroup", this.removeTabFromGroupFromMenu.bind(this));
+    app.on("newTabInGroup", this.newTabInGroupFromMenu.bind(this));
+    app.on("ungroupTabGroup", this.ungroupTabGroupFromMenu.bind(this));
+    app.on("closeTabGroup", this.closeTabGroupFromMenu.bind(this));
 
     app.on("focusLastWindow", this.focusLastWindow.bind(this));
     app.on("requestBoundsForTabView", this.sendWindowBoundsToTabs.bind(this));
