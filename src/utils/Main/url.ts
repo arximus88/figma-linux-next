@@ -8,11 +8,13 @@ export const settingsUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT 
 
 export const changelogUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/changelog.html"}`;
 export const previewUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/preview.html"}`;
+export const groupPromptUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/groupPrompt.html"}`;
 
 export const panelUrlProd = `file://${resolve(__dirname, "../index.html")}`;
 export const settingsUrlProd = `file://${resolve(__dirname, "../settings.html")}`;
 export const changelogUrlProd = `file://${resolve(__dirname, "../changelog.html")}`;
 export const previewUrlProd = `file://${resolve(__dirname, "../preview.html")}`;
+export const groupPromptUrlProd = `file://${resolve(__dirname, "../groupPrompt.html")}`;
 
 export const preloadMainScriptPathDev = `${resolve(
   __dirname,

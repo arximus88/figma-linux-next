@@ -128,6 +128,13 @@ declare namespace Types {
     theme: ResolvedTheme;
   }
 
+  /** What main sends the "New Group with This Tab" popover (Main/Ui/TabGroupPromptView). */
+  interface TabGroupPromptPayload {
+    tabId: number;
+    frame: FrameStyle;
+    theme: ResolvedTheme;
+  }
+
   /** Runtime values the main process resolves for the renderers. */
   interface RuntimeInfo {
     frameStyle: FrameStyle;

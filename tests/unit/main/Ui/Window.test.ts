@@ -107,6 +107,7 @@ mock.module("electron", () => {
 import type { IpcMainEvent } from "electron";
 import { storage } from "Main/Storage";
 import Tab from "Main/Ui/Tab";
+import TabGroupPromptView from "Main/Ui/TabGroupPromptView";
 import Window from "Main/Ui/Window";
 
 describe("Window Tab Routing", () => {
@@ -420,6 +421,58 @@ describe("Window Tab Routing", () => {
       } finally {
         storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
       }
+    });
+  });
+
+  describe("New Group popover (TabGroupPromptView)", () => {
+    test("promptNewTabGroup only asks the panel for an anchor when the tab is known", () => {
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.promptNewTabGroup(99999);
+      expect(send).not.toHaveBeenCalledWith("promptNewTabGroup", 99999);
+
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.promptNewTabGroup(tab.id);
+      expect(send).toHaveBeenCalledWith("promptNewTabGroup", tab.id);
+    });
+
+    test("showTabGroupPrompt ignores an unknown tab and never creates a view", () => {
+      windowInstance.showTabGroupPrompt(99999, { left: 10, width: 40 });
+      expect((windowInstance as any).tabGroupPrompt).toBeNull();
+    });
+
+    test("showTabGroupPrompt anchors the popover under the tab, just below the panel", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      const showSpy = spyOn(TabGroupPromptView.prototype, "show");
+
+      windowInstance.showTabGroupPrompt(tab.id, { left: 120, width: 60 });
+
+      expect(showSpy.mock.calls.length).toBe(1);
+      const [bounds, payload] = showSpy.mock.calls[0] as [any, Types.TabGroupPromptPayload];
+      expect(payload.tabId).toBe(tab.id);
+      // storage.settings.app.panelHeight is mocked to 40 above.
+      expect(bounds.y).toBe(40);
+
+      showSpy.mockRestore();
+    });
+
+    test("hideTabGroupPrompt hides an open popover", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.showTabGroupPrompt(tab.id, { left: 0, width: 40 });
+
+      const hideSpy = spyOn(TabGroupPromptView.prototype, "hide");
+      windowInstance.hideTabGroupPrompt();
+
+      expect(hideSpy.mock.calls.length).toBe(1);
+      hideSpy.mockRestore();
+    });
+
+    test("hideTabGroupPrompt is a no-op when the popover was never shown", () => {
+      expect(() => windowInstance.hideTabGroupPrompt()).not.toThrow();
     });
   });
 });
