@@ -221,28 +221,48 @@
 
   /* The group is a real flex parent of its header + tabs (see `rows` above),
      not a run of siblings the CSS has to line up — `gap: 0` alone guarantees
-     the header and its tabs sit flush, no margin arithmetic required. The
-     border lives here (one line under the whole group) instead of on each
-     child individually, now that there's an actual parent to put it on.
-     The container has no explicit height (it isn't known here — frame-
-     specific tab heights live in FramedTabs.svelte) — it auto-sizes to its
-     tallest child (a tab wrapper), and a plain `border-bottom` would add 3px
-     on top of that, which can then get clipped by `.tabs`' overflow the same
-     way it did when the border briefly lived on the tab wrapper directly
-     (verified empirically — see git history). The `margin-bottom` on each
-     child below (matching the border width) cancels that growth so the
-     container's rendered height never changes, while the border itself
-     still paints at the (unmoved) bottom edge. */
+     the header and its tabs sit flush, no margin arithmetic required.
+
+     Chrome-style bracket: a thin colored bar with fully rounded (pill) end
+     caps runs along the bottom of the whole cluster, and the header chip's
+     outer corners (plus the last tab's outer corners) get a matching rounded-
+     rect treatment so the header-to-tabs run reads as one soft bracket
+     wrapping the group, not a hard-edged box.
+
+     Height-neutrality (a real, empirically-verified constraint — see git
+     history): the container has no explicit height — frame-specific tab
+     heights live in FramedTabs.svelte — so it auto-sizes to its tallest
+     in-flow child (a tab wrapper). A plain `border-bottom` here (an earlier
+     version of this design) adds to that auto height, and the extra pixels
+     get silently clipped by `.tabs`' overflow-x:scroll (which per spec forces
+     overflow-y to `auto`) once they push past the panel's tab-row ceiling.
+     The bar below is `position: absolute`, so it is pulled out of normal
+     flow entirely and paints *inside* the container's existing box (flush
+     with the bottom edge) instead of adding to it — no compensating negative
+     margin is needed, and the container's rendered height stays exactly
+     equal to an ungrouped tab wrapper's height for the same frame. */
   .tab-group-container {
+    --group-radius: 10px;
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0;
     margin: 0 6px;
     flex-shrink: 0;
-    border-bottom: 5px solid var(--group-color);
   }
-  :global(.tab-group-container > div) {
-    margin-bottom: -5px;
+  .tab-group-container::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    /* Larger than the bar is tall, so the browser clamps it to half the
+       bar's height — a guaranteed full pill cap at both ends regardless of
+       cluster width. */
+    border-radius: 999px;
+    background: var(--group-color);
+    pointer-events: none;
   }
 
   .tab-group-header {
@@ -254,6 +274,8 @@
     margin: 0;
     padding: 0 8px;
     border: none;
+    border-top-left-radius: var(--group-radius);
+    border-bottom-left-radius: var(--group-radius);
     background: color-mix(in srgb, var(--group-color) 32%, transparent);
     color: var(--frame-fg-muted, rgba(255, 255, 255, 0.8));
     font-size: 12px;
@@ -265,6 +287,12 @@
   }
   .tab-group-header:hover {
     background: color-mix(in srgb, var(--group-color) 45%, transparent);
+  }
+  /* Collapsed group: the header is the only (and therefore last) child, so
+     it reads as a standalone chip — round all four corners instead of just
+     the left ones. */
+  .tab-group-header:last-child {
+    border-radius: var(--group-radius);
   }
   .tab-group-dot {
     width: 8px;
@@ -289,9 +317,9 @@
   }
 
   /* Grouped-tab affordance: a light tint of the group's color, matching the
-     header's own tint — the border lives once on `.tab-group-container`
-     (the parent) instead of here, so header + tabs just get the tint.
-     Applied to the inner {tabClass} element (not the wrapper) so it's the
+     header's own tint — the bracket bar lives once on `.tab-group-container`
+     (the parent, via ::after) instead of here, so header + tabs just get
+     the tint. Applied to the inner {tabClass} element (not the wrapper) so it's the
      same element that owns the tab's own background — it naturally respects
      that element's own border-radius.
      Specificity note: `.g-tab`/`.k-tab`/`.w-tab` (FramedTabs.svelte) each set
@@ -304,6 +332,17 @@
      which is the desired behavior (the active tab keeps its own look). */
   :global(div.tab-grouped) {
     background-color: color-mix(in srgb, var(--group-color) 32%, transparent);
+  }
+  /* Outer-right end of the cluster: round the last grouped tab's right
+     corners to match the header chip's rounded left corners, so the whole
+     header→tabs run reads as one bracket with soft ends. Left corners are
+     left alone (whatever the frame's own base radius is) since that side
+     abuts the previous tab/header, not the outer edge. Same specificity-bump
+     rationale as above — a plain class selector isn't guaranteed to win
+     against `.g-tab`/`.k-tab`/`.w-tab`'s own border-radius. */
+  :global(.tab-group-container > div:last-child div.tab-grouped) {
+    border-top-right-radius: var(--group-radius, 10px);
+    border-bottom-right-radius: var(--group-radius, 10px);
   }
 
   :global(.tab-skeleton-icon) {
