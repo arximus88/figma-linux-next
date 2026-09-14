@@ -132,7 +132,13 @@ export function initIpc() {
     tabs.updateTab({ id: data.id, groupId: data.groupId });
     resortGroupsToFront();
   });
+  // Main asks for the triggering tab's on-screen rect before it shows the
+  // "New Group with This Tab" popover — same hand-off tabHover.ts uses for
+  // the hover card (see Main/Ui/TabGroupPromptView).
   window.figmaApi.on("promptNewTabGroup", (tabId: number) => {
-    tabGroups.openPrompt(tabId);
+    const wrapper = document.querySelector<HTMLElement>(`[data-tab-id="${tabId}"]`);
+    if (!wrapper) return;
+    const r = wrapper.getBoundingClientRect();
+    window.figmaApi.send("tabGroupPromptAnchor", tabId, { left: r.left, width: r.width });
   });
 }

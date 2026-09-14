@@ -293,6 +293,13 @@ export default class WindowManager {
       this.setTabGroupCollapsedHandler.bind(this),
       "WindowManager",
     );
+    // "New Group with This Tab" popover (panel → main → TabGroupPromptView)
+    ipcRegistry.on("tabGroupPromptAnchor", this.tabGroupPromptAnchor.bind(this), "WindowManager");
+    ipcRegistry.on(
+      "closeTabGroupPrompt",
+      this.closeTabGroupPromptHandler.bind(this),
+      "WindowManager",
+    );
 
     // Menu operations
     ipcRegistry.on("openMainMenu", this.openMainMenuHandler.bind(this), "WindowManager");
@@ -511,6 +518,19 @@ export default class WindowManager {
   }
   private tabHoverEnd(event: IpcMainEvent) {
     this.getWindowByWebContentsId(event.sender.id)?.hideTabPreview();
+  }
+
+  // The panel replies with the triggering tab's rect once it gets
+  // "promptNewTabGroup" (see Window.promptNewTabGroup / ipc.svelte.ts) —
+  // only then does the popover actually show, anchored to that rect.
+  private tabGroupPromptAnchor(event: IpcMainEvent, tabId: unknown, anchor: unknown) {
+    if (typeof tabId !== "number" || !isPreviewAnchor(anchor)) return;
+    this.getWindowByWebContentsId(event.sender.id)?.showTabGroupPrompt(tabId, anchor);
+  }
+  // Sent by the popover itself (renderer/GroupPrompt) on Cancel, Escape or a
+  // successful Create.
+  private closeTabGroupPromptHandler(event: IpcMainEvent) {
+    this.getWindowByWebContentsId(event.sender.id)?.hideTabGroupPrompt();
   }
 
   private windowFocus(windowId: number) {

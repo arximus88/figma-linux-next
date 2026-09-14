@@ -5,6 +5,7 @@ import { getResolvedFigmaTheme } from "Main/Theme";
 import SettingsView from "./SettingsView";
 import ChangelogView from "./ChangelogView";
 import TabPreviewView from "./TabPreviewView";
+import TabGroupPromptView from "./TabGroupPromptView";
 import { ModalViewManager } from "./ModalViewManager";
 import TabManager from "./TabManager";
 import { WarmTabManager } from "./WarmTabManager";
@@ -24,6 +25,7 @@ import {
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
 import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
+import { computeTabGroupPromptBounds } from "Utils/Main/tabGroupPrompt";
 import Tab from "./Tab";
 import type MainTab from "./MainTab";
 import type CommunityTab from "./CommunityTab";
@@ -42,6 +44,8 @@ export default class Window {
   private modalViews: ModalViewManager;
   // Hover card for strip tabs; created on the first hover (app.tabHoverPreviews).
   private tabPreview: TabPreviewView | null = null;
+  // "New Group with This Tab" popover; created on first use.
+  private tabGroupPrompt: TabGroupPromptView | null = null;
   // Tab group metadata for this window, keyed by group id. Membership itself
   // lives on each live Tab (tab.groupId) — this map only holds label/color/
   // collapsed/order. Persisted as `tabGroups` in Types.WindowState.
@@ -163,6 +167,9 @@ export default class Window {
     }
     if (this.tabPreview) {
       ids.add(this.tabPreview.webContentsId);
+    }
+    if (this.tabGroupPrompt) {
+      ids.add(this.tabGroupPrompt.webContentsId);
     }
     // Include warm tab so IPC messages from it can be routed to this window
     const warmId = this.warmTabs.activeWebContentsId;
@@ -394,6 +401,7 @@ export default class Window {
     this.tabManager.setBoundsForActiveTab(bounds);
     this.modalViews.syncBounds(this.window.getBounds());
     this.hideTabPreview();
+    this.hideTabGroupPrompt();
   }
 
   public updateAllTabsBounds() {
@@ -472,10 +480,44 @@ export default class Window {
     return this.tabManager.getAll().has(webContentsId);
   }
 
-  /** Ask the panel to collect a name/color for a new group around `tabId` (see NewTabGroupPrompt.svelte). */
+  /**
+   * Ask the panel for the triggering tab's on-screen rect (see ipc.svelte.ts's
+   * "promptNewTabGroup" listener) — the popover itself only opens once that
+   * rect comes back over "tabGroupPromptAnchor" (see showTabGroupPrompt).
+   */
   public promptNewTabGroup(tabId: number) {
     if (!this.tabManager.getAll().has(tabId)) return;
     this.window.webContents.send("promptNewTabGroup", tabId);
+  }
+
+  /**
+   * Show the "New Group with This Tab" popover anchored under `tabId`'s rect
+   * in the panel. `anchor` comes from the panel's reply to `promptNewTabGroup`
+   * (see WindowManager.tabGroupPromptAnchor) — the same hand-off tabHoverStart
+   * uses for the preview card.
+   */
+  public showTabGroupPrompt(tabId: number, anchor: PreviewAnchor) {
+    if (this.window.isDestroyed() || !this.tabManager.getAll().has(tabId)) return;
+
+    const content = this.window.getContentBounds();
+    const bounds = computeTabGroupPromptBounds({
+      anchor,
+      panelHeight: storage.settings.app.panelHeight || TOPPANELHEIGHT,
+      contentWidth: content.width,
+      contentHeight: content.height,
+    });
+    const payload: Types.TabGroupPromptPayload = {
+      tabId,
+      frame: resolveFrameStyle(storage.settings.app),
+      theme: getResolvedFigmaTheme(),
+    };
+
+    this.tabGroupPrompt ??= new TabGroupPromptView(this.window);
+    this.tabGroupPrompt.show(bounds, payload);
+  }
+
+  public hideTabGroupPrompt() {
+    this.tabGroupPrompt?.hide();
   }
 
   public createTabGroupWithTab(tabId: number, label: string, color: string): void {
@@ -797,6 +839,7 @@ export default class Window {
     const groupId = tab instanceof Tab ? tab.groupId : undefined;
 
     this.hideTabPreview();
+    this.hideTabGroupPrompt();
     this.window.contentView.removeChildView(tab.view);
 
     const nextTabId = this.tabManager.close(tabId);
@@ -920,6 +963,7 @@ export default class Window {
     const bounds = this.calcBoundsForTabView();
 
     this.hideTabPreview();
+    this.hideTabGroupPrompt();
     this.swapTo(tab);
 
     // Catch up a tab whose account-switch refresh was deferred while it was
@@ -1088,6 +1132,7 @@ export default class Window {
     this.warmTabs.destroy();
     this.modalViews.destroy();
     this.tabPreview?.destroy();
+    this.tabGroupPrompt?.destroy();
     this.tabManager.closeAll();
     this.window.close();
   }
@@ -1108,7 +1153,10 @@ export default class Window {
       app.emit("windowFocus", this.window.id);
       this.warmTabs.refreshIfStale();
     });
-    this.window.on("blur", () => this.hideTabPreview());
+    this.window.on("blur", () => {
+      this.hideTabPreview();
+      this.hideTabGroupPrompt();
+    });
     this.window.on("enter-full-screen", this.onEnterFullScreen.bind(this));
     this.window.on("leave-full-screen", this.onLeaveFullScreen.bind(this));
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));

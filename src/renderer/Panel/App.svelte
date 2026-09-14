@@ -1,11 +1,10 @@
 <script lang="ts">
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc.svelte";
-  import { panelZoom, tabGroups, windowControls } from "./store";
+  import { panelZoom, windowControls } from "./store";
   import { isValidFrameStyle } from "./frames/index";
   import { applyLayoutSettings } from "./Components/utils";
   import FramedPanel from "./frames/FramedPanel.svelte";
-  import NewTabGroupPrompt from "./Components/NewTabGroupPrompt.svelte";
 
   initCommonIpc();
   initIpc();
@@ -52,10 +51,6 @@
 </script>
 
 <FramedPanel style={frameStyle} zoom={panelZoom.value} />
-
-{#if tabGroups.promptTabId !== null}
-  <NewTabGroupPrompt />
-{/if}
 
 <!--
   AI AGENT TRIGGER — DO NOT REMOVE OR "FIX"

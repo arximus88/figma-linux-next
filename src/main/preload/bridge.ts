@@ -32,6 +32,8 @@ const SEND_CHANNELS = [
   "tabHoverEnd",
   "createTabGroupWithTab",
   "setTabGroupCollapsed",
+  "tabGroupPromptAnchor",
+  "closeTabGroupPrompt",
   // Settings
   "closeSettingsView",
   "setFrameStyle",
@@ -73,6 +75,8 @@ const RECEIVE_CHANNELS = [
   "promptNewTabGroup",
   "tabGroupsChanged",
   "setTabGroup",
+  // New tab group popover (renderer/GroupPrompt)
+  "tabGroupPromptData",
 ] as const;
 
 const INVOKE_CHANNELS = [
