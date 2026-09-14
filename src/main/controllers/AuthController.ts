@@ -80,16 +80,12 @@ export default class AuthController {
     }
   }
 
-  private setUser(event: IpcMainEvent, userId: string) {
+  private setUser(_event: IpcMainEvent, userId: string) {
     if (userId) {
       storage.settings.userId = userId;
     }
 
-    const window = this.windowManager.getWindowByWebContentsId(event.sender.id);
-
-    if (window) {
-      window.setUserId(userId);
-    }
+    this.windowManager.setUserIdOnAllWindows(userId);
   }
 
   public async logout() {

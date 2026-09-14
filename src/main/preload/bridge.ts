@@ -30,6 +30,10 @@ const SEND_CHANNELS = [
   "openTabMenu",
   "tabHoverStart",
   "tabHoverEnd",
+  "createTabGroupWithTab",
+  "setTabGroupCollapsed",
+  "tabGroupPromptAnchor",
+  "closeTabGroupPrompt",
   // Settings
   "closeSettingsView",
   "setFrameStyle",
@@ -67,6 +71,12 @@ const RECEIVE_CHANNELS = [
   "figmaThemeChanged",
   // Tab preview card (renderer/Preview)
   "tabPreviewData",
+  // Tab groups
+  "promptNewTabGroup",
+  "tabGroupsChanged",
+  "setTabGroup",
+  // New tab group popover (renderer/GroupPrompt)
+  "tabGroupPromptData",
 ] as const;
 
 const INVOKE_CHANNELS = [

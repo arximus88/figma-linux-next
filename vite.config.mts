@@ -174,6 +174,7 @@ export default defineConfig({
         settings: path.resolve(import.meta.dirname, "src/settings.html"),
         changelog: path.resolve(import.meta.dirname, "src/changelog.html"),
         preview: path.resolve(import.meta.dirname, "src/preview.html"),
+        groupPrompt: path.resolve(import.meta.dirname, "src/groupPrompt.html"),
       },
       // NOTE: No Node.js modules here! This builds for the browser (renderer with contextIsolation).
       // Only the electron plugin entries (main, preloads) should have Node.js externals.

@@ -1,4 +1,5 @@
 export { tabs } from "./tabs.svelte";
+export { tabGroups } from "./tabGroups.svelte";
 export { currentTab } from "./current.svelte";
 export { isMenuOpen } from "./isMenuOpen.svelte";
 export { panelZoom } from "./panelZoom.svelte";

@@ -48,6 +48,7 @@ mock.module("electron", () => {
     ipcMain: { on: mock(), handle: mock(), removeHandler: mock() },
     dialog: { showMessageBoxSync: mock(), showOpenDialogSync: mock() },
     BrowserWindow: class {
+      static fromId = (): undefined => undefined;
       id = 1;
       webContents = {
         id: 2,
@@ -104,7 +105,9 @@ mock.module("electron", () => {
 });
 
 import type { IpcMainEvent } from "electron";
+import { storage } from "Main/Storage";
 import Tab from "Main/Ui/Tab";
+import TabGroupPromptView from "Main/Ui/TabGroupPromptView";
 import Window from "Main/Ui/Window";
 
 describe("Window Tab Routing", () => {
@@ -210,6 +213,26 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("Account switch: deferred tab refresh applied on focus", () => {
+    test("setTabFocus applies a deferred fuid update before showing the tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      spyOn(tabManager, "getById").mockReturnValue({ id: 42, setBounds: mock() });
+      const applySpy = spyOn(tabManager, "applyPendingUserId");
+      spyOn(windowInstance, "calcBoundsForTabView").mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+      });
+      spyOn(windowInstance, "hideTabPreview").mockReturnValue(undefined);
+      spyOn(windowInstance as any, "swapTo").mockReturnValue(undefined);
+
+      windowInstance.setTabFocus(42);
+
+      expect(applySpy).toHaveBeenCalledWith(42);
+    });
+  });
+
   describe("Bug 3: saveLastOpenedTabs persisted empty tabs after closeAll", () => {
     test("getState returns cached snapshot after cacheStateBeforeClose, even when live tabs map has been cleared", () => {
       const tabManager: any = (windowInstance as any).tabManager;
@@ -231,6 +254,225 @@ describe("Window Tab Routing", () => {
       expect(state.tabs.length).toBe(2);
       expect(state.tabs[0].url).toBe("https://www.figma.com/design/abc/A");
       expect(state.tabs[1].url).toBe("https://www.figma.com/design/def/B");
+    });
+  });
+
+  describe("Tab groups (Phase 1: metadata + membership, no drag-and-drop)", () => {
+    test("createTabGroupWithTab assigns the tab and broadcasts the new group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.createTabGroupWithTab(tab.id, "  Design  ", "#4285f4");
+
+      const groups = windowInstance.getTabGroups();
+      expect(groups.length).toBe(1);
+      expect(groups[0].label).toBe("Design"); // trimmed
+      expect(groups[0].color).toBe("#4285f4");
+      expect(groups[0].collapsed).toBe(false);
+      expect(tab.groupId).toBe(groups[0].id);
+
+      const setTabGroupCall = send.mock.calls.find((c: any[]) => c[0] === "setTabGroup");
+      expect(setTabGroupCall?.[1]).toEqual({ id: tab.id, groupId: groups[0].id });
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(true);
+    });
+
+    test("createTabGroupWithTab ignores a blank label", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+
+      windowInstance.createTabGroupWithTab(tab.id, "   ", "#4285f4");
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+      expect(tab.groupId).toBeUndefined();
+    });
+
+    test("addTabToGroup moves a tab into another group and prunes the one it left empty", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+
+      windowInstance.createTabGroupWithTab(tabA.id, "Group A", "#4285f4");
+      const groupAId = windowInstance.getTabGroups()[0].id;
+      windowInstance.createTabGroupWithTab(tabB.id, "Group B", "#ea4335");
+      const groupBId = windowInstance.getTabGroups().find((g) => g.id !== groupAId)!.id;
+
+      windowInstance.addTabToGroup(tabA.id, groupBId);
+
+      expect(tabA.groupId).toBe(groupBId);
+      const groups = windowInstance.getTabGroups();
+      expect(groups.length).toBe(1);
+      expect(groups[0].id).toBe(groupBId);
+    });
+
+    test("removeTabFromGroup clears membership and deletes a now-empty group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      windowInstance.removeTabFromGroup(tab.id);
+
+      expect(tab.groupId).toBeUndefined();
+      expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("removeTabFromGroup keeps the group while another tab is still a member", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Design", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+
+      windowInstance.removeTabFromGroup(tabA.id);
+
+      expect(tabA.groupId).toBeUndefined();
+      expect(windowInstance.getTabGroups().length).toBe(1);
+      expect(tabB.groupId).toBe(groupId);
+    });
+
+    test("setTabGroupCollapsed toggles the group's collapsed flag", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+
+      windowInstance.setTabGroupCollapsed(groupId, true);
+      expect(windowInstance.getTabGroups()[0].collapsed).toBe(true);
+
+      windowInstance.setTabGroupCollapsed(groupId, false);
+      expect(windowInstance.getTabGroups()[0].collapsed).toBe(false);
+    });
+
+    test("closing a group's last tab prunes the group", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      windowInstance.closeTab(tab.id);
+
+      expect(windowInstance.getTabGroups().length).toBe(0);
+    });
+
+    test("getState persists each tab's groupId alongside the group metadata", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A", "File A");
+      windowInstance.createTabGroupWithTab(tab.id, "Design", "#4285f4");
+
+      const state = windowInstance.getState();
+
+      expect(state.tabs[0].groupId).toBe(state.tabGroups[0].id);
+      expect(state.tabGroups[0]).toEqual({
+        id: state.tabGroups[0].id,
+        label: "Design",
+        color: "#4285f4",
+        collapsed: false,
+        order: 0,
+      });
+    });
+
+    test("applyState pre-populates groups from persisted state, and restoreTabs restores groupId", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      storage.settings.app.saveLastOpenedTabs = true;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "",
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [{ id: "g1", label: "Design", color: "#4285f4", collapsed: false, order: 0 }],
+        };
+
+        const restored = new Window(persisted);
+
+        // applyState() runs synchronously in the constructor.
+        expect(restored.getTabGroups()).toEqual([
+          { id: "g1", label: "Design", color: "#4285f4", collapsed: false, order: 0 },
+        ]);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab").mockReturnValue({ id: 1 } as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A", groupId: "g1" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        expect(addTabSpy).toHaveBeenCalledWith(
+          "https://www.figma.com/design/abc/A",
+          "File A",
+          "g1",
+        );
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+      }
+    });
+  });
+
+  describe("New Group popover (TabGroupPromptView)", () => {
+    test("promptNewTabGroup only asks the panel for an anchor when the tab is known", () => {
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.promptNewTabGroup(99999);
+      expect(send).not.toHaveBeenCalledWith("promptNewTabGroup", 99999);
+
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.promptNewTabGroup(tab.id);
+      expect(send).toHaveBeenCalledWith("promptNewTabGroup", tab.id);
+    });
+
+    test("showTabGroupPrompt ignores an unknown tab and never creates a view", () => {
+      windowInstance.showTabGroupPrompt(99999, { left: 10, width: 40 });
+      expect((windowInstance as any).tabGroupPrompt).toBeNull();
+    });
+
+    test("showTabGroupPrompt anchors the popover under the tab, just below the panel", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      const showSpy = spyOn(TabGroupPromptView.prototype, "show");
+
+      windowInstance.showTabGroupPrompt(tab.id, { left: 120, width: 60 });
+
+      expect(showSpy.mock.calls.length).toBe(1);
+      const [bounds, payload] = showSpy.mock.calls[0] as [any, Types.TabGroupPromptPayload];
+      expect(payload.tabId).toBe(tab.id);
+      // storage.settings.app.panelHeight is mocked to 40 above.
+      expect(bounds.y).toBe(40);
+
+      showSpy.mockRestore();
+    });
+
+    test("hideTabGroupPrompt hides an open popover", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.showTabGroupPrompt(tab.id, { left: 0, width: 40 });
+
+      const hideSpy = spyOn(TabGroupPromptView.prototype, "hide");
+      windowInstance.hideTabGroupPrompt();
+
+      expect(hideSpy.mock.calls.length).toBe(1);
+      hideSpy.mockRestore();
+    });
+
+    test("hideTabGroupPrompt is a no-op when the popover was never shown", () => {
+      expect(() => windowInstance.hideTabGroupPrompt()).not.toThrow();
     });
   });
 });
@@ -393,5 +635,36 @@ describe("Warm tab lifecycle", () => {
     // Stale warm tab destroyed and a fresh schedule queued for the new user.
     expect(destroySpy).toHaveBeenCalled();
     expect(scheduled.some((t) => t.delay === 2000)).toBe(true);
+  });
+
+  test("switching user re-navigates open project tabs with the new fuid", () => {
+    w.setUserId("user-1"); // first boot — no previous id yet
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-2");
+
+    expect(reapplySpy).toHaveBeenCalledWith("user-2");
+  });
+
+  test("first setUserId does not re-navigate project tabs", () => {
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-1");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
+  });
+
+  test("re-entrant setUserId with the same id does not re-navigate project tabs", () => {
+    w.setUserId("user-1");
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("user-1");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
   });
 });

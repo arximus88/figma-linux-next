@@ -28,6 +28,16 @@ export const FIGMA_SESSION_COOKIE_NAME = "figma.session";
 
 export const NEW_FILE_TAB_TITLE = "New file";
 
+/** Fixed palette offered when creating a tab group (Phase 1: no custom color picker). */
+export const TAB_GROUP_COLORS = [
+  "#4285f4", // blue
+  "#ea4335", // red
+  "#fbbc05", // yellow
+  "#34a853", // green
+  "#a142f4", // purple
+  "#ff6d01", // orange
+];
+
 export const LINKS = {
   HELP_PAGE: "https://help.figma.com",
   PLUGINS_DOCS: `${HOMEPAGE}/plugin-docs/`,
