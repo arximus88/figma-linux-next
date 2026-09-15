@@ -298,7 +298,7 @@
           <Toggle bind:checked={$settings.app.autoDiscardTabs} />
         </SettingRow>
         {#if $settings.app.autoDiscardTabs}
-          <Card padding="16px 18px">
+          <div class="memory-budget-panel">
             <div class="slider-head">
               <span class="slider-label">Memory budget for background tabs</span>
               <span class="slider-value">{discardBudgetGB} GB</span>
@@ -320,7 +320,7 @@
                 else on your system still need headroom on top of this.
               {/if}
             </div>
-          </Card>
+          </div>
         {/if}
         <SettingRow
           title="System tray icon"
@@ -496,6 +496,13 @@
     color: var(--text-disabled);
   }
 
+  /* A plain div, not <Card> — the parent SettingRow list already IS a Card
+     (overflow: hidden; height: 100%), and nesting a second one blows that
+     layout out, clipping every row that comes after it. */
+  .memory-budget-panel {
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--borders);
+  }
   .memory-budget-context {
     margin-top: 10px;
     font-size: 12px;
