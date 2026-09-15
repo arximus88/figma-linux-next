@@ -29,6 +29,19 @@ import { logger } from "Main/Logger";
 const THUMBNAIL_WIDTH = 560;
 const THUMBNAIL_JPEG_QUALITY = 72;
 
+/**
+ * Logical tab ids are allocated from this counter instead of reusing
+ * `webContents.id` directly. A discarded tab's webContents is destroyed and,
+ * on revive, replaced by a brand-new WebContentsView with a brand-new
+ * (unpredictable) webContents id — but the tab's identity in the tab strip,
+ * its group membership, and the user's click target must survive that swap
+ * unchanged. Starting well above any realistic webContents id keeps the two
+ * id spaces visually distinguishable in logs without requiring every caller
+ * that only wants "the real OS-level webContents id" to change — those use
+ * the new `webContentsId` getter below instead.
+ */
+let nextLogicalTabId = 1_000_000_000;
+
 export default class Tab {
   public id: number;
   public title?: string;
@@ -58,6 +71,11 @@ export default class Tab {
   constructor(private windowId: number) {
     this.initTab();
     this.registerEvents();
+  }
+
+  /** The real, live webContents id — distinct from `id` (see nextLogicalTabId above). */
+  public get webContentsId() {
+    return this.view.webContents.id;
   }
 
   public get editorType() {
@@ -144,7 +162,7 @@ export default class Tab {
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
     });
-    this.id = this.view.webContents.id;
+    this.id = nextLogicalTabId++;
 
     app.emit("requestBoundsForTabView", this.windowId);
   }

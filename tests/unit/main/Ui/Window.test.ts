@@ -691,10 +691,12 @@ describe("Warm tab lifecycle", () => {
   test("promotion clears the skeleton flag once the warm tab has bootstrapped", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    // event.sender.id is always the real webContents id — the warm tab's
+    // logical `.id` (from the counter, see Tab.ts) is a different number.
+    const warmWebContentsId = lastWarmTab.webContentsId;
 
     // Warm tab signals readiness via setLoading(false) from its own webContents.
-    w.setLoading({ sender: { id: warmId } } as any, { loading: false } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: false } as any);
 
     const tabManager: any = (w as any).tabManager;
     spyOn(tabManager, "promoteWarmTab");
@@ -709,13 +711,15 @@ describe("Warm tab lifecycle", () => {
   test("setLoading from the warm tab is swallowed (not forwarded to the panel)", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    const warmWebContentsId = lastWarmTab.webContentsId;
     const send: any = w.win.webContents.send;
     send.mockClear?.();
 
-    w.setLoading({ sender: { id: warmId } } as any, { loading: true } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: true } as any);
 
-    const forwarded = send.mock.calls.some((c: any[]) => c[0] === "setLoading" && c[1] === warmId);
+    const forwarded = send.mock.calls.some(
+      (c: any[]) => c[0] === "setLoading" && c[1] === warmWebContentsId,
+    );
     expect(forwarded).toBe(false);
   });
 

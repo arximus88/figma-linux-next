@@ -68,6 +68,7 @@ const RECEIVE_CHANNELS = [
   "openCommunity",
   "communityTabWasClose",
   "setLoading",
+  "setTabDiscarded",
   "frameStyleChanged",
   "figmaThemeChanged",
   // Tab preview card (renderer/Preview)

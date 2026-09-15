@@ -3,6 +3,7 @@
  */
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { app } from "electron";
+import os from "node:os";
 
 import { storage } from "../Storage";
 import { getResolvedFigmaTheme } from "../Theme";
@@ -60,6 +61,9 @@ export default class SettingsController {
     }
     if (storage.settings.app.useZenity !== settings.app.useZenity) {
       dialogs.switchProvider(settings.app.useZenity);
+    }
+    if (storage.settings.app.autoDiscardTabs !== settings.app.autoDiscardTabs) {
+      app.emit("autoDiscardTabsChanged", !!settings.app.autoDiscardTabs);
     }
     if (storage.settings.mcp?.enableWriteTools !== settings.mcp?.enableWriteTools) {
       app.emit("mcpWriteToolsChanged", !!settings.mcp?.enableWriteTools);
@@ -126,6 +130,7 @@ export default class SettingsController {
       frameStyle: resolveFrameStyle(storage.settings.app),
       detectedFrameStyle: detectFrameStyle(),
       theme: getResolvedFigmaTheme(),
+      totalMemoryMB: Math.floor(os.totalmem() / 1024 / 1024),
     };
   }
 
