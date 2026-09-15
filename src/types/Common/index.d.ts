@@ -195,6 +195,8 @@ declare namespace Types {
       autoDiscardTabs: boolean;
       /** Target ceiling, in MB, for the combined memory of background (non-active) tabs while autoDiscardTabs is on. */
       discardMemoryBudgetMB: number;
+      /** On launch, only the tab that was actually active last session is restored live — every other saved tab starts already-discarded (title/group shown, no process) and loads on first click. Independent of autoDiscardTabs: this controls startup, not ongoing eviction. */
+      lazyRestoreTabs: boolean;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;

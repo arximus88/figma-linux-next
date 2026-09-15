@@ -42,6 +42,16 @@ const THUMBNAIL_JPEG_QUALITY = 72;
  */
 let nextLogicalTabId = 1_000_000_000;
 
+/**
+ * Allocate a fresh logical tab id without constructing a Tab (and therefore
+ * without spinning up a WebContentsView/renderer process) — used to insert a
+ * tab directly in the discarded state, e.g. lazily restoring a saved session
+ * (see Window.restoreTabs / TabManager.addDiscardedShell).
+ */
+export function allocateLogicalTabId(): number {
+  return nextLogicalTabId++;
+}
+
 export default class Tab {
   public id: number;
   public title?: string;
@@ -162,7 +172,7 @@ export default class Tab {
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
     });
-    this.id = nextLogicalTabId++;
+    this.id = allocateLogicalTabId();
 
     app.emit("requestBoundsForTabView", this.windowId);
   }

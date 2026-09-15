@@ -223,6 +223,14 @@
         >
           <Toggle bind:checked={$settings.app.saveLastOpenedTabs} />
         </SettingRow>
+        {#if $settings.app.saveLastOpenedTabs}
+          <SettingRow
+            title="Restore tabs instantly on launch"
+            subtitle="Only the tab you had open reloads right away — every other restored tab shows up dimmed and loads on first click, instead of every tab loading at once"
+          >
+            <Toggle bind:checked={$settings.app.lazyRestoreTabs} />
+          </SettingRow>
+        {/if}
         <SettingRow
           title="Enable color space sRGB"
           subtitle="Fixes washed-out colors on wide-gamut displays · restart"

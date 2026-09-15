@@ -279,14 +279,52 @@ export default class Window {
       return;
     }
 
+    if (!storage.settings.app.lazyRestoreTabs) {
+      setTimeout(() => {
+        tabs.forEach((tab, i) => {
+          setTimeout(() => {
+            this.addTab(tab.url, tab.title, tab.groupId);
+            if (i + 1 === tabs.length) {
+              this.setTabFocusByPath(this.state.lastActiveTabPath);
+            }
+          }, 300 * i);
+        });
+      }, 100);
+      return;
+    }
+
+    // Lazy restore: only the tab that was actually active last session gets a
+    // real WebContentsView; every other saved tab is inserted directly as a
+    // discarded shell (TabManager.addDiscardedShell) — title/group show up
+    // in the strip immediately, but nothing loads until clicked. This is what
+    // actually fixes a cold-boot memory spike; autoDiscardTabs only helps
+    // *after* boot, once every tab has already been loaded once.
     setTimeout(() => {
+      const activePath = this.state.lastActiveTabPath;
+      let activeIndex = activePath
+        ? tabs.findIndex((tab) => {
+            const pathname = tab.url ? parseURL(tab.url)?.pathname : undefined;
+            return !!pathname && activePath.includes(pathname);
+          })
+        : -1;
+      if (activeIndex === -1) activeIndex = 0;
+
       tabs.forEach((tab, i) => {
-        setTimeout(() => {
-          this.addTab(tab.url, tab.title, tab.groupId);
-          if (i + 1 === tabs.length) {
-            this.setTabFocusByPath(this.state.lastActiveTabPath);
-          }
-        }, 300 * i);
+        if (i === activeIndex) {
+          const created = this.addTab(tab.url, tab.title, tab.groupId);
+          if (created) this.setTabFocus(created.id);
+          return;
+        }
+
+        const discarded = this.tabManager.addDiscardedShell(tab);
+        this.window.webContents.send("didTabAdd", {
+          id: discarded.id,
+          url: discarded.url,
+          title: discarded.title,
+          groupId: discarded.groupId,
+          loading: false,
+          discarded: true,
+        });
       });
     }, 100);
   }

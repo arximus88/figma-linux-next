@@ -4,7 +4,7 @@ import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
 import { parseURL } from "Utils/Common";
 import CommunityTab from "./CommunityTab";
 import MainTab from "./MainTab";
-import Tab from "./Tab";
+import Tab, { allocateLogicalTabId } from "./Tab";
 
 /**
  * A tab whose webContents has been destroyed to free memory (see
@@ -147,6 +147,31 @@ export default class TabManager {
     this.tabs.set(tab.id, tab);
     this.webContentsIndex.set(tab.webContentsId, tab.id);
     this.hasOpenedNewFileTab = true;
+  }
+
+  /**
+   * Insert a tab directly in the discarded state — no WebContentsView is
+   * constructed at all, unlike discardTab() which destroys an already-live
+   * one. Used for lazy session restore (see Window.restoreTabs): every saved
+   * tab except the one that was actually active last session shows up in the
+   * strip immediately, but costs nothing until clicked.
+   */
+  public addDiscardedShell(saved: Types.SavedTab): DiscardedTab {
+    const discarded: DiscardedTab = {
+      discarded: true,
+      id: allocateLogicalTabId(),
+      title: saved.title,
+      url: saved.url ?? RECENT_FILES,
+      groupId: saved.groupId,
+      previewData: null,
+    };
+    this.tabs.set(discarded.id, discarded);
+
+    if (discarded.title === NEW_FILE_TAB_TITLE) {
+      this.hasOpenedNewFileTab = true;
+    }
+
+    return discarded;
   }
 
   /**
