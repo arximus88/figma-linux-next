@@ -226,10 +226,25 @@
         {#if $settings.app.saveLastOpenedTabs}
           <SettingRow
             title="Restore tabs instantly on launch"
-            subtitle="Only the tab you had open reloads right away — every other restored tab shows up dimmed and loads on first click, instead of every tab loading at once"
+            subtitle="Only your most recent tabs reload right away — every other restored tab shows up dimmed and loads on first click, instead of every tab loading at once"
           >
             <Toggle bind:checked={$settings.app.lazyRestoreTabs} />
           </SettingRow>
+          {#if $settings.app.lazyRestoreTabs}
+            <div class="lazy-restore-panel">
+              <div class="slider-head">
+                <span class="slider-label">Tabs restored live on launch</span>
+                <span class="slider-value">{$settings.app.lazyRestoreEagerCount}</span>
+              </div>
+              <InputRange
+                bind:value={$settings.app.lazyRestoreEagerCount}
+                min={1}
+                max={10}
+                step={1}
+                width="100%"
+              />
+            </div>
+          {/if}
         {/if}
         <SettingRow
           title="Enable color space sRGB"
@@ -496,10 +511,11 @@
     color: var(--text-disabled);
   }
 
-  /* A plain div, not <Card> — the parent SettingRow list already IS a Card
-     (overflow: hidden; height: 100%), and nesting a second one blows that
-     layout out, clipping every row that comes after it. */
-  .memory-budget-panel {
+  /* Both plain divs, not <Card> — the parent SettingRow list already IS a
+     Card (overflow: hidden; height: 100%), and nesting a second one blows
+     that layout out, clipping every row that comes after it. */
+  .memory-budget-panel,
+  .lazy-restore-panel {
     padding: 12px 16px 16px;
     border-bottom: 1px solid var(--borders);
   }

@@ -158,6 +158,8 @@ declare namespace Types {
     height: number;
     isMaximized: boolean;
     lastActiveTabPath: string;
+    /** Pathnames of the most-recently-focused tabs in this window, most-recent-first (capped, deduped) — used by lazyRestoreTabs to decide which saved tabs restore live vs. as a discarded shell. Falls back to just [lastActiveTabPath] for state saved before this field existed. */
+    recentTabPaths?: string[];
     hasOpenedCommunityTab: boolean;
     userId: string;
     tabs: SavedTab[];
@@ -195,8 +197,10 @@ declare namespace Types {
       autoDiscardTabs: boolean;
       /** Target ceiling, in MB, for the combined memory of background (non-active) tabs while autoDiscardTabs is on. */
       discardMemoryBudgetMB: number;
-      /** On launch, only the tab that was actually active last session is restored live — every other saved tab starts already-discarded (title/group shown, no process) and loads on first click. Independent of autoDiscardTabs: this controls startup, not ongoing eviction. */
+      /** On launch, only your most-recently-used tabs (see lazyRestoreEagerCount) are restored live — every other saved tab starts already-discarded (title/group shown, no process) and loads on first click. Independent of autoDiscardTabs: this controls startup, not ongoing eviction. */
       lazyRestoreTabs: boolean;
+      /** How many of the most-recently-focused tabs restore live on launch while lazyRestoreTabs is on. */
+      lazyRestoreEagerCount: number;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;

@@ -609,6 +609,70 @@ describe("Window Tab Routing", () => {
         storage.settings.app.lazyRestoreTabs = originalLazy;
       }
     });
+
+    test("restores the N most-recently-focused tabs live, not just the active one", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      const originalLazy = storage.settings.app.lazyRestoreTabs;
+      const originalEagerCount = storage.settings.app.lazyRestoreEagerCount;
+      storage.settings.app.saveLastOpenedTabs = true;
+      storage.settings.app.lazyRestoreTabs = true;
+      storage.settings.app.lazyRestoreEagerCount = 2;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "/design/abc/B",
+          // Most-recent-first; B and C were focused more recently than A.
+          recentTabPaths: ["/design/abc/B", "/design/abc/C", "/design/abc/A"],
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [],
+        };
+
+        const restored = new Window(persisted);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab");
+        const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A" },
+          { title: "File B", url: "https://www.figma.com/design/abc/B" },
+          { title: "File C", url: "https://www.figma.com/design/abc/C" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        // Top 2 of recentTabPaths (B, C) restore live — A doesn't, even
+        // though it's a saved tab, because it's third in recency and the
+        // budget is 2.
+        expect(addTabSpy.mock.calls.length).toBe(2);
+        const restoredTitles = addTabSpy.mock.calls.map((call: any[]) => call[1]).sort();
+        expect(restoredTitles).toEqual(["File B", "File C"]);
+        expect(setTabFocusSpy).toHaveBeenCalled();
+
+        const tabManager: any = (restored as any).tabManager;
+        const allTabs = [...tabManager.getAll().values()];
+        const discardedTitles = allTabs.filter((t: any) => t.discarded).map((t: any) => t.title);
+        expect(discardedTitles).toEqual(["File A"]);
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+        storage.settings.app.lazyRestoreTabs = originalLazy;
+        storage.settings.app.lazyRestoreEagerCount = originalEagerCount;
+      }
+    });
   });
 
   describe("New Group popover (TabGroupPromptView)", () => {

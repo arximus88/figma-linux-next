@@ -51,6 +51,11 @@ export default class Window {
   // collapsed/order. Persisted as `tabGroups` in Types.WindowState.
   private tabGroups: Map<string, Types.TabGroup> = new Map();
   private recentlyPrunedGroups: Map<string, Types.TabGroup> = new Map();
+  // Most-recently-focused tab ids in this window, most-recent-first, capped —
+  // persisted as pathnames (see getState) so lazyRestoreTabs can eagerly
+  // restore the last few tabs live instead of just the single active one.
+  private recentTabIds: number[] = [];
+  private static readonly RECENT_TAB_IDS_CAP = 20;
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
   // not overwritten by the BrowserWindow `close` event firing later with
@@ -242,10 +247,19 @@ export default class Window {
 
     const bounds = this.window.getBounds();
 
+    const recentTabPaths = this.recentTabIds
+      .map((id) => {
+        const tab = this.tabManager.getById(id);
+        if (!tab || "discarded" in tab) return undefined;
+        return parseURL(tab.getUrl())?.pathname;
+      })
+      .filter((pathname): pathname is string => !!pathname);
+
     return {
       ...bounds,
       isMaximized: this.window.isMaximized(),
       lastActiveTabPath: this.tabManager.getActiveTabPath(),
+      recentTabPaths,
       hasOpenedCommunityTab: this.tabManager.hasOpenedCommunityTab,
       windowId: this.id,
       userId: this._userId,
@@ -293,26 +307,52 @@ export default class Window {
       return;
     }
 
-    // Lazy restore: only the tab that was actually active last session gets a
-    // real WebContentsView; every other saved tab is inserted directly as a
-    // discarded shell (TabManager.addDiscardedShell) — title/group show up
-    // in the strip immediately, but nothing loads until clicked. This is what
-    // actually fixes a cold-boot memory spike; autoDiscardTabs only helps
-    // *after* boot, once every tab has already been loaded once.
+    // Lazy restore: only your `lazyRestoreEagerCount` most-recently-used tabs
+    // get a real WebContentsView; every other saved tab is inserted directly
+    // as a discarded shell (TabManager.addDiscardedShell) — title/group show
+    // up in the strip immediately, but nothing loads until clicked. This is
+    // what actually fixes a cold-boot memory spike; autoDiscardTabs only
+    // helps *after* boot, once every tab has already been loaded once.
     setTimeout(() => {
-      const activePath = this.state.lastActiveTabPath;
-      let activeIndex = activePath
-        ? tabs.findIndex((tab) => {
-            const pathname = tab.url ? parseURL(tab.url)?.pathname : undefined;
-            return !!pathname && activePath.includes(pathname);
-          })
-        : -1;
-      if (activeIndex === -1) activeIndex = 0;
+      const findIndexByPath = (path: string, taken: Set<number>) =>
+        tabs.findIndex((tab, i) => {
+          if (taken.has(i)) return false;
+          const pathname = tab.url ? parseURL(tab.url)?.pathname : undefined;
+          return !!pathname && path.includes(pathname);
+        });
 
+      const eagerCount = Math.max(1, storage.settings.app.lazyRestoreEagerCount || 1);
+      // recentTabPaths is most-recent-first; state saved before that field
+      // existed falls back to just the single active path.
+      const recentPaths =
+        this.state.recentTabPaths && this.state.recentTabPaths.length > 0
+          ? this.state.recentTabPaths
+          : this.state.lastActiveTabPath
+            ? [this.state.lastActiveTabPath]
+            : [];
+
+      const eagerIndices = new Set<number>();
+      for (const path of recentPaths) {
+        if (eagerIndices.size >= eagerCount) break;
+        const idx = findIndexByPath(path, eagerIndices);
+        if (idx !== -1) eagerIndices.add(idx);
+      }
+
+      // The tab to actually show on screen must be the one that was truly
+      // active, not just "one of the eager set" — recentTabPaths can list
+      // several tabs with no ordering guarantee against a hand-edited or
+      // stale lastActiveTabPath.
+      let focusIndex = this.state.lastActiveTabPath
+        ? findIndexByPath(this.state.lastActiveTabPath, new Set())
+        : -1;
+      if (focusIndex === -1) focusIndex = eagerIndices.values().next().value ?? 0;
+      eagerIndices.add(focusIndex);
+
+      let tabToFocus: Tab | undefined;
       tabs.forEach((tab, i) => {
-        if (i === activeIndex) {
+        if (eagerIndices.has(i)) {
           const created = this.addTab(tab.url, tab.title, tab.groupId);
-          if (created) this.setTabFocus(created.id);
+          if (created && i === focusIndex) tabToFocus = created;
           return;
         }
 
@@ -326,6 +366,8 @@ export default class Window {
           discarded: true,
         });
       });
+
+      if (tabToFocus) this.setTabFocus(tabToFocus.id);
     }, 100);
   }
   public calcBoundsForTabView(): Rectangle {
@@ -1141,10 +1183,19 @@ export default class Window {
     this.tabManager.setBounds(tabId, bounds);
     this.window.webContents.send("focusTab", tabId);
 
+    this.touchRecentTab(tabId);
     // Cross-window MRU bookkeeping for memory-budget eviction (WindowManager).
     app.emit("tabFocused", this.id, tabId);
 
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
+  }
+
+  /** Move `tabId` to the front of this window's recency list (see recentTabIds). */
+  private touchRecentTab(tabId: number) {
+    this.recentTabIds = [tabId, ...this.recentTabIds.filter((id) => id !== tabId)];
+    if (this.recentTabIds.length > Window.RECENT_TAB_IDS_CAP) {
+      this.recentTabIds.length = Window.RECENT_TAB_IDS_CAP;
+    }
   }
 
   /** Every live tab in this window that isn't the one currently shown — eviction candidates. */

@@ -48,6 +48,7 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     autoDiscardTabs: false,
     discardMemoryBudgetMB: 4096,
     lazyRestoreTabs: false,
+    lazyRestoreEagerCount: 3,
     trayEnabled: false,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",
