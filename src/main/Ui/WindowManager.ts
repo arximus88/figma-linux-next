@@ -288,6 +288,7 @@ export default class WindowManager {
 
     // Tab groups (Phase 1: metadata + membership, no drag-and-drop)
     ipcRegistry.on("createTabGroupWithTab", this.createTabGroupWithTab.bind(this), "WindowManager");
+    ipcRegistry.on("updateTabGroup", this.updateTabGroupHandler.bind(this), "WindowManager");
     ipcRegistry.on(
       "setTabGroupCollapsed",
       this.setTabGroupCollapsedHandler.bind(this),
@@ -295,6 +296,7 @@ export default class WindowManager {
     );
     // "New Group with This Tab" popover (panel → main → TabGroupPromptView)
     ipcRegistry.on("tabGroupPromptAnchor", this.tabGroupPromptAnchor.bind(this), "WindowManager");
+    ipcRegistry.on("tabGroupEditAnchor", this.tabGroupEditAnchor.bind(this), "WindowManager");
     ipcRegistry.on(
       "closeTabGroupPrompt",
       this.closeTabGroupPromptHandler.bind(this),
@@ -529,6 +531,12 @@ export default class WindowManager {
     if (typeof tabId !== "number" || !isPreviewAnchor(anchor)) return;
     this.getWindowByWebContentsId(event.sender.id)?.showTabGroupPrompt(tabId, anchor);
   }
+  // The same reply, for "Edit Group…" — the anchor is the group's chip rather
+  // than a tab (see Window.promptEditTabGroup / ipc.svelte.ts).
+  private tabGroupEditAnchor(event: IpcMainEvent, groupId: unknown, anchor: unknown) {
+    if (typeof groupId !== "string" || !isPreviewAnchor(anchor)) return;
+    this.getWindowByWebContentsId(event.sender.id)?.showTabGroupEditPrompt(groupId, anchor);
+  }
   // Sent by the popover itself (renderer/GroupPrompt) on Cancel, Escape or a
   // successful Create.
   private closeTabGroupPromptHandler(event: IpcMainEvent) {
@@ -565,6 +573,13 @@ export default class WindowManager {
     const window = this.getWindowByWebContentsId(event.sender.id);
     window?.createTabGroupWithTab(args.tabId, args.label, args.color);
   }
+  private updateTabGroupHandler(
+    event: IpcMainEvent,
+    args: { groupId: string; label: string; color: string },
+  ) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    window?.updateTabGroup(args.groupId, args.label, args.color);
+  }
   private setTabGroupCollapsedHandler(
     event: IpcMainEvent,
     args: { groupId: string; collapsed: boolean },
@@ -575,6 +590,10 @@ export default class WindowManager {
   private promptNewTabGroupFromMenu(windowId: number, tabId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
     window?.promptNewTabGroup(tabId);
+  }
+  private promptEditTabGroupFromMenu(windowId: number, groupId: string) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.promptEditTabGroup(groupId);
   }
   private addTabToGroupFromMenu(windowId: number, tabId: number, groupId: string) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
@@ -923,6 +942,7 @@ export default class WindowManager {
 
     // Tab group actions from the tab's context menu (MenuManager)
     app.on("promptNewTabGroup", this.promptNewTabGroupFromMenu.bind(this));
+    app.on("promptEditTabGroup", this.promptEditTabGroupFromMenu.bind(this));
     app.on("addTabToGroup", this.addTabToGroupFromMenu.bind(this));
     app.on("removeTabFromGroup", this.removeTabFromGroupFromMenu.bind(this));
     app.on("newTabInGroup", this.newTabInGroupFromMenu.bind(this));

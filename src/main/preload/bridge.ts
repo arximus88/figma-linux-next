@@ -32,8 +32,10 @@ const SEND_CHANNELS = [
   "tabHoverStart",
   "tabHoverEnd",
   "createTabGroupWithTab",
+  "updateTabGroup",
   "setTabGroupCollapsed",
   "tabGroupPromptAnchor",
+  "tabGroupEditAnchor",
   "closeTabGroupPrompt",
   // Settings
   "closeSettingsView",
@@ -74,6 +76,7 @@ const RECEIVE_CHANNELS = [
   "tabPreviewData",
   // Tab groups
   "promptNewTabGroup",
+  "promptEditTabGroup",
   "tabGroupsChanged",
   "setTabGroup",
   // New tab group popover (renderer/GroupPrompt)

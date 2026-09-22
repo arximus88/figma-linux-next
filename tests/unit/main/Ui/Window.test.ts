@@ -596,6 +596,102 @@ describe("Window Tab Routing", () => {
       expect(() => windowInstance.hideTabGroupPrompt()).not.toThrow();
     });
   });
+
+  describe("Editing an existing group (rename / recolor)", () => {
+    function seedGroup(label = "Design", color = "#4285f4") {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.createTabGroupWithTab(tab.id, label, color);
+      return { tab, group: windowInstance.getTabGroups()[0] };
+    }
+
+    test("promptEditTabGroup only asks the panel for an anchor for a known group", () => {
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.promptEditTabGroup("no-such-group");
+      expect(send).not.toHaveBeenCalledWith("promptEditTabGroup", "no-such-group");
+
+      const { group } = seedGroup();
+      windowInstance.promptEditTabGroup(group.id);
+      expect(send).toHaveBeenCalledWith("promptEditTabGroup", group.id);
+    });
+
+    test("showTabGroupEditPrompt pre-fills the popover with the group's current values", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const showSpy = spyOn(TabGroupPromptView.prototype, "show");
+
+      windowInstance.showTabGroupEditPrompt(group.id, { left: 120, width: 60 });
+
+      expect(showSpy.mock.calls.length).toBe(1);
+      const [, payload] = showSpy.mock.calls[0] as [any, Types.TabGroupPromptPayload];
+      expect(payload.mode).toBe("edit");
+      expect(payload.groupId).toBe(group.id);
+      expect(payload.label).toBe("Design");
+      expect(payload.color).toBe("#4285f4");
+
+      showSpy.mockRestore();
+    });
+
+    test("showTabGroupEditPrompt ignores an unknown group and never creates a view", () => {
+      windowInstance.showTabGroupEditPrompt("no-such-group", { left: 10, width: 40 });
+      expect((windowInstance as any).tabGroupPrompt).toBeNull();
+    });
+
+    test("updateTabGroup renames, recolors and broadcasts", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.updateTabGroup(group.id, "  Research  ", "#34a853");
+
+      const updated = windowInstance.getTabGroups()[0];
+      expect(updated.label).toBe("Research"); // trimmed
+      expect(updated.color).toBe("#34a853");
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(true);
+    });
+
+    test("updateTabGroup ignores a blank label and an unknown group", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+
+      windowInstance.updateTabGroup(group.id, "   ", "#34a853");
+      windowInstance.updateTabGroup("no-such-group", "Whatever", "#34a853");
+
+      const unchanged = windowInstance.getTabGroups()[0];
+      expect(unchanged.label).toBe("Design");
+      expect(unchanged.color).toBe("#4285f4");
+    });
+
+    test("updateTabGroup does not broadcast when nothing actually changed", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.updateTabGroup(group.id, "Design", "#4285f4");
+
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(false);
+    });
+  });
+
+  describe("Pruned-group memory is bounded", () => {
+    test("only the most recent 20 pruned groups are kept for reopen", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+
+      // Create and immediately empty 25 groups; each prune remembers one.
+      for (let i = 0; i < 25; i++) {
+        const tab = tabManager.addTab(`https://figma.com/file/${i}`, `File ${i}`);
+        windowInstance.createTabGroupWithTab(tab.id, `Group ${i}`, "#4285f4");
+        windowInstance.removeTabFromGroup(tab.id);
+      }
+
+      const remembered: Map<string, Types.TabGroup> = (windowInstance as any).recentlyPrunedGroups;
+      expect(remembered.size).toBe(20);
+      // The survivors are the last 20 pruned, i.e. groups 5..24.
+      const labels = [...remembered.values()].map((g) => g.label);
+      expect(labels).toContain("Group 24");
+      expect(labels).not.toContain("Group 4");
+    });
+  });
 });
 
 /**

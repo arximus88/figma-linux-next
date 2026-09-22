@@ -2,14 +2,16 @@
   import { TAB_GROUP_COLORS } from "Const";
 
   /**
-   * The "New Group with This Tab" popover. Lives in its own WebContentsView
-   * (Main/Ui/TabGroupPromptView), anchored just under the tab that triggered
-   * it — see the module doc there for why a separate view is required at all
-   * (the panel is only the top ~40px of the window; anything it drew below
-   * that would be hidden behind the active tab's view).
+   * The tab-group popover. Lives in its own WebContentsView
+   * (Main/Ui/TabGroupPromptView), anchored just under the tab or group chip
+   * that triggered it — see the module doc there for why a separate view is
+   * required at all (the panel is only the top ~40px of the window; anything
+   * it drew below that would be hidden behind the active tab's view).
    *
-   * Interaction contract: Create sends the existing `createTabGroupWithTab`
-   * IPC unchanged ({ tabId, label, color }). Cancel, Escape, and losing focus
+   * Two modes, same card: `create` names a new group around a tab and sends
+   * `createTabGroupWithTab` ({ tabId, label, color }); `edit` renames/recolors
+   * an existing one and sends `updateTabGroup` ({ groupId, label, color }).
+   * Both seed their fields from the payload. Cancel, Escape, and losing focus
    * to the panel or tab behind the popover (main's TabGroupPromptView hides
    * on webContents "blur") all close it with no side effects — this renderer
    * only needs to tell main "I'm done" via `closeTabGroupPrompt` so the next
@@ -20,10 +22,12 @@
   let label = $state("");
   let color = $state(TAB_GROUP_COLORS[0]);
 
+  const isEdit = $derived(data?.mode === "edit");
+
   window.figmaApi.on("tabGroupPromptData", (payload: Types.TabGroupPromptPayload) => {
     data = payload;
-    label = "";
-    color = TAB_GROUP_COLORS[0];
+    label = payload.label ?? "";
+    color = payload.color ?? TAB_GROUP_COLORS[0];
     document.documentElement.setAttribute("data-theme", payload.theme);
   });
 
@@ -31,32 +35,39 @@
     window.figmaApi.send("closeTabGroupPrompt");
   }
 
-  function create() {
-    const tabId = data?.tabId;
+  function submit() {
     const trimmed = label.trim();
-    if (tabId === undefined || !trimmed) return;
+    if (!data || !trimmed) return;
 
-    window.figmaApi.send("createTabGroupWithTab", { tabId, label: trimmed, color });
+    if (data.mode === "edit") {
+      if (data.groupId === undefined) return;
+      window.figmaApi.send("updateTabGroup", { groupId: data.groupId, label: trimmed, color });
+    } else {
+      if (data.tabId === undefined) return;
+      window.figmaApi.send("createTabGroupWithTab", { tabId: data.tabId, label: trimmed, color });
+    }
     close();
   }
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") close();
-    if (e.key === "Enter") create();
+    if (e.key === "Enter") submit();
   }
 
   // The popover view takes OS focus the moment it's shown (see
   // TabGroupPromptView.show); autofocus is the only way into the input from
-  // there — there's no prior pointer position to land on first.
+  // there — there's no prior pointer position to land on first. When editing,
+  // preselect the existing name so typing replaces it.
   function focusOnMount(node: HTMLInputElement) {
     node.focus();
+    if (node.value) node.select();
   }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 
 {#if data}
-  {#key data.tabId}
+  {#key `${data.mode}-${data.groupId ?? data.tabId}`}
     <div class="card" data-frame={data.frame}>
       <input
         use:focusOnMount
@@ -66,7 +77,7 @@
         bind:value={label}
       />
       <div class="colors" role="radiogroup" aria-label="Group color">
-        {#each TAB_GROUP_COLORS as c}
+        {#each TAB_GROUP_COLORS as c (c)}
           <button
             type="button"
             class="swatch"
@@ -82,8 +93,8 @@
       <div class="divider"></div>
       <div class="actions">
         <button type="button" class="btn" onclick={close}>Cancel</button>
-        <button type="button" class="btn btn-primary" disabled={!label.trim()} onclick={create}>
-          Create
+        <button type="button" class="btn btn-primary" disabled={!label.trim()} onclick={submit}>
+          {isEdit ? "Save" : "Create"}
         </button>
       </div>
     </div>

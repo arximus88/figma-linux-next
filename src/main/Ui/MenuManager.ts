@@ -249,6 +249,13 @@ export default class MenuManager {
   public openTabGroupMenuHandler(window: BrowserWindow, groupId: string) {
     const context: MenuItemConstructorOptions[] = [
       {
+        id: "editTabGroup",
+        label: "Edit Group…",
+        click: (_, window) => {
+          app.emit("promptEditTabGroup", window?.id, groupId);
+        },
+      },
+      {
         id: "newTabInGroup",
         label: "New Tab in Group",
         click: (_, window) => {

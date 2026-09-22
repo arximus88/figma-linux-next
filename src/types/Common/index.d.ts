@@ -128,9 +128,18 @@ declare namespace Types {
     theme: ResolvedTheme;
   }
 
-  /** What main sends the "New Group with This Tab" popover (Main/Ui/TabGroupPromptView). */
+  /** What main sends the tab-group popover (Main/Ui/TabGroupPromptView).
+   *  `create` names a new group around `tabId`; `edit` renames/recolors the
+   *  existing `groupId`. `label`/`color` seed the fields — empty and the first
+   *  palette entry when creating, the group's current values when editing. */
   interface TabGroupPromptPayload {
-    tabId: number;
+    mode: "create" | "edit";
+    /** The tab the group is being created around. Absent in `edit`. */
+    tabId?: number;
+    /** The group being edited. Absent in `create`. */
+    groupId?: string;
+    label: string;
+    color: string;
     frame: FrameStyle;
     theme: ResolvedTheme;
   }

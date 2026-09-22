@@ -12,8 +12,18 @@ import { WarmTabManager } from "./WarmTabManager";
 import { WindowGeometry } from "./WindowGeometry";
 import { logger } from "../Logger";
 
-import { HOMEPAGE, TOPPANELHEIGHT, NEW_PROJECT_TAB_URL, NEW_FILE_TAB_TITLE } from "Const";
+import {
+  HOMEPAGE,
+  TOPPANELHEIGHT,
+  NEW_PROJECT_TAB_URL,
+  NEW_FILE_TAB_TITLE,
+  TAB_GROUP_COLORS,
+} from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
+
+/** Cap on Window.recentlyPrunedGroups — deep enough for realistic undo,
+ *  bounded so a long session cannot accumulate dead groups forever. */
+const MAX_REMEMBERED_PRUNED_GROUPS = 20;
 import {
   isDev,
   isCommunityUrl,
@@ -50,6 +60,8 @@ export default class Window {
   // lives on each live Tab (tab.groupId) — this map only holds label/color/
   // collapsed/order. Persisted as `tabGroups` in Types.WindowState.
   private tabGroups: Map<string, Types.TabGroup> = new Map();
+  // Groups pruned for having lost their last tab, kept so reopening that tab
+  // (Ctrl+Shift+T) puts it back into its group. Bounded — see rememberPrunedGroup.
   private recentlyPrunedGroups: Map<string, Types.TabGroup> = new Map();
   private state: Types.WindowState;
   // Single-shot guard so the explicit pre-closeAll snapshot in close() is
@@ -538,7 +550,43 @@ export default class Window {
    * uses for the preview card.
    */
   public showTabGroupPrompt(tabId: number, anchor: PreviewAnchor) {
-    if (this.window.isDestroyed() || !this.tabManager.getAll().has(tabId)) return;
+    if (!this.tabManager.getAll().has(tabId)) return;
+    this.showGroupPromptAt(anchor, {
+      mode: "create",
+      tabId,
+      label: "",
+      color: TAB_GROUP_COLORS[0],
+      frame: resolveFrameStyle(storage.settings.app),
+      theme: getResolvedFigmaTheme(),
+    });
+  }
+
+  /**
+   * Same hand-off as promptNewTabGroup, for renaming/recoloring an existing
+   * group: main asks the panel for the group chip's rect, the panel answers
+   * over "tabGroupEditAnchor", and only then does the popover open —
+   * pre-filled with the group's current label and color.
+   */
+  public promptEditTabGroup(groupId: string) {
+    if (!this.tabGroups.has(groupId)) return;
+    this.window.webContents.send("promptEditTabGroup", groupId);
+  }
+
+  public showTabGroupEditPrompt(groupId: string, anchor: PreviewAnchor) {
+    const group = this.tabGroups.get(groupId);
+    if (!group) return;
+    this.showGroupPromptAt(anchor, {
+      mode: "edit",
+      groupId,
+      label: group.label,
+      color: group.color,
+      frame: resolveFrameStyle(storage.settings.app),
+      theme: getResolvedFigmaTheme(),
+    });
+  }
+
+  private showGroupPromptAt(anchor: PreviewAnchor, payload: Types.TabGroupPromptPayload) {
+    if (this.window.isDestroyed()) return;
 
     const content = this.window.getContentBounds();
     const bounds = computeTabGroupPromptBounds({
@@ -547,14 +595,22 @@ export default class Window {
       contentWidth: content.width,
       contentHeight: content.height,
     });
-    const payload: Types.TabGroupPromptPayload = {
-      tabId,
-      frame: resolveFrameStyle(storage.settings.app),
-      theme: getResolvedFigmaTheme(),
-    };
 
     this.tabGroupPrompt ??= new TabGroupPromptView(this.window);
     this.tabGroupPrompt.show(bounds, payload);
+  }
+
+  /** Rename and/or recolor an existing group. */
+  public updateTabGroup(groupId: string, label: string, color: string): void {
+    const group = this.tabGroups.get(groupId);
+    if (!group) return;
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    if (group.label === trimmed && group.color === color) return;
+
+    group.label = trimmed;
+    group.color = color;
+    this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
   }
 
   public hideTabGroupPrompt() {
@@ -618,10 +674,24 @@ export default class Window {
 
     const group = this.tabGroups.get(groupId);
     if (group) {
-      this.recentlyPrunedGroups.set(groupId, group);
+      this.rememberPrunedGroup(group);
     }
     this.tabGroups.delete(groupId);
     this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
+  }
+
+  /** Remember a pruned group for a possible reopen, oldest entry out first —
+   *  unbounded, this map grew for the whole life of the window. */
+  private rememberPrunedGroup(group: Types.TabGroup): void {
+    // Re-inserting moves the key to the end of the Map's insertion order,
+    // which is what makes the eviction below least-recently-pruned.
+    this.recentlyPrunedGroups.delete(group.id);
+    this.recentlyPrunedGroups.set(group.id, group);
+    while (this.recentlyPrunedGroups.size > MAX_REMEMBERED_PRUNED_GROUPS) {
+      const oldest = this.recentlyPrunedGroups.keys().next();
+      if (oldest.done) break;
+      this.recentlyPrunedGroups.delete(oldest.value);
+    }
   }
 
   public ungroup(groupId: string): void {

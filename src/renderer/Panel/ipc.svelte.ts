@@ -129,4 +129,15 @@ export function initIpc() {
     const r = wrapper.getBoundingClientRect();
     window.figmaApi.send("tabGroupPromptAnchor", tabId, { left: r.left, width: r.width });
   });
+  // Same hand-off for "Edit Group…", anchored on the group's chip so the
+  // popover opens right under the thing it edits.
+  window.figmaApi.on("promptEditTabGroup", (groupId: string) => {
+    const container = document.querySelector<HTMLElement>(
+      `[data-group-id="${CSS.escape(groupId)}"]`,
+    );
+    const chip = container?.querySelector<HTMLElement>(".tab-group-header") ?? container;
+    if (!chip) return;
+    const r = chip.getBoundingClientRect();
+    window.figmaApi.send("tabGroupEditAnchor", groupId, { left: r.left, width: r.width });
+  });
 }
