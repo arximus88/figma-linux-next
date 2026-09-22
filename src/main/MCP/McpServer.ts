@@ -28,6 +28,8 @@ import {
   SERVER_NAME,
   SERVER_VERSION,
 } from "./config";
+import { app } from "electron";
+import { storage } from "Main/Storage";
 import { ToolHandlers } from "./handlers/ToolHandlers";
 import type {
   AssetEntry,
@@ -80,6 +82,10 @@ export class McpServer {
       codeConnectMap: this.codeConnectMap,
       assetStore: this.assetStore,
       getPort: () => this._boundPort,
+      getSaveBaseDir: () =>
+        storage.settings.app.lastExportDir ||
+        storage.settings.app.exportDir ||
+        app.getPath("pictures"),
     });
     this.log.info("View provider attached");
   }

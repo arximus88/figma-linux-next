@@ -43,6 +43,17 @@ export interface ToolContext {
   assetStore: Map<string, AssetEntry>;
   /** The port the MCP server is actually bound to (may differ from the default). */
   getPort: () => number;
+  /**
+   * Base directory for a relative `savePath`.
+   *
+   * Never `process.cwd()`: in a packaged app that is wherever the launcher
+   * happened to start the process (often `/`), which has nothing to do with the
+   * MCP client's working directory. A relative path used to be resolved against
+   * it, so the write succeeded and reported an accurate absolute `savedTo` —
+   * just nowhere near where the caller was looking. Defaults to the app's
+   * configured export directory.
+   */
+  getSaveBaseDir: () => string;
 }
 
 export class ToolHandlers {
@@ -180,8 +191,23 @@ export class ToolHandlers {
     const result = await this.exec(script);
 
     if (result?.error) {
-      // Fallback: capture the visible page via capturePage
-      this.ctx.log.warn("Plugin API export failed, falling back to capturePage:", result.error);
+      this.ctx.log.warn("Plugin API export failed:", result.error);
+
+      // The capturePage fallback grabs the whole editor window: canvas, layers
+      // panel, toolbar and all. That is a reasonable stand-in for "screenshot
+      // what I'm looking at", and no substitute whatsoever for "export node X"
+      // — it ignores `scale` and returns the same image for every node asked
+      // for. Returning it as a success turned a batch of node exports into a
+      // pile of byte-identical window captures that all reported `savedTo`.
+      if (nodeId) {
+        return toolError(
+          `Could not export node ${nodeId}: ${result.error}. ` +
+            "Screenshot not saved. Retry once the file is fully loaded, or call " +
+            "get_screenshot without a nodeId to capture the visible window instead.",
+        );
+      }
+
+      this.ctx.log.warn("Falling back to capturePage for the visible window");
       return this.capturePageFallback(savePath);
     }
 
@@ -198,21 +224,28 @@ export class ToolHandlers {
     nodeId: string,
     nodeName: string,
     savePath: string | null,
+    extraMeta?: Record<string, unknown>,
   ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
     const content: ContentItem[] = [{ type: "image", data: base64, mimeType: "image/png" }];
 
-    const meta: Record<string, unknown> = { nodeId, nodeName };
+    const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
 
     if (savePath) {
+      const absPath = this.resolveSavePath(savePath);
+      if (!path.isAbsolute(savePath)) {
+        // Say so explicitly: the caller's idea of "here" is not the app's.
+        meta.resolvedFrom = this.ctx.getSaveBaseDir();
+      }
       try {
-        const absPath = path.isAbsolute(savePath) ? savePath : path.join(process.cwd(), savePath);
         // Async FS so a slow disk doesn't block the Electron main thread.
         await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
         await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
         meta.savedTo = absPath;
+        this.ctx.log.info(`get_screenshot saved ${absPath}`);
       } catch (e: any) {
-        meta.saveError = e.message;
+        meta.saveError = `${absPath}: ${e.message}`;
+        this.ctx.log.error(`get_screenshot could not write ${absPath}: ${e.message}`);
       }
     }
 
@@ -220,7 +253,21 @@ export class ToolHandlers {
     return { content };
   }
 
-  /** Fallback: use Electron's capturePage on the webContents */
+  /**
+   * Absolute path for a requested `savePath`. A relative one resolves against
+   * the app's export directory — see ToolContext.getSaveBaseDir for why not
+   * `process.cwd()`.
+   */
+  private resolveSavePath(savePath: string): string {
+    if (path.isAbsolute(savePath)) return savePath;
+    return path.resolve(this.ctx.getSaveBaseDir(), savePath);
+  }
+
+  /**
+   * Fallback: Electron's capturePage on the webContents — the whole visible
+   * window, not a node. Only reached when no nodeId was asked for; the result
+   * is marked so a caller can tell it apart from a real node export.
+   */
   private async capturePageFallback(savePath: string | null = null) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
@@ -232,6 +279,10 @@ export class ToolHandlers {
       "",
       "canvas (capturePage fallback)",
       savePath,
+      {
+        degraded:
+          "Plugin API unavailable: this is a capture of the whole window, not a node export. `scale` was not applied.",
+      },
     );
   }
 
