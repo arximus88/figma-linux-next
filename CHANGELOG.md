@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Tab groups.** Tabs can be collected into a named, colored group from the tab context menu
+  ("New Group with This Tab"). The group is a Chrome-style pill in the strip: click it to
+  collapse or expand, right-click for its own menu, drag it to move the whole group at once.
+  Individual tabs attach to and detach from a group by dragging them in or out. Groups survive
+  a restart, and reopening a closed tab (Ctrl+Shift+T) puts it back into its group.
+  Thanks to [@jangoux](https://github.com/jangoux)
+  ([#62](https://github.com/arximus88/figma-linux-next/pull/62)).
+- **Edit a group after creating it.** "Edit Group…" in the group's context menu reopens the
+  popover with the current name and color filled in — previously both were fixed at creation.
+- **Account switching refreshes open tabs.** Switching accounts re-navigates project tabs with
+  the new user id instead of leaving them on the previous account's session.
+  Thanks to [@jangoux](https://github.com/jangoux)
+  ([#62](https://github.com/arximus88/figma-linux-next/pull/62)).
+
+### Fixed
+
+- **Tabs opened and closed with no animation.** Moving the tab markup into a
+  Svelte snippet in the tab-grouping work silently disabled it: a local
+  transition only plays when the block that directly contains it is created, and
+  a snippet rendered through `{@render}` is not that block. The transition is
+  global now, suppressed until the panel has mounted so restored tabs don't all
+  unfold on launch.
+
+- **Exports could fail without saying anything.** A dismissed dialog, a file name
+  the sanitiser rejected and a failed write all ended the same way: nothing on
+  disk, nothing in the log, nothing shown — so "exporting doesn't save anything"
+  reports could not be diagnosed at all. Every outcome is now logged with its
+  destination path, and failures are collected into one dialog naming each file,
+  its reason and the target directory. The old message also claimed the
+  remaining files would be skipped while the export carried on regardless.
+- **MCP `get_screenshot` reported success for a screenshot it hadn't taken.**
+  When the Figma Plugin API was unavailable, a request for a specific node fell
+  back to capturing the whole editor window and returned that as a success —
+  `scale` ignored, the same image for every node asked for. A node request now
+  fails with an explanation instead; the window capture remains only for
+  requests without a `nodeId`, flagged as degraded in the response.
+- **MCP `get_screenshot` saved relative paths in the wrong place.** They were
+  resolved against `process.cwd()` — in a packaged app, wherever the launcher
+  started the process. They now resolve against the export directory, and the
+  response reports which directory was used.
+
+- **Dragged tab looked wrong on light themes.** The lifted tab had a hardcoded dark fill; it now
+  uses a per-frame, per-theme color, and its shadow is no longer clipped by the tab strip.
+- **Tab groups flickered while being dragged.** The group container was keyed on its first
+  member, so reordering or closing that tab rebuilt the whole group from scratch.
+- **Groups could vanish from the strip after a drag.** The panel and the main process pruned
+  emptied groups independently, by different rules; main is now the only one that decides.
+- **Panel could crash on grabbing a tab that had just closed.**
+- **Tabs drifted out of their group while dragging, and a group's last tab often
+  refused to move.** The drag laid every tab out on a single pitch measured
+  between the strip's first two tabs, which ignores a group's margin, border,
+  padding and header chip; and it decided a tab had left its group by measuring
+  from its neighbour's edge, so a wide tab counted as "outside" before it had
+  moved at all. Drag geometry is now a flexbox-faithful model of the strip
+  (`src/renderer/Panel/Components/tabDragLayout.ts`) that also resizes and moves
+  the group container itself, and group membership is decided against the
+  container's box.
+- **A tab could not be dropped after a group that runs to the end of the strip.**
+  Membership followed the dragged tab's centre, which trails the pointer by
+  however far from the middle the tab was grabbed — so the pointer reached past
+  the group while the centre never did, and whether the drop worked depended on
+  where the tab happened to be grabbed. The pointer decides now.
+- **Tabs gradually stopped moving after a number of drags.** Group containers
+  were resized inline while a tab was held. The strip is a live flex row, so
+  each resize shifted everything to its right on top of the transforms computed
+  from the original measurements, and the two compounded; a drag cancelled by
+  the window losing the pointer left the inline width behind for good. Nothing
+  resizes mid-drag now — the target group is highlighted instead, and the real
+  layout happens on drop.
+- **Reordering tabs did nothing: on release the tab sprang back.** The dropped
+  sequence was applied by mapping over the *old* list and swapping objects in
+  place, so the new order lived only in each tab's `order` field — which the
+  clustering step then overwrote from the old array positions. The strip renders
+  the array, so every reorder was discarded, while group changes still worked
+  because `groupId` is carried on the tab itself. The drop now rebuilds the list
+  in the dropped sequence (`applyDropOrder`, unit-tested).
+- **The new-tab "+" jumped on top of the tab being dragged.** The button is
+  `position: sticky`, which resolves against the nearest scroll container — the
+  tab strip itself. Unclipping the strip for the drag (so the lifted tab's
+  shadow isn't cut off) re-anchored the button to an ancestor further up and it
+  moved. It now sits in normal flow while a drag is in progress.
+- **Dragging a tab through a group opened two empty gaps at once.** The preview
+  tried to show a pending group change by opening a slot inside the group while
+  the tab's original slot was also still empty. A pending membership change now
+  moves nothing; the highlighted target group is the feedback.
+
 ## [0.20.1] - 2026-09-08
 
 A polish release from testing on Plasma and Pantheon: the tray icon works from the Flatpak

@@ -31,6 +31,33 @@ jobs:
       - name: Unit tests
         run: bun test tests/unit/
 
+      # The e2e suite drives the real Electron binary against dist/, so it needs
+      # a production build first. It is worth the ~2 minutes: these tests cover
+      # behaviour no unit test can see, and without them a regression reached
+      # staging unnoticed — moving the tab markup into a snippet silently killed
+      # the open/close animation, because a local Svelte transition only plays
+      # when the block directly containing it is created.
+      - name: Build
+        run: bun run build
+
+      # Only the system libraries: the suite drives the Electron binary from
+      # node_modules, so Playwright's bundled browsers are never used.
+      - name: Install Playwright system dependencies
+        run: bunx playwright install-deps
+
+      # Electron needs a display; xvfb provides one on the headless runner.
+      - name: E2E tests
+        run: xvfb-run -a bun run test:e2e
+
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       # A stale tag: in the Flatpak manifest builds and installs cleanly while
       # packaging the previous release, so nothing else would catch it.
       - name: Flatpak release metadata

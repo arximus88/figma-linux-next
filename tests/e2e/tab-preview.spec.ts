@@ -69,9 +69,13 @@ test.describe("Tab hover previews", () => {
     expect(await previewView(handle.app)).toBeNull();
     const first = panel.locator("[data-tab-id]").first();
     await first.hover();
-    await panel.waitForTimeout(900);
 
-    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: true });
+    // Poll rather than sleep: the card appears after the hover delay plus a
+    // thumbnail capture, and a fixed wait that is comfortable on its own turns
+    // flaky once the whole suite is competing for the same machine.
+    await expect
+      .poll(() => previewView(handle.app), { timeout: 5_000 })
+      .toMatchObject({ attached: true, visible: true });
 
     const preview = await findPage(handle.app, "preview.html");
     const card = await preview.evaluate(async () => {
@@ -102,14 +106,16 @@ test.describe("Tab hover previews", () => {
 
     // Leave the strip: the card hides but stays attached for the next hover.
     await panel.mouse.move(700, 20);
-    await panel.waitForTimeout(400);
-    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: false });
+    await expect
+      .poll(() => previewView(handle.app), { timeout: 5_000 })
+      .toMatchObject({ attached: true, visible: false });
 
     // Hover again: the same view comes back (a re-attached view would stay
     // invisible on Wayland with Electron 44).
     await first.hover();
-    await panel.waitForTimeout(900);
-    expect(await previewView(handle.app)).toMatchObject({ attached: true, visible: true });
+    await expect
+      .poll(() => previewView(handle.app), { timeout: 5_000 })
+      .toMatchObject({ attached: true, visible: true });
 
     await closeApp(handle);
   });
@@ -124,9 +130,12 @@ test.describe("Tab hover previews", () => {
     await panel.waitForTimeout(700);
 
     await panel.locator("[data-tab-id]").first().hover();
-    await panel.waitForTimeout(900);
+    await expect
+      .poll(() => previewView(handle.app), { timeout: 5_000 })
+      .toMatchObject({ attached: true, visible: true });
+
     const preview = await findPage(handle.app, "preview.html");
-    await preview.waitForTimeout(200);
+    await preview.locator(".card").waitFor({ state: "attached", timeout: 5_000 });
     const hasImage = await preview.evaluate(() => !!document.querySelector("img.shot"));
     expect(hasImage).toBe(false);
     expect(await preview.locator(".card").count()).toBe(1);
@@ -146,7 +155,9 @@ test.describe("Tab hover previews", () => {
     await panel.waitForTimeout(500);
 
     await panel.locator("[data-tab-id]").first().hover();
-    await panel.waitForTimeout(900);
+    // A fixed wait is right here: this asserts the card never appears, so there
+    // is nothing to poll for — only time to give it to prove otherwise.
+    await panel.waitForTimeout(1_500);
     expect(await previewView(handle.app)).toBeNull();
 
     await closeApp(handle);
@@ -168,7 +179,10 @@ test.describe("Tab hover previews", () => {
 
     const first = panel.locator("[data-tab-id]").first();
     await first.hover();
-    await panel.waitForTimeout(900);
+    await expect
+      .poll(() => previewView(handle.app), { timeout: 5_000 })
+      .toMatchObject({ attached: true, visible: true });
+
     const anchor = (await first.boundingBox())!;
     const bounds = (await previewView(handle.app))!.bounds;
     expect(bounds.y).toBe(50);
