@@ -41,8 +41,25 @@ export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
  * column gap is folded into that margin so the row does not jump by one gap
  * when the element finally disappears.
  */
-export function tabSlide(node: HTMLElement): TransitionConfig {
-  const duration = openDuration();
+export interface TabSlideParams {
+  /**
+   * Suppress the animation for this run, keeping the element's final state.
+   *
+   * Needed because the tab wrapper's transition has to be `|global`: it lives
+   * inside the `tabRow` snippet, and a local transition only plays when the
+   * block that directly contains it is created — a snippet rendered through
+   * `{@render}` is not that block, so the animation silently stopped playing
+   * when the markup moved into one. Going global brings it back, but a global
+   * intro also plays when the panel itself mounts, which would make every
+   * restored tab unfold on launch. The caller passes `skip` until mount is
+   * done, restoring the original behaviour: animate tabs that appear, not tabs
+   * that were already there.
+   */
+  skip?: boolean;
+}
+
+export function tabSlide(node: HTMLElement, params?: TabSlideParams): TransitionConfig {
+  const duration = params?.skip ? 0 : openDuration();
   const width = node.getBoundingClientRect().width;
   const gap = node.parentElement
     ? Number.parseFloat(getComputedStyle(node.parentElement).columnGap) || 0

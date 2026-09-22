@@ -268,6 +268,11 @@ html[data-theme="dark"] {
   --frame-close-fg: #ffffff;
   --frame-tab-hover: rgba(0, 0, 0, 0.05);
   --frame-tab-active: rgba(0, 0, 0, 0.09);
+  /* Opaque fill + shadow for a tab lifted by a drag. It must be opaque: the
+     grabbed tab floats over its neighbours, and a translucent --frame-tab-active
+     would let them read straight through it. */
+  --frame-tab-lifted: #ffffff;
+  --frame-drag-shadow: rgba(0, 0, 0, 0.2);
   --frame-divider: #dcdcdc;
 }
 html[data-theme="dark"] #panel[data-frame="gnome"] {
@@ -285,6 +290,8 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-close-fg: #ffffff;
   --frame-tab-hover: rgba(61, 61, 64, 0.6);
   --frame-tab-active: #3d3d40;
+  --frame-tab-lifted: #3d3d40;
+  --frame-drag-shadow: rgba(0, 0, 0, 0.5);
   --frame-divider: #4f4f4f;
 }
 
@@ -303,6 +310,8 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-close-fg: #fcfcfc;
   --frame-tab-hover: rgba(35, 38, 41, 0.06);
   --frame-tab-active: #fcfcfc;
+  --frame-tab-lifted: #fcfcfc;
+  --frame-drag-shadow: rgba(0, 0, 0, 0.25);
   --frame-divider: transparent;
   --frame-accent: #3daee9;
 }
@@ -320,6 +329,8 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-close-fg: #fcfcfc;
   --frame-tab-hover: rgba(252, 252, 252, 0.06);
   --frame-tab-active: #232629;
+  --frame-tab-lifted: #232629;
+  --frame-drag-shadow: rgba(0, 0, 0, 0.55);
   --frame-divider: transparent;
   --frame-accent: #3daee9;
 }
@@ -337,11 +348,17 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-close-fg: #ffffff;
   --frame-tab-hover: var(--bg-tab-hover);
   --frame-tab-active: var(--bg-tab-active);
+  /* --bg-tab-active is translucent here, so derive the lifted fill from the
+     always-opaque --frame-bg instead. */
+  --frame-tab-lifted: color-mix(in srgb, var(--frame-bg) 92%, #000000);
+  --frame-drag-shadow: rgba(0, 0, 0, 0.25);
   --frame-divider: rgba(0, 0, 0, 0.12);
 }
 html[data-theme="dark"] #panel[data-frame="windows"],
 html[data-theme="dark"] #panel[data-frame="macos"] {
   --frame-btn-hover: rgba(255, 255, 255, 0.08);
   --frame-btn-active: rgba(255, 255, 255, 0.14);
+  --frame-tab-lifted: color-mix(in srgb, var(--frame-bg) 88%, #ffffff);
+  --frame-drag-shadow: rgba(0, 0, 0, 0.5);
   --frame-divider: #333333;
 }

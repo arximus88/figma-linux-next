@@ -3,7 +3,8 @@
   import { NEW_FILE_TAB_TITLE } from "../../../constants/other";
   import List from "../Components/List.svelte";
   import { tabSlide } from "../Components/motion";
-  import { closeTab, newFileTabOrder, tabFocus, clusterGroupedTabs } from "../Components/utils";
+  import { closeTab, newFileTabOrder, tabFocus } from "../Components/utils";
+  import { applyDropOrder } from "Utils/Common";
   import { currentTab, layout, newFileVisible, tabGroups, tabs } from "../store";
   import NewTabButton from "./NewTabButton.svelte";
 
@@ -54,37 +55,19 @@
   // the tab Map — and thus Ctrl+(Shift+)Tab cycling — follows the visual order
   // immediately, not only on window close.
   function onReorder(orderedIds: number[], groupAssignments?: Map<number, string | undefined>) {
-    const byId = new Map(tabs.value.map((t) => [t.id, t]));
-    const reordered = orderedIds
-      .map((id) => byId.get(id))
-      .filter((t): t is Types.TabFront => !!t)
-      .map((tab, index) => {
-        const newGroupId = groupAssignments?.has(tab.id)
-          ? groupAssignments.get(tab.id)
-          : tab.groupId;
-        return {
-          ...tab,
-          groupId: newGroupId,
-          order: tab.title === NEW_FILE_TAB_TITLE && !newGroupId ? newFileTabOrder() : index + 1,
-        };
-      });
-    const reorderedById = new Map(reordered.map((t) => [t.id, t]));
+    // applyDropOrder rebuilds the list *in the dropped sequence* — the array
+    // order is what the strip renders, so rebuilding it from the old one and
+    // relying on the `order` field would throw the reorder away (see the note
+    // on applyDropOrder). Collapsed-group members it never saw are folded back
+    // in beside their group.
+    const next = applyDropOrder(tabs.value, orderedIds, groupAssignments).map((tab, index) => ({
+      ...tab,
+      order: tab.title === NEW_FILE_TAB_TITLE && !tab.groupId ? newFileTabOrder() : index + 1,
+    }));
 
-    // Tabs hidden inside a collapsed group never reach the drag strip (their
-    // wrapper isn't rendered — see List.svelte), so `orderedIds` omits them.
-    // Keep those untouched in their existing slot instead of dropping them.
-    const merged = tabs.value
-      .map((tab) => reorderedById.get(tab.id) ?? tab);
-
-    const next = clusterGroupedTabs(merged);
-
-    // Prune groups that have lost all their member tabs
-    const activeGroupIds = new Set(next.map((t) => t.groupId).filter(Boolean));
-    const prunedGroups = tabGroups.value.filter((g) => activeGroupIds.has(g.id));
-    if (prunedGroups.length !== tabGroups.value.length) {
-      tabGroups.set(prunedGroups);
-    }
-
+    // Emptied groups are NOT pruned here. Main owns that decision
+    // (Window.sortTabs → pruneEmptyGroup, which also remembers the group so
+    // reopening its last tab restores it) and answers with `tabGroupsChanged`.
     tabs.set(next);
     window.figmaApi.send("reorderTabs", $state.snapshot(next));
   }
@@ -165,6 +148,25 @@
   }
   .tabs::-webkit-scrollbar {
     display: none;
+  }
+  /* Set by tabReorder for the duration of a drag, and only while the tabs fit
+     without scrolling — otherwise the lifted tab and its shadow are clipped by
+     this element's own overflow. See unclipStrip() in tabReorder.ts. */
+  /* :global on the class alone — it is added from JS, so Svelte would
+     otherwise prune this rule as unused. */
+  .tabs:global(.tabs-dragging) {
+    overflow: visible;
+  }
+  /* `position: sticky` resolves against the nearest scroll container, which is
+     `.tabs` itself. Dropping its overflow above re-anchors the "+" to an
+     ancestor further up, and it jumps — landing on top of the tab being
+     dragged. Park it in normal flow for the duration: unclipping only happens
+     while the tabs fit without scrolling (see unclipStrip in tabReorder.ts),
+     and with nothing to scroll, sticky was holding it exactly where static
+     does. Also keep it under the lifted tab, which carries z-index 25. */
+  .tabs:global(.tabs-dragging) .strip-plus {
+    position: static;
+    z-index: 0;
   }
   /* "+" after the last tab (app.newTabButtonAfterTabs). It flows right after the
      strip while there is room and sticks to the strip's right edge once the tabs

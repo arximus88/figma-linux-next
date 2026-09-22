@@ -19,7 +19,19 @@
  *   - Other elements slide via transform transitions to open a gap at the drop position.
  *   - On drop we compute the final id order and group assignments, clear every transform,
  *     and hand the result to `onReorder` in the SAME synchronous tick the store updates.
+ *
+ * This file is the DOM half only: measure the strip, call the pure geometry in
+ * ./tabDragLayout, write the resulting transforms back. Anything that decides
+ * *where* a tab lands belongs there, where it is testable without a browser.
  */
+
+import {
+  computeDragLayout,
+  deriveStripMetrics,
+  type DragGroupBox,
+  type DragSlot,
+  type StripMetrics,
+} from "./tabDragLayout";
 
 export interface TabReorderOptions {
   /** Called once on drop with the new full id order (left→right) and any group membership changes. */
@@ -32,31 +44,20 @@ export interface TabReorderOptions {
   enabled?: boolean;
 }
 
-interface TabSlot {
+/** A measured tab wrapper: the pure geometry plus the element to transform. */
+interface TabSlot extends DragSlot {
   id: number;
   el: HTMLElement;
-  left: number;
-  width: number;
-  center: number;
-  groupId?: string;
 }
 
-interface GroupInfo {
-  groupId: string;
+interface GroupInfo extends DragGroupBox {
   el: HTMLElement;
-  left: number;
-  right: number;
-  headerLeft: number;
-  headerRight: number;
 }
 
-interface GroupDragUnit {
+/** A top-level strip child during a group drag: a whole group, or a loose tab. */
+interface GroupDragUnit extends DragSlot {
   type: "group" | "tab";
-  id: string | number;
   el: HTMLElement;
-  left: number;
-  width: number;
-  center: number;
   tabIds: number[];
 }
 
@@ -69,6 +70,8 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
   // Pending (pre-threshold) state
   let pointerId = -1;
   let startX = 0;
+  /** Live pointer x, for group membership — see ResolveGroupParams.pointerX. */
+  let pointerX = 0;
   let isGroupDrag = false;
   let grabbedId = -1;
   let grabbedGroupId = "";
@@ -78,12 +81,35 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
   let slots: TabSlot[] = [];
   let groups: GroupInfo[] = [];
   let grabIndex = -1;
-  let tabGap = 0;
+  let metrics: StripMetrics | undefined;
 
   // Group drag state
   let groupUnits: GroupDragUnit[] = [];
   let grabUnitIndex = -1;
-  let groupGap = 0;
+
+  // The strip that clips us (`.tabs`), while it is unclipped for a drag.
+  let unclippedStrip: HTMLElement | null = null;
+
+  /**
+   * The tab strip is `overflow-x: scroll`, which per spec forces `overflow-y`
+   * to `auto` — so the lifted tab's shadow, and any part of it raised above
+   * the row, get clipped: the tab slides along in a gutter instead of reading
+   * as picked up. Drop the clipping for the duration of the drag, but only
+   * while the strip isn't actually scrollable; with the tabs overflowing,
+   * `overflow: visible` would spill them across the whole panel.
+   */
+  function unclipStrip() {
+    const strip = node.closest<HTMLElement>(".tabs");
+    if (!strip) return;
+    if (strip.scrollWidth > strip.clientWidth + 1) return;
+    strip.classList.add("tabs-dragging");
+    unclippedStrip = strip;
+  }
+
+  function reclipStrip() {
+    unclippedStrip?.classList.remove("tabs-dragging");
+    unclippedStrip = null;
+  }
 
   function measureTabSlots(): TabSlot[] {
     const els = [...node.querySelectorAll<HTMLElement>("[data-tab-id]")];
@@ -95,7 +121,6 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
         el,
         left: r.left,
         width: r.width,
-        center: r.left + r.width / 2,
         groupId: groupContainer?.dataset.groupId,
       };
     });
@@ -125,15 +150,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
         const tabEls = child.querySelectorAll<HTMLElement>("[data-tab-id]");
         const tabIds = Array.from(tabEls).map((el) => Number(el.dataset.tabId));
         const r = child.getBoundingClientRect();
-        units.push({
-          type: "group",
-          id: gid,
-          el: child,
-          left: r.left,
-          width: r.width,
-          center: r.left + r.width / 2,
-          tabIds,
-        });
+        units.push({ type: "group", id: gid, el: child, left: r.left, width: r.width, tabIds });
       } else if (child.dataset.tabId) {
         const tid = Number(child.dataset.tabId);
         const r = child.getBoundingClientRect();
@@ -143,12 +160,39 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
           el: child,
           left: r.left,
           width: r.width,
-          center: r.left + r.width / 2,
           tabIds: [tid],
         });
       }
     }
     return units;
+  }
+
+  /**
+   * Box metrics for the layout model. Most of it is read back from the measured
+   * rects; the two that can't be (a container's margin is indistinguishable
+   * from the strip's gap when all you have is boxes) come from computed style.
+   */
+  function measureMetrics(): StripMetrics {
+    const sectionStyle = getComputedStyle(node);
+    const unitGap = Number.parseFloat(sectionStyle.columnGap) || 0;
+
+    const groupMargin = new Map<string, number>();
+    for (const g of groups) {
+      const style = getComputedStyle(g.el);
+      groupMargin.set(g.groupId, Number.parseFloat(style.marginLeft) || 0);
+    }
+
+    const origin = slots.length > 0 ? Math.min(...slots.map((s) => s.left)) : 0;
+    const firstGroup = groups[0];
+    return deriveStripMetrics({
+      slots,
+      groups,
+      origin: firstGroup
+        ? Math.min(origin, firstGroup.left - (groupMargin.get(firstGroup.groupId) ?? 0))
+        : origin,
+      unitGap,
+      groupMargin,
+    });
   }
 
   function onPointerDown(e: PointerEvent) {
@@ -165,6 +209,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
       if (!container) return;
       pointerId = e.pointerId;
       startX = e.clientX;
+      pointerX = e.clientX;
       isGroupDrag = true;
       grabbedGroupId = container.dataset.groupId ?? "";
       active = false;
@@ -181,6 +226,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
 
     pointerId = e.pointerId;
     startX = e.clientX;
+    pointerX = e.clientX;
     isGroupDrag = false;
     grabbedId = Number(wrapper.dataset.tabId);
     active = false;
@@ -198,8 +244,9 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
       return false;
     }
     groups = measureGroups();
-    tabGap = slots.length > 1 ? Math.max(0, slots[1].left - (slots[0].left + slots[0].width)) : 0;
+    metrics = measureMetrics();
     active = true;
+    unclipStrip();
 
     for (const s of slots) {
       s.el.style.willChange = "transform";
@@ -224,11 +271,8 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
       cancel();
       return false;
     }
-    groupGap =
-      groupUnits.length > 1
-        ? Math.max(0, groupUnits[1].left - (groupUnits[0].left + groupUnits[0].width))
-        : 0;
     active = true;
+    unclipStrip();
 
     for (const u of groupUnits) {
       u.el.style.willChange = "transform";
@@ -246,78 +290,20 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     return true;
   }
 
-  function computeTabTarget(centerNow: number): number {
-    let target = 0;
-    for (let i = 0; i < slots.length; i++) {
-      if (i === grabIndex) continue;
-      if (slots[i].center < centerNow) target++;
-    }
-    return target;
+  /** One frame of a tab drag, straight from the pure core. */
+  function tabLayoutFor(dx: number) {
+    return computeDragLayout({ slots, grabIndex, dx, groups, metrics, pointerX });
   }
 
-  function computeGroupTarget(centerNow: number): number {
-    let target = 0;
-    for (let i = 0; i < groupUnits.length; i++) {
-      if (i === grabUnitIndex) continue;
-      if (groupUnits[i].center < centerNow) target++;
-    }
-    return target;
-  }
-
-  function orderForTabs(target: number): number[] {
-    const ids = slots.map((s) => s.id);
-    ids.splice(grabIndex, 1);
-    ids.splice(target, 0, grabbedId);
-    return ids;
-  }
-
-  function determineTargetGroupId(
-    centerNow: number,
-    target: number,
-    candidateIds: number[],
-  ): string | undefined {
-    const leftId = target > 0 ? candidateIds[target - 1] : undefined;
-    const rightId = target < candidateIds.length - 1 ? candidateIds[target + 1] : undefined;
-    const leftSlot = leftId !== undefined ? slots.find((s) => s.id === leftId) : undefined;
-    const rightSlot = rightId !== undefined ? slots.find((s) => s.id === rightId) : undefined;
-
-    // Both neighbors in candidate order belong to the same group -> inside that group
-    if (leftSlot?.groupId && leftSlot.groupId === rightSlot?.groupId) {
-      return leftSlot.groupId;
-    }
-
-    const currentSlot = slots[grabIndex];
-
-    for (const g of groups) {
-      const originatedInG = currentSlot?.groupId === g.groupId;
-
-      if (originatedInG) {
-        // Tab was in group G: check if cursor has moved outside group G's boundary
-        const otherSlots = slots.filter((s) => s.groupId === g.groupId && s.id !== grabbedId);
-        if (otherSlots.length > 0) {
-          const maxR = Math.max(...otherSlots.map((s) => s.left + s.width));
-          if (centerNow > maxR + 25) continue;
-          if (centerNow < g.headerLeft - 20) continue;
-          return g.groupId;
-        } else {
-          // Tab was the only tab in group G
-          if (centerNow < g.headerLeft - 25 || centerNow > g.headerRight + 45) continue;
-          return g.groupId;
-        }
-      } else {
-        // Outside tab hovering over group G
-        if (centerNow >= g.headerLeft - 15 && centerNow <= g.right + 15) {
-          return g.groupId;
-        }
-      }
-    }
-
-    return undefined;
+  /** One frame of a group drag. Membership can't change, so no group boxes. */
+  function groupLayoutFor(dx: number) {
+    return computeDragLayout({ slots: groupUnits, grabIndex: grabUnitIndex, dx });
   }
 
   function onPointerMove(e: PointerEvent) {
     if (e.pointerId !== pointerId) return;
     const dx = e.clientX - startX;
+    pointerX = e.clientX;
 
     if (isGroupDrag) {
       if (!active) {
@@ -325,27 +311,9 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
         if (!beginGroupDrag()) return;
       }
 
-      const grabUnit = groupUnits[grabUnitIndex];
-      const centerNow = grabUnit.center + dx;
-      const target = computeGroupTarget(centerNow);
-
-      const newUnits = groupUnits.slice();
-      newUnits.splice(grabUnitIndex, 1);
-      newUnits.splice(target, 0, grabUnit);
-
-      let cursor = groupUnits[0].left;
-      const newLeft = new Map<string | number, number>();
-      for (const u of newUnits) {
-        newLeft.set(u.id, cursor);
-        cursor += u.width + groupGap;
-      }
-
+      const { offsets } = groupLayoutFor(dx);
       for (const u of groupUnits) {
-        if (u.id === grabUnit.id) {
-          u.el.style.transform = `translateX(${dx}px)`;
-        } else {
-          u.el.style.transform = `translateX(${(newLeft.get(u.id) ?? u.left) - u.left}px)`;
-        }
+        u.el.style.transform = `translateX(${offsets.get(u.id) ?? 0}px)`;
       }
     } else {
       if (!active) {
@@ -353,35 +321,22 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
         if (!beginTabDrag()) return;
       }
 
-      const grab = slots[grabIndex];
-      const centerNow = grab.center + dx;
-      const target = computeTabTarget(centerNow);
-      const ids = orderForTabs(target);
-      const targetGroupId = determineTargetGroupId(centerNow, target, ids);
+      const { offsets, groupOffsets, targetGroupId } = tabLayoutFor(dx);
+      const fromGroupId = slots[grabIndex].groupId;
 
-      // Highlight drop target group if hovering over a new group
       for (const g of groups) {
-        if (targetGroupId && g.groupId === targetGroupId && targetGroupId !== grab.groupId) {
-          g.el.classList.add("tab-group-drop-target");
-        } else {
-          g.el.classList.remove("tab-group-drop-target");
-        }
-      }
+        // Highlight the group the tab would join, but only when it isn't the
+        // one it already belongs to. This highlight is the only feedback for a
+        // pending membership change: the container itself must not resize
+        // mid-drag — see DragLayout.previewOrder for why.
+        const isNewHome = targetGroupId === g.groupId && targetGroupId !== fromGroupId;
+        g.el.classList.toggle("tab-group-drop-target", isNewHome);
 
-      const widthById = new Map(slots.map((s) => [s.id, s.width]));
-      let cursor = slots[0].left;
-      const newLeft = new Map<number, number>();
-      for (const id of ids) {
-        newLeft.set(id, cursor);
-        cursor += (widthById.get(id) ?? 0) + tabGap;
+        g.el.style.transform = `translateX(${groupOffsets.get(g.groupId) ?? 0}px)`;
       }
 
       for (const s of slots) {
-        if (s.id === grabbedId) {
-          s.el.style.transform = `translateX(${dx}px)`;
-        } else {
-          s.el.style.transform = `translateX(${(newLeft.get(s.id) ?? s.left) - s.left}px)`;
-        }
+        s.el.style.transform = `translateX(${offsets.get(s.id) ?? 0}px)`;
       }
     }
   }
@@ -396,6 +351,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     }
 
     const dx = e.clientX - startX;
+    pointerX = e.clientX;
 
     if (isGroupDrag) {
       // Suppress synthetic click after drag so chip collapse is not triggered
@@ -413,14 +369,12 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
         window.removeEventListener("click", killClick, true);
       }, 50);
 
-      const target = computeGroupTarget(groupUnits[grabUnitIndex].center + dx);
-      const newUnits = groupUnits.slice();
-      newUnits.splice(grabUnitIndex, 1);
-      newUnits.splice(target, 0, groupUnits[grabUnitIndex]);
-
+      const { order, target } = groupLayoutFor(dx);
+      const unitById = new Map(groupUnits.map((u) => [u.id, u]));
       const finalTabIds: number[] = [];
-      for (const u of newUnits) {
-        finalTabIds.push(...u.tabIds);
+      for (const id of order) {
+        const unit = unitById.get(id);
+        if (unit) finalTabIds.push(...unit.tabIds);
       }
 
       clearGroupStyles();
@@ -429,9 +383,8 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
       if (changed) options.onReorder(finalTabIds);
     } else {
       // Single tab drop
-      const target = computeTabTarget(slots[grabIndex].center + dx);
-      const ids = orderForTabs(target);
-      const targetGroupId = determineTargetGroupId(slots[grabIndex].center + dx, target, ids);
+      const { order, targetGroupId } = tabLayoutFor(dx);
+      const ids = order as number[];
 
       clearTabStyles();
 
@@ -449,6 +402,14 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
   }
 
   function clearTabStyles() {
+    reclipStrip();
+    for (const g of groups) {
+      g.el.style.transform = "";
+      // Belt and braces: an older revision set an inline width here, and a drag
+      // torn down by pointercancel left it behind, quietly corrupting the
+      // strip's geometry for every drag afterwards.
+      g.el.style.width = "";
+    }
     for (const s of slots) {
       s.el.style.transition = "";
       s.el.style.transform = "";
@@ -463,6 +424,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
   }
 
   function clearGroupStyles() {
+    reclipStrip();
     for (const u of groupUnits) {
       u.el.style.transition = "";
       u.el.style.transform = "";
@@ -490,6 +452,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     groupUnits = [];
     grabIndex = -1;
     grabUnitIndex = -1;
+    metrics = undefined;
     grabbedId = -1;
     grabbedGroupId = "";
     pointerId = -1;
@@ -511,6 +474,7 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     destroy() {
       node.removeEventListener("pointerdown", onPointerDown);
       detachWindow();
+      reclipStrip();
     },
   };
 }

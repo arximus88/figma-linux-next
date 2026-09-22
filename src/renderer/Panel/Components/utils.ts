@@ -108,6 +108,11 @@ export function closeTab(id: number) {
 export function tabFocus(id: number) {
   const tab = tabs.getTab(id);
 
+  // tabReorder calls this on pointerdown, so `id` can name a tab the store has
+  // already dropped (closed under the cursor, or a stale drag). Reading
+  // `.title` off undefined there took the whole panel down.
+  if (!tab) return;
+
   if (tab.title !== NEW_FILE_TAB_TITLE) {
     currentTab.set(id);
     window.figmaApi.send("setTabFocus", id);

@@ -55,6 +55,14 @@
     tabCloseClass?: string;
   }>();
 
+  // The tab transition is `|global` (see TabSlideParams in ./motion), so it
+  // would also fire for every tab already present when the panel mounts.
+  // Suppress it until the first render has settled.
+  let mounted = $state(false);
+  $effect(() => {
+    mounted = true;
+  });
+
   const normalBgColor = "transparent";
   const hoverBgColor = "transparent";
 
@@ -74,8 +82,13 @@
   });
 
   type Row =
-    | { type: "tab"; tab: Types.TabFront; index: number }
-    | { type: "group"; group: Types.TabGroup; tabs: { tab: Types.TabFront; index: number }[] };
+    | { type: "tab"; tab: Types.TabFront; index: number; key: string }
+    | {
+        type: "group";
+        group: Types.TabGroup;
+        tabs: { tab: Types.TabFront; index: number }[];
+        key: string;
+      };
 
   // Nest each group's tabs under its header as real DOM children, instead of
   // flat siblings the CSS has to line up by hand — a single border/background
@@ -86,6 +99,10 @@
   // start a second same-group run rather than lose the tab.
   const rows = $derived.by(() => {
     const result: Row[] = [];
+    // How many runs of each group we have emitted so far. Clustering normally
+    // leaves exactly one run per group, but a second one must not collide on
+    // the keyed-each key — Svelte throws on duplicate keys.
+    const runsSeen = new Map<string, number>();
     let i = 0;
     while (i < items.length) {
       const item = items[i];
@@ -95,7 +112,7 @@
 
       if (!group) {
         // Ungrouped, or a groupId that doesn't (yet) resolve — render plain.
-        result.push({ type: "tab", tab: item, index: i });
+        result.push({ type: "tab", tab: item, index: i, key: `tab-${item.id}` });
         i++;
         continue;
       }
@@ -106,7 +123,19 @@
         groupTabs.push({ tab: items[i], index: i });
         i++;
       }
-      result.push({ type: "group", group, tabs: groupTabs });
+      // The key must NOT depend on which tabs are inside: it used to carry the
+      // first member's id, so reordering or closing that tab changed the key,
+      // and Svelte tore the whole group container down and rebuilt it —
+      // visible as the group flickering and its tabs losing their transitions
+      // mid-drag.
+      const run = runsSeen.get(group.id) ?? 0;
+      runsSeen.set(group.id, run + 1);
+      result.push({
+        type: "group",
+        group,
+        tabs: groupTabs,
+        key: run === 0 ? `group-${group.id}` : `group-${group.id}-run${run}`,
+      });
     }
     return result;
   });
@@ -121,7 +150,7 @@
   }}
   use:tabHover={{ enabled: layout.tabHoverPreviews }}
 >
-  {#each rows as row (row.type === "group" ? `group-${row.group.id}-${row.tabs[0]?.tab.id ?? "empty"}` : `tab-${row.tab.id}`)}
+  {#each rows as row (row.key)}
     {#if row.type === "group"}
       <div
         role="group"
@@ -163,7 +192,7 @@
     class={tabWrapperClass}
     data-tab-id={item.id}
     data-loading={item.loading}
-    transition:tabSlide
+    transition:tabSlide|global={{ skip: !mounted }}
   >
     {#if showDividers && (grouped ? tabIdx > 0 : index > 0)}
       <div
@@ -242,16 +271,18 @@
     opacity: 0.97;
     cursor: grabbing;
     border-radius: 8px;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 3px 10px var(--frame-drag-shadow);
     /* Solid fill so the lifted tab never blends into the one it overlaps —
-       even the New file tab, which isn't activated on grab. */
-    background: #3d3d40;
+       even the New file tab, which isn't activated on grab. Per-frame and
+       per-theme via --frame-tab-lifted (theme.css): a hardcoded dark grey here
+       turned into a black smear on every light theme. */
+    background: var(--frame-tab-lifted);
   }
   :global(.group-dragging) {
     z-index: 25 !important;
     opacity: 0.95;
     cursor: grabbing !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 4px 16px var(--frame-drag-shadow);
   }
   :global(.tab-group-drop-target) {
     box-shadow: 0 0 0 2px var(--group-color), 0 2px 10px rgba(0, 0, 0, 0.3) !important;
