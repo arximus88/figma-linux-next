@@ -112,6 +112,9 @@ export function initIpc() {
   window.figmaApi.on("setLoading", (tabId: number, loading: boolean) => {
     tabs.updateTab({ id: tabId, loading });
   });
+  window.figmaApi.on("setTabDiscarded", (tabId: number, discarded: boolean) => {
+    tabs.updateTab({ id: tabId, discarded });
+  });
 
   window.figmaApi.on("tabGroupsChanged", (groups: Types.TabGroup[]) => {
     tabGroups.set(groups);

@@ -545,6 +545,136 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("Lazy tab restore (app.lazyRestoreTabs)", () => {
+    test("only the previously-active tab is restored live; the rest become discarded shells", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      const originalLazy = storage.settings.app.lazyRestoreTabs;
+      storage.settings.app.saveLastOpenedTabs = true;
+      storage.settings.app.lazyRestoreTabs = true;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "/design/abc/B",
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [],
+        };
+
+        const restored = new Window(persisted);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab");
+        const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A" },
+          { title: "File B", url: "https://www.figma.com/design/abc/B" },
+          { title: "File C", url: "https://www.figma.com/design/abc/C" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        // Only the tab matching lastActiveTabPath gets a real WebContentsView.
+        expect(addTabSpy.mock.calls.length).toBe(1);
+        expect(addTabSpy).toHaveBeenCalledWith(
+          "https://www.figma.com/design/abc/B",
+          "File B",
+          undefined,
+        );
+        expect(setTabFocusSpy).toHaveBeenCalled();
+
+        // The other two are present (title/url known) but never got a view.
+        const tabManager: any = (restored as any).tabManager;
+        const allTabs = [...tabManager.getAll().values()];
+        const discardedTitles = allTabs
+          .filter((t: any) => t.discarded)
+          .map((t: any) => t.title)
+          .sort();
+        expect(discardedTitles).toEqual(["File A", "File C"]);
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+        storage.settings.app.lazyRestoreTabs = originalLazy;
+      }
+    });
+
+    test("restores the N most-recently-focused tabs live, not just the active one", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      const originalLazy = storage.settings.app.lazyRestoreTabs;
+      const originalEagerCount = storage.settings.app.lazyRestoreEagerCount;
+      storage.settings.app.saveLastOpenedTabs = true;
+      storage.settings.app.lazyRestoreTabs = true;
+      storage.settings.app.lazyRestoreEagerCount = 2;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "/design/abc/B",
+          // Most-recent-first; B and C were focused more recently than A.
+          recentTabPaths: ["/design/abc/B", "/design/abc/C", "/design/abc/A"],
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [],
+        };
+
+        const restored = new Window(persisted);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab");
+        const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A" },
+          { title: "File B", url: "https://www.figma.com/design/abc/B" },
+          { title: "File C", url: "https://www.figma.com/design/abc/C" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        // Top 2 of recentTabPaths (B, C) restore live — A doesn't, even
+        // though it's a saved tab, because it's third in recency and the
+        // budget is 2.
+        expect(addTabSpy.mock.calls.length).toBe(2);
+        const restoredTitles = addTabSpy.mock.calls.map((call: any[]) => call[1]).sort();
+        expect(restoredTitles).toEqual(["File B", "File C"]);
+        expect(setTabFocusSpy).toHaveBeenCalled();
+
+        const tabManager: any = (restored as any).tabManager;
+        const allTabs = [...tabManager.getAll().values()];
+        const discardedTitles = allTabs.filter((t: any) => t.discarded).map((t: any) => t.title);
+        expect(discardedTitles).toEqual(["File A"]);
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+        storage.settings.app.lazyRestoreTabs = originalLazy;
+        storage.settings.app.lazyRestoreEagerCount = originalEagerCount;
+      }
+    });
+  });
+
   describe("New Group popover (TabGroupPromptView)", () => {
     test("promptNewTabGroup only asks the panel for an anchor when the tab is known", () => {
       const send: any = windowInstance.win.webContents.send;
@@ -787,10 +917,12 @@ describe("Warm tab lifecycle", () => {
   test("promotion clears the skeleton flag once the warm tab has bootstrapped", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    // event.sender.id is always the real webContents id — the warm tab's
+    // logical `.id` (from the counter, see Tab.ts) is a different number.
+    const warmWebContentsId = lastWarmTab.webContentsId;
 
     // Warm tab signals readiness via setLoading(false) from its own webContents.
-    w.setLoading({ sender: { id: warmId } } as any, { loading: false } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: false } as any);
 
     const tabManager: any = (w as any).tabManager;
     spyOn(tabManager, "promoteWarmTab");
@@ -805,13 +937,15 @@ describe("Warm tab lifecycle", () => {
   test("setLoading from the warm tab is swallowed (not forwarded to the panel)", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    const warmWebContentsId = lastWarmTab.webContentsId;
     const send: any = w.win.webContents.send;
     send.mockClear?.();
 
-    w.setLoading({ sender: { id: warmId } } as any, { loading: true } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: true } as any);
 
-    const forwarded = send.mock.calls.some((c: any[]) => c[0] === "setLoading" && c[1] === warmId);
+    const forwarded = send.mock.calls.some(
+      (c: any[]) => c[0] === "setLoading" && c[1] === warmWebContentsId,
+    );
     expect(forwarded).toBe(false);
   });
 

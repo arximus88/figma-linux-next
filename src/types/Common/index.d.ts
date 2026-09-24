@@ -24,6 +24,8 @@ declare namespace Types {
     loading?: boolean;
     /** Tab group this tab belongs to, if any. See `TabGroup`. */
     groupId?: string;
+    /** True while this tab's webContents is unloaded to save memory (see app.autoDiscardTabs) — click to transparently reload it. */
+    discarded?: boolean;
     view: import("electron").WebContentsView;
   }
 
@@ -40,6 +42,7 @@ declare namespace Types {
     | "isInVoiceCall"
     | "loading"
     | "groupId"
+    | "discarded"
   >;
 
   interface AddTabProps {
@@ -149,6 +152,8 @@ declare namespace Types {
     frameStyle: FrameStyle;
     detectedFrameStyle: FrameStyle;
     theme: ResolvedTheme;
+    /** Total system RAM, for the memory-budget slider's "X of Y GB" context — only main can see this (os.totalmem()). */
+    totalMemoryMB: number;
   }
 
   interface FeatureFlags {
@@ -162,6 +167,8 @@ declare namespace Types {
     height: number;
     isMaximized: boolean;
     lastActiveTabPath: string;
+    /** Pathnames of the most-recently-focused tabs in this window, most-recent-first (capped, deduped) — used by lazyRestoreTabs to decide which saved tabs restore live vs. as a discarded shell. Falls back to just [lastActiveTabPath] for state saved before this field existed. */
+    recentTabPaths?: string[];
     hasOpenedCommunityTab: boolean;
     userId: string;
     tabs: SavedTab[];
@@ -195,6 +202,14 @@ declare namespace Types {
       newTabButtonAfterTabs: boolean;
       /** Show a card with the tab's last thumbnail when the pointer rests on it. */
       tabHoverPreviews: boolean;
+      /** Automatically unload background tabs once they pass discardMemoryBudgetMB — off by default (opt-in). */
+      autoDiscardTabs: boolean;
+      /** Target ceiling, in MB, for the combined memory of background (non-active) tabs while autoDiscardTabs is on. */
+      discardMemoryBudgetMB: number;
+      /** On launch, only your most-recently-used tabs (see lazyRestoreEagerCount) are restored live — every other saved tab starts already-discarded (title/group shown, no process) and loads on first click. Independent of autoDiscardTabs: this controls startup, not ongoing eviction. */
+      lazyRestoreTabs: boolean;
+      /** How many of the most-recently-focused tabs restore live on launch while lazyRestoreTabs is on. */
+      lazyRestoreEagerCount: number;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;

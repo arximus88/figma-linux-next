@@ -15,15 +15,29 @@
 
   // Detected by main from XDG_CURRENT_DESKTOP; shown as the hint under the toggle.
   let detectedFrameStyle = $state<Types.FrameStyle | null>(null);
+  // Only main can see this (os.totalmem()) — context for the memory-budget slider below.
+  let totalMemoryMB = $state<number | null>(null);
   window.figmaApi
     .invoke("getRuntimeInfo")
     .then((info: Types.RuntimeInfo) => {
       detectedFrameStyle = info?.detectedFrameStyle ?? null;
+      totalMemoryMB = info?.totalMemoryMB ?? null;
     })
     .catch(() => {
       detectedFrameStyle = null;
     });
   let detectedLabel = $derived(detectedFrameStyle ? getFrameStyleLabel(detectedFrameStyle) : "…");
+
+  // Whole-GB steps, not free-floating MB — a raw MB number isn't a unit
+  // anyone thinks in. Falls back to a generous ceiling while totalMemoryMB
+  // hasn't arrived yet (invoke round-trip), so the slider is never stuck at
+  // a 1GB max on first paint.
+  let totalMemoryGB = $derived(totalMemoryMB ? Math.max(1, Math.floor(totalMemoryMB / 1024)) : 64);
+  let discardBudgetGB = $derived(Math.round($settings.app.discardMemoryBudgetMB / 1024));
+  // Background tabs only — the active tab, the OS, and everything else on
+  // the system still need headroom on top of this budget, so treating a
+  // budget close to total RAM as "safe" would be misleading.
+  let discardBudgetIsRisky = $derived(totalMemoryMB ? discardBudgetGB / totalMemoryGB > 0.7 : false);
 
   let items: Types.TabItem[] = $derived($settings.app.fontDirs.map((dir) => ({
     id: dir,
@@ -209,6 +223,29 @@
         >
           <Toggle bind:checked={$settings.app.saveLastOpenedTabs} />
         </SettingRow>
+        {#if $settings.app.saveLastOpenedTabs}
+          <SettingRow
+            title="Restore tabs instantly on launch"
+            subtitle="Only your most recent tabs reload right away — every other restored tab shows up dimmed and loads on first click, instead of every tab loading at once"
+          >
+            <Toggle bind:checked={$settings.app.lazyRestoreTabs} />
+          </SettingRow>
+          {#if $settings.app.lazyRestoreTabs}
+            <div class="lazy-restore-panel">
+              <div class="slider-head">
+                <span class="slider-label">Tabs restored live on launch</span>
+                <span class="slider-value">{$settings.app.lazyRestoreEagerCount}</span>
+              </div>
+              <InputRange
+                bind:value={$settings.app.lazyRestoreEagerCount}
+                min={1}
+                max={10}
+                step={1}
+                width="100%"
+              />
+            </div>
+          {/if}
+        {/if}
         <SettingRow
           title="Enable color space sRGB"
           subtitle="Fixes washed-out colors on wide-gamut displays · restart"
@@ -269,6 +306,37 @@
         >
           <Toggle bind:checked={$settings.app.tabHoverPreviews} />
         </SettingRow>
+        <SettingRow
+          title="Free memory from background tabs"
+          subtitle="Unload tabs you haven't touched in a while once background tabs pass the budget below — click a dimmed tab to reload it"
+        >
+          <Toggle bind:checked={$settings.app.autoDiscardTabs} />
+        </SettingRow>
+        {#if $settings.app.autoDiscardTabs}
+          <div class="memory-budget-panel">
+            <div class="slider-head">
+              <span class="slider-label">Memory budget for background tabs</span>
+              <span class="slider-value">{discardBudgetGB} GB</span>
+            </div>
+            <InputRange
+              bind:value={
+                () => discardBudgetGB,
+                (gb) => ($settings.app.discardMemoryBudgetMB = gb * 1024)
+              }
+              min={1}
+              max={totalMemoryGB}
+              step={1}
+              width="100%"
+            />
+            <div class="memory-budget-context" class:memory-budget-risky={discardBudgetIsRisky}>
+              {discardBudgetGB} GB of {totalMemoryGB} GB total system memory
+              {#if discardBudgetIsRisky}
+                <br />This only budgets background tabs — the active tab, the OS, and everything
+                else on your system still need headroom on top of this.
+              {/if}
+            </div>
+          </div>
+        {/if}
         <SettingRow
           title="System tray icon"
           subtitle="Keep Figma running in the tray when the last window is closed. Works on KDE Plasma and on GNOME with the AppIndicator extension; other desktops may show no icon"
@@ -441,6 +509,24 @@
   .slider-value {
     font-size: 13px;
     color: var(--text-disabled);
+  }
+
+  /* Both plain divs, not <Card> — the parent SettingRow list already IS a
+     Card (overflow: hidden; height: 100%), and nesting a second one blows
+     that layout out, clipping every row that comes after it. */
+  .memory-budget-panel,
+  .lazy-restore-panel {
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--borders);
+  }
+  .memory-budget-context {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-disabled);
+  }
+  .memory-budget-risky {
+    color: var(--text);
+    font-weight: 600;
   }
 
   .frame-style-select {
