@@ -45,6 +45,8 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     hideWindowMinMaxButtons: false,
     newTabButtonAfterTabs: false,
     tabHoverPreviews: true,
+    autoDiscardTabs: false,
+    discardMemoryBudgetMB: 4096,
     trayEnabled: false,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",

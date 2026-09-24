@@ -7,7 +7,7 @@ import ChangelogView from "./ChangelogView";
 import TabPreviewView from "./TabPreviewView";
 import TabGroupPromptView from "./TabGroupPromptView";
 import { ModalViewManager } from "./ModalViewManager";
-import TabManager from "./TabManager";
+import TabManager, { type DiscardedTab } from "./TabManager";
 import { WarmTabManager } from "./WarmTabManager";
 import { WindowGeometry } from "./WindowGeometry";
 import { logger } from "../Logger";
@@ -167,12 +167,19 @@ export default class Window {
     return this.window;
   }
   public get allWebContentsIds() {
+    // Live tabs only — a discarded tab's `.id` is a logical id that no
+    // longer corresponds to any real webContents (its process is gone), and
+    // a revived tab's real webContents id differs from that logical id, so
+    // this can no longer just be `this.tabs.keys()` (see Tab.ts).
+    const liveWebContentsIds = [...this.tabs.values()]
+      .filter((tab): tab is Tab => tab instanceof Tab)
+      .map((tab) => tab.webContentsId);
     const ids = new Set<number>([
       this.webContentId,
       this.settingsViewId,
       this.changelogViewId,
       this.tabManager.mainTabWebContentId,
-      ...this.tabs.keys(),
+      ...liveWebContentsIds,
     ]);
 
     if (this.tabManager.communityTabWebContentId) {
@@ -319,19 +326,21 @@ export default class Window {
   public toggleCurrentTabDevTools() {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       toggleDetachedDevTools(tab.view.webContents);
     }
   }
 
-  /** Find an already-open tab matching this URL's dedup key. Prototype and editor
-   *  URLs for the same file have different dedup keys and therefore coexist. */
-  private findTabForUrl(url: string): Tab | undefined {
+  /** Find an already-open tab matching this URL's dedup key (live or discarded — a
+   *  discarded match should be revived on focus, not duplicated as a new tab).
+   *  Prototype and editor URLs for the same file have different dedup keys and
+   *  therefore coexist. */
+  private findTabForUrl(url: string): Tab | DiscardedTab | undefined {
     const key = getTabDedupKey(url);
     if (!key) return undefined;
     for (const tab of this.tabManager.getAll().values()) {
       const storedKey = tab.url ? getTabDedupKey(tab.url) : null;
-      const liveKey = getTabDedupKey(tab.getUrl());
+      const liveKey = tab instanceof Tab ? getTabDedupKey(tab.getUrl()) : null;
       if (storedKey === key || liveKey === key) return tab;
     }
     return undefined;
@@ -439,7 +448,9 @@ export default class Window {
     const tabs = this.tabManager.getAll();
 
     for (const [_, tab] of tabs) {
-      this.window.contentView.removeChildView(tab.view);
+      if (tab instanceof Tab) {
+        this.window.contentView.removeChildView(tab.view);
+      }
     }
 
     this.tabManager.closeAll();
@@ -729,13 +740,15 @@ export default class Window {
       };
     }
 
-    const url = tab.getUrl();
+    const url = tab instanceof Tab ? tab.getUrl() : "discarded" in tab ? tab.url : "";
+    // Live Tab or discarded shell — both carry title/groupId; mainTab/communityTab don't.
+    const trackedTab = tab instanceof Tab || "discarded" in tab ? tab : undefined;
 
     return {
       id: tabId,
-      title: tab instanceof Tab ? tab.title : "",
+      title: trackedTab?.title ?? "",
       url,
-      groupId: tab instanceof Tab ? tab.groupId : undefined,
+      groupId: trackedTab?.groupId,
     };
   }
 
@@ -867,14 +880,14 @@ export default class Window {
   private onEnterFullScreen() {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       tab.view.webContents.send("handleSetFullScreen", true);
     }
   }
   private onLeaveFullScreen() {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       tab.view.webContents.send("handleSetFullScreen", false);
     }
   }
@@ -900,23 +913,26 @@ export default class Window {
   }
 
   public setLoading(event: IpcMainEvent, args: WebApi.SetLoading) {
-    const tabId = event.sender.id;
+    const webContentsId = event.sender.id;
 
     // Warm tab signals readiness via setLoading(false). Track it so the
     // promoter knows whether to show the skeleton placeholder — promoting
     // a not-yet-bootstrapped warm tab without the skeleton lands the user
     // on a blank black page until the SPA finally renders.
-    if (this.warmTabs.handleSetLoading(tabId, args.loading)) {
+    if (this.warmTabs.handleSetLoading(webContentsId, args.loading)) {
       return;
     }
 
-    const tab = this.tabManager.getById(tabId);
+    const tab = this.tabManager.getByWebContentsId(webContentsId);
 
     if (!tab) {
       return;
     }
 
-    this.window.webContents.send("setLoading", tabId, args.loading);
+    // The renderer's tab store keys off the logical id (TabFront.id), not
+    // the real webContents id this event arrived on — those only coincide
+    // until a tab has been discarded and revived once.
+    this.window.webContents.send("setLoading", tab.id, args.loading);
   }
   public windowMinimize(_: IpcMainEvent) {
     this.window.minimize();
@@ -991,7 +1007,9 @@ export default class Window {
 
     this.hideTabPreview();
     this.hideTabGroupPrompt();
-    this.window.contentView.removeChildView(tab.view);
+    if (tab instanceof Tab) {
+      this.window.contentView.removeChildView(tab.view);
+    }
 
     const nextTabId = this.tabManager.close(tabId);
 
@@ -1032,16 +1050,30 @@ export default class Window {
     return this.tabManager.lastFocusedTab;
   }
 
+  /**
+   * Translate a real webContents id (e.g. `event.sender.id`) to the logical
+   * tab id it currently belongs to. A no-op for ids that are already logical
+   * (mainTab/communityTab, or any id with no live-tab match), since those
+   * never diverge from their webContents id.
+   */
+  private resolveTabId(webContentsId: number): number {
+    return this.tabManager.getByWebContentsId(webContentsId)?.id ?? webContentsId;
+  }
+
+  /** Resolve a live Tab from the real webContents id an IPC event arrived on. */
+  public getTabByWebContentsId(webContentsId: number): Tab | undefined {
+    return this.tabManager.getByWebContentsId(webContentsId);
+  }
+
   /** True when `webContentsId` belongs to the tab currently shown in this window. */
   public isFocusedTab(webContentsId: number): boolean {
-    // lastFocusedTab holds a webContents id for every tab kind, mainTab included.
-    return webContentsId === this.tabManager.lastFocusedTab;
+    return this.resolveTabId(webContentsId) === this.tabManager.lastFocusedTab;
   }
 
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<unknown> {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
-    if (!tab) return Promise.resolve(undefined);
+    if (!tab || "discarded" in tab) return Promise.resolve(undefined);
     return tab.view.webContents.executeJavaScript(script);
   }
 
@@ -1108,8 +1140,20 @@ export default class Window {
     this.tabManager.mainTab.view.webContents.send("figma:complete-auth", gSecret, path);
   }
   public setTabFocus(tabId: number) {
-    const tab = this.tabManager.getById(tabId);
+    let tab = this.tabManager.getById(tabId);
     if (!tab) return;
+
+    if ("discarded" in tab) {
+      const revived = this.tabManager.reviveTab(tab);
+      revived.view.setBackgroundColor(this.figmaThemeBgColor);
+      this.attachHidden(revived.view);
+      this.window.webContents.send("setTabDiscarded", revived.id, false);
+      // Reuse the existing loading-skeleton machinery — a revive is,
+      // functionally, "open this tab's URL again from scratch."
+      this.window.webContents.send("setLoading", revived.id, true);
+      this.armLoadingWatchdog(revived);
+      tab = revived;
+    }
 
     const bounds = this.calcBoundsForTabView();
 
@@ -1129,8 +1173,52 @@ export default class Window {
     this.tabManager.setBounds(tabId, bounds);
     this.window.webContents.send("focusTab", tabId);
 
+    // Cross-window MRU bookkeeping for memory-budget eviction (WindowManager).
+    app.emit("tabFocused", this.id, tabId);
+
     app.emit("needUpdateMenu", this.id, tabId, { "close-tab": true });
   }
+
+  /** Every live tab in this window that isn't the one currently shown — eviction candidates. */
+  public getBackgroundLiveTabs(): Tab[] {
+    return [...this.tabManager.getAll().values()].filter(
+      (tab): tab is Tab => tab instanceof Tab && tab.id !== this.tabManager.lastFocusedTab,
+    );
+  }
+
+  /**
+   * Discard a background tab to free memory (see WindowManager's
+   * memory-budget eviction) — destroys its webContents but keeps its slot in
+   * the tab strip so a later click transparently revives it (setTabFocus).
+   * Refuses the currently-shown tab (destroying the visible tab's webContents
+   * would blank the screen — the caller is expected to already exclude it,
+   * this is a hard backstop) and a tab mid voice/mic use or with a queued
+   * export render in flight, since destroy() would silently drop either.
+   * Returns whether a tab was actually discarded.
+   */
+  public discardTab(tabId: number): boolean {
+    if (tabId === this.tabManager.lastFocusedTab) return false;
+
+    const tab = this.tabManager.getById(tabId);
+    if (!tab || !(tab instanceof Tab)) return false;
+    if (tab.isInVoiceCall || tab.isUsingMicrophone) return false;
+    if (isExportQueueUrl(tab.url ?? tab.getUrl())) return false;
+
+    if (!this.window.isDestroyed()) {
+      try {
+        this.window.contentView.removeChildView(tab.view);
+      } catch {
+        // never attached / already gone
+      }
+    }
+
+    const discarded = this.tabManager.discardTab(tabId);
+    if (discarded) {
+      this.window.webContents.send("setTabDiscarded", tabId, true);
+    }
+    return !!discarded;
+  }
+
   public focusNextTab() {
     const nextId = this.tabManager.getNextTabId(this.tabManager.lastFocusedTab);
     if (nextId !== undefined) this.setTabFocus(nextId);
@@ -1143,16 +1231,17 @@ export default class Window {
     // Ignore title updates from the warm tab (not yet promoted to active tab)
     if (this.warmTabs.isWarmTab(event.sender.id)) return;
 
-    const tab = this.tabManager.getById(event.sender.id);
+    const tab = this.tabManager.getByWebContentsId(event.sender.id);
 
-    if (!tab || (tab instanceof Tab && tab.title === NEW_FILE_TAB_TITLE)) {
+    if (!tab || tab.title === NEW_FILE_TAB_TITLE) {
       return;
     }
 
     this.tabManager.setTitle(tab.id, title);
-    if (tab?.view?.webContents) {
-      this.window.webContents.send("setTitle", { id: tab.view.webContents.id, title });
-    }
+    // The renderer keys tabs by the logical id, not the real webContents id
+    // this event arrived on — those only coincide until a tab has been
+    // discarded and revived once.
+    this.window.webContents.send("setTitle", { id: tab.id, title });
   }
   public openFile(event: IpcMainEvent, ...args: string[]) {
     let url = `${HOMEPAGE}${args[0]}`;
@@ -1241,7 +1330,7 @@ export default class Window {
     const payload: Types.TabPreviewPayload = {
       id: tab.id,
       title: tab.title ?? "",
-      url: displayUrl(tab.url ?? tab.getUrl()),
+      url: displayUrl(tab.url ?? (tab instanceof Tab ? tab.getUrl() : "")),
       editorType: tab.editorType,
       isLibrary: tab.isLibrary,
       preview,
@@ -1319,10 +1408,14 @@ export default class Window {
     this.window.webContents.on("did-finish-load", this.webContentDidFinishLoad.bind(this));
   }
 
-  /** The tab on screen (last focused), if any. */
+  /** The tab on screen (last focused), if any. A discarded tab is never left
+   *  as lastFocusedTab (setTabFocus revives before focusing) — this filters
+   *  it out defensively rather than trusting that invariant blindly. */
   private shownTab(): Tab | MainTab | CommunityTab | undefined {
     const id = this.tabManager.lastFocusedTab;
-    return id ? this.tabManager.getById(id) : undefined;
+    if (!id) return undefined;
+    const tab = this.tabManager.getById(id);
+    return tab && !("discarded" in tab) ? tab : undefined;
   }
 
   /**

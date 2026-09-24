@@ -1,7 +1,7 @@
 import { app, clipboard, nativeTheme, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
-import Tab from "./Tab";
+import type Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
@@ -13,6 +13,11 @@ import { isMenuAnchor } from "Utils/Main/menuPosition";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
 
+/** How often to re-check background-tab memory against the budget while autoDiscardTabs is
+ *  on — a deliberate exception to the codebase's usual event-driven (no setInterval) staleness
+ *  checks, since memory growing while the user sits idle on one tab has no event to hang off. */
+const MEMORY_CHECK_INTERVAL_MS = 30_000;
+
 export default class WindowManager {
   private menuManager: MenuManager;
 
@@ -22,11 +27,22 @@ export default class WindowManager {
   private keepAliveWithoutWindows = false;
   private closedTabs: Map<string, Types.SavedTab> = new Map();
 
+  /**
+   * Cross-window most-recently-used order for background tabs (tabId ->
+   * windowId), re-inserted (delete+set) on every focus so iteration order is
+   * always oldest-touched-first. Lives here rather than per-window because
+   * eviction has to reason about total memory across every open window, not
+   * just one — physical RAM is shared.
+   */
+  private tabMru: Map<number, number> = new Map();
+  private memoryCheckIntervalId: ReturnType<typeof setInterval> | null = null;
+
   constructor() {
     this.menuManager = new MenuManager();
 
     this.restoreData();
     this.registerAppEvents();
+    this.ensureMemoryCheckInterval();
   }
 
   // ── Public API (used by controllers) ──────────────────────────────
@@ -653,7 +669,9 @@ export default class WindowManager {
     if (!tabInfo) return;
 
     const tab = window.tabs.get(tabId);
-    const currentGroupId = tab instanceof Tab ? tab.groupId : undefined;
+    // groupId lives on both a live Tab and a discarded shell — a discarded
+    // tab's group membership is still real, just not currently rendered.
+    const currentGroupId = tab?.groupId;
 
     this.menuManager.openTabMenuHandler(
       window.win,
@@ -750,8 +768,11 @@ export default class WindowManager {
     window.toggleDevTools();
   }
   private updateFullscreenMenuState(event: IpcMainEvent, state: Menu.State) {
-    const tabId = event.sender.id;
-    const window = this.getWindowByWebContentsId(tabId);
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    // Menu/panel state is keyed by the logical tab id, not the real
+    // webContents id this event arrived on — those only coincide until a
+    // tab has been discarded and revived once.
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
 
     this.menuManager.setTabMenu(tabId, state);
 
@@ -760,13 +781,13 @@ export default class WindowManager {
 
   private setIsInVoiceCall(event: IpcMainEvent, isInVoiceCall: boolean) {
     const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = event.sender.id;
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
 
     window.setIsInVoiceCall(tabId, isInVoiceCall);
   }
   private setUsingMicrophone(event: IpcMainEvent, isUsingMicrophone: boolean) {
     const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = event.sender.id;
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
 
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
@@ -810,8 +831,8 @@ export default class WindowManager {
   private setTabEditorType(event: IpcMainEvent, type: Types.EditorType) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) {
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) {
       logger.info(`[editor-type] tab ${tab.id} url=${tab.url ?? "?"} type=${type}`);
       tab.setEditorType(type);
     }
@@ -819,14 +840,14 @@ export default class WindowManager {
   private setTabIsLibrary(event: IpcMainEvent, isLibrary: boolean) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) tab.setIsLibrary(isLibrary);
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) tab.setIsLibrary(isLibrary);
   }
   private setTabPreviewData(event: IpcMainEvent, data: unknown) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (!(tab instanceof Tab)) return;
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (!tab) return;
     // Re-validated here: the renderer is Figma's page and could send anything.
     const d = data as Types.TabPreviewData | null;
     tab.previewData =
@@ -835,8 +856,8 @@ export default class WindowManager {
   private setTabUrl(event: IpcMainEvent, url: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) tab.updateUrlAndDeriveType(url);
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) tab.updateUrlAndDeriveType(url);
   }
   private openFile(event: IpcMainEvent, ...args: string[]) {
     const window = this.getWindowByWebContentsId(event.sender.id);
@@ -964,5 +985,95 @@ export default class WindowManager {
     app.on("toggleCurrentTabDevTools", this.toggleCurrentTabDevTools.bind(this));
     app.on("needUpdateMenu", this.needUpdateMenu.bind(this));
     app.on("handleCallbackForTab", this.handleCallbackForTab.bind(this));
+    app.on("tabFocused", this.onTabFocused.bind(this));
+    app.on("autoDiscardTabsChanged", this.ensureMemoryCheckInterval.bind(this));
+  }
+
+  // ── Memory-budget eviction (app.autoDiscardTabs) ──────────────────
+
+  /** Emitted by Window.setTabFocus on every focus — keeps the cross-window MRU order current
+   *  and takes the opportunity to check the budget right when memory is most likely to have
+   *  just grown (a new/revived tab just became active), instead of waiting for the interval. */
+  private onTabFocused(windowId: number, tabId: number) {
+    this.tabMru.delete(tabId);
+    this.tabMru.set(tabId, windowId);
+    this.enforceMemoryBudget();
+  }
+
+  private ensureMemoryCheckInterval() {
+    const enabled = !!storage.settings.app.autoDiscardTabs;
+    if (enabled && !this.memoryCheckIntervalId) {
+      this.memoryCheckIntervalId = setInterval(
+        () => this.enforceMemoryBudget(),
+        MEMORY_CHECK_INTERVAL_MS,
+      );
+    } else if (!enabled && this.memoryCheckIntervalId) {
+      clearInterval(this.memoryCheckIntervalId);
+      this.memoryCheckIntervalId = null;
+    }
+  }
+
+  /** Every live tab that isn't the one currently shown in its own window — eviction candidates. */
+  private collectBackgroundTabs(): Map<number, { windowId: number; tab: Tab }> {
+    const result = new Map<number, { windowId: number; tab: Tab }>();
+    for (const [windowId, window] of this.windows) {
+      for (const tab of window.getBackgroundLiveTabs()) {
+        result.set(tab.id, { windowId, tab });
+      }
+    }
+    return result;
+  }
+
+  /** Oldest-touched-first id from `eligible`, skipping any MRU entry that's stale (tab since
+   *  closed, or no longer a background tab) — falls back to an arbitrary eligible tab if none
+   *  of them has ever been focused (e.g. a lazily-restored tab, once that feature exists). */
+  private pickLruCandidate(
+    eligible: Map<number, { windowId: number; tab: Tab }>,
+  ): number | undefined {
+    for (const tabId of this.tabMru.keys()) {
+      if (eligible.has(tabId)) return tabId;
+    }
+    return eligible.keys().next().value;
+  }
+
+  private enforceMemoryBudget() {
+    if (!storage.settings.app.autoDiscardTabs) return;
+    const budgetBytes = (storage.settings.app.discardMemoryBudgetMB ?? 0) * 1024 * 1024;
+    if (budgetBytes <= 0) return;
+
+    const background = this.collectBackgroundTabs();
+    if (background.size === 0) return;
+
+    // ProcessMetric carries no webContents id of its own — attribute by OS
+    // process id instead.
+    const pidToTabId = new Map<number, number>();
+    for (const [tabId, { tab }] of background) {
+      pidToTabId.set(tab.view.webContents.getOSProcessId(), tabId);
+    }
+
+    const memoryByTabId = new Map<number, number>();
+    for (const metric of app.getAppMetrics()) {
+      const tabId = pidToTabId.get(metric.pid);
+      if (tabId !== undefined) {
+        // workingSetSize is KB.
+        memoryByTabId.set(tabId, (metric.memory.workingSetSize ?? 0) * 1024);
+      }
+    }
+
+    let totalBytes = 0;
+    for (const bytes of memoryByTabId.values()) totalBytes += bytes;
+
+    while (totalBytes > budgetBytes && background.size > 0) {
+      const victimId = this.pickLruCandidate(background);
+      if (victimId === undefined) break;
+
+      const entry = background.get(victimId);
+      background.delete(victimId);
+      this.tabMru.delete(victimId);
+      if (!entry) continue;
+
+      totalBytes -= memoryByTabId.get(victimId) ?? 0;
+      this.windows.get(entry.windowId)?.discardTab(victimId);
+    }
   }
 }
