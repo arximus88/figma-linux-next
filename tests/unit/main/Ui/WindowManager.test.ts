@@ -63,9 +63,19 @@ describe("WindowManager.setUserIdOnAllWindows", () => {
 
     windowManager.setUserIdOnAllWindows("user-42");
 
-    expect(windowA.setUserId).toHaveBeenCalledWith("user-42");
-    expect(windowB.setUserId).toHaveBeenCalledWith("user-42");
-    expect(windowC.setUserId).toHaveBeenCalledWith("user-42");
+    expect(windowA.setUserId).toHaveBeenCalledWith("user-42", undefined);
+    expect(windowB.setUserId).toHaveBeenCalledWith("user-42", undefined);
+    expect(windowC.setUserId).toHaveBeenCalledWith("user-42", undefined);
+  });
+
+  test("passes the source webContents on so its tab is not reloaded a second time", () => {
+    const windows = (windowManager as any).windows as Map<number, any>;
+    const windowA = { setUserId: mock() };
+    windows.set(1, windowA);
+
+    windowManager.setUserIdOnAllWindows("user-42", 77);
+
+    expect(windowA.setUserId).toHaveBeenCalledWith("user-42", 77);
   });
 
   test("is a no-op when there are no windows", () => {

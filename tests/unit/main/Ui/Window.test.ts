@@ -860,9 +860,20 @@ describe("Warm tab lifecycle", () => {
     const tabManager: any = (w as any).tabManager;
     const reapplySpy = spyOn(tabManager, "reapplyUserId");
 
-    w.setUserId("user-2");
+    w.setUserId("user-2", 77);
 
-    expect(reapplySpy).toHaveBeenCalledWith("user-2");
+    expect(reapplySpy).toHaveBeenCalledWith("user-2", 77);
+  });
+
+  test("an empty user id never re-navigates project tabs", () => {
+    w.setUserId("user-1");
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
   });
 
   test("first setUserId does not re-navigate project tabs", () => {

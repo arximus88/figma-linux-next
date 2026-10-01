@@ -117,9 +117,9 @@ export default class WindowManager {
     }
   }
 
-  public setUserIdOnAllWindows(userId: string) {
+  public setUserIdOnAllWindows(userId: string, sourceWebContentsId?: number) {
     for (const [_, window] of this.windows) {
-      window.setUserId(userId);
+      window.setUserId(userId, sourceWebContentsId);
     }
   }
 

@@ -46,9 +46,13 @@ export default class TabManager {
    * doesn't reload N tabs (and boot N Figma canvases) at once. Deferred tabs
    * catch up in applyPendingUserId, right before they become focused.
    */
-  public reapplyUserId(userId: string) {
+  public reapplyUserId(userId: string, sourceWebContentsId?: number) {
     this.tabs.forEach((tab) => {
-      if (tab.id === this.lastFocusedTab) {
+      if (!tab.view.webContents.isDestroyed() && tab.view.webContents.id === sourceWebContentsId) {
+        // The tab the switch came from already runs as `userId`; reloading it
+        // would boot its canvas a second time.
+        tab.pendingUserId = undefined;
+      } else if (tab.id === this.lastFocusedTab) {
         this.refreshTabUserId(tab, userId);
       } else {
         tab.pendingUserId = userId;

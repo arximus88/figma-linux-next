@@ -155,6 +155,17 @@ describe("TabManager", () => {
       expect(tab.pendingUserId).toBeUndefined();
     });
 
+    it("does not reload the tab the switch came from — it already runs as the new account", () => {
+      const tab = tabManager.addTab("https://test.com", "A");
+      tabManager.focusTab(tab.id);
+      const loadUrlSpy = spyOn(tab, "loadUrl");
+
+      tabManager.reapplyUserId("user-2", tab.view.webContents.id);
+
+      expect(loadUrlSpy).not.toHaveBeenCalled();
+      expect(tab.pendingUserId).toBeUndefined();
+    });
+
     it("defers background tabs instead of reloading them immediately", () => {
       const active = tabManager.addTab("https://test.com", "Active");
       const background = tabManager.addTab("https://test.com", "Background");

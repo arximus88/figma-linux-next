@@ -193,7 +193,7 @@ export default class Window {
     return [...ids];
   }
 
-  public setUserId(id: string) {
+  public setUserId(id: string, sourceWebContentsId?: number) {
     const previousId = this._userId;
     this._userId = id;
     this.tabManager.setUserId(id);
@@ -204,8 +204,8 @@ export default class Window {
 
     // Open project tabs also loaded under the previous account. Re-navigate
     // them with the new fuid on an actual switch (never on first boot).
-    if (previousId && previousId !== id) {
-      this.tabManager.reapplyUserId(id);
+    if (id && previousId && previousId !== id) {
+      this.tabManager.reapplyUserId(id, sourceWebContentsId);
     }
   }
   public sortTabs(tabs: Types.TabFront[]) {
