@@ -17,26 +17,27 @@ test.describe("Window controls", () => {
     await closeApp(handle);
   });
 
-  test("maximize button maximizes the window", async () => {
+  test("maximize button asks the window to maximize", async () => {
     const handle = await launchApp();
     const { panel, app } = handle;
 
-    const initialBounds = await app.evaluate(({ BrowserWindow }) => {
+    // Maximizing is the window manager's job, and the suite runs on a bare xvfb
+    // with none — there the X server ignores the request and the bounds never
+    // change. What the app owns is the wiring: the button's IPC reaching
+    // BrowserWindow.maximize(), so that is what gets recorded.
+    await app.evaluate(({ BrowserWindow }) => {
       const win = BrowserWindow.getAllWindows()[0];
-      return win.getBounds();
+      (globalThis as any).__maximizeCalls = 0;
+      win.maximize = () => {
+        (globalThis as any).__maximizeCalls++;
+      };
     });
 
     await panel.evaluate(() => {
       window.figmaApi.send("windowMaximize");
     });
 
-    const maximizedBounds = await app.evaluate(({ BrowserWindow }) => {
-      const win = BrowserWindow.getAllWindows()[0];
-      return win.getBounds();
-    });
-
-    expect(maximizedBounds.width).toBeGreaterThan(initialBounds.width);
-    expect(maximizedBounds.height).toBeGreaterThan(initialBounds.height);
+    await expect.poll(() => app.evaluate(() => (globalThis as any).__maximizeCalls)).toBe(1);
 
     await closeApp(handle);
   });

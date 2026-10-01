@@ -45,9 +45,9 @@ jobs:
       - name: Install Playwright system dependencies
         run: bunx playwright install-deps
 
-      # Electron needs a display; xvfb provides one on the headless runner.
+      # Electron needs a display; the test:e2e script runs it under xvfb-run.
       - name: E2E tests
-        run: xvfb-run -a bun run test:e2e
+        run: bun run test:e2e
 
       - name: Upload e2e failure artifacts
         if: failure()

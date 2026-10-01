@@ -35,12 +35,21 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // then rejects Chromium flags (--no-sandbox, --remote-debugging-port) and
   // require("electron") yields a path string instead of the API, so the app
   // never launches. Some sandboxed/CI shells export it; strip it for the child.
-  const { ELECTRON_RUN_AS_NODE: _ignored, ...parentEnv } = process.env;
+  //
+  // WAYLAND_DISPLAY goes too: xvfb-run only swaps DISPLAY, and with the session's
+  // Wayland socket still visible Electron picks ozone=wayland and opens every test
+  // window on the developer's real desktop instead of the virtual X server.
+  const {
+    ELECTRON_RUN_AS_NODE: _runAsNode,
+    WAYLAND_DISPLAY: _waylandDisplay,
+    ...parentEnv
+  } = process.env;
 
   const app = await electron.launch({
     args: [MAIN_JS, `--user-data-dir=${userDataDir}`],
     env: {
       ...parentEnv,
+      XDG_SESSION_TYPE: "x11",
       NODE_ENV: "test",
       FIGMA_LOGLEVEL: "error",
     },
