@@ -1,10 +1,18 @@
 <script lang="ts">
+  import { getContext } from "svelte";
+  import { SETTING_ROW_LABEL } from "./context";
+
+  const rowLabel = getContext<(() => string) | undefined>(SETTING_ROW_LABEL);
+
   let {
     checked = $bindable(),
     disabled = false,
-    label = "Toggle setting",
+    // Defaults to the enclosing SettingRow's title; pass it outside a row.
+    label = undefined as string | undefined,
     onchange = undefined as ((checked: boolean) => void) | undefined,
   } = $props();
+
+  let accessibleLabel = $derived(label ?? rowLabel?.());
 
   function toggle() {
     if (disabled) return;
@@ -20,7 +28,7 @@
   {disabled}
   role="switch"
   aria-checked={checked}
-  aria-label={label}
+  aria-label={accessibleLabel}
   onclick={toggle}
 >
   <span class="knob"></span>

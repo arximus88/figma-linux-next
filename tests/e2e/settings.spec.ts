@@ -52,6 +52,32 @@ test.describe("Settings", () => {
     await closeApp(handle);
   });
 
+  test("every switch is named after its setting", async () => {
+    const handle = await launchApp();
+
+    // The Settings page loads hidden with the window, so it is already a target.
+    let settingsPage: any = null;
+    for (let i = 0; i < 30 && !settingsPage; i++) {
+      settingsPage = handle.app.windows().find((p) => p.url().includes("settings.html")) ?? null;
+      if (!settingsPage) await handle.panel.waitForTimeout(100);
+    }
+    expect(settingsPage, "settings page not found").not.toBeNull();
+
+    const switches = settingsPage.getByRole("switch");
+    await expect(switches.first()).toBeAttached();
+    const labels: string[] = await switches.evaluateAll((els: Element[]) =>
+      els.map((el) => el.getAttribute("aria-label") ?? ""),
+    );
+
+    expect(labels.length).toBeGreaterThan(5);
+    expect(labels).not.toContain("");
+    expect(labels).not.toContain("Toggle setting");
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels).toContain("Tab previews on hover");
+
+    await closeApp(handle);
+  });
+
   test("settings view opens and closes without crash", async () => {
     const handle = await launchApp();
     const { app } = handle;

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { setContext } from "svelte";
+  import { SETTING_ROW_LABEL } from "./context";
+
   let {
     title,
     subtitle = "",
@@ -6,6 +9,11 @@
     truncate = false,
     children,
   } = $props();
+
+  // The control in the row is named after the row: a Toggle reads this as its
+  // accessible label, so a screen reader hears "Tab previews on hover, switch"
+  // instead of a dozen identical "Toggle setting"s.
+  setContext(SETTING_ROW_LABEL, () => title);
 </script>
 
 <div class="setting-row">
