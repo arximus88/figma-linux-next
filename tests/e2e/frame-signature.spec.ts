@@ -99,6 +99,22 @@ async function panelSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) 
   }, GEO_PROPS);
 }
 
+/**
+ * The panel's colours ease in through CSS transitions, so a signature taken a
+ * fixed delay after boot can catch a background mid-fade — on a slow CI runner
+ * it did. Read until two samples a beat apart agree.
+ */
+async function settledSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) {
+  let previous = await panelSignature(panel);
+  for (let i = 0; i < 30; i++) {
+    await panel.waitForTimeout(150);
+    const current = await panelSignature(panel);
+    if (current === previous) return current;
+    previous = current;
+  }
+  return previous;
+}
+
 test.describe("Frame-style DOM signature", () => {
   for (const style of ["gnome", "kde", "windows"] as const) {
     test(`${style} panel signature is stable`, async () => {
@@ -110,9 +126,7 @@ test.describe("Frame-style DOM signature", () => {
       });
       const panel = await findPanelPage(handle.app);
       await waitForFrame(panel, style);
-      await panel.waitForTimeout(200);
-
-      const sig = await panelSignature(panel);
+      const sig = await settledSignature(panel);
       const baselineFile = path.join(BASELINE_DIR, `frame-${style}.txt`);
 
       if (process.env.UPDATE_FRAME_BASELINE) {
