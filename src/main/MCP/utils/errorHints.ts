@@ -21,10 +21,6 @@ export const ERROR_HINTS: ErrorHint[] = [
     hint: "load the font before setting characters — use the figma_text tool (it auto-loads fonts), or await figma.loadFontAsync(node.fontName) first.",
   },
   {
-    match: /Figma Plugin API not available/i,
-    hint: "ensure a Figma design file is open and fully loaded in the active tab before calling design tools.",
-  },
-  {
     match: /node not found|getNodeById.*null|no node with/i,
     hint: 'the nodeId may be stale or wrong. Use figma_find or get_metadata to locate a current node id (ids look like "123:456").',
   },
