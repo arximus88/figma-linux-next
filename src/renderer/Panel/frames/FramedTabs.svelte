@@ -5,8 +5,9 @@
   import { tabSlide } from "../Components/motion";
   import { closeTab, newFileTabOrder, tabFocus } from "../Components/utils";
   import { applyDropOrder } from "Utils/Common";
-  import { currentTab, layout, newFileVisible, tabGroups, tabs } from "../store";
+  import { currentTab, layout, newFileVisible, settingsTabOpen, tabGroups, tabs } from "../store";
   import NewTabButton from "./NewTabButton.svelte";
+  import SettingsStripTab from "./SettingsStripTab.svelte";
 
   let { style }: { style: Types.FrameStyle } = $props();
 
@@ -127,6 +128,9 @@
     {onContextMenuGroup}
     onActivate={tabFocus}
   />
+  {#if settingsTabOpen.value}
+    <SettingsStripTab {style} />
+  {/if}
   {#if layout.newTabAfterTabs && newFileVisible.value}
     <span class="strip-plus" transition:tabSlide>
       <NewTabButton {style} />

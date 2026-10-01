@@ -24,7 +24,7 @@ mock.module("Main/Dialogs", () => ({
 
 mock.module("./SettingsView", () => ({
   default: class {
-    view = { webContents: { id: 500 } };
+    view = { webContents: { id: 500 }, setVisible: mock(), setBounds: mock() };
     updateProps = mock();
     closeDevTools = mock();
     destroy = mock();

@@ -9,8 +9,6 @@
   import IntegrationsView from "./Views/IntegrationsView.svelte";
   import AdvancedView from "./Views/AdvancedView.svelte";
 
-  let { onCloseSettings }: { onCloseSettings: () => void } = $props();
-
   const VIEWS = {
     general: GeneralView,
     appearance: AppearanceView,
@@ -66,16 +64,15 @@
       e.preventDefault();
       searchInput?.focus();
       searchInput?.select();
-    } else if (e.key === "Escape") {
-      if (query) query = "";
-      else onCloseSettings();
+    } else if (e.key === "Escape" && query) {
+      query = "";
     }
   }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="shell" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+<div class="shell" role="main" aria-labelledby="settings-title">
   <nav class="sidebar" aria-label="Settings sections">
     <h2 id="settings-title" class="app-title">Settings</h2>
     <label class="search">
@@ -123,9 +120,6 @@
         {/if}
       </div>
       <span class="save-status" class:error={saveState.status === "error"} role="status">{saveText}</span>
-      <button type="button" class="close" aria-label="Close settings" onclick={() => onCloseSettings()}>
-        <SettingsIcon name="close" size={18} />
-      </button>
     </header>
 
     {#if saveState.pendingRestart.length > 0}
@@ -165,14 +159,11 @@
 <style>
   .shell {
     display: flex;
-    width: min(1040px, 94vw);
-    height: min(720px, 90vh);
+    width: 100vw;
+    height: 100vh;
     overflow: hidden;
-    border: 1px solid var(--borders);
-    border-radius: 12px;
     background: var(--bg-panel);
     color: var(--text);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
   }
 
   /* ── Sidebar ── */
@@ -257,7 +248,6 @@
     font-weight: 600;
   }
   .nav-item:focus-visible,
-  .close:focus-visible,
   .result:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
@@ -300,22 +290,6 @@
   .save-status.error {
     color: var(--error);
   }
-  .close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-  }
-  .close:hover {
-    background: var(--bg-card-hover);
-  }
-
   .restart-banner {
     display: flex;
     align-items: center;

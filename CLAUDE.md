@@ -120,7 +120,7 @@ The application is a classic Electron app with two processes:
 
 **Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
-- **Settings** (`src/renderer/Settings/`) - Settings modal
+- **Settings** (`src/renderer/Settings/`) - Settings page, shown as a tab
 
 Communication between processes goes through a typed **preload bridge** (`src/main/preload/bridge.ts`) that exposes `window.figmaApi` — direct `ipcRenderer` usage in renderers is not allowed.
 
@@ -164,9 +164,17 @@ new App(new WindowManager(), new Session(), new FontManager());
 **Window** (`src/main/Ui/Window.ts`):
 - Wraps a `BrowserWindow` with a `TabManager`, a `SettingsView` and a lazily created `TabPreviewView`
   (the hover card, `src/main/Ui/TabPreviewView.ts` + `src/renderer/Preview/`)
-- Child views (tabs, the hover card, the Settings / What's New overlays) are attached to the
+- Child views (tabs, the hover card, the Settings tab, the What's New overlay) are attached to the
   `BrowserWindow` once and switched with `view.setVisible()`; `swapTo()` shows the next tab and
-  hides the previous one. See the gotcha "Child views are attached once" below.
+  hides the previous one (and the Settings tab, if it was in front). See the gotcha "Child views
+  are attached once" below.
+- **Settings is a tab, like a browser's settings page** (`src/main/Ui/SettingsTab.ts`). It has two
+  states: *open* (in the strip) and *shown* (on screen). Switching to a file hides it but keeps it
+  in the strip; closing it (×, middle click, Ctrl+W while shown) refocuses the tab that was under
+  it. It is not a `TabManager` tab — it never drags, groups, previews or gets saved with the
+  session. The panel learns of it via `settingsTabOpened`/`settingsTabClosed` and draws it with
+  `Panel/frames/SettingsStripTab.svelte`; `currentTab` is `"settingsTab"` while it is shown
+  (a panel-only `PanelTabId`, not part of `Types.TabIdType`).
 - Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
@@ -213,7 +221,7 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Svelte stores in `src/renderer/Panel/store/`: `currentTab`, `tabs`, `panelZoom`
 
 **Settings** (`src/renderer/Settings/`):
-- Modal dialog: sidebar (search + five sections) and one section view at a time
+- Full-size page in the Settings tab: sidebar (search + five sections) and one section view at a time
   (`Components/Views/{General,Appearance,Tabs,Integrations,Advanced}View.svelte`).
 - `schema.ts` holds every row's section, title, help text and search keywords; rows render
   their text from it (`<SettingRow setting={SETTINGS.x}>`), so search can't drift from the UI.
@@ -223,7 +231,7 @@ new App(new WindowManager(), new Session(), new FontManager());
   `--frame-*` palette (`.frame-preview[data-frame]` in theme.css) — not screenshots.
 - Help text uses `--text-secondary` (AA on `--bg-card` in both themes); `--text-disabled` is for
   disabled things only.
-- Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce); closing only hides the view.
+- Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce, flushed when the tab is hidden); closing only hides the view.
   Only the fields listed in `Utils/Common/settingsEdit.ts` are sent — never the whole settings object, which
   would overwrite main-owned state (`windowsState`, `recentlyClosedTabs`, `userId`) with the snapshot Settings
   loaded with. A new user-editable setting must be added to that list, and its side effect to
@@ -383,14 +391,14 @@ Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message 
 When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
 
 ### Child views are attached once — switch with setVisible, never detach and re-attach
-Tab views, the tab preview card and the Settings / What's New overlays are added to
+Tab views, the tab preview card, the Settings tab and the What's New overlay are added to
 `window.contentView` once, hidden, the moment they are created (`Window.attachHidden()`; the
-overlays in the `ModalViewManager` constructor) and afterwards only toggled with
+overlay in the `ModalViewManager` constructor) and afterwards only toggled with
 `view.setVisible()`. On Wayland with Electron 44 a `WebContentsView` that is `removeChildView`ed and
 later `addChildView`ed again never becomes visible: `document.visibilityState` stays `hidden`,
 nothing paints and the tab shows white until a relayout (verified 2026-09-07 on GNOME 50 with a
 minimal repro; Electron 43 was fine, and X11/xvfb — where the e2e suite runs — never reproduces it).
-Re-adding an *attached* view is safe and is how overlays raise themselves above tabs attached since
+Re-adding an *attached* view is safe and is how the overlay raises itself above tabs attached since
 (`addChildView` on a current child reorders it to the top). `removeChildView` is reserved for views
 about to be destroyed (`closeTab`, `closeAllTab`, community close, warm-tab discard).
 

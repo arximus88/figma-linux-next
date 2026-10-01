@@ -23,41 +23,25 @@
     return () => document.documentElement.removeAttribute("data-theme");
   });
 
-  async function closeSettings() {
-    await flushNow();
-    window.figmaApi.send("closeSettingsView");
-  }
-
-  function handleOverlayMouseDown(event: MouseEvent) {
-    if (event.target === event.currentTarget) {
-      closeSettings();
-    }
+  // Settings is a tab: switching away or closing it only hides this view.
+  // Write a pending edit right away instead of leaving it to the debounce.
+  function onVisibilityChange() {
+    if (document.hidden) flushNow();
   }
 </script>
 
-<div role="presentation" onmousedown={handleOverlayMouseDown} id="settings">
-  <Body onCloseSettings={closeSettings} />
-</div>
+<svelte:document onvisibilitychange={onVisibilityChange} />
+
+<Body />
 
 <style>
-  :global(html) {
-    background-color: transparent !important;
-  }
   :global(body) {
     margin: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--bg-panel);
     /* Base font for the whole Settings window. Without this, any text that
        doesn't set its own font-family (section headers, the title) falls back
        to the browser default serif (Times) — the "broken" look. Use the
        platform's native UI sans so it matches the host desktop. */
     font-family: system-ui, -apple-system, "Segoe UI", "Adwaita Sans", Cantarell, Ubuntu, Roboto, sans-serif;
-  }
-  div {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
   }
 </style>

@@ -71,6 +71,8 @@ const RECEIVE_CHANNELS = [
   "setLoading",
   "frameStyleChanged",
   "figmaThemeChanged",
+  "settingsTabOpened",
+  "settingsTabClosed",
   // Tab preview card (renderer/Preview)
   "tabPreviewData",
   // Tab groups

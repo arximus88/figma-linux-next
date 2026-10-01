@@ -1,7 +1,7 @@
 /**
  * SettingsController — handles all settings-related IPC channels.
  */
-import type { IpcMainInvokeEvent } from "electron";
+import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { app } from "electron";
 
 import { storage } from "../Storage";
@@ -106,9 +106,9 @@ export default class SettingsController {
     }
   }
 
-  /** Everything is saved as it is edited; closing only hides the view. */
-  private closeSettingsView() {
-    this.windowManager.closeSettingsViewForLastWindow();
+  /** Everything is saved as it is edited; closing only removes the tab. */
+  private closeSettingsView(event?: IpcMainEvent) {
+    this.windowManager.closeSettingsViewFor(event?.sender?.id);
   }
 
   private async selectExportDirectory(_: IpcMainInvokeEvent) {

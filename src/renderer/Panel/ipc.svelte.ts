@@ -10,6 +10,7 @@ import {
   newFileVisible,
   communityTabVisible,
   windowControls,
+  settingsTabOpen,
 } from "./store";
 
 /**
@@ -80,6 +81,8 @@ export function initIpc() {
   window.figmaApi.on("focusTab", (tabId: any) => {
     currentTab.set(tabId);
   });
+  window.figmaApi.on("settingsTabOpened", () => settingsTabOpen.set(true));
+  window.figmaApi.on("settingsTabClosed", () => settingsTabOpen.set(false));
   window.figmaApi.on("newFileBtnVisible", (visible: boolean) => {
     newFileVisible.set(visible);
   });

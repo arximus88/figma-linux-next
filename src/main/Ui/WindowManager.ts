@@ -60,11 +60,12 @@ export default class WindowManager {
     return this.windows.get(this.lastFocusedwindowId);
   }
 
-  public closeSettingsViewForLastWindow() {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    if (window) {
-      window.closeSettingsView();
-    }
+  /** Close the Settings tab of the window `webContentsId` belongs to (panel or Settings). */
+  public closeSettingsViewFor(webContentsId?: number) {
+    const window =
+      (webContentsId !== undefined ? this.getWindowByWebContentsId(webContentsId) : undefined) ??
+      this.windows.get(this.lastFocusedwindowId);
+    window?.closeSettingsView();
   }
 
   public openChangelogViewForLastWindow() {
@@ -416,6 +417,12 @@ export default class WindowManager {
   }
   private closeCurrentTabFromMenu(windowId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    if (!window) return;
+    // Ctrl+W on the Settings tab closes Settings, not the file under it.
+    if (window.isSettingsTabShown) {
+      window.closeSettingsView();
+      return;
+    }
     const tabId = window.getLatestFocusedTabId();
 
     if (tabId) {

@@ -39,6 +39,7 @@ import { computeTabGroupPromptBounds } from "Utils/Main/tabGroupPrompt";
 import Tab from "./Tab";
 import type MainTab from "./MainTab";
 import type CommunityTab from "./CommunityTab";
+import { SettingsTab } from "./SettingsTab";
 
 /** Settle time after the export-queue page loads, before its view is attached. */
 const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
@@ -52,6 +53,7 @@ export default class Window {
   private settingsView: SettingsView;
   private changelogView: ChangelogView;
   private modalViews: ModalViewManager;
+  private settingsTab: SettingsTab;
   // Hover card for strip tabs; created on the first hover (app.tabHoverPreviews).
   private tabPreview: TabPreviewView | null = null;
   // "New Group with This Tab" popover; created on first use.
@@ -95,7 +97,20 @@ export default class Window {
     this.tabManager = new TabManager(this.window.id);
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
-    this.modalViews = new ModalViewManager(this.window, this.settingsView, this.changelogView);
+    this.modalViews = new ModalViewManager(this.window, this.changelogView);
+    this.attachHidden(this.settingsView.view);
+    this.settingsTab = new SettingsTab({
+      view: this.settingsView.view,
+      bounds: () => this.calcBoundsForTabView(),
+      hideCurrentTab: () => {
+        const current = this.shownTab();
+        if (!current) return;
+        this.captureBeforeHiding(current);
+        current.view.setVisible(false);
+      },
+      refocusCurrentTab: () => this.refocusShownTab(),
+      notifyPanel: (channel, arg) => this.window.webContents.send(channel, arg),
+    });
     this.warmTabs = new WarmTabManager(this.window.id, {
       getUserId: () => this._userId,
       getBgColor: () => this.figmaThemeBgColor,
@@ -427,6 +442,7 @@ export default class Window {
   public updateTabsBounds() {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForActiveTab(bounds);
+    this.settingsTab.syncBounds();
     this.modalViews.syncBounds(this.window.getBounds());
     this.hideTabPreview();
     this.hideTabGroupPrompt();
@@ -435,6 +451,7 @@ export default class Window {
   public updateAllTabsBounds() {
     const bounds = this.calcBoundsForTabView();
     this.tabManager.setBoundsForAllTab(bounds);
+    this.settingsTab.syncBounds();
     this.modalViews.syncBounds(this.window.getBounds());
   }
   public closeAllTab(_: IpcMainEvent) {
@@ -859,11 +876,20 @@ export default class Window {
     });
   }
 
+  /** Open Settings as a tab, or bring it to the front if it already is one. */
   public openSettingsView() {
-    this.modalViews.openSettingsView();
+    this.hideTabPreview();
+    this.hideTabGroupPrompt();
+    this.settingsTab.show();
+    if (isDev) toggleDetachedDevTools(this.settingsView.view.webContents);
+    app.emit("needUpdateMenu", this.id, null, { "close-tab": true });
   }
   public closeSettingsView() {
-    this.modalViews.closeSettingsView();
+    this.settingsView.closeDevTools();
+    this.settingsTab.close();
+  }
+  public get isSettingsTabShown() {
+    return this.settingsTab.isShown;
   }
 
   public openChangelogView() {
@@ -1306,6 +1332,7 @@ export default class Window {
 
     this.warmTabs.destroy();
     this.modalViews.destroy();
+    this.settingsView.destroy();
     this.tabPreview?.destroy();
     this.tabGroupPrompt?.destroy();
     this.tabManager.closeAll();
@@ -1356,15 +1383,14 @@ export default class Window {
    * The outgoing tab's hover-preview snapshot is fired before it is hidden.
    */
   private swapTo(next: Tab | MainTab | CommunityTab) {
+    // A Settings tab in front covers `previous`, which is already hidden —
+    // and a hidden view has nothing to capture.
+    const coveredBySettings = this.settingsTab.isShown;
+    this.settingsTab.hide();
+
     const previous = this.shownTab();
     if (previous && previous !== next) {
-      if (
-        previous instanceof Tab &&
-        storage.settings.app.tabHoverPreviews &&
-        this.tabManager.getAll().has(previous.id)
-      ) {
-        void previous.captureThumbnail();
-      }
+      if (!coveredBySettings) this.captureBeforeHiding(previous);
       previous.view.setVisible(false);
     }
     if (!this.window.contentView.children.includes(next.view)) {
@@ -1372,6 +1398,39 @@ export default class Window {
     }
     next.view.setBounds(this.calcBoundsForTabView());
     next.view.setVisible(true);
+  }
+
+  /** Hover-card snapshot of a tab about to leave the screen (see swapTo). */
+  private captureBeforeHiding(tab: Tab | MainTab | CommunityTab) {
+    if (
+      tab instanceof Tab &&
+      storage.settings.app.tabHoverPreviews &&
+      this.tabManager.getAll().has(tab.id)
+    ) {
+      void tab.captureThumbnail();
+    }
+  }
+
+  /**
+   * Back to the Figma tab that was under a closed Settings tab. Not via
+   * setFocusToMainTab: that also closes the New file tab, which is not what
+   * closing Settings means.
+   */
+  private refocusShownTab() {
+    const tab = this.shownTab();
+    if (!tab) {
+      this.setFocusToMainTab();
+      return;
+    }
+    this.swapTo(tab);
+    const id = this.tabManager.lastFocusedTab;
+    const isMain = id === this.tabManager.mainTab.id;
+    const isCommunity = !!this.tabManager.communityTab && id === this.tabManager.communityTab.id;
+    this.window.webContents.send(
+      "focusTab",
+      isMain ? "mainTab" : isCommunity ? "communityTab" : id,
+    );
+    app.emit("needUpdateMenu", this.id, isMain ? null : (id ?? null), { "close-tab": !isMain });
   }
 
   /**
