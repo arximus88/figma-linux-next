@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { launchApp, closeApp } from "./helpers/launch";
+import { SECTIONS, SETTINGS } from "../../src/renderer/Settings/schema";
+
+async function openSection(page: any, title: string) {
+  await page.getByRole("button", { name: title, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+}
 
 async function settingsPageOf(handle: Awaited<ReturnType<typeof launchApp>>) {
   // Shown, not just loaded: a hidden view runs no animation frames, and
@@ -71,22 +77,19 @@ test.describe("Settings", () => {
 
   test("every switch is named after its setting", async () => {
     const handle = await launchApp();
+    const page = await settingsPageOf(handle);
 
-    // The Settings page loads hidden with the window, so it is already a target.
-    let settingsPage: any = null;
-    for (let i = 0; i < 30 && !settingsPage; i++) {
-      settingsPage = handle.app.windows().find((p) => p.url().includes("settings.html")) ?? null;
-      if (!settingsPage) await handle.panel.waitForTimeout(100);
+    const labels: string[] = [];
+    for (const section of SECTIONS) {
+      await openSection(page, section.title);
+      labels.push(
+        ...(await page
+          .getByRole("switch")
+          .evaluateAll((els: Element[]) => els.map((el) => el.getAttribute("aria-label") ?? ""))),
+      );
     }
-    expect(settingsPage, "settings page not found").not.toBeNull();
 
-    const switches = settingsPage.getByRole("switch");
-    await expect(switches.first()).toBeAttached();
-    const labels: string[] = await switches.evaluateAll((els: Element[]) =>
-      els.map((el) => el.getAttribute("aria-label") ?? ""),
-    );
-
-    expect(labels.length).toBeGreaterThan(5);
+    expect(labels.length).toBeGreaterThan(10);
     expect(labels).not.toContain("");
     expect(labels).not.toContain("Toggle setting");
     expect(new Set(labels).size).toBe(labels.length);
@@ -100,6 +103,7 @@ test.describe("Settings", () => {
     const page = await settingsPageOf(handle);
 
     const before = await page.evaluate(() => window.figmaApi.invoke("getSettings"));
+    await openSection(page, "Tabs & windows");
     await page.getByRole("switch", { name: "Tab previews on hover" }).click();
 
     await expect
@@ -116,7 +120,8 @@ test.describe("Settings", () => {
     const handle = await launchApp();
     const page = await settingsPageOf(handle);
     const banner = page.getByRole("status").filter({ hasText: "Restart to apply" });
-    const srgb = page.getByRole("switch", { name: "Enable color space sRGB" });
+    const srgb = page.getByRole("switch", { name: "Use sRGB color space" });
+    await openSection(page, "Appearance");
 
     await expect(banner).toHaveCount(0);
     await srgb.click();
@@ -136,12 +141,43 @@ test.describe("Settings", () => {
       ipcMain.emit("setUser", { sender: { id: -1 } }, "e2e-user");
     });
     // …then the user edits a setting and closes Settings.
+    await openSection(page, "Tabs & windows");
     await page.getByRole("switch", { name: "Tab previews on hover" }).click();
     await page.evaluate(() => window.figmaApi.send("closeSettingsView"));
     await page.waitForTimeout(600);
 
     const after: any = await page.evaluate(() => window.figmaApi.invoke("getSettings"));
     expect(after.userId).toBe("e2e-user");
+
+    await closeApp(handle);
+  });
+
+  test("every setting in the schema is on screen in its section", async () => {
+    const handle = await launchApp();
+    const page = await settingsPageOf(handle);
+
+    const missing: string[] = [];
+    for (const section of SECTIONS) {
+      await openSection(page, section.title);
+      for (const setting of Object.values(SETTINGS).filter((s) => s.section === section.id)) {
+        if ((await page.locator(`#setting-${setting.id}`).count()) !== 1) missing.push(setting.id);
+      }
+    }
+    expect(missing).toEqual([]);
+
+    await closeApp(handle);
+  });
+
+  test("search jumps to the setting and shows its section", async () => {
+    const handle = await launchApp();
+    const page = await settingsPageOf(handle);
+
+    await page.keyboard.press("Control+K");
+    await page.keyboard.type("debugging");
+    await page.getByRole("button", { name: /Debugging port/ }).click();
+
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Integrations");
+    await expect(page.locator("#setting-cdp-port")).toBeInViewport();
 
     await closeApp(handle);
   });

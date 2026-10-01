@@ -69,7 +69,12 @@ export function isValidPort(port: unknown): port is number {
 
 /** Switches the user left blank are rows still being typed, not switches. */
 export function cleanCommandSwitches(switches: Types.CommandSwitch[]): Types.CommandSwitch[] {
-  return switches.map((s) => ({ ...s, switch: s.switch.trim() })).filter((s) => s.switch !== "");
+  return switches
+    .map((s) => {
+      const value = s.value?.trim();
+      return value ? { switch: s.switch.trim(), value } : { switch: s.switch.trim() };
+    })
+    .filter((s) => s.switch !== "");
 }
 
 /**

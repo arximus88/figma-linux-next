@@ -95,10 +95,17 @@ describe("planSettingsUpdate", () => {
     const { next } = planSettingsUpdate(
       base(),
       edit((s) => {
-        s.app.commandSwitches = [{ switch: "" }, { switch: " enable-foo ", value: "1" }];
+        s.app.commandSwitches = [
+          { switch: "" },
+          { switch: " enable-foo ", value: "1" },
+          { switch: "bar", value: " " },
+        ];
       }),
     );
-    expect(next.app.commandSwitches).toEqual([{ switch: "enable-foo", value: "1" }]);
+    expect(next.app.commandSwitches).toEqual([
+      { switch: "enable-foo", value: "1" },
+      { switch: "bar" },
+    ]);
   });
 });
 

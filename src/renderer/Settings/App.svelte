@@ -9,8 +9,6 @@
   initCommonIpc();
   initIpc();
 
-  let pallet = $state<string[]>([]);
-
   $effect(() => {
     const pref = $settings.app.figmaTheme ?? "dark";
     // "system" (Figma's System theme) → Chromium's colour-scheme, which is the
@@ -37,7 +35,7 @@
   }
 </script>
 
-<div role="presentation" onmousedown={handleOverlayMouseDown} id="settings" style={pallet.join("; ")}>
+<div role="presentation" onmousedown={handleOverlayMouseDown} id="settings">
   <Body onCloseSettings={closeSettings} />
 </div>
 
@@ -46,6 +44,7 @@
     background-color: transparent !important;
   }
   :global(body) {
+    margin: 0;
     background-color: rgba(0, 0, 0, 0.5);
     /* Base font for the whole Settings window. Without this, any text that
        doesn't set its own font-family (section headers, the title) falls back

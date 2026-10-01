@@ -213,7 +213,16 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Svelte stores in `src/renderer/Panel/store/`: `currentTab`, `tabs`, `panelZoom`
 
 **Settings** (`src/renderer/Settings/`):
-- Modal dialog for app settings
+- Modal dialog: sidebar (search + five sections) and one section view at a time
+  (`Components/Views/{General,Appearance,Tabs,Integrations,Advanced}View.svelte`).
+- `schema.ts` holds every row's section, title, help text and search keywords; rows render
+  their text from it (`<SettingRow setting={SETTINGS.x}>`), so search can't drift from the UI.
+  An e2e test fails if a schema entry has no row on screen. New setting = schema entry + row +
+  (if editable) a key in `Utils/Common/settingsEdit.ts`.
+- Frame choices are drawn by `FramePreview.svelte` from the panel's own icon config and
+  `--frame-*` palette (`.frame-preview[data-frame]` in theme.css) — not screenshots.
+- Help text uses `--text-secondary` (AA on `--bg-card` in both themes); `--text-disabled` is for
+  disabled things only.
 - Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce); closing only hides the view.
   Only the fields listed in `Utils/Common/settingsEdit.ts` are sent — never the whole settings object, which
   would overwrite main-owned state (`windowsState`, `recentlyClosedTabs`, `userId`) with the snapshot Settings

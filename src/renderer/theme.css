@@ -141,6 +141,16 @@
   /* Settings cards (Adwaita boxed-list) */
   --bg-card: #f6f6f6;
   --bg-card-hover: #efefef;
+
+  /* Help text and states — every pair checked at WCAG AA (4.5:1) on --bg-card.
+     --text-disabled stays for disabled things only: as help text it measured
+     2.64:1 in the dark theme. */
+  --text-secondary: #616161;
+  --warning-muted: rgba(255, 171, 0, 0.16);
+  --warning-text: #8a5a00;
+  --success-muted: rgba(27, 196, 125, 0.14);
+  --success-text: #16683d;
+  --error: #c4320a;
 }
 
 /* Dark theme overrides — applied when Figma is in dark mode */
@@ -158,6 +168,10 @@ html[data-theme="dark"] {
   --bg-item-hover: #2a2a2a;
   --bg-card: #262626;
   --bg-card-hover: #2e2e2e;
+  --text-secondary: #a3a3a3;
+  --warning-text: #ffc35a;
+  --success-text: #5fd394;
+  --error: #ff7a5c;
 
   /* Sampled from Figma's own Windows desktop chrome */
   --bg-tab: #1e1e1e;
@@ -252,7 +266,8 @@ html[data-theme="dark"] {
 /* GNOME / Adwaita */
 /* Light: libadwaita's white headerbar with the AdwTabBar tab shades (a tab
    gets *darker* on hover/selection, not lighter). */
-#panel[data-frame="gnome"] {
+#panel[data-frame="gnome"],
+.frame-preview[data-frame="gnome"] {
   --frame-bg: #ffffff;
   --frame-fg: #2e2e2e;
   --frame-fg-muted: rgba(0, 0, 0, 0.7);
@@ -275,7 +290,8 @@ html[data-theme="dark"] {
   --frame-drag-shadow: rgba(0, 0, 0, 0.2);
   --frame-divider: #dcdcdc;
 }
-html[data-theme="dark"] #panel[data-frame="gnome"] {
+html[data-theme="dark"] #panel[data-frame="gnome"],
+html[data-theme="dark"] .frame-preview[data-frame="gnome"] {
   --frame-bg: #2e2e32;
   --frame-fg: #e6e6e7;
   --frame-fg-muted: rgba(255, 255, 255, 0.7);
@@ -296,7 +312,8 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
 }
 
 /* KDE Plasma / Breeze */
-#panel[data-frame="kde"] {
+#panel[data-frame="kde"],
+.frame-preview[data-frame="kde"] {
   --frame-bg: #eff0f1;
   --frame-fg: #232629;
   --frame-fg-muted: rgba(35, 38, 41, 0.75);
@@ -315,7 +332,8 @@ html[data-theme="dark"] #panel[data-frame="gnome"] {
   --frame-divider: transparent;
   --frame-accent: #3daee9;
 }
-html[data-theme="dark"] #panel[data-frame="kde"] {
+html[data-theme="dark"] #panel[data-frame="kde"],
+html[data-theme="dark"] .frame-preview[data-frame="kde"] {
   --frame-bg: #31363b;
   --frame-fg: #fcfcfc;
   --frame-fg-muted: rgba(252, 252, 252, 0.75);
@@ -337,7 +355,8 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
 
 /* Legacy Windows — Figma's own Windows chrome, via the generic header tokens */
 #panel[data-frame="windows"],
-#panel[data-frame="macos"] {
+#panel[data-frame="macos"],
+.frame-preview[data-frame="windows"] {
   --frame-bg: var(--bg-header);
   --frame-fg: var(--fg-header);
   --frame-fg-muted: var(--fg-tab);
@@ -355,7 +374,8 @@ html[data-theme="dark"] #panel[data-frame="kde"] {
   --frame-divider: rgba(0, 0, 0, 0.12);
 }
 html[data-theme="dark"] #panel[data-frame="windows"],
-html[data-theme="dark"] #panel[data-frame="macos"] {
+html[data-theme="dark"] #panel[data-frame="macos"],
+html[data-theme="dark"] .frame-preview[data-frame="windows"] {
   --frame-btn-hover: rgba(255, 255, 255, 0.08);
   --frame-btn-active: rgba(255, 255, 255, 0.14);
   --frame-tab-lifted: color-mix(in srgb, var(--frame-bg) 88%, #ffffff);
