@@ -82,10 +82,10 @@ export class McpServer {
       codeConnectMap: this.codeConnectMap,
       assetStore: this.assetStore,
       getPort: () => this._boundPort,
-      getSaveBaseDir: () =>
-        storage.settings.app.lastExportDir ||
-        storage.settings.app.exportDir ||
-        app.getPath("pictures"),
+      // exportDir, not lastExportDir: the last export folder moves every time
+      // the user exports something, and the same relative path would land in
+      // a different place from one call to the next.
+      getSaveBaseDir: () => storage.settings.app.exportDir || app.getPath("pictures"),
     });
     this.log.info("View provider attached");
   }

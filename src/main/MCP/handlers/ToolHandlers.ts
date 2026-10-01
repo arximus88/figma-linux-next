@@ -232,12 +232,15 @@ export class ToolHandlers {
     const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
 
     if (savePath) {
-      const absPath = this.resolveSavePath(savePath);
-      if (!path.isAbsolute(savePath)) {
-        // Say so explicitly: the caller's idea of "here" is not the app's.
-        meta.resolvedFrom = this.ctx.getSaveBaseDir();
-      }
+      // Resolving can throw too (app.getPath), so it sits inside the try: a
+      // failure there is a saveError, not a failed tool call.
+      let absPath = savePath;
       try {
+        absPath = this.resolveSavePath(savePath);
+        if (!path.isAbsolute(savePath)) {
+          // Say so explicitly: the caller's idea of "here" is not the app's.
+          meta.resolvedFrom = this.ctx.getSaveBaseDir();
+        }
         // Async FS so a slow disk doesn't block the Electron main thread.
         await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
         await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
