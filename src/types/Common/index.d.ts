@@ -9,6 +9,14 @@ declare namespace Types {
     cdp: { active: boolean; port: number | null };
   }
 
+  /** Answer to an `updateSettings` save from the Settings UI. */
+  interface SettingsSaveResult {
+    /** What was stored — an invalid port, say, keeps its previous value. */
+    saved: import("../../utils/Common/settingsEdit").EditableSettings;
+    /** Labels of saved settings that only apply after a restart. */
+    pendingRestart: string[];
+  }
+
   interface Tab {
     id: number;
     title?: string;

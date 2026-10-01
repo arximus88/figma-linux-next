@@ -2,6 +2,7 @@
   import { initCommonIpc } from "../Common/Ipc/index.svelte";
   import { initIpc } from "./ipc";
   import { settings } from "./store";
+  import { flushNow } from "./autosave.svelte";
 
   import Body from "./Components/Body.svelte";
 
@@ -24,9 +25,9 @@
     return () => document.documentElement.removeAttribute("data-theme");
   });
 
-  function closeSettings() {
-    settings.trim();
-    window.figmaApi.send("closeSettingsView", $settings);
+  async function closeSettings() {
+    await flushNow();
+    window.figmaApi.send("closeSettingsView");
   }
 
   function handleOverlayMouseDown(event: MouseEvent) {

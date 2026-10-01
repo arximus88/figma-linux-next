@@ -6,7 +6,6 @@ function makeView() {
     view: { webContents: { id: 1 }, setVisible: mock() },
     updateProps: mock(),
     closeDevTools: mock(),
-    postClose: mock(),
     destroy: mock(),
   };
 }
@@ -50,12 +49,11 @@ describe("ModalViewManager", () => {
     expect(settings.updateProps).toHaveBeenCalled();
   });
 
-  test("closeSettingsView hides (never detaches) and posts close", () => {
+  test("closeSettingsView hides (never detaches)", () => {
     m.openSettingsView();
     m.closeSettingsView();
     expect(settings.view.setVisible.mock.calls.at(-1)).toEqual([false]);
     expect(win.contentView.removeChildView).not.toHaveBeenCalled();
-    expect(settings.postClose).toHaveBeenCalled();
   });
 
   test("reopening re-adds the view so it lands above tabs attached meanwhile", () => {

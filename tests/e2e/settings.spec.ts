@@ -1,6 +1,23 @@
 import { test, expect } from "@playwright/test";
 import { launchApp, closeApp } from "./helpers/launch";
 
+async function settingsPageOf(handle: Awaited<ReturnType<typeof launchApp>>) {
+  // Shown, not just loaded: a hidden view runs no animation frames, and
+  // Playwright waits on one before every click.
+  await handle.app.evaluate(({ app }) => {
+    app.emit("openSettingsView");
+  });
+  for (let i = 0; i < 30; i++) {
+    const page = handle.app.windows().find((p) => p.url().includes("settings.html"));
+    if (page) {
+      await page.getByRole("switch").first().waitFor({ state: "attached" });
+      return page;
+    }
+    await handle.panel.waitForTimeout(100);
+  }
+  throw new Error("settings page not found");
+}
+
 test.describe("Settings", () => {
   test("opens settings view when triggered via IPC", async () => {
     const handle = await launchApp();
@@ -74,6 +91,57 @@ test.describe("Settings", () => {
     expect(labels).not.toContain("Toggle setting");
     expect(new Set(labels).size).toBe(labels.length);
     expect(labels).toContain("Tab previews on hover");
+
+    await closeApp(handle);
+  });
+
+  test("a change is saved right away, without closing Settings", async () => {
+    const handle = await launchApp();
+    const page = await settingsPageOf(handle);
+
+    const before = await page.evaluate(() => window.figmaApi.invoke("getSettings"));
+    await page.getByRole("switch", { name: "Tab previews on hover" }).click();
+
+    await expect
+      .poll(async () => {
+        const s: any = await page.evaluate(() => window.figmaApi.invoke("getSettings"));
+        return s.app.tabHoverPreviews;
+      })
+      .toBe(!before.app.tabHoverPreviews);
+
+    await closeApp(handle);
+  });
+
+  test("a restart-only setting asks for a restart until it is flipped back", async () => {
+    const handle = await launchApp();
+    const page = await settingsPageOf(handle);
+    const banner = page.getByRole("status").filter({ hasText: "Restart to apply" });
+    const srgb = page.getByRole("switch", { name: "Enable color space sRGB" });
+
+    await expect(banner).toHaveCount(0);
+    await srgb.click();
+    await expect(banner).toContainText("sRGB color space");
+    await srgb.click();
+    await expect(banner).toHaveCount(0);
+
+    await closeApp(handle);
+  });
+
+  test("closing Settings does not roll back state main changed meanwhile", async () => {
+    const handle = await launchApp();
+    const page = await settingsPageOf(handle);
+
+    // Settings holds its snapshot. Main now learns of a signed-in user…
+    await handle.app.evaluate(({ ipcMain }) => {
+      ipcMain.emit("setUser", { sender: { id: -1 } }, "e2e-user");
+    });
+    // …then the user edits a setting and closes Settings.
+    await page.getByRole("switch", { name: "Tab previews on hover" }).click();
+    await page.evaluate(() => window.figmaApi.send("closeSettingsView"));
+    await page.waitForTimeout(600);
+
+    const after: any = await page.evaluate(() => window.figmaApi.invoke("getSettings"));
+    expect(after.userId).toBe("e2e-user");
 
     await closeApp(handle);
   });

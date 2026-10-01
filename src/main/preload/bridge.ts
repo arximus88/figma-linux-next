@@ -39,8 +39,7 @@ const SEND_CHANNELS = [
   "closeTabGroupPrompt",
   // Settings
   "closeSettingsView",
-  "setFrameStyle",
-  "setTrayEnabled",
+  "restartApp",
   "openSettingsView",
   // Changelog
   "openChangelogView",
@@ -85,6 +84,8 @@ const RECEIVE_CHANNELS = [
 
 const INVOKE_CHANNELS = [
   "getSettings",
+  "updateSettings",
+  "getPendingRestart",
   "getRuntimeInfo",
   "selectExportDirectory",
   "updateFigmaUiScale",

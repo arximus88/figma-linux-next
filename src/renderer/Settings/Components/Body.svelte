@@ -7,6 +7,7 @@
 
 
   import { settings, modalBounds } from "../store";
+  import { saveState } from "../autosave.svelte";
 
   let items: Types.SetingsTabItem[] = $derived.by(() => {
     const list = [
@@ -64,6 +65,12 @@
       <CloseModal color="var(--text)" />
     </Button>
   </HeaderModal>
+  {#if saveState.pendingRestart.length > 0}
+    <div class="restart-banner" role="status">
+      <span>Restart to apply: {saveState.pendingRestart.join(", ")}</span>
+      <button type="button" onclick={() => window.figmaApi.send("restartApp")}>Restart now</button>
+    </div>
+  {/if}
   <settingsBody>
     {#each items as item (item.id)}
       {@const BodyComponent = item.bodyComponent}
@@ -81,6 +88,27 @@
     height: 80vh;
     overflow: hidden;
     background: var(--bg-panel, #2c2c2c);
+  }
+  .restart-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: auto;
+    width: auto;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--warning-muted, rgba(255, 171, 0, 0.16));
+  }
+  .restart-banner button {
+    padding: 4px 12px;
+    border: 1px solid var(--borders);
+    border-radius: 6px;
+    background: var(--bg-item, var(--bg-panel));
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
   }
   settingsBody {
     position: relative;

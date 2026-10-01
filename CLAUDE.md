@@ -214,7 +214,11 @@ new App(new WindowManager(), new Session(), new FontManager());
 
 **Settings** (`src/renderer/Settings/`):
 - Modal dialog for app settings
-- Settings saved via `window.figmaApi.send("closeSettingsView", settings)`
+- Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce); closing only hides the view.
+  Only the fields listed in `Utils/Common/settingsEdit.ts` are sent — never the whole settings object, which
+  would overwrite main-owned state (`windowsState`, `recentlyClosedTabs`, `userId`) with the snapshot Settings
+  loaded with. A new user-editable setting must be added to that list, and its side effect to
+  `planSettingsUpdate`. Restart-only settings are compared against launch values and shown as a banner.
 
 **DesktopAPI** (`src/renderer/DesktopAPI/`):
 - `webBinding.ts` — Establishes two-way MessageChannel with Figma web app; exposes `window.__figmaDesktop`

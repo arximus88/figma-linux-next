@@ -27,7 +27,6 @@ mock.module("./SettingsView", () => ({
     view = { webContents: { id: 500 } };
     updateProps = mock();
     closeDevTools = mock();
-    postClose = mock();
     destroy = mock();
   },
 }));

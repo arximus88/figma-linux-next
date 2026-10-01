@@ -1,18 +1,33 @@
 /**
  * SettingsController — handles all settings-related IPC channels.
  */
-import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { app } from "electron";
 
 import { storage } from "../Storage";
 import { getResolvedFigmaTheme } from "../Theme";
 import { detectFrameStyle, resolveFrameStyle } from "Utils/Main/desktopEnvironment";
 import { dialogs } from "../Dialogs";
+import {
+  type EditableSettings,
+  pendingRestart,
+  pickEditable,
+  planSettingsUpdate,
+  type SettingsEffect,
+} from "Utils/Common/settingsEdit";
 import { ipcRegistry } from "./registry";
 import type WindowManager from "../Ui/WindowManager";
 
 export default class SettingsController {
+  /**
+   * What the app was started with. Restart-only settings are compared against
+   * this, not against the previous save, so undoing a change also undoes the
+   * restart prompt.
+   */
+  private readonly launched: EditableSettings;
+
   constructor(private windowManager: WindowManager) {
+    this.launched = pickEditable(storage.settings);
     this.register();
   }
 
@@ -20,6 +35,13 @@ export default class SettingsController {
     ipcRegistry.handle("getSettings", () => storage.getSettings(), "SettingsController");
     ipcRegistry.handle("getRuntimeInfo", () => this.getRuntimeInfo(), "SettingsController");
     ipcRegistry.on("setFeatureFlags", storage.setFeatureFlags.bind(storage), "SettingsController");
+    ipcRegistry.handle("updateSettings", this.updateSettings.bind(this), "SettingsController");
+    ipcRegistry.handle(
+      "getPendingRestart",
+      () => pendingRestart(this.launched, pickEditable(storage.settings)),
+      "SettingsController",
+    );
+    ipcRegistry.on("restartApp", () => app.emit("relaunchApp"), "SettingsController");
     ipcRegistry.on("closeSettingsView", this.closeSettingsView.bind(this), "SettingsController");
     ipcRegistry.handle(
       "selectExportDirectory",
@@ -37,68 +59,55 @@ export default class SettingsController {
       (event: IpcMainInvokeEvent) => event.sender.isDevToolsOpened(),
       "SettingsController",
     );
-    ipcRegistry.on("setFrameStyle", this.setFrameStyle.bind(this), "SettingsController");
-    ipcRegistry.on("setTrayEnabled", this.setTrayEnabled.bind(this), "SettingsController");
   }
 
-  private async closeSettingsView(_: IpcMainEvent, settings: Types.SettingsInterface) {
-    if (storage.settings.app.enableColorSpaceSrgb !== settings.app.enableColorSpaceSrgb) {
-      app.emit("enableColorSpaceSrgbWasChanged", settings.app.enableColorSpaceSrgb);
-    }
-    if (storage.settings.app.enableWebGPU !== settings.app.enableWebGPU) {
-      // Forces ozone=x11 + Skia Graphite, which only apply at process startup → restart.
-      app.emit("chromiumFlagsChanged", true);
-    }
-    if (
-      JSON.stringify(storage.settings.app.commandSwitches) !==
-      JSON.stringify(settings.app.commandSwitches)
-    ) {
-      app.emit("chromiumFlagsChanged", true);
-    }
-    if (storage.settings.app.trayEnabled !== settings.app.trayEnabled) {
-      app.emit("trayEnabledChanged", !!settings.app.trayEnabled);
-    }
-    if (storage.settings.app.useZenity !== settings.app.useZenity) {
-      dialogs.switchProvider(settings.app.useZenity);
-    }
-    if (storage.settings.mcp?.enableWriteTools !== settings.mcp?.enableWriteTools) {
-      app.emit("mcpWriteToolsChanged", !!settings.mcp?.enableWriteTools);
-    }
-    if (
-      storage.settings.mcp?.serverEnabled !== settings.mcp?.serverEnabled ||
-      storage.settings.mcp?.serverPort !== settings.mcp?.serverPort
-    ) {
-      app.emit("mcpServerConfigChanged", {
-        enabled: settings.mcp?.serverEnabled !== false,
-        port: settings.mcp?.serverPort ?? 3845,
-      });
-    }
-    if (
-      storage.settings.mcp?.cdpEnabled !== settings.mcp?.cdpEnabled ||
-      storage.settings.mcp?.remoteDebugPort !== settings.mcp?.remoteDebugPort
-    ) {
-      app.emit("chromiumFlagsChanged", true);
-    }
+  /**
+   * One edit from the Settings UI, saved right away. Only the editable fields
+   * arrive (see Utils/Common/settingsEdit), so main's own state — window
+   * layout, closed-tab history, the signed-in user — is never overwritten by
+   * the snapshot Settings loaded with.
+   */
+  private async updateSettings(
+    _: IpcMainInvokeEvent,
+    incoming: EditableSettings,
+  ): Promise<Types.SettingsSaveResult> {
+    const { next, effects } = planSettingsUpdate(pickEditable(storage.settings), incoming);
 
-    const panelLayoutChanged =
-      storage.settings.app.hideWindowMinMaxButtons !== settings.app.hideWindowMinMaxButtons ||
-      storage.settings.app.newTabButtonAfterTabs !== settings.app.newTabButtonAfterTabs ||
-      storage.settings.app.tabHoverPreviews !== settings.app.tabHoverPreviews;
-    const frameChanged =
-      storage.settings.app.frameStyleAuto !== settings.app.frameStyleAuto ||
-      storage.settings.app.frameStyle !== settings.app.frameStyle;
-
-    storage.settings = settings;
+    Object.assign(storage.settings.app, next.app);
+    Object.assign(storage.settings.ui, next.ui);
+    Object.assign(storage.settings.mcp, next.mcp);
     await storage.save();
 
-    if (frameChanged) {
-      this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(settings.app));
-    }
+    for (const effect of effects) this.applyEffect(effect);
 
-    if (panelLayoutChanged) {
-      this.windowManager.broadcastSettingsToPanels();
-    }
+    return { saved: next, pendingRestart: pendingRestart(this.launched, next) };
+  }
 
+  private applyEffect(effect: SettingsEffect) {
+    switch (effect.type) {
+      case "tray":
+        app.emit("trayEnabledChanged", effect.enabled);
+        break;
+      case "dialogs":
+        dialogs.switchProvider(effect.useZenity);
+        break;
+      case "mcpWriteTools":
+        app.emit("mcpWriteToolsChanged", effect.enabled);
+        break;
+      case "mcpServer":
+        app.emit("mcpServerConfigChanged", { enabled: effect.enabled, port: effect.port });
+        break;
+      case "frameStyle":
+        this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(storage.settings.app));
+        break;
+      case "panelLayout":
+        this.windowManager.broadcastSettingsToPanels();
+        break;
+    }
+  }
+
+  /** Everything is saved as it is edited; closing only hides the view. */
+  private closeSettingsView() {
     this.windowManager.closeSettingsViewForLastWindow();
   }
 
@@ -127,25 +136,5 @@ export default class SettingsController {
       detectedFrameStyle: detectFrameStyle(),
       theme: getResolvedFigmaTheme(),
     };
-  }
-
-  /** Live change from the Settings toggle — the tray appears/disappears immediately. */
-  private setTrayEnabled(_: IpcMainEvent, enabled: unknown) {
-    const on = !!enabled;
-    if (storage.settings.app.trayEnabled === on) return;
-    storage.settings.app.trayEnabled = on;
-    storage.save();
-    app.emit("trayEnabledChanged", on);
-  }
-
-  /** Live change from the Settings select. Only visible while auto-detect is off. */
-  private setFrameStyle(_: IpcMainEvent, style: Types.FrameStyle) {
-    if (storage.settings.app.frameStyle === style) return;
-
-    storage.settings.app.frameStyle = style;
-    storage.save();
-    if (!storage.settings.app.frameStyleAuto) {
-      this.windowManager.setFrameStyleAllWindows(style);
-    }
   }
 }

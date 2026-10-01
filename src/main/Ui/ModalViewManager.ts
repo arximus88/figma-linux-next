@@ -64,8 +64,6 @@ export class ModalViewManager {
     this.settingsView.closeDevTools();
 
     this.settingsView.view.setVisible(false);
-
-    this.settingsView.postClose();
   }
 
   openChangelogView() {

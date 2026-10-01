@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { untrack } from "svelte";
+  import { isValidPort } from "Utils/Common/settingsEdit";
   let { zIndex } = $props();
   import { InputRange, ListBox } from "Common/Input";
   import { Section, Card, SettingRow, Toggle, McpSnippet } from "Common";
   import { SecondaryButton } from "Common/Buttons";
   import { TOPPANELHEIGHT } from "Const";
   import { settings, modalBounds } from "../../../store";
+  import { saveState } from "../../../autosave.svelte";
   import { getAvailableFrameStyles, getFrameStyleLabel } from "../../../../Panel/frames/index";
 
   import DirectoryListItem from "./DirectoryListItem.svelte";
@@ -115,32 +117,45 @@
     }
   });
 
-  // ── MCP runtime status (real server/CDP state, fetched once on mount) ──────
+  // ── MCP runtime status (real server/CDP state) ─────────────────────────────
+  // Re-read after every save: the server starts, stops and rebinds live, and a
+  // rebind finishes a moment after the save returns, hence the second read.
   let mcpStatus = $state<Types.McpStatus | null>(null);
-  onMount(async () => {
-    try {
-      mcpStatus = (await window.figmaApi.invoke("getMcpStatus")) as Types.McpStatus;
-    } catch {
-      mcpStatus = null;
-    }
+  function readMcpStatus() {
+    window.figmaApi
+      .invoke("getMcpStatus")
+      .then((status: Types.McpStatus) => {
+        mcpStatus = status;
+      })
+      .catch(() => {
+        mcpStatus = null;
+      });
+  }
+  $effect(() => {
+    void saveState.revision;
+    readMcpStatus();
+    const later = setTimeout(readMcpStatus, 600);
+    return () => clearTimeout(later);
   });
 
   type Chip = { kind: "active" | "pending" | "error" | "muted"; text: string };
 
   // Figma MCP server chip: compares the running listener to the edited settings.
-  // Server start/stop/port all apply on save, so mismatches read as "on save".
+  // Changes apply as they are saved, so a mismatch is a moment of "applying".
   let figmaChip: Chip = $derived.by(() => {
     const enabled = $settings.mcp.serverEnabled ?? true;
     const want = $settings.mcp.serverPort ?? 3845;
     const s = mcpStatus?.server;
+    // Main refuses to save these, so the server keeps its current port.
+    if (enabled && (!isValidPort(want) || portCollision)) return { kind: "error", text: "port not saved" };
     if (!s) return { kind: "muted", text: enabled ? `:${want}` : "disabled" };
     if (!enabled) {
       return s.listening
-        ? { kind: "pending", text: "off on save" }
+        ? { kind: "pending", text: "stopping…" }
         : { kind: "muted", text: "disabled" };
     }
     if (s.listening && s.port === want) return { kind: "active", text: `listening on :${s.port}` };
-    return { kind: "pending", text: `:${want} on save` };
+    return { kind: "pending", text: `starting on :${want}…` };
   });
 
   // Chrome MCP (CDP) chip: compares the launched flag state to the edited settings.
@@ -176,7 +191,6 @@
       return;
     }
     $settings.app.frameStyle = newStyle;
-    window.figmaApi.send("setFrameStyle", newStyle);
   }
 </script>
 
@@ -273,10 +287,7 @@
           title="System tray icon"
           subtitle="Keep Figma running in the tray when the last window is closed. Works on KDE Plasma and on GNOME with the AppIndicator extension; other desktops may show no icon"
         >
-          <Toggle
-            bind:checked={$settings.app.trayEnabled}
-            onchange={(on: boolean) => window.figmaApi.send("setTrayEnabled", on)}
-          />
+          <Toggle bind:checked={$settings.app.trayEnabled} />
         </SettingRow>
       </Card>
     </div>
