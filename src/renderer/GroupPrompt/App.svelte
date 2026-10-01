@@ -51,7 +51,9 @@
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") close();
-    if (e.key === "Enter") submit();
+    // A focused button (Cancel, a colour swatch) acts on Enter itself, and
+    // Enter that confirms an IME composition is not a submit.
+    if (e.key === "Enter" && !e.isComposing && !(e.target instanceof HTMLButtonElement)) submit();
   }
 
   // The popover view takes OS focus the moment it's shown (see

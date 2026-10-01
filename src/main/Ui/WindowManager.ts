@@ -618,7 +618,8 @@ export default class WindowManager {
   }
   private closeTabGroupFromMenu(windowId: number, groupId: string) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
-    window?.closeTabGroup(groupId);
+    if (!window) return;
+    window.closeTabGroup(groupId, (tabId) => this.handleCloseTab(window, tabId));
   }
 
   private windowClose(windowId: number) {

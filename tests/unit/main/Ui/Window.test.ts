@@ -388,6 +388,42 @@ describe("Window Tab Routing", () => {
       expect(tabManager.getAll().has(tabC.id)).toBe(true);
     });
 
+    test("closeTabGroup tells the panel about every closed tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+      const tabWasClosed = spyOn(windowInstance, "tabWasClosed");
+
+      windowInstance.closeTabGroup(groupId);
+
+      expect(tabWasClosed.mock.calls.map(([id]) => id).sort()).toEqual([tabA.id, tabB.id].sort());
+    });
+
+    test("closeTabGroup hands each member to the caller's closer", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      const closeOne = mock();
+
+      windowInstance.closeTabGroup(groupId, closeOne);
+
+      expect(closeOne).toHaveBeenCalledWith(tabA.id);
+    });
+
+    test("moving a tab into a new group prunes the group it emptied", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "First", "#4285f4");
+
+      windowInstance.createTabGroupWithTab(tab.id, "Second", "#ea4335");
+
+      expect(windowInstance.getTabGroups().map((g) => g.label)).toEqual(["Second"]);
+    });
+
     test("newTabInGroup creates a new project tab in group and focuses it", () => {
       const tabManager: any = (windowInstance as any).tabManager;
       const tabA = tabManager.addTab("https://figma.com/file/a", "A");

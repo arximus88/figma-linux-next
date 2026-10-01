@@ -38,9 +38,8 @@
       case 1:
         closeTab(id);
         break;
-      case 2:
-        window.figmaApi.send("openTabMenu", id);
-        break;
+      // Right button: List's oncontextmenu opens the tab menu. Opening it here
+      // on mouseup too could pop a second menu.
     }
   }
 
@@ -60,10 +59,16 @@
     // relying on the `order` field would throw the reorder away (see the note
     // on applyDropOrder). Collapsed-group members it never saw are folded back
     // in beside their group.
-    const next = applyDropOrder(tabs.value, orderedIds, groupAssignments).map((tab, index) => ({
-      ...tab,
-      order: tab.title === NEW_FILE_TAB_TITLE && !tab.groupId ? newFileTabOrder() : index + 1,
-    }));
+    //
+    // The sort puts an ungrouped New file tab back at its pinned end: dropped
+    // anywhere else, its `order` would still say first/last, and the next
+    // addTab (which sorts by order) would make it jump there unprompted.
+    const next = applyDropOrder(tabs.value, orderedIds, groupAssignments)
+      .map((tab, index) => ({
+        ...tab,
+        order: tab.title === NEW_FILE_TAB_TITLE && !tab.groupId ? newFileTabOrder() : index + 1,
+      }))
+      .sort((a, b) => a.order - b.order);
 
     // Emptied groups are NOT pruned here. Main owns that decision
     // (Window.sortTabs → pruneEmptyGroup, which also remembers the group so

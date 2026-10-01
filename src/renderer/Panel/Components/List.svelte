@@ -157,6 +157,7 @@
         aria-label={row.group.label}
         class="tab-group-container"
         data-group-id={row.group.id}
+        data-group-tab-ids={row.tabs.map((entry) => entry.tab.id).join(",")}
         data-frame={frameStyle}
         style="--group-color: {row.group.color}"
         ondblclick={(e) => e.stopPropagation()}

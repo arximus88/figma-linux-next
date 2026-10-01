@@ -147,8 +147,10 @@ export function tabReorder(node: HTMLElement, opts: TabReorderOptions) {
     for (const child of Array.from(node.children) as HTMLElement[]) {
       if (child.dataset.groupId) {
         const gid = child.dataset.groupId;
-        const tabEls = child.querySelectorAll<HTMLElement>("[data-tab-id]");
-        const tabIds = Array.from(tabEls).map((el) => Number(el.dataset.tabId));
+        // From the data attribute, not the [data-tab-id] children: a collapsed
+        // group renders none, and a unit with no tab ids drops out of the
+        // final order — the group then landed at the end of the strip.
+        const tabIds = (child.dataset.groupTabIds ?? "").split(",").filter(Boolean).map(Number);
         const r = child.getBoundingClientRect();
         units.push({ type: "group", id: gid, el: child, left: r.left, width: r.width, tabIds });
       } else if (child.dataset.tabId) {

@@ -212,7 +212,9 @@ export default class Window {
     this.tabManager.sortTabs(tabs);
     const previousGroupIds = new Set<string>();
     for (const t of tabs) {
-      const tab = this.tabManager.getById(t.id);
+      // getAll().get, not getById: the ids come from the renderer, and
+      // getById falls back to mainTab for an unknown one.
+      const tab = this.tabManager.getAll().get(t.id);
       if (tab instanceof Tab) {
         if (tab.groupId && tab.groupId !== t.groupId) {
           previousGroupIds.add(tab.groupId);
@@ -629,8 +631,11 @@ export default class Window {
       collapsed: false,
       order: this.tabGroups.size,
     };
+    const previousGroupId = this.tabManager.getAll().get(tabId)?.groupId;
     this.tabGroups.set(group.id, group);
     this.tabManager.setGroupId(tabId, group.id);
+    // Moving the tab can empty its old group, same as addTabToGroup.
+    if (previousGroupId) this.pruneEmptyGroup(previousGroupId);
 
     // tabGroupsChanged first: the renderer clusters/reorders tabs on setTabGroup
     // using its local group list, which must already know about this new group.
@@ -705,7 +710,20 @@ export default class Window {
     this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
   }
 
-  public closeTabGroup(groupId: string): void {
+  /**
+   * Close every tab of a group. Each tab goes through `closeOne`, which must
+   * also tell the panel (`tabWasClosed`) — `closeTab` alone only tears down the
+   * view, and the strip would keep the closed tabs as dead entries.
+   * WindowManager passes its handleCloseTab so the tabs also land in the
+   * closed-tab history for Ctrl+Shift+T.
+   */
+  public closeTabGroup(
+    groupId: string,
+    closeOne: (tabId: number) => void = (tabId) => {
+      this.closeTab(tabId);
+      this.tabWasClosed(tabId);
+    },
+  ): void {
     const toClose: number[] = [];
     for (const tab of this.tabManager.getAll().values()) {
       if (tab.groupId === groupId) {
@@ -713,7 +731,7 @@ export default class Window {
       }
     }
     for (const tabId of toClose) {
-      this.closeTab(tabId);
+      closeOne(tabId);
     }
     this.tabGroups.delete(groupId);
     this.window.webContents.send("tabGroupsChanged", this.getTabGroups());
