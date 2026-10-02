@@ -280,6 +280,7 @@ jobs:
           GPGKey=$GPG_B64
           EOF
 
+          cp resources/icons/128x128.png site/icon.png
           sed -e "s|__VERSION__|$VERSION|g" \
               -e "s|__HOST__|arximus88.github.io|g" \
               -e "s|__PATH__|figma-linux-next|g" \
