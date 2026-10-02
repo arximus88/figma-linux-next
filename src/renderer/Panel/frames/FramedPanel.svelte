@@ -44,10 +44,25 @@
       0 -1px 0 var(--frame-edge) inset;
   }
   #panel[data-frame="kde"] {
+    position: relative;
     padding: 0 6px 0 4px;
     gap: 4px;
     align-items: stretch;
-    box-shadow: 0 -1px 0px var(--frame-edge) inset;
+  }
+  /* The bottom edge as a layer above the strip, not an inset shadow: tabs and
+     the Home button are full height, and an inset shadow paints under them —
+     the active tab's background then ran 1px past the panel, into a view that
+     (unlike Dolphin's) isn't the colour of that tab. */
+  #panel[data-frame="kde"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--frame-edge);
+    pointer-events: none;
+    z-index: 1;
   }
   #panel[data-frame="windows"] {
     border-bottom: none;
