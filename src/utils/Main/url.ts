@@ -3,12 +3,22 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export const panelUrlDev = `http://localhost:${process.env.DEV_PANEL_PORT ?? "5173/index.html"}`;
-export const settingsUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/settings.html"}`;
+/**
+ * A renderer page on the Vite dev server. The address comes from
+ * vite-plugin-electron, which sets VITE_DEV_SERVER_URL to where the server
+ * actually listens before it starts Electron. Vite moves to the next free
+ * port when 5173 is taken — by any other project's dev server — so a
+ * hard-coded port loads someone else's app.
+ */
+export function devPageUrl(page: string, serverUrl = process.env.VITE_DEV_SERVER_URL): string {
+  return new URL(page, serverUrl || "http://localhost:5173/").toString();
+}
 
-export const changelogUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/changelog.html"}`;
-export const previewUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/preview.html"}`;
-export const groupPromptUrlDev = `http://localhost:${process.env.DEV_SETTINGS_PORT ?? "5173/groupPrompt.html"}`;
+export const panelUrlDev = devPageUrl("index.html");
+export const settingsUrlDev = devPageUrl("settings.html");
+export const changelogUrlDev = devPageUrl("changelog.html");
+export const previewUrlDev = devPageUrl("preview.html");
+export const groupPromptUrlDev = devPageUrl("groupPrompt.html");
 
 export const panelUrlProd = `file://${resolve(__dirname, "../index.html")}`;
 export const settingsUrlProd = `file://${resolve(__dirname, "../settings.html")}`;

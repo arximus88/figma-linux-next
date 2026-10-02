@@ -575,10 +575,9 @@ bun run local:install
 
 ## Environment Variables
 
-For local development, create `.env`:
-
-```env
-NODE_ENV=dev
-DEV_PANEL_PORT=3330
-DEV_SETTINGS_PORT=3331
-```
+`bun run dev` needs none. Renderer pages load from the Vite dev server at the address
+vite-plugin-electron passes in `VITE_DEV_SERVER_URL` (`devPageUrl()` in
+`src/utils/Main/url.ts`). Vite takes the next free port when 5173 is busy, so never hard-code
+it — a hard-coded 5173 once loaded another project's SvelteKit 404 into the panel. The old
+`DEV_PANEL_PORT` / `DEV_SETTINGS_PORT` variables are gone (setting the latter pointed every
+overlay at the Settings page).
