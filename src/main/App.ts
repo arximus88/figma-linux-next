@@ -212,6 +212,19 @@ export default class App {
 
   private async relaunchApp() {
     await this.windowManager.flushSettings();
+
+    // `bun run dev`: vite-plugin-electron started this process and stops the
+    // dev server when it exits, so app.relaunch() would come back to a dead
+    // server — a blank panel. Save, then ask the dev server to restart us
+    // (vite.config.mts, onstart).
+    if (process.env.VITE_DEV_SERVER_URL && process.send) {
+      this.mcpServer.stop();
+      this.windowManager.saveState();
+      await storage.save();
+      process.send(Const.DEV_RELAUNCH_MESSAGE);
+      return;
+    }
+
     app.relaunch();
     app.quit();
   }

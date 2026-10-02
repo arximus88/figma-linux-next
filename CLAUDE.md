@@ -431,6 +431,13 @@ a background tab on demand; `tab.thumbnail` is the only source the hover card ha
 ### openFile must close the New File tab
 `Window.openFile()` must call `closeNewFileTab()` after opening the file tab. Without this, the New File tab stays visible as a leftover. `createFile()` already does this — keep them consistent.
 
+### Restart in `bun run dev` goes through Vite
+vite-plugin-electron spawns Electron and ends the dev server when it exits, so `app.relaunch()`
+under `bun run dev` comes back to a dead server: no panel, `chrome-error://chromewebdata/`.
+`App.relaunchApp` therefore saves state and sends `DEV_RELAUNCH_MESSAGE` (`src/constants/dev.ts`)
+to Vite over the plugin's IPC channel; `onstart` in `vite.config.mts` restarts Electron with
+`startup()`, which unhooks the exit handler first. Packaged builds still `app.relaunch()`.
+
 ### app.whenReady() not app.on('ready', ...)
 Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('ready', ...)` silently misses the event if registration is delayed (e.g. async startup). `app.whenReady()` resolves immediately if the app is already ready.
 
