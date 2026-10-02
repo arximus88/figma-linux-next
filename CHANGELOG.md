@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-02
+
+Tab groups and a new Settings. Tabs can be collected into named, coloured groups, dragged as
+one and kept across restarts. Settings is now a tab of its own, like a browser's settings page,
+split into sections with search, and every change applies the moment you make it. KDE users get
+a sharper Breeze frame, and exports and the MCP server now say what went wrong instead of
+failing silently.
+
 ### Added
 
 - **Tab groups.** Tabs can be collected into a named, colored group from the tab context menu
@@ -23,7 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Thanks to [@jangoux](https://github.com/jangoux)
   ([#62](https://github.com/arximus88/figma-linux-next/pull/62)).
 
+- **Settings, redesigned.** Five sections (General, Appearance, Tabs & windows, Integrations,
+  Advanced) with a search box (Ctrl+K) that jumps to the matching row. Frame choices are drawn
+  live from the panel's own icons and colours, in light and dark. Every switch is named after
+  its setting, so screen readers announce what it does.
+- **Settings opens as a tab.** It sits in the strip next to your files: switch away and back,
+  close it with × or Ctrl+W, and the file under it is never touched.
+- **Settings save as you edit.** No Save button and no lost edits: a change made right before
+  closing the window is written before the window goes. Settings that need a restart say so in
+  a banner, which disappears if you flip them back.
+- **Window and tab buttons have accessible names** (Main menu, Minimize, Maximize, Close
+  window, Close *tab*).
+
 ### Fixed
+
+- **"Plugin API unavailable" now says why**
+  ([#67](https://github.com/arximus88/figma-linux-next/issues/67)). MCP tools that need
+  `window.figma` explain the likely cause (view-only file, editor still loading, tab never
+  brought to the front) instead of a generic error.
+- **A `figma://` link that launched the app could be lost.** A link arriving before the
+  window's panel had loaded is now held until it has.
+- **KDE frame: the active tab poked 1px out of the title bar.** The title bar's bottom edge now
+  runs under the tabs, tabs are square like Breeze's, and a group's tabs fill the group under
+  its colour line, with the group chip as its first cell.
+- **Settings: the rows stretched across wide windows.** They stay in one readable column.
+- **Tab groups: Close Group, dragging a collapsed group and four smaller bugs.**
+- **Account switch: an empty user id is ignored**, and the tab that started the switch is no
+  longer reloaded twice.
 
 - **Tabs opened and closed with no animation.** Moving the tab markup into a
   Svelte snippet in the tab-grouping work silently disabled it: a local
@@ -94,6 +128,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tried to show a pending group change by opening a slot inside the group while
   the tab's original slot was also still empty. A pending membership change now
   moves nothing; the highlighted target group is the feedback.
+
+### Changed
+
+- **Electron 44.5.1** (Chromium 152). First login re-verified on a clean profile.
 
 ## [0.20.1] - 2026-09-08
 
