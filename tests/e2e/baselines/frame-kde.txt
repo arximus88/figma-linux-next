@@ -4,7 +4,7 @@ div
   div.left
     {display:flex; width:76px; height:40px; padding:0px; margin:0px; gap:4px; align-items:center; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(252, 252, 252); opacity:1}
     div.button__active[role=button]
-      {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgb(35, 38, 41); border-radius:3px 3px 0px 0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
+      {display:flex; width:40px; height:40px; padding:0px; margin:0px; gap:normal; align-items:center; justify-content:center; background-color:rgb(35, 38, 41); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
       svg
         {display:block; width:13px; height:20px; padding:0px; margin:0px; gap:normal; align-items:normal; justify-content:normal; background-color:rgba(0, 0, 0, 0); border-radius:0px; box-shadow:none; font-size:16px; font-weight:400; color:rgb(255, 255, 255); opacity:1}
         path

@@ -386,10 +386,11 @@
   .tab-group-container[data-frame="kde"] {
     height: 40px;
     border: none;
-    border-radius: 3px 3px 0 0;
+    border-radius: 0;
     margin: 0 4px;
     padding-left: 0;
-    padding-right: 2px;
+    padding-right: 0;
+    align-items: stretch;
     gap: 0;
     background-color: transparent;
   }
@@ -401,7 +402,7 @@
     top: 0;
     height: 2px;
     background: var(--group-color);
-    border-radius: 3px 3px 0 0;
+    z-index: 1; /* over the member tabs, which now run the full height under it */
   }
   /* The chip is the group's first cell, full height under its colour line,
      tinted from the left edge and fading into the group's tabs — not a pill
@@ -415,7 +416,7 @@
     margin: 0;
     padding: 0 14px 0 10px;
     border: none;
-    border-radius: 3px 0 0 0;
+    border-radius: 0;
     background: linear-gradient(
       to right,
       color-mix(in srgb, var(--group-color) 30%, transparent),
@@ -437,8 +438,9 @@
       transparent
     );
   }
+  /* Member tabs fill the group's whole box, so their hover and active fills
+     line up with the colour line above and with ungrouped tabs' edges. */
   :global(.tab-group-container[data-frame="kde"] .k-tab) {
-    height: 38px !important;
     background-color: transparent !important;
   }
   :global(.tab-group-container[data-frame="kde"] .k-tab:not(.k-tab--active):hover) {

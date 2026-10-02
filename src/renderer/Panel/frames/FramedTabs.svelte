@@ -328,7 +328,7 @@
     gap: 4px;
     margin: 0;
     padding-right: 4px;
-    border-radius: 3px 3px 0 0;
+    border-radius: 0; /* Breeze tabs are square; a 3px corner showed on hover */
     background-color: transparent;
     border: none;
     height: 40px;
@@ -351,7 +351,6 @@
     right: 0;
     top: 0;
     height: 2px;
-    border-radius: 3px 3px 0 0;
     background-color: var(--frame-accent);
   }
 
