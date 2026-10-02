@@ -254,7 +254,13 @@
   }
 
   /* ── Main ── */
+  /* One readable column, centred in whatever width the window gives it — the
+     way a browser's settings page does it. Stretched across a wide window, a
+     row's label and its switch end up a screen apart. The side padding grows
+     instead of the column, so header, banner and rows stay aligned. */
   .main {
+    --column: 760px;
+    --gutter: max(28px, calc((100% - var(--column)) / 2));
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -264,7 +270,7 @@
     display: flex;
     align-items: flex-start;
     gap: 16px;
-    padding: 20px 28px 14px;
+    padding: 20px var(--gutter) 14px;
     border-bottom: 1px solid var(--borders);
   }
   .head-text {
@@ -294,7 +300,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 28px;
+    padding: 8px var(--gutter);
     font-size: 13px;
     color: var(--warning-text);
     background: var(--warning-muted);
@@ -306,7 +312,7 @@
   .content {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 28px 28px;
+    padding: 20px var(--gutter) 28px;
   }
 
   .empty {
