@@ -388,7 +388,7 @@
     border: none;
     border-radius: 3px 3px 0 0;
     margin: 0 4px;
-    padding-left: 5px;
+    padding-left: 0;
     padding-right: 2px;
     gap: 0;
     background-color: transparent;
@@ -403,17 +403,24 @@
     background: var(--group-color);
     border-radius: 3px 3px 0 0;
   }
+  /* The chip is the group's first cell, full height under its colour line,
+     tinted from the left edge and fading into the group's tabs — not a pill
+     floating in the strip. */
   .tab-group-container[data-frame="kde"] .tab-group-header {
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 26px;
+    height: 100%;
     box-sizing: border-box;
-    margin: 0 4px 0 0;
-    padding: 0 8px 0 6px;
+    margin: 0;
+    padding: 0 14px 0 10px;
     border: none;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--group-color) 28%, transparent);
+    border-radius: 3px 0 0 0;
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--group-color) 30%, transparent),
+      transparent
+    );
     color: var(--frame-fg, rgba(255, 255, 255, 0.9));
     font-size: 12px;
     font-weight: 600;
@@ -424,7 +431,11 @@
     transition: background-color var(--motion-hover, 0.15s) ease;
   }
   .tab-group-container[data-frame="kde"] .tab-group-header:hover {
-    background: color-mix(in srgb, var(--group-color) 42%, transparent);
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--group-color) 48%, transparent),
+      transparent
+    );
   }
   :global(.tab-group-container[data-frame="kde"] .k-tab) {
     height: 38px !important;
