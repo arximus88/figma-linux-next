@@ -77,8 +77,4 @@ describe("WindowManager.setUserIdOnAllWindows", () => {
 
     expect(windowA.setUserId).toHaveBeenCalledWith("user-42", 77);
   });
-
-  test("is a no-op when there are no windows", () => {
-    expect(() => windowManager.setUserIdOnAllWindows("user-1")).not.toThrow();
-  });
 });

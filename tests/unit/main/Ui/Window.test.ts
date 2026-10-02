@@ -161,40 +161,42 @@ describe("Window Tab Routing", () => {
   });
 
   describe("Bug 2: New File tab remained open after opening an existing file", () => {
-    test("After openFile resolves when a New File tab is open -> New File tab is closed", () => {
-      const closeNewFileTabSpy = spyOn(windowInstance, "closeNewFileTab");
+    // State, not calls: closeNewFileTab runs on every openFile, so "it was
+    // called" passes whether or not the New File tab actually went away.
+    const openTitles = () =>
+      [...(windowInstance as any).tabManager.getAll().values()].map((t: any) => t.title);
 
-      // Make it appear like a New File tab is open
+    test("opening a file from the New File tab closes the New File tab", () => {
       const tabManager: any = (windowInstance as any).tabManager;
-      spyOn(tabManager, "isNewFileTab").mockReturnValue(true);
+      const newFile = tabManager.addTab("https://www.figma.com/design/new", NEW_FILE_TAB_TITLE);
 
-      // Mock addTab to avoid errors
-      spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
 
-      windowInstance.openFile(mockEvent, "/files/abc/1234");
-
-      // Notice: `Window.ts` openFile uses `this.tabManager.loadUrlInMainTab(normalizedUrl)` when `isAppAuthRedeem`.
-      // The requirement says:
-      // "After openFile resolves when a New File tab is open -> New File tab is closed"
-      expect(closeNewFileTabSpy).toHaveBeenCalled();
+      expect(tabManager.getAll().has(newFile.id)).toBe(false);
+      expect(openTitles()).not.toContain(NEW_FILE_TAB_TITLE);
+      expect(tabManager.getAll().size).toBe(1); // the opened file
     });
 
-    test("After openFile resolves when NO New File tab is open -> no crash, no mainTab removal", () => {
-      const closeNewFileTabSpy = spyOn(windowInstance, "closeNewFileTab");
-
-      // Make it appear like NO New File tab is open
+    test("opening an already open file from the New File tab switches to it and closes New File", () => {
       const tabManager: any = (windowInstance as any).tabManager;
-      spyOn(tabManager, "isNewFileTab").mockReturnValue(false);
+      const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+      const newFile = tabManager.addTab("https://www.figma.com/design/new", NEW_FILE_TAB_TITLE);
 
-      // Add spy to closeTab
-      const closeTabSpy = spyOn(windowInstance, "closeTab");
-      spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
 
-      windowInstance.openFile(mockEvent, "/files/abc/1234");
+      expect(tabManager.getAll().has(newFile.id)).toBe(false);
+      expect([...tabManager.getAll().keys()]).toEqual([file.id]); // no duplicate
+      expect(tabManager.lastFocusedTab).toBe(file.id);
+    });
 
-      // closeNewFileTab is called unconditionally, but since it returns early when there is no new file tab, that is expected.
-      expect(closeNewFileTabSpy).toHaveBeenCalled();
-      expect(closeTabSpy).not.toHaveBeenCalledWith(tabManager.mainTabWebContentId);
+    test("opening a file with no New File tab closes nothing", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const other = tabManager.addTab("https://www.figma.com/design/xyz/Other", "Other");
+
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
+
+      expect(tabManager.getAll().has(other.id)).toBe(true);
+      expect(tabManager.getAll().size).toBe(2);
     });
 
     test("createFile still closes the New File tab (existing behavior, explicit assertion)", () => {
@@ -625,10 +627,6 @@ describe("Window Tab Routing", () => {
 
       expect(hideSpy.mock.calls.length).toBe(1);
       hideSpy.mockRestore();
-    });
-
-    test("hideTabGroupPrompt is a no-op when the popover was never shown", () => {
-      expect(() => windowInstance.hideTabGroupPrompt()).not.toThrow();
     });
   });
 

@@ -234,6 +234,7 @@
         padding="0"
         {normalBgColor}
         {hoverBgColor}
+        ariaLabel={`Close ${item.title || "tab"}`}
         onButtonClick={(e: any) => onClickClose(e, item.id)}
         onContextmenu={(e: MouseEvent) => {
           e.preventDefault();

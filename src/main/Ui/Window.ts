@@ -70,6 +70,8 @@ export default class Window {
   // not overwritten by the BrowserWindow `close` event firing later with
   // an already-cleared tabs map.
   private stateCached = false;
+  /** Settings' pending edit was written; the window may close (see flushSettings). */
+  private settingsFlushed = false;
 
   private _userId: string;
   private shown = false;
@@ -892,6 +894,23 @@ export default class Window {
     return this.settingsTab.isShown;
   }
 
+  /**
+   * Write an edit still waiting in Settings' autosave delay. The page dies
+   * with the window, and with it a save timer that hasn't fired yet — so
+   * everything that closes the window or quits the app awaits this first.
+   * Bounded: a hung renderer must not keep the window open.
+   */
+  public async flushSettings(): Promise<void> {
+    const wc = this.settingsView.view.webContents;
+    if (!wc.isDestroyed()) {
+      await Promise.race([
+        wc.executeJavaScript("window.__flushSettings?.()").catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]);
+    }
+    this.settingsFlushed = true;
+  }
+
   public openChangelogView() {
     this.modalViews.openChangelogView();
   }
@@ -1041,7 +1060,13 @@ export default class Window {
 
     if (groupId) this.pruneEmptyGroup(groupId);
 
-    if (this.tabManager.lastFocusedTab === tabId) {
+    if (this.tabManager.lastFocusedTab === tabId && this.settingsTab.isShown) {
+      // The tab under Settings closed. Settings stays in front; the neighbour
+      // becomes the tab underneath and comes back when Settings closes.
+      if (!isNewFileTab) this.tabManager.focusTab(nextTabId);
+      else if (this.tabManager.hasOpenedCommunityTab) this.tabManager.focusCommunityTab();
+      else this.tabManager.focusMainTab();
+    } else if (this.tabManager.lastFocusedTab === tabId) {
       if (isNewFileTab) {
         if (this.tabManager.hasOpenedCommunityTab) {
           this.setFocusToCommunityTab();
@@ -1346,7 +1371,18 @@ export default class Window {
   private registerEvents() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.window as any).on("show", this.showHandler.bind(this));
-    this.window.on("close", this.cacheStateBeforeClose.bind(this));
+    this.window.on("close", (event) => {
+      // Closed by the window manager (Alt+F4, the dock): nothing awaited the
+      // flush yet. Hold the close until Settings has written its last edit.
+      if (!this.settingsFlushed) {
+        event.preventDefault();
+        void this.flushSettings().finally(() => {
+          if (!this.window.isDestroyed()) this.window.close();
+        });
+        return;
+      }
+      this.cacheStateBeforeClose();
+    });
     this.window.on("resize", this.updateTabsBounds.bind(this));
     this.window.on("maximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));
     this.window.on("unmaximize", () => setTimeout(this.updateAllTabsBounds.bind(this), 100));

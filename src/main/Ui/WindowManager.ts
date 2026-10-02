@@ -17,6 +17,8 @@ export default class WindowManager {
   private menuManager: MenuManager;
 
   private lastFocusedwindowId: number;
+  /** Windows waiting on flushSettings before they close; a second close is ignored. */
+  private closing = new Set<number>();
   private windows: Map<number, Window> = new Map();
   // Set by TrayManager: with a tray icon the process outlives its last window.
   private keepAliveWithoutWindows = false;
@@ -430,7 +432,7 @@ export default class WindowManager {
     }
   }
   private closeCurrentWindowFromMenu(windowId: number) {
-    this.windowClose(windowId);
+    void this.windowClose(windowId);
   }
   private toggleCurrentWindowFullscreen(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id || this.lastFocusedwindowId);
@@ -555,7 +557,7 @@ export default class WindowManager {
   }
   private handlerWindowClose(_: IpcMainEvent, tabs: Types.TabFront[]) {
     this.sortTabs(this.lastFocusedwindowId, tabs);
-    this.windowClose(this.lastFocusedwindowId);
+    void this.windowClose(this.lastFocusedwindowId);
   }
   private sortTabs(windowId: number, tabs: Types.TabFront[]) {
     const window = this.windows.get(windowId);
@@ -629,9 +631,18 @@ export default class WindowManager {
     window.closeTabGroup(groupId, (tabId) => this.handleCloseTab(window, tabId));
   }
 
-  private windowClose(windowId: number) {
-    const window = this.windows.get(windowId);
+  /** See Window.flushSettings — before anything that quits the app. */
+  public async flushSettings(): Promise<void> {
+    await Promise.all([...this.windows.values()].map((w) => w.flushSettings()));
+  }
 
+  private async windowClose(windowId: number) {
+    const window = this.windows.get(windowId);
+    if (!window || this.closing.has(windowId)) return;
+
+    this.closing.add(windowId);
+    await window.flushSettings();
+    this.closing.delete(windowId);
     window.close();
 
     if (this.windows.size === 1) {

@@ -36,7 +36,10 @@ export function startAutosave(loaded: Types.SettingsInterface) {
 settings.subscribe((current) => {
   if (baseline === null) return; // still the defaults placeholder
   const json = JSON.stringify(pickEditable(current));
-  if (json === baseline || json === queued) return;
+  // Always queue the latest state, even one equal to the last save: a switch
+  // flipped and flipped back must end up as it looks, and only the send knows
+  // what was saved by then (an earlier change may still be in flight).
+  if (json === queued) return;
   queued = json;
   clearTimeout(timer);
   timer = setTimeout(flush, SAVE_DELAY_MS);
@@ -47,10 +50,11 @@ function flush(): Promise<void> {
   timer = undefined;
   const json = queued;
   queued = null;
-  if (json === null || json === baseline) return inflight;
+  if (json === null) return inflight;
 
-  saveState.status = "saving";
   inflight = inflight.then(async () => {
+    if (json === baseline) return;
+    saveState.status = "saving";
     try {
       const result: Types.SettingsSaveResult = await window.figmaApi.invoke(
         "updateSettings",
@@ -71,3 +75,7 @@ function flush(): Promise<void> {
 export function flushNow(): Promise<void> {
   return flush();
 }
+
+// Main calls this before the window or the app goes away (Window.flushSettings):
+// the page is torn down with the window, and a timer that hasn't fired dies with it.
+(window as any).__flushSettings = flushNow;

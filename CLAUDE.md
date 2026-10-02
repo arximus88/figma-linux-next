@@ -99,7 +99,20 @@ bun run test:unit
 bun run test:e2e
 ```
 
-Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
+Unit tests are in `tests/unit/` (mirroring `src/`; a few pure helpers keep a `*.test.ts` beside
+the source). E2E tests are in `tests/e2e/`; `bun run test:e2e` builds nothing — run `bun run build`
+first, the suite launches `dist/main/main.js` under `xvfb-run`.
+
+Writing e2e tests (`tests/e2e/helpers/app.ts` has the shared pieces):
+- Assert what the user would see — the strip (`stripTabs`), the view on screen (`shownView`),
+  values in main's store — and drive the real control (button, switch, menu event). A test that
+  only checks "the app didn't crash" or emits an IPC nobody listens to passes forever; four such
+  tests were found and rewritten on 2026-10-02.
+- Under xvfb a hidden view's document still reports `visibilityState === "visible"` and its
+  `innerWidth` lags behind `setSize`. Read `view.getVisible()` / `view.getBounds()` from
+  `app.evaluate` instead (`shownView` does).
+- Restarts: `launchApp({ userDataDir: previous.userDataDir })` reuses the profile.
+- A new test that guards a fix should fail with the fix reverted — check it once.
 
 `bunfig.toml` registers `tests/unit/electron-preload.ts` as a test preload — globally mocks the `electron` module so unit tests touching `src/utils/Main/` work without an Electron runtime.
 
@@ -171,7 +184,8 @@ new App(new WindowManager(), new Session(), new FontManager());
 - **Settings is a tab, like a browser's settings page** (`src/main/Ui/SettingsTab.ts`). It has two
   states: *open* (in the strip) and *shown* (on screen). Switching to a file hides it but keeps it
   in the strip; closing it (×, middle click, Ctrl+W while shown) refocuses the tab that was under
-  it. It is not a `TabManager` tab — it never drags, groups, previews or gets saved with the
+  it. Closing the tab *under* Settings keeps Settings in front; the neighbour becomes the tab
+  underneath (`Window.closeTab`). It is not a `TabManager` tab — it never drags, groups, previews or gets saved with the
   session. The panel learns of it via `settingsTabOpened`/`settingsTabClosed` and draws it with
   `Panel/frames/SettingsStripTab.svelte`; `currentTab` is `"settingsTab"` while it is shown
   (a panel-only `PanelTabId`, not part of `Types.TabIdType`).
@@ -232,6 +246,11 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Help text uses `--text-secondary` (AA on `--bg-card` in both themes); `--text-disabled` is for
   disabled things only.
 - Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce, flushed when the tab is hidden); closing only hides the view.
+  The page dies with its window, and a pending save timer with it, so closing a window, Quit,
+  Restart and a window-manager close all await `Window.flushSettings()` first (calls
+  `window.__flushSettings` in the page, bounded to 1 s). The debounce always queues the latest
+  state and compares with the last save only when sending — a switch flipped and flipped back
+  within the delay must not write the first flip.
   Only the fields listed in `Utils/Common/settingsEdit.ts` are sent — never the whole settings object, which
   would overwrite main-owned state (`windowsState`, `recentlyClosedTabs`, `userId`) with the snapshot Settings
   loaded with. A new user-editable setting must be added to that list, and its side effect to
@@ -381,8 +400,11 @@ Note `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x 
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
 
-### TabManager.getById() fallback
-`TabManager.getById(id)` falls back to returning `mainTab` when the ID is not found (instead of `undefined`). This is a known footgun — calling `closeTab()` or `removeChildView()` on the result of an unknown ID will silently operate on `mainTab`. Always guard with `tabManager.getAll().has(id)` before calling `getById` for dynamic IDs.
+### TabManager.getById() and unknown IDs
+`TabManager.getById(id)` returns `undefined` for an unknown numeric ID (it used to fall back to
+`mainTab`, so `closeTab()` / `removeChildView()` on a stale ID silently hit the home tab; a unit
+test pins the current behaviour). The string IDs `"mainTab"` / `"communityTab"` still resolve.
+Keep guarding dynamic IDs with `tabManager.getAll().has(id)` — `closeTab` relies on it.
 
 ### Figma web app → desktop IPC (webBinding.ts)
 Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message channel. Unhandled messages log `[desktop] Unhandled message <name>` warnings. To silence a message without implementing it, add a no-op stub in the `publicAPI` object in `src/renderer/DesktopAPI/webBinding.ts`. DEV-mode `console.debug` is acceptable for stubs to aid future implementation.

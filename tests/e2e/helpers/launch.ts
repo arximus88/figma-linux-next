@@ -8,11 +8,15 @@ const MAIN_JS = path.resolve(__dirname, "../../../dist/main/main.js");
 export interface AppHandle {
   app: ElectronApplication;
   panel: Page;
+  /** The profile this instance runs on; pass it back to launchApp to "restart". */
+  userDataDir: string;
 }
 
 export interface LaunchOptions {
   /** Partial settings.json to pre-seed (deep-merged with defaults on load). */
   settings?: Record<string, unknown>;
+  /** Reuse a profile from an earlier launch instead of a fresh one. */
+  userDataDir?: string;
 }
 
 /**
@@ -23,7 +27,7 @@ export interface LaunchOptions {
 export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // Each test run gets its own user-data-dir so requestSingleInstanceLock()
   // doesn't collide with a running production instance or another test worker.
-  const userDataDir = mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
+  const userDataDir = opts?.userDataDir ?? mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
 
   // Pre-seed settings.json (read from userData/settings.json at startup) so the
   // app boots directly in the desired state — avoids flaky runtime IPC toggles.
@@ -75,7 +79,7 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
 
   await panel.waitForLoadState("domcontentloaded");
 
-  return { app, panel };
+  return { app, panel, userDataDir };
 }
 
 export async function closeApp(handle: AppHandle) {

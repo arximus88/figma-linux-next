@@ -210,12 +210,16 @@ export default class App {
     storage.save().finally(() => app.quit());
   }
 
-  private relaunchApp() {
+  private async relaunchApp() {
+    await this.windowManager.flushSettings();
     app.relaunch();
     app.quit();
   }
 
   private async quitApp() {
+    // Before app.quit(): closing a window whose Settings hasn't flushed holds
+    // the close (Window.flushSettings), which would cancel the quit.
+    await this.windowManager.flushSettings();
     this.mcpServer.stop();
     this.windowManager.saveState();
     await storage.save();

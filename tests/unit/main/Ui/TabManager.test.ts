@@ -133,13 +133,6 @@ describe("TabManager", () => {
     });
   });
 
-  describe("mainTab property", () => {
-    it("should be directly accessible via tabManager.mainTab", () => {
-      expect(tabManager.mainTab).toBeDefined();
-      expect(tabManager.mainTab).toBeInstanceOf(MainTab);
-    });
-  });
-
   describe("reapplyUserId", () => {
     it("refreshes the currently focused tab immediately with the new fuid", () => {
       const tab = tabManager.addTab("https://test.com", "A");

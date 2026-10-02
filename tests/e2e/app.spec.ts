@@ -1,32 +1,26 @@
-import { test, expect } from "@playwright/test";
-import { launchApp, closeApp } from "./helpers/launch";
+import { expect, test } from "@playwright/test";
+import { findPanelPage, openSettings } from "./helpers/app";
+import { closeApp, launchApp } from "./helpers/launch";
 
 test.describe("App launch", () => {
-  test("launches and shows the panel window", async () => {
+  // The listener has to be attached before the page runs, and launchApp
+  // returns after the panel has booted — so reload the pages under watch.
+  // An error thrown during startup (a bad import, a store read before the
+  // settings arrive) is exactly what this is for.
+  test("the panel and Settings boot without uncaught errors", async () => {
     const handle = await launchApp();
-    const { panel } = handle;
-
-    // Panel window is visible
-    expect(await panel.title()).toBeTruthy();
-
-    // The app emitted no unhandled crashes
-    const windows = handle.app.windows();
-    expect(windows.length).toBeGreaterThanOrEqual(1);
-
-    await closeApp(handle);
-  });
-
-  test("panel page loads without JS errors", async () => {
-    const handle = await launchApp();
-    const { panel } = handle;
+    const pages = [await findPanelPage(handle.app), await openSettings(handle)];
 
     const errors: string[] = [];
-    panel.on("pageerror", (err) => errors.push(err.message));
+    for (const page of pages) {
+      page.on("pageerror", (err) => errors.push(`${page.url()}: ${err.message}`));
+      await page.reload();
+      await page.waitForLoadState("load");
+    }
+    await pages[0].locator("#panel").waitFor();
+    await pages[1].getByRole("switch").first().waitFor({ state: "attached" });
 
-    await panel.waitForTimeout(1000);
-
-    // No unhandled JS errors on load
-    expect(errors).toHaveLength(0);
+    expect(errors).toEqual([]);
 
     await closeApp(handle);
   });

@@ -1,32 +1,35 @@
-import { test, expect } from "@playwright/test";
-import { launchApp, closeApp } from "./helpers/launch";
+import { expect, test } from "@playwright/test";
+import { findPanelPage, openSettings } from "./helpers/app";
+import { closeApp, launchApp } from "./helpers/launch";
 
 /**
- * Change frame style via the Settings IPC path (same as the UI dropdown).
+ * Picking a frame in Settings restyles the panel at once — the live-save path
+ * (updateSettings → planSettingsUpdate → frameStyleChanged), no restart.
  */
-async function setFrameStyle(
-  app: Awaited<ReturnType<typeof launchApp>>["app"],
-  style: "gnome" | "windows" | "macos",
-) {
-  await app.evaluate(({ ipcMain }, s) => {
-    ipcMain.emit("setFrameStyle", { sender: { id: -1 } } as any, s);
-  }, style);
-}
-
 test.describe("Window frame style", () => {
-  // Cycling gnome -> windows -> gnome also covers switching to and back from
-  // each style without crashing.
-  test("cycles through all available styles", async () => {
+  test("a frame picked in Settings applies live; automatic brings back the detected one", async () => {
     const handle = await launchApp();
-    await handle.panel.waitForTimeout(300);
+    const panel = await findPanelPage(handle.app);
+    const frame = () =>
+      panel.evaluate(() => document.querySelector("#panel")?.getAttribute("data-frame"));
 
-    const styles: Array<"gnome" | "windows" | "macos"> = ["gnome", "windows", "gnome"];
-    for (const style of styles) {
-      await setFrameStyle(handle.app, style);
-      await handle.panel.waitForTimeout(200);
-    }
+    const settings = await openSettings(handle);
+    await settings.getByRole("button", { name: "Tabs & windows", exact: true }).click();
 
-    expect(handle.app.windows().length).toBeGreaterThanOrEqual(1);
+    const detected = (await settings.evaluate(() => window.figmaApi.invoke("getRuntimeInfo")))
+      .detectedFrameStyle;
+    const other = detected === "kde" ? "gnome" : "kde";
+    const label = { gnome: "GNOME / Adwaita", kde: "KDE Plasma / Breeze" }[other];
+
+    await settings.getByRole("radio", { name: new RegExp(label) }).click();
+    await expect.poll(frame).toBe(other);
+    // A manual pick turns automatic matching off.
+    await expect(
+      settings.getByRole("switch", { name: "Match the desktop environment" }),
+    ).not.toBeChecked();
+
+    await settings.getByRole("switch", { name: "Match the desktop environment" }).click();
+    await expect.poll(frame).toBe(detected);
 
     await closeApp(handle);
   });
