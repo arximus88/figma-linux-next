@@ -52,3 +52,6 @@ src/renderer/Changelog/_data.ts
 .gemini
 .jules/
 tsconfig.tsbuildinfo
+
+# Local Settings UI/UX exploration
+settings-prototype/
