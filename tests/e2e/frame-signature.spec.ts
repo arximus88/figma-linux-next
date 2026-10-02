@@ -100,19 +100,18 @@ async function panelSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) 
 }
 
 /**
- * The panel's colours ease in through CSS transitions, so a signature taken a
- * fixed delay after boot can catch a background mid-fade — on a slow CI runner
- * it did. Read until two samples a beat apart agree.
+ * The panel boots in the default frame and then switches, so colours ease in
+ * through CSS transitions. Sampling until two reads agree is not enough: a
+ * transition that stalls (no frames on a loaded CI runner) reads the same
+ * twice at its *start* value — it failed that way on 2026-10-02 with the
+ * KDE/Windows Home button still in GNOME's colour. The baseline is about the
+ * final look, not motion, so switch transitions off and read the end state.
  */
 async function settledSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) {
-  let previous = await panelSignature(panel);
-  for (let i = 0; i < 30; i++) {
-    await panel.waitForTimeout(150);
-    const current = await panelSignature(panel);
-    if (current === previous) return current;
-    previous = current;
-  }
-  return previous;
+  await panel.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+  return panelSignature(panel);
 }
 
 test.describe("Frame-style DOM signature", () => {
