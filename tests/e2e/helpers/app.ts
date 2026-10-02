@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { Page } from "@playwright/test";
 import type { AppHandle } from "./launch";
 
@@ -74,4 +76,43 @@ export async function openSettings(handle: AppHandle): Promise<Page> {
     await handle.panel.waitForTimeout(100);
   }
   throw new Error("settings page not found");
+}
+
+/**
+ * Wait until the view on screen matches `pattern`. On timeout the error says
+ * what *was* there — every view with its visibility, the strip, and the app's
+ * error log — because a bare "expected X, got the login page" from CI is not
+ * enough to tell a lost event from a focus thief.
+ */
+export async function expectShown(handle: AppHandle, pattern: string, timeout = 5000) {
+  const deadline = Date.now() + timeout;
+  let last = "";
+  while (Date.now() < deadline) {
+    last = await shownView(handle.app);
+    if (last.includes(pattern)) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const views = await handle.app.evaluate(({ BrowserWindow }) =>
+    (BrowserWindow.getAllWindows()[0].contentView.children as Electron.WebContentsView[]).map(
+      (v) => `${v.getVisible() ? "SHOWN " : "hidden"} ${v.webContents.getURL()}`,
+    ),
+  );
+  const panel = await findPanelPage(handle.app);
+  const strip = JSON.stringify(await stripTabs(panel));
+  const logDir = path.join(handle.userDataDir, "logs"); // electron-log under --user-data-dir
+  const log = existsSync(logDir)
+    ? readdirSync(logDir)
+        .filter((f) => f.endsWith(".log"))
+        .flatMap((f) => readFileSync(path.join(logDir, f), "utf8").split("\n").slice(-30))
+    : [];
+  throw new Error(
+    [
+      `expected a view matching "${pattern}" on screen, got: ${last}`,
+      "views:",
+      ...views.map((v) => `  ${v}`),
+      `strip: ${strip}`,
+      "app log (tail):",
+      ...log.map((l) => `  ${l}`),
+    ].join("\n"),
+  );
 }

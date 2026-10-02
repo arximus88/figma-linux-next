@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { findPanelPage, openTab, shownView, stripTabs } from "./helpers/app";
+import { expectShown, findPanelPage, openTab, shownView, stripTabs } from "./helpers/app";
 import { type AppHandle, closeApp, launchApp } from "./helpers/launch";
 
 const FILE_URLS = [
@@ -38,7 +38,7 @@ test.describe("Tab bounds on resize", () => {
   test("the tab on screen follows the window", async () => {
     const handle = await launchApp();
     await openTab(handle.app, FILE_URLS[0]);
-    await expect.poll(() => shownView(handle.app)).toContain("AAA111aaa");
+    await expectShown(handle, "AAA111aaa");
 
     await resizeTo(handle.app, 1111);
 
