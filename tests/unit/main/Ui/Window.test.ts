@@ -160,6 +160,39 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("A link that arrives while the window is still loading", () => {
+    // The panel's load shows Home (webContentDidFinishLoad). A figma:// link
+    // clicked as the app starts used to open its tab first — the panel, not
+    // loaded yet, never heard of it, and Home then covered it.
+    const panelLoadHandlers = () => {
+      const wc = (windowInstance as any).window.webContents;
+      const pick = (fn: any) =>
+        fn.mock.calls.filter((c: any[]) => c[0] === "did-finish-load").map((c: any[]) => c[1]);
+      return [...pick(wc.on), ...pick(wc.once)]; // on: registered at construction, runs first
+    };
+
+    test("waits for the panel and ends up in front of Home", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      windowInstance.openUrl("https://www.figma.com/design/abc123/My-file");
+      expect(tabManager.getAll().size).toBe(0);
+
+      for (const handler of panelLoadHandlers()) handler();
+
+      expect(tabManager.getAll().size).toBe(1);
+      const [tab] = tabManager.getAll().values();
+      expect(tabManager.lastFocusedTab).toBe(tab.id);
+    });
+
+    test("opens at once after the panel has loaded", () => {
+      for (const handler of panelLoadHandlers()) handler();
+      const tabManager: any = (windowInstance as any).tabManager;
+
+      windowInstance.openUrl("https://www.figma.com/design/abc123/My-file");
+
+      expect(tabManager.getAll().size).toBe(1);
+    });
+  });
+
   describe("Bug 2: New File tab remained open after opening an existing file", () => {
     // State, not calls: closeNewFileTab runs on every openFile, so "it was
     // called" passes whether or not the New File tab actually went away.

@@ -72,6 +72,8 @@ export default class Window {
   private stateCached = false;
   /** Settings' pending edit was written; the window may close (see flushSettings). */
   private settingsFlushed = false;
+  /** The panel page has loaded; until then a link waits (see openUrl). */
+  private panelLoaded = false;
 
   private _userId: string;
   private shown = false;
@@ -369,6 +371,14 @@ export default class Window {
   }
 
   public openUrl(url: string) {
+    // A link that arrives while the window is still starting (a figma:// click
+    // as the app launches) would open its tab under a panel that can't hear
+    // about it yet — and the panel's load then puts Home in front of it. Wait;
+    // this listener runs after webContentDidFinishLoad, so the file ends on top.
+    if (!this.panelLoaded) {
+      this.window.webContents.once("did-finish-load", () => this.openUrl(url));
+      return;
+    }
     if (isFileBrowserUrl(url)) {
       this.tabManager.loadUrlInMainTab(url);
       this.setFocusToMainTab();
@@ -1006,6 +1016,7 @@ export default class Window {
     }
 
     this.setFocusToMainTab();
+    this.panelLoaded = true;
   }
   public setMenu(menu: Menu) {
     this.window.setMenu(menu);

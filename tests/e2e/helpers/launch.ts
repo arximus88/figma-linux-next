@@ -62,22 +62,22 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // The first window is the BrowserWindow which hosts the Panel renderer
   const panel = await app.firstWindow();
 
-  // Intercept figma.com so tabs load instantly without network
-  await panel.context().route("**/*", (route) => {
-    const url = route.request().url();
-    if (url.includes("figma.com")) {
-      route.fulfill({
-        status: 200,
-        contentType: "text/html",
-        body: `<!DOCTYPE html><html><head><title>Figma stub</title></head>
+  // Intercept figma.com so tabs load instantly without network. Only figma.com:
+  // a catch-all route also catches the panel's own file:// resources while the
+  // panel is still loading, and a request caught mid-load could hold its `load`
+  // event for seconds.
+  await panel.context().route(/^https?:\/\/([^/]+\.)?figma\.com\//, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!DOCTYPE html><html><head><title>Figma stub</title></head>
                <body><div id="stub">figma stub</div></body></html>`,
-      });
-    } else {
-      route.continue();
-    }
-  });
+    }),
+  );
 
-  await panel.waitForLoadState("domcontentloaded");
+  // Fully loaded, not just DOMContentLoaded: the panel's load event is what
+  // puts Home in front (Window.webContentDidFinishLoad). Tests start from there.
+  await panel.waitForLoadState("load");
 
   return { app, panel, userDataDir };
 }
