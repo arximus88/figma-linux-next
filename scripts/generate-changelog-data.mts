@@ -1,5 +1,5 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import { renderChangelogHtml } from "../src/renderer/Changelog/buildHtml.mjs";
 
 export function generateChangelogData(rootDir: string = process.cwd()): boolean {
@@ -25,5 +25,7 @@ if (import.meta.main) {
   const root = process.cwd();
   const target = path.join(root, "src/renderer/Changelog/_data.ts");
   const written = generateChangelogData(root);
-  console.log(written ? `Wrote ${path.relative(root, target)}` : `${path.relative(root, target)} up to date`);
+  console.log(
+    written ? `Wrote ${path.relative(root, target)}` : `${path.relative(root, target)} up to date`,
+  );
 }

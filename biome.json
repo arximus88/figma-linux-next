@@ -14,7 +14,7 @@
       "tests/**/*.ts",
       "!**/*.svelte",
       "!src/renderer/Changelog/_data.ts",
-      "!src/node_modules/**"
+      "!src/node_modules"
     ]
   },
   "formatter": {

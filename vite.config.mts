@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import electron from "vite-plugin-electron";
-import path from "path";
+import path from "node:path";
 import { generateChangelogData } from "./scripts/generate-changelog-data.mjs";
 import { DEV_RELAUNCH_MESSAGE } from "./src/constants/dev";
 
@@ -18,7 +18,8 @@ const changelogDataPlugin = {
     server.watcher.add(CHANGELOG_PATH);
     server.watcher.add(PKG_PATH);
     server.watcher.on("change", (changed: string) => {
-      if (changed === CHANGELOG_PATH || changed === PKG_PATH) generateChangelogData(import.meta.dirname);
+      if (changed === CHANGELOG_PATH || changed === PKG_PATH)
+        generateChangelogData(import.meta.dirname);
     });
   },
 };

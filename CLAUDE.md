@@ -78,7 +78,9 @@ bunx @sveltejs/mcp svelte-autofixer src/renderer/Panel/App.svelte
 bun run precommit
 ```
 
-Linting/formatting: **Biome** (`biome.json`) for all `.ts` (src + tests) — formatter matches the
+Linting/formatting: **Biome** (`biome.json`) for everything `files.includes` lists — `src` and
+`tests` `.ts`, `scripts/*.mts`, `vite.config.mts`; `bun run lint` passes no paths so the config is
+the single list (it used to pass `src tests` and skip the rest). Formatter matches the
 former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicitAny` and
 `noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
 `.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
@@ -278,8 +280,7 @@ Aliases:
 - `Main/*` → `src/main/*`
 - `Utils/*` → `src/utils/*`
 - `Common/*` → `src/renderer/Common/*`
-- `Components/*` → `src/renderer/components/*`
-- `Store/*` → `src/renderer/stores/*`
+- `Icons`, `Containers`, `DesktopAPI` → their folders under `src/renderer/Common` / `src/renderer`
 - `Types/*` → `src/types/*`
 - `Const` → `src/constants`
 

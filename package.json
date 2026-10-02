@@ -23,13 +23,13 @@
     "test:e2e": "ELECTRON_RUN_AS_NODE= ELECTRON_NO_ATTACH_CONSOLE= xvfb-run -a -s '-screen 0 1920x1080x24' playwright test",
     "//": "bun test (combined) conflicts with e2e due to electron preload - use test:unit && test:e2e separately",
     "check": "svelte-check",
-    "lint": "biome check src tests",
-    "lp": "biome check --write src tests",
+    "lint": "biome check",
+    "lp": "biome check --write",
     "precommit": "lint-staged",
     "cln": "node -e \"require('fs').rmSync('./dist',{recursive:true,force:true})\""
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
+    "*.{ts,mts,tsx,js,jsx}": [
       "biome check --write --no-errors-on-unmatched"
     ]
   },

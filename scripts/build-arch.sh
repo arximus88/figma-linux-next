@@ -1,38 +1,22 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# figma-linux-next Arch Linux Build Script
-
-echo "📦 Building figma-linux-next Arch package (pacman)"
-echo "==================================================="
-echo ""
-
-if [ "$1" == "--native" ]; then
-    echo "🔹 Method: Native (makepkg)"
-    echo "⚠️  Note: This uses the PKGBUILD which pulls release sources by default."
-    echo "    To test LOCAL changes, use the default method (Electron-Builder)."
-    echo ""
-    makepkg -si
-else
-    echo "🔹 Method: Electron-Builder (via bun)"
-    echo "    (Builds from local source - best for testing changes)"
-    echo ""
-    bun run pack:pacman
-fi
+# Build a pacman package from the local tree with electron-builder.
+#
+# There is no makepkg path here: the Arch packages are maintained in their AUR
+# repositories (figma-linux-next, figma-linux-next-bin), which release.yml
+# updates on every tag. A PKGBUILD copy in this repo only went stale — and
+# makepkg builds the released tarball anyway, not your local changes.
 
 BUILD_DIR="build/installers"
 
-echo ""
-echo "✅ Build process finished."
-echo ""
-echo "📦 Output:"
-ls -lh $BUILD_DIR/*.pacman 2>/dev/null || true
-ls -lh *.pkg.tar.zst 2>/dev/null || true
+echo "📦 Building figma-linux-next pacman package from the local tree"
+bun run pack:pacman
 
 echo ""
-echo "To install (Electron-Builder):"
-echo "  sudo pacman -U $BUILD_DIR/figma-linux-next-*.pacman"
+echo "📦 Output:"
+ls -lh "$BUILD_DIR"/*.pacman
+
 echo ""
-echo "To build native system package (if preferred):"
-echo "  ./scripts/build-arch.sh --native"
-echo ""
+echo "Install:          sudo pacman -U $BUILD_DIR/figma-linux-next-*.pacman"
+echo "Released package: yay -S figma-linux-next   (or figma-linux-next-bin)"
