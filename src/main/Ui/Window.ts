@@ -346,14 +346,21 @@ export default class Window {
   }
 
   /** Find an already-open tab matching this URL's dedup key. Prototype and editor
-   *  URLs for the same file have different dedup keys and therefore coexist. */
-  private findTabForUrl(url: string): Tab | undefined {
+   *  URLs for the same file have different dedup keys and therefore coexist.
+   *
+   *  With `app.allowDuplicateFileTabs` a document opens in a new tab even when it
+   *  is already open (#66) — except when the request comes from that file's own
+   *  tab. Prototypes and the export queue stay one tab each, or every Present
+   *  click would add another. */
+  private findTabForUrl(url: string, senderId?: number): Tab | undefined {
     const key = getTabDedupKey(url);
     if (!key) return undefined;
+    const duplicates = storage.settings.app.allowDuplicateFileTabs && key.startsWith("doc:");
     for (const tab of this.tabManager.getAll().values()) {
       const storedKey = tab.url ? getTabDedupKey(tab.url) : null;
       const liveKey = getTabDedupKey(tab.getUrl());
-      if (storedKey === key || liveKey === key) return tab;
+      if (storedKey !== key && liveKey !== key) continue;
+      if (!duplicates || tab.id === senderId) return tab;
     }
     return undefined;
   }
@@ -1250,7 +1257,7 @@ export default class Window {
     const newFileTab = this.tabManager.getByTitle(NEW_FILE_TAB_TITLE);
     const targetGroupId = newFileTab instanceof Tab ? newFileTab.groupId : undefined;
 
-    const existing = this.findTabForUrl(url);
+    const existing = this.findTabForUrl(url, event?.sender?.id);
     if (existing) {
       if (targetGroupId && !existing.groupId) {
         this.addTabToGroup(existing.id, targetGroupId);

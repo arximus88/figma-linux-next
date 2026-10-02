@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Open a file in more than one tab**
+  ([#66](https://github.com/arximus88/figma-linux-next/issues/66)). Off by default; turn it on in
+  Settings → Tabs & windows and opening a file that is already open starts a new tab instead of
+  switching to it, so two of its pages can stay a click apart. Prototypes and the export queue
+  still keep to one tab each.
+
 ## [0.21.0] - 2026-10-02
 
 Tab groups and a new Settings. Tabs can be collected into named, coloured groups, dragged as

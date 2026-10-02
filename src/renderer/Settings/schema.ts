@@ -147,6 +147,14 @@ export const SETTINGS = {
     subtitle: "Rest the pointer on a tab to see its thumbnail and last edit.",
     keywords: "hover card thumbnail preview",
   }),
+  duplicateFileTabs: setting({
+    id: "duplicate-file-tabs",
+    section: "tabs",
+    title: "Open a file in more than one tab",
+    subtitle:
+      "Opening a file that is already open starts a new tab instead of switching to it, so two of its pages can stay a click apart.",
+    keywords: "duplicate same file twice multiple tabs pages",
+  }),
   mcpServer: setting({
     id: "mcp-server",
     section: "integrations",
