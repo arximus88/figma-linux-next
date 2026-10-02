@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -14,7 +14,7 @@
       "tests/**/*.ts",
       "!**/*.svelte",
       "!src/renderer/Changelog/_data.ts",
-      "!src/node_modules/**"
+      "!src/node_modules"
     ]
   },
   "formatter": {
@@ -26,7 +26,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "off"
       },

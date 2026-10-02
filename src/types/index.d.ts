@@ -29,7 +29,7 @@ declare namespace Electron {
     on(event: "openFileBrowser", listener: (sender: Electron.WebContents) => void): this;
     on(
       event: "restoreClosedTab",
-      listener: (windowId: number, title: string, uri: string) => void,
+      listener: (windowId: number, title: string, uri: string, groupId?: string) => void,
     ): this;
     on(event: "handle-page-command", listener: (item: any, window: BrowserWindow) => void): this;
     on(event: "log", listener: (data: any) => void): this;
@@ -69,8 +69,6 @@ declare namespace Electron {
     /** A Window was registered or removed — the tray relabels "Show"/"Open" on it. */
     on(event: "windowsChanged", listener: () => void): this;
     off(event: "windowsChanged", listener: () => void): this;
-    on(event: "enableColorSpaceSrgbWasChanged", listener: (enable: boolean) => void): this;
-    on(event: "chromiumFlagsChanged", listener: (enable: boolean) => void): this;
     on(event: "frameStyleChanged", listener: (style: Types.FrameStyle) => void): this;
     on(event: "figmaThemeChanged", listener: (theme: Types.ResolvedTheme) => void): this;
     on(event: string, listener: (...args: any[]) => void): this;
@@ -93,7 +91,13 @@ declare namespace Electron {
     emit(event: "chromeGpu", windowId: number): boolean;
     emit(event: "openFileUrlClipboard", sender: Electron.WebContents): boolean;
     emit(event: "openFileBrowser", sender: Electron.WebContents): boolean;
-    emit(event: "restoreClosedTab", windowId: number, title: string, uri: string): boolean;
+    emit(
+      event: "restoreClosedTab",
+      windowId: number,
+      title: string,
+      uri: string,
+      groupId?: string,
+    ): boolean;
     emit(event: "handle-page-command", item: any, window: BrowserWindow): boolean;
     emit(event: "log", data: any): boolean;
     emit(event: "signOut"): boolean;
@@ -121,8 +125,6 @@ declare namespace Electron {
       actionCheckedState?: { [key: string]: boolean },
     ): void;
     emit(event: "handleCallbackForTab", tabId: number, callbackID: number, args: any): void;
-    emit(event: "enableColorSpaceSrgbWasChanged", enable: boolean): void;
-    emit(event: "chromiumFlagsChanged", enable: boolean): void;
   }
 
   interface IpcMain extends NodeJS.EventEmitter {
@@ -138,10 +140,7 @@ declare namespace Electron {
     on(channel: "setFocusToCommunityTab", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "setTabFocus", listener: (event: IpcMainInvokeEvent, id: number) => void): this;
     on(channel: "closeTab", listener: (event: IpcMainInvokeEvent, id: number) => void): this;
-    on(
-      channel: "closeSettingsView",
-      listener: (event: IpcMainInvokeEvent, settings: Types.SettingsInterface) => void,
-    ): this;
+    on(channel: "closeSettingsView", listener: (event: IpcMainInvokeEvent) => void): this;
 
     on(channel: "enabled", listener: (event: IpcMainInvokeEvent, enabled: boolean) => void): this;
     on(
@@ -189,10 +188,6 @@ declare namespace Electron {
       channel: "setFeatureFlags",
       listener: (event: IpcMainInvokeEvent, data: { featureFlags: Types.FeatureFlags }) => void,
     ): this;
-    on(
-      channel: "setFrameStyle",
-      listener: (event: IpcMainInvokeEvent, style: Types.FrameStyle) => void,
-    ): this;
     on(channel: "logDebug", listener: (event: IpcMainInvokeEvent, ...args: any[]) => void): this;
     on(channel: "logInfo", listener: (event: IpcMainInvokeEvent, ...args: any[]) => void): this;
     on(channel: "logError", listener: (event: IpcMainInvokeEvent, ...args: any[]) => void): this;
@@ -218,6 +213,10 @@ declare namespace Electron {
     on(channel: "openMainTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openCommunityTabMenu", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "openTabMenu", listener: (event: IpcMainInvokeEvent, tabId: number) => void): this;
+    on(
+      channel: "openTabGroupMenu",
+      listener: (event: IpcMainInvokeEvent, groupId: string) => void,
+    ): this;
     on(channel: "appExit", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "newProject", listener: (event: IpcMainInvokeEvent) => void): this;
     on(channel: "closeCommunityTab", listener: (event: IpcMainInvokeEvent) => void): this;
@@ -391,7 +390,7 @@ declare namespace Electron {
     send(channel: "setFocusToCommunityTab"): this;
     send(channel: "setTabFocus", id: number): this;
     send(channel: "closeTab", id: number): this;
-    send(channel: "closeSettingsView", settings: Types.SettingsInterface): this;
+    send(channel: "closeSettingsView"): this;
 
     send(channel: "enabled", enabled: boolean): this;
     send(channel: "updateFigmaUiScale", scale: number): this;
@@ -404,13 +403,13 @@ declare namespace Electron {
     send(channel: "openMainTabMenu"): this;
     send(channel: "openCommunityTabMenu"): this;
     send(channel: "openTabMenu", tabId: number): this;
+    send(channel: "openTabGroupMenu", groupId: string): this;
     send(channel: "newProject"): this;
     send(channel: "closeCommunityTab"): this;
     send(channel: "appExit"): this;
     send(channel: "updateVisibleNewProjectBtn", visible: boolean): this;
     send(channel: "updateFullscreenMenuState", state: Menu.State): this;
 
-    send(channel: "setFrameStyle", style: Types.FrameStyle): this;
     send(channel: "setClipboardData", data: WebApi.SetClipboardData): this;
     send(channel: "set-use-zenity", value: boolean): this;
     send(channel: "windowDidMaximized"): this;

@@ -99,6 +99,21 @@ async function panelSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) 
   }, GEO_PROPS);
 }
 
+/**
+ * The panel boots in the default frame and then switches, so colours ease in
+ * through CSS transitions. Sampling until two reads agree is not enough: a
+ * transition that stalls (no frames on a loaded CI runner) reads the same
+ * twice at its *start* value — it failed that way on 2026-10-02 with the
+ * KDE/Windows Home button still in GNOME's colour. The baseline is about the
+ * final look, not motion, so switch transitions off and read the end state.
+ */
+async function settledSignature(panel: Awaited<ReturnType<typeof findPanelPage>>) {
+  await panel.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+  return panelSignature(panel);
+}
+
 test.describe("Frame-style DOM signature", () => {
   for (const style of ["gnome", "kde", "windows"] as const) {
     test(`${style} panel signature is stable`, async () => {
@@ -110,9 +125,7 @@ test.describe("Frame-style DOM signature", () => {
       });
       const panel = await findPanelPage(handle.app);
       await waitForFrame(panel, style);
-      await panel.waitForTimeout(200);
-
-      const sig = await panelSignature(panel);
+      const sig = await settledSignature(panel);
       const baselineFile = path.join(BASELINE_DIR, `frame-${style}.txt`);
 
       if (process.env.UPDATE_FRAME_BASELINE) {

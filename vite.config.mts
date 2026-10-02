@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import electron from "vite-plugin-electron";
-import path from "path";
+import path from "node:path";
 import { generateChangelogData } from "./scripts/generate-changelog-data.mjs";
+import { DEV_RELAUNCH_MESSAGE } from "./src/constants/dev";
 
 const CHANGELOG_PATH = path.resolve(import.meta.dirname, "CHANGELOG.md");
 const PKG_PATH = path.resolve(import.meta.dirname, "package.json");
@@ -17,7 +18,8 @@ const changelogDataPlugin = {
     server.watcher.add(CHANGELOG_PATH);
     server.watcher.add(PKG_PATH);
     server.watcher.on("change", (changed: string) => {
-      if (changed === CHANGELOG_PATH || changed === PKG_PATH) generateChangelogData(import.meta.dirname);
+      if (changed === CHANGELOG_PATH || changed === PKG_PATH)
+        generateChangelogData(import.meta.dirname);
     });
   },
 };
@@ -35,7 +37,16 @@ export default defineConfig({
         // find the build output (it lives in dist/main/main.js). Launch from the
         // project root instead, so electron resolves package.json#main correctly.
         onstart({ startup }) {
-          startup([".", "--no-sandbox"], { cwd: import.meta.dirname });
+          // "Restart now" in Settings: the app can't app.relaunch() itself here —
+          // the plugin ends the dev server when Electron exits. It asks us
+          // instead, and startup() swaps the process without that exit hook.
+          const start = async () => {
+            await startup([".", "--no-sandbox"], { cwd: import.meta.dirname });
+            (process as any).electronApp?.on("message", (message: unknown) => {
+              if (message === DEV_RELAUNCH_MESSAGE) void start();
+            });
+          };
+          void start();
         },
         vite: {
           define: {
@@ -174,6 +185,7 @@ export default defineConfig({
         settings: path.resolve(import.meta.dirname, "src/settings.html"),
         changelog: path.resolve(import.meta.dirname, "src/changelog.html"),
         preview: path.resolve(import.meta.dirname, "src/preview.html"),
+        groupPrompt: path.resolve(import.meta.dirname, "src/groupPrompt.html"),
       },
       // NOTE: No Node.js modules here! This builds for the browser (renderer with contextIsolation).
       // Only the electron plugin entries (main, preloads) should have Node.js externals.

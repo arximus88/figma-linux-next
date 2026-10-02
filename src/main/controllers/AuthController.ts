@@ -81,15 +81,15 @@ export default class AuthController {
   }
 
   private setUser(event: IpcMainEvent, userId: string) {
-    if (userId) {
-      storage.settings.userId = userId;
-    }
+    // An empty id is not an account: passing it on would reload every active
+    // tab with a blank `fuid`.
+    if (!userId) return;
 
-    const window = this.windowManager.getWindowByWebContentsId(event.sender.id);
+    storage.settings.userId = userId;
 
-    if (window) {
-      window.setUserId(userId);
-    }
+    // The sender is the tab the switch happened in — it already runs as the
+    // new account, so it is the one tab that must not be reloaded.
+    this.windowManager.setUserIdOnAllWindows(userId, event.sender.id);
   }
 
   public async logout() {

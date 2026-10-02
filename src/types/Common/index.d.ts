@@ -9,6 +9,14 @@ declare namespace Types {
     cdp: { active: boolean; port: number | null };
   }
 
+  /** Answer to an `updateSettings` save from the Settings UI. */
+  interface SettingsSaveResult {
+    /** What was stored — an invalid port, say, keeps its previous value. */
+    saved: import("../../utils/Common/settingsEdit").EditableSettings;
+    /** Labels of saved settings that only apply after a restart. */
+    pendingRestart: string[];
+  }
+
   interface Tab {
     id: number;
     title?: string;
@@ -22,6 +30,8 @@ declare namespace Types {
     isUsingMicrophone?: boolean;
     isInVoiceCall?: boolean;
     loading?: boolean;
+    /** Tab group this tab belongs to, if any. See `TabGroup`. */
+    groupId?: string;
     view: import("electron").WebContentsView;
   }
 
@@ -37,6 +47,7 @@ declare namespace Types {
     | "isUsingMicrophone"
     | "isInVoiceCall"
     | "loading"
+    | "groupId"
   >;
 
   interface AddTabProps {
@@ -48,7 +59,19 @@ declare namespace Types {
     editorType?: EditorType;
     isLibrary?: boolean;
     loading?: boolean;
+    groupId?: string;
   }
+
+  /** A tab group in the tab strip (Phase 1: metadata + membership only, no drag-and-drop). */
+  interface TabGroup {
+    id: string;
+    label: string;
+    color: string;
+    collapsed: boolean;
+    order: number;
+  }
+  /** Persisted shape of a `TabGroup`, saved alongside `SavedTab[]` in `WindowState`. */
+  type SavedTabGroup = TabGroup;
 
   interface TabData {
     micAccess: boolean;
@@ -63,6 +86,7 @@ declare namespace Types {
   interface SavedTab {
     title?: string;
     url?: string;
+    groupId?: string;
   }
 
   interface ShortcutsMap {
@@ -112,6 +136,22 @@ declare namespace Types {
     theme: ResolvedTheme;
   }
 
+  /** What main sends the tab-group popover (Main/Ui/TabGroupPromptView).
+   *  `create` names a new group around `tabId`; `edit` renames/recolors the
+   *  existing `groupId`. `label`/`color` seed the fields — empty and the first
+   *  palette entry when creating, the group's current values when editing. */
+  interface TabGroupPromptPayload {
+    mode: "create" | "edit";
+    /** The tab the group is being created around. Absent in `edit`. */
+    tabId?: number;
+    /** The group being edited. Absent in `create`. */
+    groupId?: string;
+    label: string;
+    color: string;
+    frame: FrameStyle;
+    theme: ResolvedTheme;
+  }
+
   /** Runtime values the main process resolves for the renderers. */
   interface RuntimeInfo {
     frameStyle: FrameStyle;
@@ -133,6 +173,7 @@ declare namespace Types {
     hasOpenedCommunityTab: boolean;
     userId: string;
     tabs: SavedTab[];
+    tabGroups: SavedTabGroup[];
   }
 
   interface CommandSwitch {

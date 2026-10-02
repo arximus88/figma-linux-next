@@ -18,7 +18,7 @@ Not affiliated with or endorsed by Figma, Inc.
   <a href="https://aur.archlinux.org/packages/figma-linux-next-bin"><img alt="AUR (bin)" src="https://img.shields.io/aur/version/figma-linux-next-bin?style=flat-square&logo=archlinux&logoColor=white&label=AUR%20(bin)"></a>
 </p>
 <p>
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F?style=flat-square&logo=electron&logoColor=white">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white">
   <img alt="Svelte" src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white">
   <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white">
   <img alt="Bun" src="https://img.shields.io/badge/Bun-000000?style=flat-square&logo=bun&logoColor=white">
@@ -123,9 +123,8 @@ Or with any other AUR helper. Package: [figma-linux-next](https://aur.archlinux.
 
 ### NixOS
 
-Three ways, from quickest to most permanent. The first two are terminal commands; the
-`--extra-experimental-features` part is only needed until flakes are enabled in your config
-(`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
+The `--extra-experimental-features` part is only needed until flakes are enabled in your
+config (`nix.settings.experimental-features = [ "nix-command" "flakes" ];`).
 
 **Install for your user**, no system config, no rebuild:
 ```bash
@@ -150,7 +149,7 @@ The module installs the package and registers the `figma://` handler for you. Wi
 
 The flake ships the prebuilt release binaries (x86_64 and aarch64) and is pinned to a specific
 version, which CI updates after each release. Pin it yourself by pointing at a tag:
-`github:arximus88/figma-linux-next/v0.20.0`.
+`github:arximus88/figma-linux-next/v0.20.1`.
 
 ## Migration from legacy figma-linux
 

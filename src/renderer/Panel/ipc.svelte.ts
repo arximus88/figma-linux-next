@@ -1,21 +1,34 @@
 import { NEW_FILE_TAB_TITLE } from "Const";
-import { applyLayoutSettings, newFileTabOrder } from "./Components/utils";
+import { applyLayoutSettings, newFileTabOrder, clusterGroupedTabs } from "./Components/utils";
 
 import {
   currentTab,
   tabs,
+  tabGroups,
   isMenuOpen,
   panelZoom,
   newFileVisible,
   communityTabVisible,
   windowControls,
+  settingsTabOpen,
 } from "./store";
+
+/**
+ * Keeps grouped tabs clustered together with their respective group,
+ * preserving each group's position relative to other tabs.
+ */
+function resortGroupsToFront() {
+  const next = clusterGroupedTabs(tabs.value);
+  tabs.set(next);
+  window.figmaApi.send("reorderTabs", $state.snapshot(next));
+}
 
 export function initIpc() {
   window.figmaApi.send("frontReady");
 
   window.figmaApi.on("closeAllTabs", () => {
     tabs.set([]);
+    tabGroups.clear();
   });
   window.figmaApi.on("didTabAdd", (data: any) => {
     tabs.addTab({
@@ -23,10 +36,19 @@ export function initIpc() {
       url: data.url,
       title: data.title,
       focused: data.focused,
-      order: data.title === NEW_FILE_TAB_TITLE ? newFileTabOrder() : undefined,
+      order: data.groupId
+        ? undefined
+        : data.title === NEW_FILE_TAB_TITLE
+          ? newFileTabOrder()
+          : undefined,
       editorType: data.editorType,
       loading: data.loading,
+      groupId: data.groupId,
     });
+
+    if (data.groupId) {
+      resortGroupsToFront();
+    }
 
     if (data.focused) {
       currentTab.set(data.id);
@@ -59,6 +81,8 @@ export function initIpc() {
   window.figmaApi.on("focusTab", (tabId: any) => {
     currentTab.set(tabId);
   });
+  window.figmaApi.on("settingsTabOpened", () => settingsTabOpen.set(true));
+  window.figmaApi.on("settingsTabClosed", () => settingsTabOpen.set(false));
   window.figmaApi.on("newFileBtnVisible", (visible: boolean) => {
     newFileVisible.set(visible);
   });
@@ -90,5 +114,33 @@ export function initIpc() {
   });
   window.figmaApi.on("setLoading", (tabId: number, loading: boolean) => {
     tabs.updateTab({ id: tabId, loading });
+  });
+
+  window.figmaApi.on("tabGroupsChanged", (groups: Types.TabGroup[]) => {
+    tabGroups.set(groups);
+  });
+  window.figmaApi.on("setTabGroup", (data: any) => {
+    tabs.updateTab({ id: data.id, groupId: data.groupId });
+    resortGroupsToFront();
+  });
+  // Main asks for the triggering tab's on-screen rect before it shows the
+  // "New Group with This Tab" popover — same hand-off tabHover.ts uses for
+  // the hover card (see Main/Ui/TabGroupPromptView).
+  window.figmaApi.on("promptNewTabGroup", (tabId: number) => {
+    const wrapper = document.querySelector<HTMLElement>(`[data-tab-id="${tabId}"]`);
+    if (!wrapper) return;
+    const r = wrapper.getBoundingClientRect();
+    window.figmaApi.send("tabGroupPromptAnchor", tabId, { left: r.left, width: r.width });
+  });
+  // Same hand-off for "Edit Group…", anchored on the group's chip so the
+  // popover opens right under the thing it edits.
+  window.figmaApi.on("promptEditTabGroup", (groupId: string) => {
+    const container = document.querySelector<HTMLElement>(
+      `[data-group-id="${CSS.escape(groupId)}"]`,
+    );
+    const chip = container?.querySelector<HTMLElement>(".tab-group-header") ?? container;
+    if (!chip) return;
+    const r = chip.getBoundingClientRect();
+    window.figmaApi.send("tabGroupEditAnchor", groupId, { left: r.left, width: r.width });
   });
 }

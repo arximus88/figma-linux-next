@@ -8,11 +8,15 @@ const MAIN_JS = path.resolve(__dirname, "../../../dist/main/main.js");
 export interface AppHandle {
   app: ElectronApplication;
   panel: Page;
+  /** The profile this instance runs on; pass it back to launchApp to "restart". */
+  userDataDir: string;
 }
 
 export interface LaunchOptions {
   /** Partial settings.json to pre-seed (deep-merged with defaults on load). */
   settings?: Record<string, unknown>;
+  /** Reuse a profile from an earlier launch instead of a fresh one. */
+  userDataDir?: string;
 }
 
 /**
@@ -23,7 +27,7 @@ export interface LaunchOptions {
 export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // Each test run gets its own user-data-dir so requestSingleInstanceLock()
   // doesn't collide with a running production instance or another test worker.
-  const userDataDir = mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
+  const userDataDir = opts?.userDataDir ?? mkdtempSync(path.join(tmpdir(), "figma-e2e-"));
 
   // Pre-seed settings.json (read from userData/settings.json at startup) so the
   // app boots directly in the desired state — avoids flaky runtime IPC toggles.
@@ -35,12 +39,21 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // then rejects Chromium flags (--no-sandbox, --remote-debugging-port) and
   // require("electron") yields a path string instead of the API, so the app
   // never launches. Some sandboxed/CI shells export it; strip it for the child.
-  const { ELECTRON_RUN_AS_NODE: _ignored, ...parentEnv } = process.env;
+  //
+  // WAYLAND_DISPLAY goes too: xvfb-run only swaps DISPLAY, and with the session's
+  // Wayland socket still visible Electron picks ozone=wayland and opens every test
+  // window on the developer's real desktop instead of the virtual X server.
+  const {
+    ELECTRON_RUN_AS_NODE: _runAsNode,
+    WAYLAND_DISPLAY: _waylandDisplay,
+    ...parentEnv
+  } = process.env;
 
   const app = await electron.launch({
     args: [MAIN_JS, `--user-data-dir=${userDataDir}`],
     env: {
       ...parentEnv,
+      XDG_SESSION_TYPE: "x11",
       NODE_ENV: "test",
       FIGMA_LOGLEVEL: "error",
     },
@@ -49,24 +62,24 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
   // The first window is the BrowserWindow which hosts the Panel renderer
   const panel = await app.firstWindow();
 
-  // Intercept figma.com so tabs load instantly without network
-  await panel.context().route("**/*", (route) => {
-    const url = route.request().url();
-    if (url.includes("figma.com")) {
-      route.fulfill({
-        status: 200,
-        contentType: "text/html",
-        body: `<!DOCTYPE html><html><head><title>Figma stub</title></head>
+  // Intercept figma.com so tabs load instantly without network. Only figma.com:
+  // a catch-all route also catches the panel's own file:// resources while the
+  // panel is still loading, and a request caught mid-load could hold its `load`
+  // event for seconds.
+  await panel.context().route(/^https?:\/\/([^/]+\.)?figma\.com\//, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!DOCTYPE html><html><head><title>Figma stub</title></head>
                <body><div id="stub">figma stub</div></body></html>`,
-      });
-    } else {
-      route.continue();
-    }
-  });
+    }),
+  );
 
-  await panel.waitForLoadState("domcontentloaded");
+  // Fully loaded, not just DOMContentLoaded: the panel's load event is what
+  // puts Home in front (Window.webContentDidFinishLoad). Tests start from there.
+  await panel.waitForLoadState("load");
 
-  return { app, panel };
+  return { app, panel, userDataDir };
 }
 
 export async function closeApp(handle: AppHandle) {

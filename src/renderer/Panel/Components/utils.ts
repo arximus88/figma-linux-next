@@ -8,6 +8,22 @@ import { currentTab, tabs, newFileVisible, communityTabVisible, layout } from ".
  */
 export const newFileTabOrder = () => (layout.newTabAfterTabs ? Number.MAX_SAFE_INTEGER : 0);
 
+import { clusterGroupedTabs as clusterTabs } from "Utils/Common";
+
+/**
+ * Clusters tabs belonging to the same group together at each group's position
+ * in the strip, without forcing groups to the start of the strip.
+ */
+export function clusterGroupedTabs(tabList: Types.TabFront[]): Types.TabFront[] {
+  const result = clusterTabs(tabList);
+
+  const newFileOrder = newFileTabOrder();
+  return result.map((tab, index) => ({
+    ...tab,
+    order: !tab.groupId && tab.title === NEW_FILE_TAB_TITLE ? newFileOrder : index + 1,
+  }));
+}
+
 /** Apply the panel-layout part of the settings (boot and every Settings close). */
 export function applyLayoutSettings(settings: Types.SettingsInterface | undefined) {
   layout.setNewTabAfterTabs(!!settings?.app?.newTabButtonAfterTabs);
@@ -91,6 +107,11 @@ export function closeTab(id: number) {
 
 export function tabFocus(id: number) {
   const tab = tabs.getTab(id);
+
+  // tabReorder calls this on pointerdown, so `id` can name a tab the store has
+  // already dropped (closed under the cursor, or a stale drag). Reading
+  // `.title` off undefined there took the whole panel down.
+  if (!tab) return;
 
   if (tab.title !== NEW_FILE_TAB_TITLE) {
     currentTab.set(id);

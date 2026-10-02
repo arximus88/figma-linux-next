@@ -1,11 +1,9 @@
 import type { BrowserWindow, Rectangle } from "electron";
-import { isDev } from "Utils/Common";
-import { toggleDetachedDevTools } from "Utils/Main";
 import type ChangelogView from "./ChangelogView";
-import type SettingsView from "./SettingsView";
 
 /**
- * ModalViewManager — owns the settings and changelog overlay views for a window.
+ * ModalViewManager — owns the changelog overlay view for a window. (Settings
+ * used to be a second overlay; it is a tab now, see SettingsTab.)
  *
  * Tracks which overlay is open, shows/hides it in the window's content view,
  * and keeps it bounds-synced. Extracted from Window.ts (Phase A2 of the Window
@@ -20,52 +18,20 @@ import type SettingsView from "./SettingsView";
  * paints again — see Window.swapTo).
  */
 export class ModalViewManager {
-  private settingsViewOpen = false;
   private changelogViewOpen = false;
 
   constructor(
     private window: BrowserWindow,
-    private settingsView: SettingsView,
     private changelogView: ChangelogView,
   ) {
-    // Both overlays load at window creation; attach them now, hidden, so
-    // their first open is a plain setVisible like every later one.
-    for (const view of [settingsView.view, changelogView.view]) {
-      view.setVisible(false);
-      this.window.contentView.addChildView(view);
-    }
+    // Loads at window creation; attach it now, hidden, so its first open is a
+    // plain setVisible like every later one.
+    changelogView.view.setVisible(false);
+    this.window.contentView.addChildView(changelogView.view);
   }
 
   get isChangelogViewOpen(): boolean {
     return this.changelogViewOpen;
-  }
-
-  openSettingsView() {
-    this.settingsViewOpen = true;
-    const bounds = this.window.getBounds();
-    this.settingsView.updateProps(bounds);
-
-    this.window.contentView.addChildView(this.settingsView.view);
-    this.settingsView.view.setVisible(true);
-
-    if (isDev) toggleDetachedDevTools(this.settingsView.view.webContents);
-
-    setTimeout(() => {
-      this.settingsView.updateProps(bounds);
-    }, 100);
-  }
-
-  closeSettingsView() {
-    if (!this.settingsView.view) {
-      return;
-    }
-
-    this.settingsViewOpen = false;
-    this.settingsView.closeDevTools();
-
-    this.settingsView.view.setVisible(false);
-
-    this.settingsView.postClose();
   }
 
   openChangelogView() {
@@ -90,18 +56,14 @@ export class ModalViewManager {
     this.changelogView.view.setVisible(false);
   }
 
-  /** Re-apply the window bounds to whichever overlay is currently open. */
+  /** Re-apply the window bounds to the overlay if it is open. */
   syncBounds(bounds: Rectangle) {
-    if (this.settingsViewOpen) {
-      this.settingsView.updateProps(bounds);
-    }
     if (this.changelogViewOpen) {
       this.changelogView.updateProps(bounds);
     }
   }
 
   destroy() {
-    this.settingsView.destroy();
     this.changelogView.destroy();
   }
 }

@@ -28,12 +28,18 @@ const SEND_CHANNELS = [
   "openCommunityTabMenu",
   "newProject",
   "openTabMenu",
+  "openTabGroupMenu",
   "tabHoverStart",
   "tabHoverEnd",
+  "createTabGroupWithTab",
+  "updateTabGroup",
+  "setTabGroupCollapsed",
+  "tabGroupPromptAnchor",
+  "tabGroupEditAnchor",
+  "closeTabGroupPrompt",
   // Settings
   "closeSettingsView",
-  "setFrameStyle",
-  "setTrayEnabled",
+  "restartApp",
   "openSettingsView",
   // Changelog
   "openChangelogView",
@@ -65,12 +71,23 @@ const RECEIVE_CHANNELS = [
   "setLoading",
   "frameStyleChanged",
   "figmaThemeChanged",
+  "settingsTabOpened",
+  "settingsTabClosed",
   // Tab preview card (renderer/Preview)
   "tabPreviewData",
+  // Tab groups
+  "promptNewTabGroup",
+  "promptEditTabGroup",
+  "tabGroupsChanged",
+  "setTabGroup",
+  // New tab group popover (renderer/GroupPrompt)
+  "tabGroupPromptData",
 ] as const;
 
 const INVOKE_CHANNELS = [
   "getSettings",
+  "updateSettings",
+  "getPendingRestart",
   "getRuntimeInfo",
   "selectExportDirectory",
   "updateFigmaUiScale",
