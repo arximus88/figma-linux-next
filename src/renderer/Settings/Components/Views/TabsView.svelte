@@ -77,6 +77,9 @@
     <SettingRow setting={SETTINGS.tabPreviews}>
       <Toggle bind:checked={$settings.app.tabHoverPreviews} />
     </SettingRow>
+    <SettingRow setting={SETTINGS.duplicateFileTabs}>
+      <Toggle bind:checked={$settings.app.allowDuplicateFileTabs} />
+    </SettingRow>
   </div>
 </section>
 

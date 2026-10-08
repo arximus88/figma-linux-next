@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-08
+
+A small release. Exports through Zenity dialogs work again on zenity 4, and a file can now be
+open in more than one tab if you turn that on.
+
+### Added
+
+- **Open a file in more than one tab**
+  ([#66](https://github.com/arximus88/figma-linux-next/issues/66)). Off by default; turn it on in
+  Settings → Tabs & windows and opening a file that is already open starts a new tab instead of
+  switching to it, so two of its pages can stay a click apart. Prototypes and the export queue
+  still keep to one tab each.
+
+### Fixed
+
+- **Exporting with Zenity dialogs saved nothing on zenity 4**
+  ([#56](https://github.com/arximus88/figma-linux-next/issues/56)). zenity 4 prints a
+  deprecation warning for `--confirm-overwrite` and still returns the chosen path; the app took
+  any warning as a failure and cancelled the export. Only a non-zero exit counts now. Zenity is
+  also called without a shell, so a file name with quotes, `$` or a backtick reaches it
+  unchanged. Thanks to [@sh02sahil](https://github.com/sh02sahil) for tracking it down to the
+  exact line.
+
 ## [0.21.0] - 2026-10-02
 
 Tab groups and a new Settings. Tabs can be collected into named, coloured groups, dragged as

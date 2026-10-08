@@ -36,12 +36,12 @@ jobs:
           echo "--- release_notes preview ---"
           cat release_notes
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installers-x64
           path: build/installers/figma-linux-next_*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release_notes
@@ -68,7 +68,7 @@ jobs:
       - name: Package (deb, rpm, AppImage, zip — arm64)
         run: bunx electron-builder --config=config/builder.json --publish never -l deb rpm AppImage zip --arm64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installers-arm64
           path: build/installers/figma-linux-next_*
@@ -95,7 +95,7 @@ jobs:
       - name: Package (pacman)
         run: bunx electron-builder --config=config/builder.json --publish never -l pacman
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer-pacman
           path: build/installers/figma-linux-next_*_linux_x64.pacman
@@ -133,7 +133,7 @@ jobs:
       - name: Name it like the other installers
         run: mv figma-linux-next.flatpak "figma-linux-next_${GITHUB_REF_NAME#v}_linux_x64.flatpak"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer-flatpak
           path: figma-linux-next_*_linux_x64.flatpak
@@ -145,25 +145,25 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: 'installers-*'
           merge-multiple: true
           path: ./artifacts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: installer-pacman
           path: ./artifacts
 
       # Absent when build-flatpak failed; the release goes out without it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: installer-flatpak
           path: ./artifacts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: release-notes
           path: ./
@@ -208,7 +208,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # Absent when build-flatpak failed; then there is nothing to publish.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         id: bundle
         continue-on-error: true
         with:
@@ -280,6 +280,7 @@ jobs:
           GPGKey=$GPG_B64
           EOF
 
+          cp resources/icons/128x128.png site/icon.png
           sed -e "s|__VERSION__|$VERSION|g" \
               -e "s|__HOST__|arximus88.github.io|g" \
               -e "s|__PATH__|figma-linux-next|g" \

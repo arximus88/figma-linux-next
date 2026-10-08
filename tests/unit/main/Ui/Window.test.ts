@@ -222,6 +222,46 @@ describe("Window Tab Routing", () => {
       expect(tabManager.lastFocusedTab).toBe(file.id);
     });
 
+    describe("with app.allowDuplicateFileTabs on (#66)", () => {
+      beforeEach(() => {
+        storage.settings.app.allowDuplicateFileTabs = true;
+      });
+      afterEach(() => {
+        storage.settings.app.allowDuplicateFileTabs = false;
+      });
+
+      test("an already open file opens again in a second tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+
+        windowInstance.openFile(mockEvent, "/design/abc123/My-file", "My file", "?node-id=2-0");
+
+        const ids = [...tabManager.getAll().keys()];
+        expect(ids).toHaveLength(2);
+        expect(tabManager.lastFocusedTab).not.toBe(file.id);
+      });
+
+      test("Present twice still gives one prototype tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const proto = tabManager.addTab("https://www.figma.com/proto/abc123/My-file", "Proto");
+
+        windowInstance.openFile(mockEvent, "/proto/abc123", "Proto", "?node-id=1-2");
+
+        expect([...tabManager.getAll().keys()]).toEqual([proto.id]);
+        expect(tabManager.lastFocusedTab).toBe(proto.id);
+      });
+
+      test("a file asking to open itself does not clone its own tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+        const fromItself = { sender: { id: file.id }, reply: mock() } as any;
+
+        windowInstance.openFile(fromItself, "/design/abc123/My-file");
+
+        expect([...tabManager.getAll().keys()]).toEqual([file.id]);
+      });
+    });
+
     test("opening a file with no New File tab closes nothing", () => {
       const tabManager: any = (windowInstance as any).tabManager;
       const other = tabManager.addTab("https://www.figma.com/design/xyz/Other", "Other");

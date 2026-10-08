@@ -22,6 +22,7 @@ export const EDITABLE_APP_KEYS = [
   "hideWindowMinMaxButtons",
   "newTabButtonAfterTabs",
   "tabHoverPreviews",
+  "allowDuplicateFileTabs",
   "trayEnabled",
   "panelHeight",
 ] as const;

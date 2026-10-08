@@ -203,6 +203,8 @@ declare namespace Types {
       newTabButtonAfterTabs: boolean;
       /** Show a card with the tab's last thumbnail when the pointer rests on it. */
       tabHoverPreviews: boolean;
+      /** Open an already-open file in a new tab instead of switching to it. */
+      allowDuplicateFileTabs: boolean;
       trayEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;
