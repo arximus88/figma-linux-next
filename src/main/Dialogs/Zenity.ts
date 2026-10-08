@@ -130,7 +130,7 @@ export class ZenityDialogs implements ProviderDialog {
   };
 
   public showSaveDialog = async (options: Dialogs.SaveOptions) => {
-    const cmd = ["zenity --file-selection --save --confirm-overwrite"];
+    const cmd = ["zenity --file-selection --save"];
 
     if (options.defaultPath) {
       cmd.push(`--filename="${options.defaultPath}"`);
@@ -147,7 +147,7 @@ export class ZenityDialogs implements ProviderDialog {
     return result;
   };
   public showSaveDialogSync = (options: Dialogs.SaveOptions) => {
-    const cmd = ["zenity --file-selection --save --confirm-overwrite"];
+    const cmd = ["zenity --file-selection --save"];
 
     if (options.defaultPath) {
       cmd.push(`--filename="${options.defaultPath}"`);
