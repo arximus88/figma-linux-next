@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-08
+
+A small release. Exports through Zenity dialogs work again on zenity 4, and a file can now be
+open in more than one tab if you turn that on.
+
 ### Added
 
 - **Open a file in more than one tab**
