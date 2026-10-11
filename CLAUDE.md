@@ -327,6 +327,14 @@ The App class applies extensive Chromium flags in `applySwitches()`:
 
 Custom switches can be added in settings under `app.commandSwitches`.
 
+WebGPU shaders (`app.enableWebGPU`): Chromium blocks WebGPU-to-GL interop on Linux
+(`software_rendering_list.json` entry 186, crbug 442791440) except Intel Gen12+ (Chrome 145+)
+and NVIDIA ≥ 535.183.01 (Chrome 147+); AMD has no exception as of 2026-10. On a blocked GPU the
+toggle relaunches the packaged app under XWayland (`shouldRelaunchUnderX11`, `src/main/index.ts`).
+`Utils/Main/nativeWebGpu.ts` reads `/proc/driver/nvidia/version` before Chromium starts and skips
+the relaunch on an allowlisted NVIDIA driver — measured 2026-10-11 on an RTX 3080 with Electron 44:
+native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not detected yet.
+
 ### Window Frame Styles
 
 `Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`).

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **WebGPU shaders no longer leave Wayland on NVIDIA.** The XWayland relaunch behind the
+  toggle exists because Chromium blocks WebGPU-to-GL interop on Linux except for GPUs it has
+  qualified; the only way past that on a blocked GPU drags Vulkan compositing in, which the
+  Wayland platform rejects. NVIDIA drivers 535.183.01 and newer have been on Chromium's
+  allowlist since Chrome 147, and with the Electron the app ships, WebGPU and the interop are
+  hardware-accelerated on native Wayland with no flag at all (measured on an RTX 3080). The app
+  now reads the driver version from `/proc/driver/nvidia/version` and, when it qualifies, keeps
+  native Wayland with the toggle on. AMD and older drivers still get XWayland, and the setting
+  text now says so instead of "Runs the app under XWayland".
+
 ## [0.22.0] - 2026-10-08
 
 A small release. Exports through Zenity dialogs work again on zenity 4, and a file can now be
