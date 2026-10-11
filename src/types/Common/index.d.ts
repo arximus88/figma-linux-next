@@ -9,6 +9,14 @@ declare namespace Types {
     cdp: { active: boolean; port: number | null };
   }
 
+  /** Runtime state of the FigmaAgent listener (browser hand-off), for the settings UI. */
+  interface FigmaAgentStatus {
+    listening: boolean;
+    port: number;
+    /** Bind failed because something else owns the port. */
+    portInUse: boolean;
+  }
+
   /** Answer to an `updateSettings` save from the Settings UI. */
   interface SettingsSaveResult {
     /** What was stored — an invalid port, say, keeps its previous value. */
@@ -206,6 +214,8 @@ declare namespace Types {
       /** Open an already-open file in a new tab instead of switching to it. */
       allowDuplicateFileTabs: boolean;
       trayEnabled: boolean;
+      /** Answer figma.com's desktop-app check on 127.0.0.1:44950 so browser links can open here. */
+      figmaAgentEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;
       };

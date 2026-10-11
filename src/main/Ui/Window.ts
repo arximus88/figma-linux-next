@@ -212,6 +212,10 @@ export default class Window {
     return [...ids];
   }
 
+  public get userId(): string {
+    return this._userId;
+  }
+
   public setUserId(id: string, sourceWebContentsId?: number) {
     const previousId = this._userId;
     this._userId = id;
