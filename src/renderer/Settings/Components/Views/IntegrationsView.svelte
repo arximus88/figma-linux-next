@@ -187,7 +187,8 @@
       <p class="s-hint">
         Open any file on figma.com, then <b>Main menu → Preferences → Open links in desktop app</b>;
         <b>Open in desktop app</b> in the same menu does it once. Chrome 142 and newer first ask to
-        allow <i>local network access</i> for figma.com. The same account must be signed in here.
+        allow <i>local network access</i> for figma.com; the link that triggers that prompt stays in
+        the browser, the next one opens here. The same account must be signed in here.
       </p>
       <p class="s-hint">
         This is the address Figma's page probes for the official helper, so the port cannot change.

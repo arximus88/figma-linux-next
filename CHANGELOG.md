@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The page's platform check already included Linux; only the helper was missing. The app now
   answers that check (on by default, Settings → Integrations → Open links from your browser). It
   accepts requests only from figma.com and opens only figma.com links, for an account signed in
-  here. Chrome 142 and newer ask once to allow local network access for figma.com.
+  here. Chrome 142 and newer ask once to allow local network access for figma.com; the link that
+  triggers the prompt stays in the browser, the next one opens here.
 
 ## [0.22.0] - 2026-10-08
 

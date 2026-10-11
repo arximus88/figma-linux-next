@@ -54,8 +54,8 @@ own platform check already includes Linux, so figma-linux-next answers that prob
 
 To use it, open any file on figma.com in Chrome or Firefox and pick **Main menu → Preferences →
 Open links in desktop app**; **Open in desktop app** in the same menu does it once. Chrome 142 and
-newer first ask to allow *local network access* for figma.com. The same account must be signed in
-here. Only requests from figma.com are answered and only figma.com links are opened; the port is the
+newer first ask to allow *local network access* for figma.com — the link that triggers that prompt
+stays in the browser, the next one opens here. The same account must be signed in here. Only requests from figma.com are answered and only figma.com links are opened; the port is the
 one Figma's page looks for and cannot change. A `figma://` link still opens the app directly.
 
 ## AI integration (MCP)
