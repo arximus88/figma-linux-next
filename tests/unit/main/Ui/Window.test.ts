@@ -1145,12 +1145,16 @@ describe("discard safeguards", () => {
     const voice = w.addTab("https://www.figma.com/design/voice")!;
     const queue = w.addTab("https://www.figma.com/export/queue")!;
     w.setTabFocus(active.id);
-    mic.isUsingMicrophone = true;
-    voice.isInVoiceCall = true;
+    w.setUsingMicrophone(mic.id, true);
+    w.setIsInVoiceCall(voice.id, true);
     for (const tab of [active, mic, voice, queue]) {
       expect(w.discardTab(tab.id)).toBe(false);
       expect(tab.view.webContents.destroy).not.toHaveBeenCalled();
     }
+    w.setUsingMicrophone(mic.id, false);
+    w.setIsInVoiceCall(voice.id, false);
+    expect(w.discardTab(mic.id)).toBe(true);
+    expect(w.discardTab(voice.id)).toBe(true);
   });
 });
 
