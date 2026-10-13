@@ -22,6 +22,8 @@ export default class WindowManager {
   private menuManager: MenuManager;
 
   private lastFocusedwindowId: number;
+  /** Windows waiting on flushSettings before they close; a second close is ignored. */
+  private closing = new Set<number>();
   private windows: Map<number, Window> = new Map();
   // Set by TrayManager: with a tray icon the process outlives its last window.
   private keepAliveWithoutWindows = false;
@@ -76,11 +78,12 @@ export default class WindowManager {
     return this.windows.get(this.lastFocusedwindowId);
   }
 
-  public closeSettingsViewForLastWindow() {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    if (window) {
-      window.closeSettingsView();
-    }
+  /** Close the Settings tab of the window `webContentsId` belongs to (panel or Settings). */
+  public closeSettingsViewFor(webContentsId?: number) {
+    const window =
+      (webContentsId !== undefined ? this.getWindowByWebContentsId(webContentsId) : undefined) ??
+      this.windows.get(this.lastFocusedwindowId);
+    window?.closeSettingsView();
   }
 
   public openChangelogViewForLastWindow() {
@@ -133,9 +136,9 @@ export default class WindowManager {
     }
   }
 
-  public setUserIdOnAllWindows(userId: string) {
+  public setUserIdOnAllWindows(userId: string, sourceWebContentsId?: number) {
     for (const [_, window] of this.windows) {
-      window.setUserId(userId);
+      window.setUserId(userId, sourceWebContentsId);
     }
   }
 
@@ -304,6 +307,7 @@ export default class WindowManager {
 
     // Tab groups (Phase 1: metadata + membership, no drag-and-drop)
     ipcRegistry.on("createTabGroupWithTab", this.createTabGroupWithTab.bind(this), "WindowManager");
+    ipcRegistry.on("updateTabGroup", this.updateTabGroupHandler.bind(this), "WindowManager");
     ipcRegistry.on(
       "setTabGroupCollapsed",
       this.setTabGroupCollapsedHandler.bind(this),
@@ -311,6 +315,7 @@ export default class WindowManager {
     );
     // "New Group with This Tab" popover (panel → main → TabGroupPromptView)
     ipcRegistry.on("tabGroupPromptAnchor", this.tabGroupPromptAnchor.bind(this), "WindowManager");
+    ipcRegistry.on("tabGroupEditAnchor", this.tabGroupEditAnchor.bind(this), "WindowManager");
     ipcRegistry.on(
       "closeTabGroupPrompt",
       this.closeTabGroupPromptHandler.bind(this),
@@ -430,6 +435,12 @@ export default class WindowManager {
   }
   private closeCurrentTabFromMenu(windowId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    if (!window) return;
+    // Ctrl+W on the Settings tab closes Settings, not the file under it.
+    if (window.isSettingsTabShown) {
+      window.closeSettingsView();
+      return;
+    }
     const tabId = window.getLatestFocusedTabId();
 
     if (tabId) {
@@ -437,7 +448,7 @@ export default class WindowManager {
     }
   }
   private closeCurrentWindowFromMenu(windowId: number) {
-    this.windowClose(windowId);
+    void this.windowClose(windowId);
   }
   private toggleCurrentWindowFullscreen(event: IpcMainEvent) {
     const window = this.getWindowByWebContentsId(event.sender.id || this.lastFocusedwindowId);
@@ -545,6 +556,12 @@ export default class WindowManager {
     if (typeof tabId !== "number" || !isPreviewAnchor(anchor)) return;
     this.getWindowByWebContentsId(event.sender.id)?.showTabGroupPrompt(tabId, anchor);
   }
+  // The same reply, for "Edit Group…" — the anchor is the group's chip rather
+  // than a tab (see Window.promptEditTabGroup / ipc.svelte.ts).
+  private tabGroupEditAnchor(event: IpcMainEvent, groupId: unknown, anchor: unknown) {
+    if (typeof groupId !== "string" || !isPreviewAnchor(anchor)) return;
+    this.getWindowByWebContentsId(event.sender.id)?.showTabGroupEditPrompt(groupId, anchor);
+  }
   // Sent by the popover itself (renderer/GroupPrompt) on Cancel, Escape or a
   // successful Create.
   private closeTabGroupPromptHandler(event: IpcMainEvent) {
@@ -556,7 +573,7 @@ export default class WindowManager {
   }
   private handlerWindowClose(_: IpcMainEvent, tabs: Types.TabFront[]) {
     this.sortTabs(this.lastFocusedwindowId, tabs);
-    this.windowClose(this.lastFocusedwindowId);
+    void this.windowClose(this.lastFocusedwindowId);
   }
   private sortTabs(windowId: number, tabs: Types.TabFront[]) {
     const window = this.windows.get(windowId);
@@ -581,6 +598,13 @@ export default class WindowManager {
     const window = this.getWindowByWebContentsId(event.sender.id);
     window?.createTabGroupWithTab(args.tabId, args.label, args.color);
   }
+  private updateTabGroupHandler(
+    event: IpcMainEvent,
+    args: { groupId: string; label: string; color: string },
+  ) {
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    window?.updateTabGroup(args.groupId, args.label, args.color);
+  }
   private setTabGroupCollapsedHandler(
     event: IpcMainEvent,
     args: { groupId: string; collapsed: boolean },
@@ -591,6 +615,10 @@ export default class WindowManager {
   private promptNewTabGroupFromMenu(windowId: number, tabId: number) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
     window?.promptNewTabGroup(tabId);
+  }
+  private promptEditTabGroupFromMenu(windowId: number, groupId: string) {
+    const window = this.windows.get(windowId || this.lastFocusedwindowId);
+    window?.promptEditTabGroup(groupId);
   }
   private addTabToGroupFromMenu(windowId: number, tabId: number, groupId: string) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
@@ -615,12 +643,22 @@ export default class WindowManager {
   }
   private closeTabGroupFromMenu(windowId: number, groupId: string) {
     const window = this.windows.get(windowId || this.lastFocusedwindowId);
-    window?.closeTabGroup(groupId);
+    if (!window) return;
+    window.closeTabGroup(groupId, (tabId) => this.handleCloseTab(window, tabId));
   }
 
-  private windowClose(windowId: number) {
-    const window = this.windows.get(windowId);
+  /** See Window.flushSettings — before anything that quits the app. */
+  public async flushSettings(): Promise<void> {
+    await Promise.all([...this.windows.values()].map((w) => w.flushSettings()));
+  }
 
+  private async windowClose(windowId: number) {
+    const window = this.windows.get(windowId);
+    if (!window || this.closing.has(windowId)) return;
+
+    this.closing.add(windowId);
+    await window.flushSettings();
+    this.closing.delete(windowId);
     window.close();
 
     if (this.windows.size === 1) {
@@ -761,14 +799,16 @@ export default class WindowManager {
   }
 
   private setIsInVoiceCall(event: IpcMainEvent, isInVoiceCall: boolean) {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id;
+    if (!window || tabId === undefined) return;
 
     window.setIsInVoiceCall(tabId, isInVoiceCall);
   }
   private setUsingMicrophone(event: IpcMainEvent, isUsingMicrophone: boolean) {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id;
+    if (!window || tabId === undefined) return;
 
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
@@ -944,6 +984,7 @@ export default class WindowManager {
 
     // Tab group actions from the tab's context menu (MenuManager)
     app.on("promptNewTabGroup", this.promptNewTabGroupFromMenu.bind(this));
+    app.on("promptEditTabGroup", this.promptEditTabGroupFromMenu.bind(this));
     app.on("addTabToGroup", this.addTabToGroupFromMenu.bind(this));
     app.on("removeTabFromGroup", this.removeTabFromGroupFromMenu.bind(this));
     app.on("newTabInGroup", this.newTabInGroupFromMenu.bind(this));
@@ -987,10 +1028,12 @@ export default class WindowManager {
         () => this.enforceMemoryBudget(),
         MEMORY_CHECK_INTERVAL_MS,
       );
+      this.memoryCheckIntervalId.unref?.();
     } else if (!enabled && this.memoryCheckIntervalId) {
       clearInterval(this.memoryCheckIntervalId);
       this.memoryCheckIntervalId = null;
     }
+    if (enabled) this.enforceMemoryBudget();
   }
 
   /** Every live tab that isn't the one currently shown in its own window — eviction candidates. */
@@ -1010,6 +1053,10 @@ export default class WindowManager {
   private pickLruCandidate(
     eligible: Map<number, { windowId: number; tab: Tab }>,
   ): number | undefined {
+    // Never-focused tabs are older than any tab the user has visited.
+    for (const tabId of eligible.keys()) {
+      if (!this.tabMru.has(tabId)) return tabId;
+    }
     for (const tabId of this.tabMru.keys()) {
       if (eligible.has(tabId)) return tabId;
     }
@@ -1026,34 +1073,47 @@ export default class WindowManager {
 
     // ProcessMetric carries no webContents id of its own — attribute by OS
     // process id instead.
-    const pidToTabId = new Map<number, number>();
+    const tabsByPid = new Map<number, Set<number>>();
+    const pidByTab = new Map<number, number>();
     for (const [tabId, { tab }] of background) {
-      pidToTabId.set(tab.view.webContents.getOSProcessId(), tabId);
+      if (tab.view.webContents.isDestroyed()) continue;
+      const pid = tab.view.webContents.getOSProcessId();
+      if (pid <= 0) continue;
+      const ids = tabsByPid.get(pid) ?? new Set<number>();
+      ids.add(tabId);
+      tabsByPid.set(pid, ids);
+      pidByTab.set(tabId, pid);
     }
 
-    const memoryByTabId = new Map<number, number>();
+    const memoryByPid = new Map<number, number>();
     for (const metric of app.getAppMetrics()) {
-      const tabId = pidToTabId.get(metric.pid);
-      if (tabId !== undefined) {
-        // workingSetSize is KB.
-        memoryByTabId.set(tabId, (metric.memory.workingSetSize ?? 0) * 1024);
+      if (tabsByPid.has(metric.pid)) {
+        // Chromium can share a renderer process between tabs. Count its
+        // working set (KB) once, and only subtract after its last candidate
+        // was actually discarded.
+        memoryByPid.set(metric.pid, (metric.memory.workingSetSize ?? 0) * 1024);
       }
     }
+    for (const tabId of background.keys()) {
+      if (!memoryByPid.has(pidByTab.get(tabId))) background.delete(tabId);
+    }
+    for (const [tabId, windowId] of this.tabMru) {
+      if (!this.windows.get(windowId)?.tabs.has(tabId)) this.tabMru.delete(tabId);
+    }
 
-    let totalBytes = 0;
-    for (const bytes of memoryByTabId.values()) totalBytes += bytes;
-
+    let totalBytes = [...memoryByPid.values()].reduce((sum, bytes) => sum + bytes, 0);
     while (totalBytes > budgetBytes && background.size > 0) {
       const victimId = this.pickLruCandidate(background);
       if (victimId === undefined) break;
-
       const entry = background.get(victimId);
       background.delete(victimId);
-      this.tabMru.delete(victimId);
-      if (!entry) continue;
+      if (!entry || !this.windows.get(entry.windowId)?.discardTab(victimId)) continue;
 
-      totalBytes -= memoryByTabId.get(victimId) ?? 0;
-      this.windows.get(entry.windowId)?.discardTab(victimId);
+      this.tabMru.delete(victimId);
+      const pid = pidByTab.get(victimId);
+      const remaining = tabsByPid.get(pid);
+      remaining?.delete(victimId);
+      if (remaining?.size === 0) totalBytes -= memoryByPid.get(pid) ?? 0;
     }
   }
 }

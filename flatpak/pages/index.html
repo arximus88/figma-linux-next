@@ -3,39 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>figma-linux-next — Flatpak repository</title>
+  <meta name="description" content="Install Figma Linux Next from its signed Flatpak repository.">
+  <meta name="theme-color" content="#19191f">
+  <link rel="icon" type="image/png" href="icon.png">
+  <title>Figma Linux Next — Flatpak repository</title>
   <style>
-    :root { color-scheme: light dark; --accent: #3daee9; }
-    body { max-width: 720px; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.55 system-ui, sans-serif; }
-    h1 { font-size: 1.6rem; margin-bottom: .25rem; }
-    .sub { opacity: .7; margin-top: 0; }
-    pre { padding: .9rem 1rem; border-radius: 8px; background: rgba(127,127,127,.12); overflow-x: auto; }
-    a { color: var(--accent); }
-    .btn { display: inline-block; padding: .55rem 1rem; border-radius: 8px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
-    small { opacity: .7; }
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #19191f;
+      color: #f1f1f5;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { max-width: 800px; margin: 0 auto; padding: clamp(2rem, 6vw, 5rem) 1.25rem 3rem; line-height: 1.55; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: .3rem; font-size: clamp(1.8rem, 4vw, 2.35rem); line-height: 1.2; letter-spacing: -.035em; }
+    h2 { margin-bottom: .35rem; font-size: 1.13rem; letter-spacing: -.015em; }
+    a { color: #70c6f0; }
+    a:hover { color: #a4ddfa; }
+    .header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .icon { width: 58px; height: 58px; flex: none; }
+    .eyebrow { margin-bottom: .15rem; color: #87c9ed; font-size: .75rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    .intro { max-width: 630px; margin: 0 0 1.5rem; color: #b6b5c0; }
+    .version { display: inline-block; margin-left: .35rem; padding: .15rem .5rem; border: 1px solid #3b4854; border-radius: 999px; color: #b7dcf0; font-size: .78rem; font-weight: 600; letter-spacing: 0; vertical-align: middle; }
+    .card { border: 1px solid #363640; border-radius: 14px; background: #222229; }
+    .install { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.4rem 1.5rem; }
+    .install p, .section-intro { margin-bottom: 0; color: #aeacb8; font-size: .93rem; }
+    .button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-height: 44px; padding: .65rem 1.1rem; border-radius: 9px; background: #49afe3; color: #101a22; text-decoration: none; font-weight: 700; white-space: nowrap; }
+    .button:hover { background: #77c8ef; color: #101a22; }
+    .button:focus-visible, .copy:focus-visible, a:focus-visible { outline: 2px solid #a4ddfa; outline-offset: 3px; }
+    .section { margin-top: 2.1rem; }
+    .section-intro { margin-bottom: .8rem; }
+    .code-card { overflow: hidden; border: 1px solid #363640; border-radius: 11px; background: #24242c; }
+    .code-head { display: flex; align-items: center; justify-content: space-between; min-height: 38px; padding: .35rem .85rem .35rem 1rem; border-bottom: 1px solid #363640; color: #aaaab6; font-size: .77rem; font-weight: 600; }
+    .copy { padding: .3rem .55rem; border: 0; border-radius: 6px; background: transparent; color: #b7dbee; font: inherit; cursor: pointer; }
+    .copy:hover { background: #343843; color: #fff; }
+    pre { margin: 0; padding: .9rem 1rem 1rem; color: #f3f2f7; font: .88rem/1.7 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .trust { margin-top: 2rem; padding: 1rem 1.2rem; border: 1px solid #34343d; border-radius: 10px; color: #b6b5c0; font-size: .87rem; }
+    .trust p { margin: 0; }
+    .fingerprint { color: #e3e1ea; overflow-wrap: anywhere; }
+    footer { margin-top: 1.65rem; color: #9897a5; font-size: .82rem; }
+    footer p { margin-bottom: .25rem; }
+    @media (max-width: 600px) {
+      .header { align-items: flex-start; }
+      .icon { width: 50px; height: 50px; }
+      .install { align-items: stretch; flex-direction: column; gap: 1rem; }
+      .button { width: 100%; }
+      pre { font-size: .8rem; }
+    }
   </style>
 </head>
 <body>
-  <h1>figma-linux-next</h1>
-  <p class="sub">Unofficial Figma desktop client for Linux — Flatpak repository. Current release: <strong>v__VERSION__</strong>.</p>
+  <main>
+    <header class="header">
+      <img class="icon" src="icon.png" width="58" height="58" alt="">
+      <div>
+        <p class="eyebrow">Flatpak repository</p>
+        <h1>Figma Linux Next <span class="version">v__VERSION__</span></h1>
+      </div>
+    </header>
 
-  <p><a class="btn" href="figma-linux-next.flatpakref">Install with one click</a>
-     <small>(GNOME Software / KDE Discover open <code>.flatpakref</code> files directly)</small></p>
+    <p class="intro">An unofficial Figma desktop client for Linux. Install from this signed repository to receive updates through Flatpak.</p>
 
-  <h2>Or from the terminal</h2>
-  <pre>flatpak install --user https://__HOST__/__PATH__/figma-linux-next.flatpakref</pre>
+    <section class="card install" aria-labelledby="install-title">
+      <div>
+        <h2 id="install-title">Install the app</h2>
+        <p>Open the Flatpak reference with GNOME Software or KDE Discover.</p>
+      </div>
+      <a class="button" href="figma-linux-next.flatpakref">Install with one click</a>
+    </section>
 
-  <p>To add the repository only, so updates arrive with <code>flatpak update</code>:</p>
-  <pre>flatpak remote-add --user --if-not-exists figma-linux-next \
-    https://__HOST__/__PATH__/figma-linux-next.flatpakrepo
-flatpak install --user figma-linux-next app.borys.FigmaLinuxNext</pre>
+    <section class="section" aria-labelledby="terminal-title">
+      <h2 id="terminal-title">Install from the terminal</h2>
+      <p class="section-intro">This adds the repository and installs the app.</p>
+      <div class="code-card">
+        <div class="code-head"><span>Terminal</span><button class="copy" type="button" data-copy="install-command" aria-label="Copy install command">Copy</button></div>
+        <pre><code id="install-command">flatpak install --user https://__HOST__/__PATH__/figma-linux-next.flatpakref</code></pre>
+      </div>
+    </section>
 
-  <p>Every commit and the repository summary are signed with the key
-     <code>__FPR__</code>; it is embedded in the <code>.flatpakrepo</code>
-     file and also published as <a href="repo/figma-linux-next-repo.gpg">figma-linux-next-repo.gpg</a>.</p>
+    <section class="section" aria-labelledby="manual-title">
+      <h2 id="manual-title">Add the repository manually</h2>
+      <p class="section-intro">Use these commands if you prefer to add the remote yourself.</p>
+      <div class="code-card">
+        <div class="code-head"><span>Terminal</span><button class="copy" type="button" data-copy="manual-command" aria-label="Copy repository commands">Copy</button></div>
+        <pre><code id="manual-command">flatpak remote-add --user --if-not-exists figma-linux-next \
+  https://__HOST__/__PATH__/figma-linux-next.flatpakrepo
+flatpak install --user figma-linux-next app.borys.FigmaLinuxNext</code></pre>
+      </div>
+    </section>
 
-  <p><small>Source, release notes and other installers (deb, rpm, AppImage, AUR, Nix):
-     <a href="https://github.com/arximus88/figma-linux-next">github.com/arximus88/figma-linux-next</a>.
-     Not affiliated with or endorsed by Figma, Inc.</small></p>
+    <aside class="trust" aria-label="Repository signing">
+      <p>The repository is signed with key <code class="fingerprint">__FPR__</code>. The key is included in the <code>.flatpakrepo</code> file and available as <a href="repo/figma-linux-next-repo.gpg">figma-linux-next-repo.gpg</a>.</p>
+    </aside>
+  </main>
+
+  <footer>
+    <p>Source, release notes and other installers: <a href="https://github.com/arximus88/figma-linux-next">GitHub repository</a>.</p>
+    <p>Not affiliated with or endorsed by Figma, Inc.</p>
+  </footer>
+  <script>
+    for (const button of document.querySelectorAll("[data-copy]")) {
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).textContent.trim());
+          button.textContent = "Copied";
+          window.setTimeout(() => { button.textContent = "Copy"; }, 1800);
+        } catch {
+          button.textContent = "Copy failed";
+          window.setTimeout(() => { button.textContent = "Copy"; }, 1800);
+        }
+      });
+    }
+  </script>
 </body>
 </html>

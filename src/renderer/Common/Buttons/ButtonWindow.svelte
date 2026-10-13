@@ -8,10 +8,11 @@
     hoverBgColor = "var(--frame-btn-hover, rgba(255, 255, 255, 0.1))",
     isActive = false,
     onButtonClick,
+    ariaLabel = undefined,
     children,
   } = $props();
 </script>
 
-<Button {padding} {normalBgColor} {activeBgColor} {hoverBgColor} {isActive} {onButtonClick}>
+<Button {padding} {normalBgColor} {activeBgColor} {hoverBgColor} {isActive} {onButtonClick} {ariaLabel}>
   {@render children?.()}
 </Button>

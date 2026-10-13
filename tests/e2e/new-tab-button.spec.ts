@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openSettings } from "./helpers/app";
 import { closeApp, launchApp } from "./helpers/launch";
 
 const FILE_URL_A = "https://www.figma.com/design/AAA111aaa/project-alpha";
@@ -42,19 +43,17 @@ test.describe("New tab button placement", () => {
     const panel = await findPanelPage(handle.app);
     await panel.waitForTimeout(600);
 
-    expect(await panel.locator(".left .new-tab-btn").count()).toBe(1);
-    expect(await panel.locator(".tabs .strip-plus").count()).toBe(0);
+    await expect(panel.locator(".left .new-tab-btn")).toHaveCount(1);
+    await expect(panel.locator(".tabs .strip-plus")).toHaveCount(0);
 
     await openTab(handle.app, FILE_URL_A);
     await panel.waitForTimeout(400);
     await handle.app.evaluate(({ app: electronApp }) => electronApp.emit("newFile"));
     await panel.waitForTimeout(600);
 
-    const titles = await tabTitles(panel);
-    expect(titles.length).toBe(2);
-    expect(titles[0]).toBe("New file");
+    await expect.poll(() => tabTitles(panel)).toEqual(["New file", expect.any(String)]);
     // The button hides while the New file tab is open.
-    expect(await panel.locator(".left .new-tab-btn").count()).toBe(0);
+    await expect(panel.locator(".left .new-tab-btn")).toHaveCount(0);
 
     await closeApp(handle);
   });
@@ -68,8 +67,8 @@ test.describe("New tab button placement", () => {
     const panel = await findPanelPage(handle.app);
     await panel.waitForTimeout(600);
 
-    expect(await panel.locator(".left .new-tab-btn").count()).toBe(0);
-    expect(await panel.locator(".tabs .strip-plus .new-tab-btn").count()).toBe(1);
+    await expect(panel.locator(".left .new-tab-btn")).toHaveCount(0);
+    await expect(panel.locator(".tabs .strip-plus .new-tab-btn")).toHaveCount(1);
 
     await openTab(handle.app, FILE_URL_A);
     await panel.waitForTimeout(400);
@@ -91,10 +90,10 @@ test.describe("New tab button placement", () => {
     await handle.app.evaluate(({ app: electronApp }) => electronApp.emit("newFile"));
     await panel.waitForTimeout(600);
 
-    const titles = await tabTitles(panel);
-    expect(titles.length).toBe(3);
-    expect(titles[titles.length - 1]).toBe("New file");
-    expect(await panel.locator(".tabs .strip-plus").count()).toBe(0);
+    await expect
+      .poll(() => tabTitles(panel))
+      .toEqual([expect.any(String), expect.any(String), "New file"]);
+    await expect(panel.locator(".tabs .strip-plus")).toHaveCount(0);
 
     await closeApp(handle);
   });
@@ -110,25 +109,25 @@ test.describe("New tab button placement", () => {
     await panel.waitForTimeout(400);
     await handle.app.evaluate(({ app: electronApp }) => electronApp.emit("newFile"));
     await panel.waitForTimeout(600);
-    expect((await tabTitles(panel))[0]).toBe("New file");
+    await expect.poll(async () => (await tabTitles(panel))[0]).toBe("New file");
 
-    // The payload SettingsController broadcasts to every panel after the
-    // Settings modal closes with the toggle flipped.
-    await handle.app.evaluate(({ webContents }) => {
-      const panelWc = webContents
-        .getAllWebContents()
-        .find((wc) => wc.getURL().includes("index.html"));
-      panelWc?.send("loadSettings", {
-        ui: { scalePanel: 1 },
-        app: { hideWindowMinMaxButtons: false, newTabButtonAfterTabs: true },
-      });
-    });
-    await panel.waitForTimeout(400);
+    // Flip it in Settings, the way a user does: saved live, pushed to the panel.
+    const settings = await openSettings(handle);
+    await settings.getByRole("button", { name: "Tabs & windows", exact: true }).click();
+    await settings.getByRole("switch", { name: "New tab button after the tabs" }).click();
 
-    const titles = await tabTitles(panel);
-    expect(titles[titles.length - 1]).toBe("New file");
-    // The New file tab is open, so no "+" anywhere; close it and the "+" shows up in the strip.
-    expect(await panel.locator(".new-tab-btn").count()).toBe(0);
+    await expect.poll(async () => (await tabTitles(panel)).at(-1)).toBe("New file");
+    // The New file tab is open, so no "+" anywhere yet.
+    await expect(panel.locator(".new-tab-btn")).toHaveCount(0);
+
+    // Close it: the "+" comes back, in the strip and not in the corner.
+    await panel
+      .locator("[data-tab-id]")
+      .last()
+      .getByRole("button", { name: /^Close/ })
+      .click();
+    await expect(panel.locator(".tabs .strip-plus .new-tab-btn")).toHaveCount(1);
+    await expect(panel.locator(".left .new-tab-btn")).toHaveCount(0);
 
     await closeApp(handle);
   });

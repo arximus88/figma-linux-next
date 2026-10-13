@@ -7,7 +7,7 @@
  * walking) lives in scripts/helpers.ts as the inlined HELPERS_PREAMBLE.
  */
 
-import { HELPERS_PREAMBLE } from "./helpers";
+import { HELPERS_PREAMBLE, PLUGIN_API_UNAVAILABLE } from "./helpers";
 
 // ── Figma Plugin API Queries ───────────────────────────────────────────────────
 // These JS snippets run inside the Figma webapp's renderer context via
@@ -18,7 +18,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
+    if (!figma) return JSON.stringify({ error: ${PLUGIN_API_UNAVAILABLE} });
 ${HELPERS_PREAMBLE}
     function serializeNode(node, currentDepth, maxDepth) {
       if (!node || currentDepth > maxDepth) return null;
@@ -126,7 +126,7 @@ export const FILE_INFO_SCRIPT = `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 
     const pages = figma.root.children;
     const currentPage = figma.currentPage;
@@ -171,7 +171,7 @@ export const METADATA_XML_SCRIPT = (nodeId: string | null, depth: number) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return JSON.stringify({ error: "Figma Plugin API not available — ensure a file is open and fully loaded" });
+    if (!figma) return JSON.stringify({ error: ${PLUGIN_API_UNAVAILABLE} });
 ${HELPERS_PREAMBLE}
     function nodeToXml(node, indent, currentDepth) {
       if (!node || currentDepth > ${depth}) return '';
@@ -236,7 +236,7 @@ export const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 
 ${HELPERS_PREAMBLE}
     let targetNodes = null;
@@ -383,7 +383,7 @@ export const FIGJAM_SCRIPT = (nodeId: string | null) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     function nodeToXml(node, indent) {
       try {
@@ -464,7 +464,7 @@ export const GENERATE_DIAGRAM_SCRIPT = (nodesJson: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
     if (typeof figma.createShapeWithText !== 'function') {
       return { error: "This command requires a FigJam file. Open or create a FigJam file first." };
     }
@@ -523,7 +523,7 @@ export const DESIGN_SYSTEM_RULES_SCRIPT = `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 
 ${HELPERS_PREAMBLE}
     // Collect all local variable collections and their variables
@@ -616,7 +616,7 @@ export const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 
     let target;
     ${
@@ -655,7 +655,7 @@ export const SEARCH_DESIGN_SYSTEM_SCRIPT = (query: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     const q = ${JSON.stringify(query)}.toLowerCase();
     const results = { variables: [], styles: [], components: [] };
@@ -723,7 +723,7 @@ export const USE_FIGMA_SCRIPT = (action: string, params: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     const params = ${params};
     const action = ${JSON.stringify(action)};
@@ -885,7 +885,7 @@ export const CREATE_PAGE_SCRIPT = (pageName: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
     const page = figma.createPage();
     page.name = ${JSON.stringify(pageName)};
     // figma.currentPage = page is rejected ("Setting figma.currentPage is not
@@ -906,7 +906,7 @@ export const FIND_NODES_SCRIPT = (nodeId: string | null, optsJson: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     var opts = ${optsJson};
     var root;
@@ -928,7 +928,7 @@ export const TREE_SCRIPT = (nodeId: string | null, maxDepth: number) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     var root;
     ${
@@ -951,7 +951,7 @@ export const SET_TEXT_SCRIPT = (nodeId: string, charsJson: string) => `
 (function() {
   try {
     const figma = window.figma;
-    if (!figma) return { error: "Figma Plugin API not available — ensure a file is open and fully loaded" };
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
 ${HELPERS_PREAMBLE}
     var node = figma.getNodeById(${JSON.stringify(nodeId)});
     if (!node) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };

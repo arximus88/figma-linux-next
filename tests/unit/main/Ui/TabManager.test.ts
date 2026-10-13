@@ -93,6 +93,25 @@ describe("TabManager", () => {
     tabManager = new TabManager(1);
   });
 
+  it("discard and revive preserve identity, order, group and deferred account", () => {
+    const a = tabManager.addTab("https://www.figma.com/design/a", "A");
+    const b = tabManager.addTab("https://www.figma.com/design/b", "B");
+    a.groupId = "group-a";
+    a.pendingUserId = "user-2";
+    const oldWebContentsId = a.webContentsId;
+    const destroy = spyOn(a.view.webContents, "destroy");
+    const shell = tabManager.discardTab(a.id)!;
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(tabManager.getByWebContentsId(oldWebContentsId)).toBeUndefined();
+    const revived = tabManager.reviveTab(shell);
+    expect(revived.id).toBe(a.id);
+    expect(revived.webContentsId).not.toBe(oldWebContentsId);
+    expect(tabManager.getByWebContentsId(revived.webContentsId)).toBe(revived);
+    expect(revived.groupId).toBe("group-a");
+    expect(new URL(revived.url!).searchParams.get("fuid")).toBe("user-2");
+    expect([...tabManager.getAll().keys()]).toEqual([a.id, b.id]);
+  });
+
   describe("getById", () => {
     it("should return mainTab for id 'mainTab'", () => {
       const tab = tabManager.getById("mainTab");
@@ -133,13 +152,6 @@ describe("TabManager", () => {
     });
   });
 
-  describe("mainTab property", () => {
-    it("should be directly accessible via tabManager.mainTab", () => {
-      expect(tabManager.mainTab).toBeDefined();
-      expect(tabManager.mainTab).toBeInstanceOf(MainTab);
-    });
-  });
-
   describe("reapplyUserId", () => {
     it("refreshes the currently focused tab immediately with the new fuid", () => {
       const tab = tabManager.addTab("https://test.com", "A");
@@ -152,6 +164,17 @@ describe("TabManager", () => {
       tabManager.reapplyUserId("user-2");
 
       expect(loadUrlSpy).toHaveBeenCalledWith("https://www.figma.com/design/abc/A?fuid=user-2");
+      expect(tab.pendingUserId).toBeUndefined();
+    });
+
+    it("does not reload the tab the switch came from — it already runs as the new account", () => {
+      const tab = tabManager.addTab("https://test.com", "A");
+      tabManager.focusTab(tab.id);
+      const loadUrlSpy = spyOn(tab, "loadUrl");
+
+      tabManager.reapplyUserId("user-2", tab.view.webContents.id);
+
+      expect(loadUrlSpy).not.toHaveBeenCalled();
       expect(tab.pendingUserId).toBeUndefined();
     });
 

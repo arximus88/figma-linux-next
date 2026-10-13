@@ -102,3 +102,36 @@ export const HELPERS_PREAMBLE = `
       return lines.join('\\n');
     }
 `;
+
+/**
+ * JS expression (renderer side) evaluating to the error for a tab without
+ * `window.figma`, naming the reason instead of a generic "not available".
+ *
+ * Figma installs `window.figma` itself (early.js + the plugin-permission check
+ * that gates "Run plugin"), and only when all of these hold: the page is a
+ * file, the file is editable — `INITIAL_OPTIONS.editing_file.can_edit === false`
+ * makes the property permanently undefined — the editor has finished loading,
+ * and the account may run plugins in this file. A background tab that has not
+ * been shown yet never gets that far. Issue #67: a single generic message
+ * covered all of these and left the reporter nothing to act on.
+ *
+ * Each message carries its own advice, so errorHints has no entry for it — a
+ * generic "open a file" hint would contradict the view-only case.
+ */
+export const PLUGIN_API_UNAVAILABLE = `(function () {
+      var base = "Figma Plugin API not available — ";
+      try {
+        var options = window.INITIAL_OPTIONS;
+        var file = options && options.editing_file;
+        if (!file) {
+          return base + "the active tab is not a Figma file (" + location.pathname + "). Open a design file and make it the active tab.";
+        }
+        if (file.can_edit === false) {
+          return base + "this file is open view-only, and Figma does not expose its Plugin API in view-only files. Open a file you can edit, or duplicate this one to your drafts.";
+        }
+        if (document.visibilityState !== "visible") {
+          return base + "the tab is in the background and Figma has not finished loading its editor. Switch to the tab in the app and retry.";
+        }
+      } catch (e) {}
+      return base + "Figma exposes it only once the editor has finished loading and plugins are allowed for this file and account. Wait for the canvas to load; if it persists, check that running a plugin (Plugins menu) works in this file.";
+    })()`;
