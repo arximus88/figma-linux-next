@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Flatpak end-of-life runtime warning**
+  ([#75](https://github.com/arximus88/figma-linux-next/issues/75)). The package and release
+  build now use Freedesktop 25.08 with matching Electron BaseApp and Node 22 SDK extension,
+  replacing the unsupported 24.08 runtime.
+
 ## [0.22.0] - 2026-10-08
 
 A small release. Exports through Zenity dialogs work again on zenity 4, and a file can now be
