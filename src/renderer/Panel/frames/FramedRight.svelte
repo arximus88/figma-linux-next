@@ -46,6 +46,7 @@
       isActive={isMenuOpen.value}
       hoverBgColor="var(--frame-btn-hover)"
       activeBgColor="var(--frame-btn-active)"
+      ariaLabel="Main menu"
       onButtonClick={clickMenu}
     >
       <Menu size={cfg.right.menu?.size} color="currentColor" />
@@ -60,6 +61,7 @@
       normalBgColor={flatNormal}
       hoverBgColor="var(--frame-btn-hover)"
       activeBgColor="var(--frame-btn-active)"
+      ariaLabel="Minimize"
       onButtonClick={() => window.figmaApi.send("windowMinimize")}
     >
       <Min size={cfg.right.minimize.size} color="currentColor" />
@@ -70,6 +72,7 @@
       normalBgColor={flatNormal}
       hoverBgColor="var(--frame-btn-hover)"
       activeBgColor="var(--frame-btn-active)"
+      ariaLabel="Maximize"
       onButtonClick={() => window.figmaApi.send("windowMaximize")}
     >
       <Max size={cfg.right.maximize.size} color="currentColor" />
@@ -82,6 +85,7 @@
       normalBgColor={flatNormal}
       hoverBgColor="var(--frame-close-hover)"
       activeBgColor="var(--frame-close-active)"
+      ariaLabel="Close window"
       onButtonClick={closeHandler}
     >
       <Close size={cfg.right.close.size} color="currentColor" />

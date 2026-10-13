@@ -13,7 +13,6 @@ snap/parts
 snap/prime
 snap/snap
 snap/stage
-bun.lock
 bun.lockb
 docs
 
@@ -53,3 +52,6 @@ src/renderer/Changelog/_data.ts
 .gemini
 .jules/
 tsconfig.tsbuildinfo
+
+# Local Settings UI/UX exploration
+settings-prototype/

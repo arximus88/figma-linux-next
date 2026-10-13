@@ -78,7 +78,9 @@ bunx @sveltejs/mcp svelte-autofixer src/renderer/Panel/App.svelte
 bun run precommit
 ```
 
-Linting/formatting: **Biome** (`biome.json`) for all `.ts` (src + tests) — formatter matches the
+Linting/formatting: **Biome** (`biome.json`) for everything `files.includes` lists — `src` and
+`tests` `.ts`, `scripts/*.mts`, `vite.config.mts`; `bun run lint` passes no paths so the config is
+the single list (it used to pass `src tests` and skip the rest). Formatter matches the
 former Prettier (100 cols, double quotes, semicolons, trailing-all); `noExplicitAny` and
 `noNonNullAssertion` are disabled to match project conventions; `*.d.ts` has a small rule carve-out.
 `.svelte` files are not linted/formatted — only `svelte-check` (Biome doesn't parse Svelte 5 runes
@@ -99,7 +101,20 @@ bun run test:unit
 bun run test:e2e
 ```
 
-Unit tests live next to source files (`*.test.ts`). E2E tests are in `tests/e2e/`.
+Unit tests are in `tests/unit/` (mirroring `src/`; a few pure helpers keep a `*.test.ts` beside
+the source). E2E tests are in `tests/e2e/`; `bun run test:e2e` builds nothing — run `bun run build`
+first, the suite launches `dist/main/main.js` under `xvfb-run`.
+
+Writing e2e tests (`tests/e2e/helpers/app.ts` has the shared pieces):
+- Assert what the user would see — the strip (`stripTabs`), the view on screen (`shownView`),
+  values in main's store — and drive the real control (button, switch, menu event). A test that
+  only checks "the app didn't crash" or emits an IPC nobody listens to passes forever; four such
+  tests were found and rewritten on 2026-10-02.
+- Under xvfb a hidden view's document still reports `visibilityState === "visible"` and its
+  `innerWidth` lags behind `setSize`. Read `view.getVisible()` / `view.getBounds()` from
+  `app.evaluate` instead (`shownView` does).
+- Restarts: `launchApp({ userDataDir: previous.userDataDir })` reuses the profile.
+- A new test that guards a fix should fail with the fix reverted — check it once.
 
 `bunfig.toml` registers `tests/unit/electron-preload.ts` as a test preload — globally mocks the `electron` module so unit tests touching `src/utils/Main/` work without an Electron runtime.
 
@@ -120,7 +135,7 @@ The application is a classic Electron app with two processes:
 
 **Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
-- **Settings** (`src/renderer/Settings/`) - Settings modal
+- **Settings** (`src/renderer/Settings/`) - Settings page, shown as a tab
 
 Communication between processes goes through a typed **preload bridge** (`src/main/preload/bridge.ts`) that exposes `window.figmaApi` — direct `ipcRenderer` usage in renderers is not allowed.
 
@@ -164,9 +179,18 @@ new App(new WindowManager(), new Session(), new FontManager());
 **Window** (`src/main/Ui/Window.ts`):
 - Wraps a `BrowserWindow` with a `TabManager`, a `SettingsView` and a lazily created `TabPreviewView`
   (the hover card, `src/main/Ui/TabPreviewView.ts` + `src/renderer/Preview/`)
-- Child views (tabs, the hover card, the Settings / What's New overlays) are attached to the
+- Child views (tabs, the hover card, the Settings tab, the What's New overlay) are attached to the
   `BrowserWindow` once and switched with `view.setVisible()`; `swapTo()` shows the next tab and
-  hides the previous one. See the gotcha "Child views are attached once" below.
+  hides the previous one (and the Settings tab, if it was in front). See the gotcha "Child views
+  are attached once" below.
+- **Settings is a tab, like a browser's settings page** (`src/main/Ui/SettingsTab.ts`). It has two
+  states: *open* (in the strip) and *shown* (on screen). Switching to a file hides it but keeps it
+  in the strip; closing it (×, middle click, Ctrl+W while shown) refocuses the tab that was under
+  it. Closing the tab *under* Settings keeps Settings in front; the neighbour becomes the tab
+  underneath (`Window.closeTab`). It is not a `TabManager` tab — it never drags, groups, previews or gets saved with the
+  session. The panel learns of it via `settingsTabOpened`/`settingsTabClosed` and draws it with
+  `Panel/frames/SettingsStripTab.svelte`; `currentTab` is `"settingsTab"` while it is shown
+  (a panel-only `PanelTabId`, not part of `Types.TabIdType`).
 - Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
@@ -213,8 +237,26 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Svelte stores in `src/renderer/Panel/store/`: `currentTab`, `tabs`, `panelZoom`
 
 **Settings** (`src/renderer/Settings/`):
-- Modal dialog for app settings
-- Settings saved via `window.figmaApi.send("closeSettingsView", settings)`
+- Full-size page in the Settings tab: sidebar (search + five sections) and one section view at a time
+  (`Components/Views/{General,Appearance,Tabs,Integrations,Advanced}View.svelte`).
+- `schema.ts` holds every row's section, title, help text and search keywords; rows render
+  their text from it (`<SettingRow setting={SETTINGS.x}>`), so search can't drift from the UI.
+  An e2e test fails if a schema entry has no row on screen. New setting = schema entry + row +
+  (if editable) a key in `Utils/Common/settingsEdit.ts`.
+- Frame choices are drawn by `FramePreview.svelte` from the panel's own icon config and
+  `--frame-*` palette (`.frame-preview[data-frame]` in theme.css) — not screenshots.
+- Help text uses `--text-secondary` (AA on `--bg-card` in both themes); `--text-disabled` is for
+  disabled things only.
+- Saves as you edit (`autosave.svelte.ts` → `updateSettings` invoke, 300 ms debounce, flushed when the tab is hidden); closing only hides the view.
+  The page dies with its window, and a pending save timer with it, so closing a window, Quit,
+  Restart and a window-manager close all await `Window.flushSettings()` first (calls
+  `window.__flushSettings` in the page, bounded to 1 s). The debounce always queues the latest
+  state and compares with the last save only when sending — a switch flipped and flipped back
+  within the delay must not write the first flip.
+  Only the fields listed in `Utils/Common/settingsEdit.ts` are sent — never the whole settings object, which
+  would overwrite main-owned state (`windowsState`, `recentlyClosedTabs`, `userId`) with the snapshot Settings
+  loaded with. A new user-editable setting must be added to that list, and its side effect to
+  `planSettingsUpdate`. Restart-only settings are compared against launch values and shown as a banner.
 
 **DesktopAPI** (`src/renderer/DesktopAPI/`):
 - `webBinding.ts` — Establishes two-way MessageChannel with Figma web app; exposes `window.__figmaDesktop`
@@ -238,8 +280,7 @@ Aliases:
 - `Main/*` → `src/main/*`
 - `Utils/*` → `src/utils/*`
 - `Common/*` → `src/renderer/Common/*`
-- `Components/*` → `src/renderer/components/*`
-- `Store/*` → `src/renderer/stores/*`
+- `Icons`, `Containers`, `DesktopAPI` → their folders under `src/renderer/Common` / `src/renderer`
 - `Types/*` → `src/types/*`
 - `Const` → `src/constants`
 
@@ -342,7 +383,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "44.2.0"` (Chromium 152, Node 24), bumped 2026-09-07. OAuth login re-verification on 44.2.0: **pending**.
+`package.json` lists an exact version, currently `"electron": "44.5.1"` (Chromium 152, Node 24), bumped 2026-10-01 from 44.2.0. OAuth first login re-verified on 44.5.1 (2026-10-01, clean profile, bundled binary): `__Host-figma.authn` lands.
 
 History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on GNOME/AppIndicator, Cinnamon, XFCE; electron#52674, fixed in 43.4.1). 44.0 rebuilt the `clipboard` module: every method is async, payloads are `ClipboardItem` → `Blob` by MIME type, `readImage/writeImage/readBuffer/writeBuffer` are gone, and the module no longer exists in renderers — which is why `ClipboardController` now owns both read and write and the tab preload only forwards `getClipboardData`/`setClipboardData`.
 
@@ -360,8 +401,11 @@ Note `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x 
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
 
-### TabManager.getById() fallback
-`TabManager.getById(id)` falls back to returning `mainTab` when the ID is not found (instead of `undefined`). This is a known footgun — calling `closeTab()` or `removeChildView()` on the result of an unknown ID will silently operate on `mainTab`. Always guard with `tabManager.getAll().has(id)` before calling `getById` for dynamic IDs.
+### TabManager.getById() and unknown IDs
+`TabManager.getById(id)` returns `undefined` for an unknown numeric ID (it used to fall back to
+`mainTab`, so `closeTab()` / `removeChildView()` on a stale ID silently hit the home tab; a unit
+test pins the current behaviour). The string IDs `"mainTab"` / `"communityTab"` still resolve.
+Keep guarding dynamic IDs with `tabManager.getAll().has(id)` — `closeTab` relies on it.
 
 ### Figma web app → desktop IPC (webBinding.ts)
 Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message channel. Unhandled messages log `[desktop] Unhandled message <name>` warnings. To silence a message without implementing it, add a no-op stub in the `publicAPI` object in `src/renderer/DesktopAPI/webBinding.ts`. DEV-mode `console.debug` is acceptable for stubs to aid future implementation.
@@ -370,14 +414,14 @@ Figma sends fire-and-forget messages to `window.__figmaDesktop` via the message 
 When the user clicks Home Tab, the renderer sends both `setFocusToMainTab` IPC **and** `closeTab(newFileTabId)`. The main process `setFocusToMainTab()` also calls `closeNewFileTab()` internally. This double-close is intentional — the guard in `closeTab()` (`tabManager.getAll().has(id)`) prevents the second call from accidentally removing `mainTab`.
 
 ### Child views are attached once — switch with setVisible, never detach and re-attach
-Tab views, the tab preview card and the Settings / What's New overlays are added to
+Tab views, the tab preview card, the Settings tab and the What's New overlay are added to
 `window.contentView` once, hidden, the moment they are created (`Window.attachHidden()`; the
-overlays in the `ModalViewManager` constructor) and afterwards only toggled with
+overlay in the `ModalViewManager` constructor) and afterwards only toggled with
 `view.setVisible()`. On Wayland with Electron 44 a `WebContentsView` that is `removeChildView`ed and
 later `addChildView`ed again never becomes visible: `document.visibilityState` stays `hidden`,
 nothing paints and the tab shows white until a relayout (verified 2026-09-07 on GNOME 50 with a
 minimal repro; Electron 43 was fine, and X11/xvfb — where the e2e suite runs — never reproduces it).
-Re-adding an *attached* view is safe and is how overlays raise themselves above tabs attached since
+Re-adding an *attached* view is safe and is how the overlay raises itself above tabs attached since
 (`addChildView` on a current child reorders it to the top). `removeChildView` is reserved for views
 about to be destroyed (`closeTab`, `closeAllTab`, community close, warm-tab discard).
 
@@ -387,6 +431,13 @@ a background tab on demand; `tab.thumbnail` is the only source the hover card ha
 
 ### openFile must close the New File tab
 `Window.openFile()` must call `closeNewFileTab()` after opening the file tab. Without this, the New File tab stays visible as a leftover. `createFile()` already does this — keep them consistent.
+
+### Restart in `bun run dev` goes through Vite
+vite-plugin-electron spawns Electron and ends the dev server when it exits, so `app.relaunch()`
+under `bun run dev` comes back to a dead server: no panel, `chrome-error://chromewebdata/`.
+`App.relaunchApp` therefore saves state and sends `DEV_RELAUNCH_MESSAGE` (`src/constants/dev.ts`)
+to Vite over the plugin's IPC channel; `onstart` in `vite.config.mts` restarts Electron with
+`startup()`, which unhooks the exit handler first. Packaged builds still `app.relaunch()`.
 
 ### app.whenReady() not app.on('ready', ...)
 Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('ready', ...)` silently misses the event if registration is delayed (e.g. async startup). `app.whenReady()` resolves immediately if the app is already ready.
@@ -532,10 +583,9 @@ bun run local:install
 
 ## Environment Variables
 
-For local development, create `.env`:
-
-```env
-NODE_ENV=dev
-DEV_PANEL_PORT=3330
-DEV_SETTINGS_PORT=3331
-```
+`bun run dev` needs none. Renderer pages load from the Vite dev server at the address
+vite-plugin-electron passes in `VITE_DEV_SERVER_URL` (`devPageUrl()` in
+`src/utils/Main/url.ts`). Vite takes the next free port when 5173 is busy, so never hard-code
+it — a hard-coded 5173 once loaded another project's SvelteKit 404 into the panel. The old
+`DEV_PANEL_PORT` / `DEV_SETTINGS_PORT` variables are gone (setting the latter pointed every
+overlay at the Settings page).

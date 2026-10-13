@@ -1,5 +1,5 @@
 <script lang="ts">
-  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding: _padding = "0", margin = "0", normalFgColor = "var(--text)", activeFgColor = "var(--text-active)", hoverFgColor = "var(--text-active)", normalBgAlpha = "1", activeBgAlpha = "1", hoverBgAlpha = "1", normalBgColor = "var(--normal-bg-color, transparent)", hoverBgColor = "var(--hover-bg-color, var(--bg-tab-hover))", activeBgColor = "var(--active-bg-color, var(--bg-tab-hover))", disabledBgColor = "var(--disabled-bg-color, var(--borders))", normalBorder = "var(--normal-border, none)", activeBorder = "var(--active-border, none)", hoverBorder = "var(--hover-border, none)", normalCursor = "default", activeCursor = "default", hoverCursor = "default", isActive = false, disabled = false, onButtonClick = undefined, children = undefined} = $props();
+  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding: _padding = "0", margin = "0", normalFgColor = "var(--text)", activeFgColor = "var(--text-active)", hoverFgColor = "var(--text-active)", normalBgAlpha = "1", activeBgAlpha = "1", hoverBgAlpha = "1", normalBgColor = "var(--normal-bg-color, transparent)", hoverBgColor = "var(--hover-bg-color, var(--bg-tab-hover))", activeBgColor = "var(--active-bg-color, var(--bg-tab-hover))", disabledBgColor = "var(--disabled-bg-color, var(--borders))", normalBorder = "var(--normal-border, none)", activeBorder = "var(--active-border, none)", hoverBorder = "var(--hover-border, none)", normalCursor = "default", activeCursor = "default", hoverCursor = "default", isActive = false, disabled = false, onButtonClick = undefined, ariaLabel = undefined, children = undefined} = $props();
   
   let width = $derived(size ? `${size}px` : _width);
   let height = $derived(size ? `${size}px` : _height);
@@ -15,6 +15,7 @@
 <div
   role="button"
   tabindex="0"
+  aria-label={ariaLabel}
   onmouseupcapture={clickHandler}
   class={`
     ${isActive ? "button__active " : ""}

@@ -21,6 +21,14 @@ if (system("python3 ./scripts/sync_flatpak_release.py --version $version") != 0)
   exit 1;
 }
 
-system("git add .");
-system("git commit -m 'chore(release): bump version to $version'");
+# Commit only what this script wrote: `git add .` used to sweep unrelated
+# work-in-progress from the tree into the release commit.
+my $files = join(" ", qw(
+  package.json
+  src/package.json
+  flatpak/package.json
+  flatpak/app.borys.FigmaLinuxNext.yml
+  flatpak/app.borys.FigmaLinuxNext.metainfo.xml
+));
+system("git commit -m 'chore(release): bump version to $version' -- $files");
 system("git tag -a v$version -m 'Publish v$version release'");

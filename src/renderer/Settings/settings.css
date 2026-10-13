@@ -1,0 +1,139 @@
+/* Building blocks shared by the Settings section views. Colours come from
+   theme.css only, so both themes work without per-view overrides. */
+
+.settings-group {
+  margin: 0 0 28px;
+}
+.settings-group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 10px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.settings-group-note {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.settings-card {
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--borders);
+  border-radius: 10px;
+}
+.settings-card > .setting-row:last-child,
+.settings-card > :last-child .setting-row:last-child {
+  border-bottom: none;
+}
+.settings-card + .settings-card {
+  margin-top: 12px;
+}
+
+.s-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--borders);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.s-btn:hover {
+  background: var(--bg-card-hover);
+}
+.s-btn:focus-visible,
+.s-input:focus-visible,
+.s-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #ffffff;
+}
+.s-btn.icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.s-input {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--borders);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.s-input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+.s-input.port {
+  width: 92px;
+}
+
+.s-range {
+  width: 220px;
+  accent-color: var(--accent);
+}
+.s-value {
+  min-width: 44px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.s-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.s-chip.active {
+  background: var(--success-muted);
+  color: var(--success-text);
+}
+.s-chip.pending {
+  background: var(--warning-muted);
+  color: var(--warning-text);
+}
+.s-chip.error {
+  background: var(--warning-muted);
+  color: var(--error);
+}
+.s-chip.muted {
+  background: var(--bg-panel-hover);
+  color: var(--text-secondary);
+}
+
+.s-error {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--error);
+}
+.s-hint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.s-mono {
+  font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+  font-size: 12px;
+}

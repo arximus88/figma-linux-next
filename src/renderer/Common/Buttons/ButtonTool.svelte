@@ -1,5 +1,5 @@
 <script lang="ts">
-  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding = "auto", normalFgColor = "var(--fg-header)", hoverFgColor = "var(--fg-tab-hover)", normalBgColor = "var(--bg-header)", hoverBgColor = "var(--bg-tab-hover)", normalOpacity = 0.4, hoverOpacity = 1, disabled = false, onButtonClick = undefined, onContextmenu = undefined, onMouseenter = undefined, onMouseleave = undefined, children = undefined} = $props();
+  let {round = 0, size = undefined, width: _width = "auto", height: _height = "auto", padding = "auto", normalFgColor = "var(--fg-header)", hoverFgColor = "var(--fg-tab-hover)", normalBgColor = "var(--bg-header)", hoverBgColor = "var(--bg-tab-hover)", normalOpacity = 0.4, hoverOpacity = 1, disabled = false, onButtonClick = undefined, onContextmenu = undefined, onMouseenter = undefined, onMouseleave = undefined, ariaLabel = undefined, children = undefined} = $props();
 
   let width = $derived(size ? `${size}px` : _width);
   let height = $derived(size ? `${size}px` : _height);
@@ -14,6 +14,7 @@
 <div
   role="button"
   tabindex="0"
+  aria-label={ariaLabel}
   onmouseupcapture={clickHandler}
   oncontextmenu={(e) => onContextmenu?.(e)}
   onmouseenter={(e) => onMouseenter?.(e)}

@@ -84,7 +84,7 @@
     position: relative;
     width: 40px;
     height: 40px;
-    border-radius: 3px 3px 0 0;
+    border-radius: 0;
   }
   :global([data-frame="kde"]) .left :global(div[role="button"].button__active::before) {
     content: "";
@@ -93,7 +93,6 @@
     right: 0;
     top: 0;
     height: 2px;
-    border-radius: 3px 3px 0 0;
     background-color: var(--frame-accent);
   }
   :global([data-frame="gnome"]) .left :global(div[role="button"]) {

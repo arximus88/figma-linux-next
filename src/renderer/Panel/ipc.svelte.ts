@@ -10,6 +10,7 @@ import {
   newFileVisible,
   communityTabVisible,
   windowControls,
+  settingsTabOpen,
 } from "./store";
 
 /**
@@ -80,6 +81,8 @@ export function initIpc() {
   window.figmaApi.on("focusTab", (tabId: any) => {
     currentTab.set(tabId);
   });
+  window.figmaApi.on("settingsTabOpened", () => settingsTabOpen.set(true));
+  window.figmaApi.on("settingsTabClosed", () => settingsTabOpen.set(false));
   window.figmaApi.on("newFileBtnVisible", (visible: boolean) => {
     newFileVisible.set(visible);
   });
@@ -131,5 +134,16 @@ export function initIpc() {
     if (!wrapper) return;
     const r = wrapper.getBoundingClientRect();
     window.figmaApi.send("tabGroupPromptAnchor", tabId, { left: r.left, width: r.width });
+  });
+  // Same hand-off for "Edit Group…", anchored on the group's chip so the
+  // popover opens right under the thing it edits.
+  window.figmaApi.on("promptEditTabGroup", (groupId: string) => {
+    const container = document.querySelector<HTMLElement>(
+      `[data-group-id="${CSS.escape(groupId)}"]`,
+    );
+    const chip = container?.querySelector<HTMLElement>(".tab-group-header") ?? container;
+    if (!chip) return;
+    const r = chip.getBoundingClientRect();
+    window.figmaApi.send("tabGroupEditAnchor", groupId, { left: r.left, width: r.width });
   });
 }

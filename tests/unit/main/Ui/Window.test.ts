@@ -24,10 +24,9 @@ mock.module("Main/Dialogs", () => ({
 
 mock.module("./SettingsView", () => ({
   default: class {
-    view = { webContents: { id: 500 } };
+    view = { webContents: { id: 500 }, setVisible: mock(), setBounds: mock() };
     updateProps = mock();
     closeDevTools = mock();
-    postClose = mock();
     destroy = mock();
   },
 }));
@@ -161,41 +160,116 @@ describe("Window Tab Routing", () => {
     });
   });
 
-  describe("Bug 2: New File tab remained open after opening an existing file", () => {
-    test("After openFile resolves when a New File tab is open -> New File tab is closed", () => {
-      const closeNewFileTabSpy = spyOn(windowInstance, "closeNewFileTab");
+  describe("A link that arrives while the window is still loading", () => {
+    // The panel's load shows Home (webContentDidFinishLoad). A figma:// link
+    // clicked as the app starts used to open its tab first — the panel, not
+    // loaded yet, never heard of it, and Home then covered it.
+    const panelLoadHandlers = () => {
+      const wc = (windowInstance as any).window.webContents;
+      const pick = (fn: any) =>
+        fn.mock.calls.filter((c: any[]) => c[0] === "did-finish-load").map((c: any[]) => c[1]);
+      return [...pick(wc.on), ...pick(wc.once)]; // on: registered at construction, runs first
+    };
 
-      // Make it appear like a New File tab is open
+    test("waits for the panel and ends up in front of Home", () => {
       const tabManager: any = (windowInstance as any).tabManager;
-      spyOn(tabManager, "isNewFileTab").mockReturnValue(true);
+      windowInstance.openUrl("https://www.figma.com/design/abc123/My-file");
+      expect(tabManager.getAll().size).toBe(0);
 
-      // Mock addTab to avoid errors
-      spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
+      for (const handler of panelLoadHandlers()) handler();
 
-      windowInstance.openFile(mockEvent, "/files/abc/1234");
-
-      // Notice: `Window.ts` openFile uses `this.tabManager.loadUrlInMainTab(normalizedUrl)` when `isAppAuthRedeem`.
-      // The requirement says:
-      // "After openFile resolves when a New File tab is open -> New File tab is closed"
-      expect(closeNewFileTabSpy).toHaveBeenCalled();
+      expect(tabManager.getAll().size).toBe(1);
+      const [tab] = tabManager.getAll().values();
+      expect(tabManager.lastFocusedTab).toBe(tab.id);
     });
 
-    test("After openFile resolves when NO New File tab is open -> no crash, no mainTab removal", () => {
-      const closeNewFileTabSpy = spyOn(windowInstance, "closeNewFileTab");
-
-      // Make it appear like NO New File tab is open
+    test("opens at once after the panel has loaded", () => {
+      for (const handler of panelLoadHandlers()) handler();
       const tabManager: any = (windowInstance as any).tabManager;
-      spyOn(tabManager, "isNewFileTab").mockReturnValue(false);
 
-      // Add spy to closeTab
-      const closeTabSpy = spyOn(windowInstance, "closeTab");
-      spyOn(windowInstance, "addTab").mockReturnValue({ id: 999 } as any);
+      windowInstance.openUrl("https://www.figma.com/design/abc123/My-file");
 
-      windowInstance.openFile(mockEvent, "/files/abc/1234");
+      expect(tabManager.getAll().size).toBe(1);
+    });
+  });
 
-      // closeNewFileTab is called unconditionally, but since it returns early when there is no new file tab, that is expected.
-      expect(closeNewFileTabSpy).toHaveBeenCalled();
-      expect(closeTabSpy).not.toHaveBeenCalledWith(tabManager.mainTabWebContentId);
+  describe("Bug 2: New File tab remained open after opening an existing file", () => {
+    // State, not calls: closeNewFileTab runs on every openFile, so "it was
+    // called" passes whether or not the New File tab actually went away.
+    const openTitles = () =>
+      [...(windowInstance as any).tabManager.getAll().values()].map((t: any) => t.title);
+
+    test("opening a file from the New File tab closes the New File tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const newFile = tabManager.addTab("https://www.figma.com/design/new", NEW_FILE_TAB_TITLE);
+
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
+
+      expect(tabManager.getAll().has(newFile.id)).toBe(false);
+      expect(openTitles()).not.toContain(NEW_FILE_TAB_TITLE);
+      expect(tabManager.getAll().size).toBe(1); // the opened file
+    });
+
+    test("opening an already open file from the New File tab switches to it and closes New File", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+      const newFile = tabManager.addTab("https://www.figma.com/design/new", NEW_FILE_TAB_TITLE);
+
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
+
+      expect(tabManager.getAll().has(newFile.id)).toBe(false);
+      expect([...tabManager.getAll().keys()]).toEqual([file.id]); // no duplicate
+      expect(tabManager.lastFocusedTab).toBe(file.id);
+    });
+
+    describe("with app.allowDuplicateFileTabs on (#66)", () => {
+      beforeEach(() => {
+        storage.settings.app.allowDuplicateFileTabs = true;
+      });
+      afterEach(() => {
+        storage.settings.app.allowDuplicateFileTabs = false;
+      });
+
+      test("an already open file opens again in a second tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+
+        windowInstance.openFile(mockEvent, "/design/abc123/My-file", "My file", "?node-id=2-0");
+
+        const ids = [...tabManager.getAll().keys()];
+        expect(ids).toHaveLength(2);
+        expect(tabManager.lastFocusedTab).not.toBe(file.id);
+      });
+
+      test("Present twice still gives one prototype tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const proto = tabManager.addTab("https://www.figma.com/proto/abc123/My-file", "Proto");
+
+        windowInstance.openFile(mockEvent, "/proto/abc123", "Proto", "?node-id=1-2");
+
+        expect([...tabManager.getAll().keys()]).toEqual([proto.id]);
+        expect(tabManager.lastFocusedTab).toBe(proto.id);
+      });
+
+      test("a file asking to open itself does not clone its own tab", () => {
+        const tabManager: any = (windowInstance as any).tabManager;
+        const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+        const fromItself = { sender: { id: file.webContentsId }, reply: mock() } as any;
+
+        windowInstance.openFile(fromItself, "/design/abc123/My-file");
+
+        expect([...tabManager.getAll().keys()]).toEqual([file.id]);
+      });
+    });
+
+    test("opening a file with no New File tab closes nothing", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const other = tabManager.addTab("https://www.figma.com/design/xyz/Other", "Other");
+
+      windowInstance.openFile(mockEvent, "/design/abc123/My-file");
+
+      expect(tabManager.getAll().has(other.id)).toBe(true);
+      expect(tabManager.getAll().size).toBe(2);
     });
 
     test("createFile still closes the New File tab (existing behavior, explicit assertion)", () => {
@@ -386,6 +460,42 @@ describe("Window Tab Routing", () => {
       expect(tabManager.getAll().has(tabA.id)).toBe(false);
       expect(tabManager.getAll().has(tabB.id)).toBe(false);
       expect(tabManager.getAll().has(tabC.id)).toBe(true);
+    });
+
+    test("closeTabGroup tells the panel about every closed tab", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      const tabB = tabManager.addTab("https://figma.com/file/b", "B");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      windowInstance.addTabToGroup(tabB.id, groupId);
+      const tabWasClosed = spyOn(windowInstance, "tabWasClosed");
+
+      windowInstance.closeTabGroup(groupId);
+
+      expect(tabWasClosed.mock.calls.map(([id]) => id).sort()).toEqual([tabA.id, tabB.id].sort());
+    });
+
+    test("closeTabGroup hands each member to the caller's closer", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tabA = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tabA.id, "Group", "#4285f4");
+      const groupId = windowInstance.getTabGroups()[0].id;
+      const closeOne = mock();
+
+      windowInstance.closeTabGroup(groupId, closeOne);
+
+      expect(closeOne).toHaveBeenCalledWith(tabA.id);
+    });
+
+    test("moving a tab into a new group prunes the group it emptied", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/a", "A");
+      windowInstance.createTabGroupWithTab(tab.id, "First", "#4285f4");
+
+      windowInstance.createTabGroupWithTab(tab.id, "Second", "#ea4335");
+
+      expect(windowInstance.getTabGroups().map((g) => g.label)).toEqual(["Second"]);
     });
 
     test("newTabInGroup creates a new project tab in group and focuses it", () => {
@@ -721,9 +831,101 @@ describe("Window Tab Routing", () => {
       expect(hideSpy.mock.calls.length).toBe(1);
       hideSpy.mockRestore();
     });
+  });
 
-    test("hideTabGroupPrompt is a no-op when the popover was never shown", () => {
-      expect(() => windowInstance.hideTabGroupPrompt()).not.toThrow();
+  describe("Editing an existing group (rename / recolor)", () => {
+    function seedGroup(label = "Design", color = "#4285f4") {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://figma.com/file/abc", "File A");
+      windowInstance.createTabGroupWithTab(tab.id, label, color);
+      return { tab, group: windowInstance.getTabGroups()[0] };
+    }
+
+    test("promptEditTabGroup only asks the panel for an anchor for a known group", () => {
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.promptEditTabGroup("no-such-group");
+      expect(send).not.toHaveBeenCalledWith("promptEditTabGroup", "no-such-group");
+
+      const { group } = seedGroup();
+      windowInstance.promptEditTabGroup(group.id);
+      expect(send).toHaveBeenCalledWith("promptEditTabGroup", group.id);
+    });
+
+    test("showTabGroupEditPrompt pre-fills the popover with the group's current values", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const showSpy = spyOn(TabGroupPromptView.prototype, "show");
+
+      windowInstance.showTabGroupEditPrompt(group.id, { left: 120, width: 60 });
+
+      expect(showSpy.mock.calls.length).toBe(1);
+      const [, payload] = showSpy.mock.calls[0] as [any, Types.TabGroupPromptPayload];
+      expect(payload.mode).toBe("edit");
+      expect(payload.groupId).toBe(group.id);
+      expect(payload.label).toBe("Design");
+      expect(payload.color).toBe("#4285f4");
+
+      showSpy.mockRestore();
+    });
+
+    test("showTabGroupEditPrompt ignores an unknown group and never creates a view", () => {
+      windowInstance.showTabGroupEditPrompt("no-such-group", { left: 10, width: 40 });
+      expect((windowInstance as any).tabGroupPrompt).toBeNull();
+    });
+
+    test("updateTabGroup renames, recolors and broadcasts", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.updateTabGroup(group.id, "  Research  ", "#34a853");
+
+      const updated = windowInstance.getTabGroups()[0];
+      expect(updated.label).toBe("Research"); // trimmed
+      expect(updated.color).toBe("#34a853");
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(true);
+    });
+
+    test("updateTabGroup ignores a blank label and an unknown group", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+
+      windowInstance.updateTabGroup(group.id, "   ", "#34a853");
+      windowInstance.updateTabGroup("no-such-group", "Whatever", "#34a853");
+
+      const unchanged = windowInstance.getTabGroups()[0];
+      expect(unchanged.label).toBe("Design");
+      expect(unchanged.color).toBe("#4285f4");
+    });
+
+    test("updateTabGroup does not broadcast when nothing actually changed", () => {
+      const { group } = seedGroup("Design", "#4285f4");
+      const send: any = windowInstance.win.webContents.send;
+      send.mockClear();
+
+      windowInstance.updateTabGroup(group.id, "Design", "#4285f4");
+
+      expect(send.mock.calls.some((c: any[]) => c[0] === "tabGroupsChanged")).toBe(false);
+    });
+  });
+
+  describe("Pruned-group memory is bounded", () => {
+    test("only the most recent 20 pruned groups are kept for reopen", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+
+      // Create and immediately empty 25 groups; each prune remembers one.
+      for (let i = 0; i < 25; i++) {
+        const tab = tabManager.addTab(`https://figma.com/file/${i}`, `File ${i}`);
+        windowInstance.createTabGroupWithTab(tab.id, `Group ${i}`, "#4285f4");
+        windowInstance.removeTabFromGroup(tab.id);
+      }
+
+      const remembered: Map<string, Types.TabGroup> = (windowInstance as any).recentlyPrunedGroups;
+      expect(remembered.size).toBe(20);
+      // The survivors are the last 20 pruned, i.e. groups 5..24.
+      const labels = [...remembered.values()].map((g) => g.label);
+      expect(labels).toContain("Group 24");
+      expect(labels).not.toContain("Group 4");
     });
   });
 });
@@ -898,9 +1100,20 @@ describe("Warm tab lifecycle", () => {
     const tabManager: any = (w as any).tabManager;
     const reapplySpy = spyOn(tabManager, "reapplyUserId");
 
-    w.setUserId("user-2");
+    w.setUserId("user-2", 77);
 
-    expect(reapplySpy).toHaveBeenCalledWith("user-2");
+    expect(reapplySpy).toHaveBeenCalledWith("user-2", 77);
+  });
+
+  test("an empty user id never re-navigates project tabs", () => {
+    w.setUserId("user-1");
+
+    const tabManager: any = (w as any).tabManager;
+    const reapplySpy = spyOn(tabManager, "reapplyUserId");
+
+    w.setUserId("");
+
+    expect(reapplySpy).not.toHaveBeenCalled();
   });
 
   test("first setUserId does not re-navigate project tabs", () => {
@@ -921,5 +1134,98 @@ describe("Warm tab lifecycle", () => {
     w.setUserId("user-1");
 
     expect(reapplySpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("discard safeguards", () => {
+  test("protects focused, microphone, voice-call and export tabs", () => {
+    const w = new Window({} as any);
+    const active = w.addTab("https://www.figma.com/design/active")!;
+    const mic = w.addTab("https://www.figma.com/design/mic")!;
+    const voice = w.addTab("https://www.figma.com/design/voice")!;
+    const queue = w.addTab("https://www.figma.com/export/queue")!;
+    w.setTabFocus(active.id);
+    mic.isUsingMicrophone = true;
+    voice.isInVoiceCall = true;
+    for (const tab of [active, mic, voice, queue]) {
+      expect(w.discardTab(tab.id)).toBe(false);
+      expect(tab.view.webContents.destroy).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe("lazy restore boundaries and duplicate tabs", () => {
+  let previous: any;
+  beforeEach(() => {
+    previous = { ...storage.settings.app };
+    storage.settings.app.lazyRestoreTabs = true;
+    storage.settings.app.lazyRestoreEagerCount = 2;
+  });
+  afterEach(() => {
+    Object.assign(storage.settings.app, previous);
+  });
+  function restore(state: any, tabs: Types.SavedTab[]) {
+    const w = new Window({ lastActiveTabPath: "", ...state } as any);
+    const scheduled: (() => void)[] = [];
+    const timer = spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      scheduled.push(fn);
+      return 0;
+    }) as any);
+    try {
+      w.restoreTabs(tabs);
+      while (scheduled.length) scheduled.shift()!();
+    } finally {
+      timer.mockRestore();
+    }
+    return w;
+  }
+  const tabs = ["a", "b", "c"].map((key) => ({
+    title: key,
+    url: `https://www.figma.com/design/${key}`,
+  }));
+  test("active tab counts toward the eager limit even when recency is stale", () => {
+    const w = restore(
+      { lastActiveTabPath: "/design/c", recentTabPaths: ["/design/a", "/design/b"] },
+      tabs,
+    );
+    expect(
+      [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
+    ).toEqual(["a", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("c");
+  });
+  test("exact paths do not confuse one file key with a prefix of another", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const w = restore({ lastActiveTabPath: "/design/abc" }, [
+      { title: "prefix", url: "https://www.figma.com/design/a" },
+      { title: "exact", url: "https://www.figma.com/design/abc" },
+    ]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("exact");
+    expect([...w.tabs.values()].filter((tab) => tab instanceof Tab)).toHaveLength(1);
+  });
+  test("saved indices identify duplicate file tabs and retain recency across restarts", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const duplicates = [
+      { title: "page1", url: "https://www.figma.com/design/a?page-id=1" },
+      { title: "page2", url: "https://www.figma.com/design/a?page-id=2" },
+      tabs[2],
+    ];
+    const w = restore({ lastActiveTabIndex: 1, recentTabIndices: [1, 2, 0] }, duplicates);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("page2");
+    const saved = w.getState();
+    expect(saved.lastActiveTabIndex).toBe(1);
+    expect(saved.recentTabIndices).toEqual([1, 2, 0]);
+    const next = restore(saved, saved.tabs);
+    expect(next.tabs.get(next.getLatestFocusedTabId())?.title).toBe("page2");
+    expect(next.getState().recentTabIndices).toEqual([1, 2, 0]);
+  });
+  test("empty sessions create no views", () => {
+    expect(restore({}, []).tabs.size).toBe(0);
+  });
+  test("saved Home focus does not force a file to the front", () => {
+    const w = restore({ lastActiveTabIndex: -1, recentTabIndices: [1] }, tabs);
+    expect(w.tabs.has(w.getLatestFocusedTabId())).toBe(false);
+    expect(
+      [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
+    ).toEqual(["b"]);
   });
 });
