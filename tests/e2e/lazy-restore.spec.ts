@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { findPanelPage, openTab, shownView, stripTabs } from "./helpers/app";
+import { findPanelPage, shownView, stripTabs } from "./helpers/app";
 import { closeApp, launchApp } from "./helpers/launch";
 
 const urls = ["AAA111aaa", "BBB222bbb", "CCC333ccc"].map(
@@ -51,4 +51,3 @@ test("lazy restore creates only the eager view and loads a shell on click", asyn
     await closeApp(handle);
   }
 });
-
