@@ -27,8 +27,7 @@
 import http from "node:http";
 
 import { logger } from "Main/Logger";
-import { collectBody, isValidHost } from "Main/MCP/utils/http";
-import { isFigmaUrl } from "Utils/Common";
+import { isValidHost } from "Main/MCP/utils/http";
 
 export const FIGMA_AGENT_PORT = 44950;
 export const FIGMA_AGENT_HOST = "127.0.0.1";
@@ -111,7 +110,14 @@ export function routeAgentRequest(req: AgentRequest, hooks: FigmaAgentHooks): Ag
     return { status: 200, body: { canOpen: known && isFigmaOrigin(target) } };
   }
   if (req.method === "GET" && url.pathname === "/figma/desktop/open-url") {
-    const opened = known && isFigmaUrl(target) && target.startsWith("https://");
+    let allowedTarget = false;
+    try {
+      const parsed = new URL(target);
+      allowedTarget = isFigmaOrigin(parsed.origin) && !parsed.username && !parsed.password;
+    } catch {
+      // Invalid URLs are refused like an unknown account.
+    }
+    const opened = known && allowedTarget;
     if (opened) hooks.openUrl(target);
     return { status: 200, body: { opened } };
   }
@@ -128,6 +134,7 @@ export class FigmaAgentServer {
   private listening = false;
   private portInUse = false;
   private boundPort = FIGMA_AGENT_PORT;
+  private lifecycle: Promise<void> = Promise.resolve();
 
   constructor(
     private hooks: FigmaAgentHooks,
@@ -140,11 +147,31 @@ export class FigmaAgentServer {
 
   /** Bind the listener. Resolves false when the port is taken or binding fails. */
   public start(port = FIGMA_AGENT_PORT, host = FIGMA_AGENT_HOST): Promise<boolean> {
+    const result = this.lifecycle.then(() => this.startListener(port, host));
+    this.lifecycle = result.then(
+      () => {},
+      () => {},
+    );
+    return result;
+  }
+
+  private startListener(port: number, host: string): Promise<boolean> {
     if (this.listening) return Promise.resolve(true);
     this.boundPort = port;
 
     return new Promise((resolve) => {
-      const server = http.createServer((req, res) => void this.handle(req, res));
+      const server = http.createServer((req, res) => {
+        try {
+          this.handle(req, res);
+        } catch (error) {
+          this.log.error("[FigmaAgent] Request failed:", error);
+          if (res.headersSent) res.destroy();
+          else {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "request failed" }));
+          }
+        }
+      });
       server.on("error", (err: NodeJS.ErrnoException) => {
         this.portInUse = err.code === "EADDRINUSE";
         if (this.portInUse) {
@@ -169,6 +196,12 @@ export class FigmaAgentServer {
 
   /** Close the listener and resolve once the port is released. */
   public stop(): Promise<void> {
+    const result = this.lifecycle.then(() => this.stopListener());
+    this.lifecycle = result.catch(() => {});
+    return result;
+  }
+
+  private stopListener(): Promise<void> {
     const server = this.server;
     this.server = null;
     this.listening = false;
@@ -183,7 +216,9 @@ export class FigmaAgentServer {
     });
   }
 
-  private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // The preference body is unused. Drain without retaining it in memory.
+    req.resume();
     const host = req.headers.host;
     if (!host || !isValidHost(host)) {
       res.writeHead(403);
@@ -191,8 +226,6 @@ export class FigmaAgentServer {
       return;
     }
     const origin = req.headers.origin;
-    // Drain the body so the socket can be reused; the content is not needed.
-    if (req.method === "POST") await collectBody(req).catch(() => "");
 
     const reply = routeAgentRequest(
       { method: req.method ?? "GET", url: req.url ?? "/", origin },

@@ -108,6 +108,9 @@ describe("routeAgentRequest", () => {
     expect(open("42", "http://www.figma.com/design/k/n")).toEqual({ opened: false });
     expect(open("42", "figma://design/k/n")).toEqual({ opened: false });
     expect(open("42", "")).toEqual({ opened: false });
+    expect(open("42", "https://wfigma.com/design/k/n")).toEqual({ opened: false });
+    expect(open("42", "https://figma.com@evil.example/design/k/n")).toEqual({ opened: false });
+    expect(open("42", "https://user:password@www.figma.com/design/k/n")).toEqual({ opened: false });
     expect(h.opened).toEqual([]);
   });
 
@@ -218,6 +221,31 @@ describe("FigmaAgentServer", () => {
       headers: { Origin: FIGMA, Host: "agent.evil.example" },
     });
     expect(rebound.status).toBe(403);
+  });
+
+  it("serializes overlapping starts and releases a listener stopped during startup", async () => {
+    await server.stop();
+    const first = server.start(port);
+    const second = server.start(port);
+    const stopped = server.stop();
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+    await stopped;
+    expect(server.getStatus().listening).toBe(false);
+    await expect(fetch(`${base}/figma/version`, { headers: { Origin: FIGMA } })).rejects.toThrow();
+    expect(await server.start(port)).toBe(true);
+  });
+
+  it("an application hook error returns 500 without taking down the listener", async () => {
+    h.openUrl = () => {
+      throw new Error("window unavailable");
+    };
+    const res = await fetch(
+      `${base}/figma/desktop/open-url?userID=42&url=${encodeURIComponent(`${FIGMA}/design/k/n`)}`,
+      { headers: { Origin: FIGMA } },
+    );
+    expect(res.status).toBe(500);
+    expect((await fetch(`${base}/figma/version`, { headers: { Origin: FIGMA } })).status).toBe(200);
   });
 
   it("reports a busy port instead of throwing, and a stopped server as not listening", async () => {
