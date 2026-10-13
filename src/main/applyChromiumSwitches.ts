@@ -9,7 +9,7 @@ const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-grap
 /**
  * Decide whether the process must relaunch itself under a clean X11 environment.
  *
- * Figma's WebGPU shader effects only composite under X11 ozone, and Electron reads
+ * For GPUs outside Chromium's interop allowlist, WebGPU effects need the X11 workaround. Electron reads
  * WAYLAND_DISPLAY during early native init — too early to strip in JS — so a Wayland session
  * with shaders enabled must spawn a fresh child with WAYLAND_DISPLAY removed (see index.ts).
  * Pure + env-injectable so the decision is unit-testable without spawning anything.
@@ -104,9 +104,9 @@ function applyDefaultOptimizations(
 ) {
   // Figma's Shader / Halftone / Noise effects need WebGPU output to composite onto the
   // canvas. Chromium's WebGPU↔GL interop (webgpu_on_vk_via_gl_interop) does exactly that,
-  // and it is available under X11 ozone but DISABLED under Wayland ozone (crbug 442791440 /
-  // 475935650 — the entry is Wayland-specific). So we just run the app under X11/XWayland:
-  // the effects then render through the lightweight GaneshGL compositor + interop. We do
+  // and Chromium allows it for qualified GPUs (crbug 442791440 / 475935650).
+  // Other GPUs use X11/XWayland with the blocklist bypass; allowlisted NVIDIA-only
+  // systems can stay on native Wayland. The effects render through GaneshGL + interop. We do
   // NOT enable Skia Graphite — Graphite (GraphiteDawnVulkan) also renders the effects but
   // adds noticeable canvas-pan latency; GaneshGL + interop is the faster path.
   //

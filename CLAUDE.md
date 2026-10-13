@@ -332,7 +332,7 @@ WebGPU shaders (`app.enableWebGPU`): Chromium blocks WebGPU-to-GL interop on Lin
 and NVIDIA ≥ 535.183.01 (Chrome 147+); AMD has no exception as of 2026-10. On a blocked GPU the
 toggle relaunches the packaged app under XWayland (`shouldRelaunchUnderX11`, `src/main/index.ts`).
 `Utils/Main/nativeWebGpu.ts` reads `/proc/driver/nvidia/version` before Chromium starts and skips
-the relaunch on an allowlisted NVIDIA driver — measured 2026-10-11 on an RTX 3080 with Electron 44:
+the relaunch only when all DRM GPUs are NVIDIA and the driver is allowlisted — measured 2026-10-11 on an RTX 3080 with Electron 44:
 native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not detected yet.
 
 ### Window Frame Styles

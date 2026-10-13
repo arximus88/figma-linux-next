@@ -112,7 +112,7 @@ export const SETTINGS = {
     section: "appearance",
     title: "WebGPU shaders",
     subtitle:
-      "Shader, Halftone and Noise effects. Where Chromium still blocks WebGPU on Wayland (AMD, older drivers) this switches the app to XWayland; NVIDIA 535+ stays on Wayland.",
+      "Shader, Halftone and Noise effects. NVIDIA-only systems with driver 535.183.01 or newer stay on native Wayland. Other systems use XWayland where supported.",
     keywords: "gpu shader effects halftone noise xwayland vulkan",
   }),
   frameAuto: setting({

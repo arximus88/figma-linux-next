@@ -1,10 +1,14 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   compareVersions,
   hasNativeWebGpu,
   NVIDIA_NATIVE_WEBGPU_MIN_DRIVER,
   parseNvidiaDriverVersion,
   UNKNOWN_GPU,
+  readGpuFacts,
 } from "Utils/Main/nativeWebGpu";
 
 const OPEN_MODULE =
@@ -45,5 +49,52 @@ describe("hasNativeWebGpu", () => {
 
   it("is false when nothing is known — the XWayland behaviour stays the default", () => {
     expect(hasNativeWebGpu(UNKNOWN_GPU)).toBe(false);
+  });
+});
+
+describe("readGpuFacts", () => {
+  let root: string | undefined;
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+  });
+  function fixture(vendors: string[]) {
+    root = mkdtempSync(join(tmpdir(), "figma-gpu-"));
+    const driver = join(root, "version");
+    const drm = join(root, "drm");
+    mkdirSync(drm);
+    writeFileSync(driver, OPEN_MODULE);
+    vendors.forEach((vendor, i) => {
+      const device = join(drm, `card${i}`, "device");
+      mkdirSync(device, { recursive: true });
+      writeFileSync(join(device, "vendor"), vendor);
+    });
+    return { driver, drm };
+  }
+  it("recognizes an NVIDIA-only machine", () => {
+    const { driver, drm } = fixture(["0x10de\n"]);
+    expect(hasNativeWebGpu(readGpuFacts(driver, drm))).toBe(true);
+  });
+  it("does not infer the active GPU from an NVIDIA driver on a hybrid machine", () => {
+    for (const vendors of [
+      ["0x8086", "0x10de"],
+      ["0x1002", "0x10de"],
+    ]) {
+      const { driver, drm } = fixture(vendors);
+      expect(readGpuFacts(driver, drm)).toEqual(UNKNOWN_GPU);
+      rmSync(root!, { recursive: true, force: true });
+    }
+  });
+  it("falls back when vendor files, DRM devices or the driver are unavailable", () => {
+    const { driver, drm } = fixture([]);
+    expect(readGpuFacts(driver, drm)).toEqual(UNKNOWN_GPU);
+    mkdirSync(join(drm, "card0", "device"), { recursive: true });
+    expect(readGpuFacts(driver, drm)).toEqual(UNKNOWN_GPU);
+    writeFileSync(join(drm, "card0", "device", "vendor"), "0x10de");
+    rmSync(driver);
+    expect(readGpuFacts(driver, drm)).toEqual(UNKNOWN_GPU);
+  });
+  it("does not accept malformed driver facts", () => {
+    expect(hasNativeWebGpu({ nvidiaDriver: "invalid" })).toBe(false);
+    expect(hasNativeWebGpu({ nvidiaDriver: "535..183" })).toBe(false);
   });
 });

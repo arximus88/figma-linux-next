@@ -19,7 +19,8 @@
  * would need a PCI-id table plus the Mesa version; left to a later change.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 export const NVIDIA_NATIVE_WEBGPU_MIN_DRIVER = "535.183.01";
 
@@ -56,16 +57,29 @@ export function compareVersions(a: string, b: string): number {
 export function hasNativeWebGpu(gpu: GpuFacts): boolean {
   return (
     gpu.nvidiaDriver !== null &&
+    /^\d+\.\d+(?:\.\d+)?$/.test(gpu.nvidiaDriver) &&
     compareVersions(gpu.nvidiaDriver, NVIDIA_NATIVE_WEBGPU_MIN_DRIVER) >= 0
   );
 }
 
-export function readGpuFacts(): GpuFacts {
+/** Only infer the selected vendor when every DRM GPU is NVIDIA. A loaded
+ * NVIDIA module on a hybrid laptop does not identify Chromium's renderer. */
+export function readGpuFacts(
+  driverPath = "/proc/driver/nvidia/version",
+  drmPath = "/sys/class/drm",
+): GpuFacts {
   try {
-    return {
-      nvidiaDriver: parseNvidiaDriverVersion(readFileSync("/proc/driver/nvidia/version", "utf8")),
-    };
+    const cards = readdirSync(drmPath).filter((name) => /^(card\d+|renderD\d+)$/.test(name));
+    if (cards.length === 0) return UNKNOWN_GPU;
+    for (const card of cards) {
+      const vendor = readFileSync(join(drmPath, card, "device/vendor"), "utf8")
+        .trim()
+        .toLowerCase();
+      if (vendor !== "0x10de") return UNKNOWN_GPU;
+    }
+    return { nvidiaDriver: parseNvidiaDriverVersion(readFileSync(driverPath, "utf8")) };
   } catch {
+    // Missing GPU topology (including sandbox restrictions) is inconclusive.
     return UNKNOWN_GPU;
   }
 }
