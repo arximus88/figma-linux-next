@@ -1055,9 +1055,13 @@ export default class Window {
   }
 
   public setIsInVoiceCall(tabId: number, isInVoiceCall: boolean) {
+    const tab = this.tabs.get(tabId);
+    if (tab instanceof Tab) tab.isInVoiceCall = isInVoiceCall;
     this.window.webContents.send("setIsInVoiceCall", { id: tabId, isInVoiceCall });
   }
   public setUsingMicrophone(tabId: number, isUsingMicrophone: boolean) {
+    const tab = this.tabs.get(tabId);
+    if (tab instanceof Tab) tab.isUsingMicrophone = isUsingMicrophone;
     this.window.webContents.send("setUsingMicrophone", { id: tabId, isUsingMicrophone });
   }
   public reload() {
