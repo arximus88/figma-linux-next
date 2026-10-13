@@ -101,7 +101,7 @@ describe("TabManager", () => {
     const oldWebContentsId = a.webContentsId;
     const destroy = spyOn(a.view.webContents, "destroy");
     const shell = tabManager.discardTab(a.id)!;
-    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(destroy.mock.calls).toHaveLength(1);
     expect(tabManager.getByWebContentsId(oldWebContentsId)).toBeUndefined();
     const revived = tabManager.reviveTab(shell);
     expect(revived.id).toBe(a.id);
