@@ -17,9 +17,9 @@
 # default convention for locating a bundled app without repackaging via asar.
 #
 # Local test build:
-#   flatpak install flathub org.freedesktop.Sdk//24.08 \
-#       org.freedesktop.Sdk.Extension.node22//24.08 \
-#       org.freedesktop.Platform//24.08 org.electronjs.Electron2.BaseApp//24.08
+#   flatpak install flathub org.freedesktop.Sdk//25.08 \
+#       org.freedesktop.Sdk.Extension.node22//25.08 \
+#       org.freedesktop.Platform//25.08 org.electronjs.Electron2.BaseApp//25.08
 #   flatpak-builder --user --install --force-clean build-dir \
 #       flatpak/app.borys.FigmaLinuxNext.yml
 #
@@ -38,12 +38,12 @@
 
 app-id: app.borys.FigmaLinuxNext
 runtime: org.freedesktop.Platform
-runtime-version: "24.08"
+runtime-version: "25.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node22
 base: org.electronjs.Electron2.BaseApp
-base-version: "24.08"
+base-version: "25.08"
 
 command: figma-linux-next
 separate-locales: false
@@ -135,8 +135,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/arximus88/figma-linux-next.git
-        tag: v0.22.0
-        commit: f7887ca4e745c3d8ccacfcbe23b2e6764fa75e01
+        tag: v0.22.1
+        commit: 2ffdcd7a02d912bb8d5bcc116ffd66e89cb76a2f
       - generated-sources.json
       # These four overwrite what the git checkout brought in. Packaging metadata
       # is edited here and takes effect on the next build; read from the tag it

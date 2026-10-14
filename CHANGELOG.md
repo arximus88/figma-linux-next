@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accepts requests only from figma.com and opens only figma.com links, for an account signed in
   here. Chrome 142 and newer ask once to allow local network access for figma.com; the link that
   triggers the prompt stays in the browser, the next one opens here.
+  
+### Fixed
+
+- **Settings opened during startup no longer disappears.** Choosing Settings from the tray while
+  the window was still starting showed it for a moment, then Home covered it and its tab never
+  appeared in the strip. It now opens once the window is ready.
+
+## [0.22.1] - 2026-10-14
+
+A maintenance release for the Flatpak package: it moves off the end-of-life Freedesktop 24.08
+runtime. Other packages are unchanged.
+
+### Fixed
+
+- **Flatpak end-of-life runtime warning**
+  ([#75](https://github.com/arximus88/figma-linux-next/issues/75)). The package and release
+  build now use Freedesktop 25.08 with matching Electron BaseApp and Node 22 SDK extension,
+  replacing the unsupported 24.08 runtime.
 
 ## [0.22.0] - 2026-10-08
 
