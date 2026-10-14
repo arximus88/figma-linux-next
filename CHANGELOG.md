@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Settings opened during startup no longer disappears.** Choosing Settings from the tray while
+  the window was still starting showed it for a moment, then Home covered it and its tab never
+  appeared in the strip. It now opens once the window is ready.
+
 ## [0.22.1] - 2026-10-14
 
 A maintenance release for the Flatpak package: it moves off the end-of-life Freedesktop 24.08

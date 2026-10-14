@@ -17,6 +17,11 @@ export interface LaunchOptions {
   settings?: Record<string, unknown>;
   /** Reuse a profile from an earlier launch instead of a fresh one. */
   userDataDir?: string;
+  /**
+   * Main-process code run (via `-r`) before the app's own main.js — the only
+   * way to act before the panel loads, for startup races.
+   */
+  mainHook?: string;
 }
 
 /**
@@ -49,8 +54,15 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
     ...parentEnv
   } = process.env;
 
+  const hook: string[] = [];
+  if (opts?.mainHook) {
+    const file = path.join(userDataDir, "e2e-main-hook.js");
+    writeFileSync(file, opts.mainHook);
+    hook.push("-r", file);
+  }
+
   const app = await electron.launch({
-    args: [MAIN_JS, `--user-data-dir=${userDataDir}`],
+    args: [...hook, MAIN_JS, `--user-data-dir=${userDataDir}`],
     env: {
       ...parentEnv,
       XDG_SESSION_TYPE: "x11",
