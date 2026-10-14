@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     container:
-      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
       options: --privileged
     steps:
       - uses: actions/checkout@v5
@@ -121,8 +121,8 @@ jobs:
           flatpak remote-add --if-not-exists --user flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install -y --user --noninteractive flathub \
-            org.freedesktop.Sdk.Extension.node22//24.08 \
-            org.electronjs.Electron2.BaseApp//24.08
+            org.freedesktop.Sdk.Extension.node22//25.08 \
+            org.electronjs.Electron2.BaseApp//25.08
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:

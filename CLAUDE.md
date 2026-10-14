@@ -474,7 +474,7 @@ Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**
 1. **`build-x64`** — builds deb, rpm, AppImage, zip on Ubuntu (electron-builder bundles Electron)
 2. **`build-arm64`** — same formats on native ARM runner
 3. **`build-pacman`** — builds `.pacman` in Arch container (electron-builder bundles Electron)
-4. **`build-flatpak`** — builds a `.flatpak` bundle from `flatpak/app.borys.FigmaLinuxNext.yml` in the `bilelmoussaoui/flatpak-github-actions:freedesktop-24.08` container. x64 only (the manifest hardcodes the x64 Electron zip), and `continue-on-error: true` — a Flatpak failure costs the release its `.flatpak` and nothing else. Note this builds the manifest's `tag:`, so `sync_flatpak_release.py` keeping that tag current is what makes the bundle match the release.
+4. **`build-flatpak`** — builds a `.flatpak` bundle from `flatpak/app.borys.FigmaLinuxNext.yml` in the `ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08` container. x64 only (the manifest hardcodes the x64 Electron zip), and `continue-on-error: true` — a Flatpak failure costs the release its `.flatpak` and nothing else. Note this builds the manifest's `tag:`, so `sync_flatpak_release.py` keeping that tag current is what makes the bundle match the release.
 5. **`release`** — collects all artifacts, computes SHA256SUMS, creates GitHub Release via `softprops/action-gh-release`. The Flatpak download step is `continue-on-error` since the artifact may not exist.
 6. **`aur`** — clones `ssh://aur@aur.archlinux.org/figma-linux-next.git`, updates `pkgver` + SHA256 in PKGBUILD, generates `.SRCINFO`, pushes to AUR
 7. **`aur-bin`** — same for `figma-linux-next-bin` (hashes the release zip instead of the tarball)
