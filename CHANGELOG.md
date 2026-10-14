@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-14
+
+A maintenance release for the Flatpak package: it moves off the end-of-life Freedesktop 24.08
+runtime. Other packages are unchanged.
+
 ### Fixed
 
 - **Flatpak end-of-life runtime warning**
