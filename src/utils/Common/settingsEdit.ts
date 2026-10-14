@@ -23,6 +23,8 @@ export const EDITABLE_APP_KEYS = [
   "newTabButtonAfterTabs",
   "tabHoverPreviews",
   "allowDuplicateFileTabs",
+  "lazyRestoreTabs",
+  "lazyRestoreEagerCount",
   "trayEnabled",
   "panelHeight",
 ] as const;
@@ -139,6 +141,14 @@ export function planSettingsUpdate(
   if (next.mcp.serverPort === next.mcp.remoteDebugPort) {
     next.mcp.serverPort = current.mcp.serverPort;
     next.mcp.remoteDebugPort = current.mcp.remoteDebugPort;
+  }
+
+  if (
+    !Number.isInteger(next.app.lazyRestoreEagerCount) ||
+    next.app.lazyRestoreEagerCount < 1 ||
+    next.app.lazyRestoreEagerCount > 10
+  ) {
+    next.app.lazyRestoreEagerCount = current.app.lazyRestoreEagerCount;
   }
 
   const effects: SettingsEffect[] = [];

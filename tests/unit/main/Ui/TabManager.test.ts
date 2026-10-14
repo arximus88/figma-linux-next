@@ -93,6 +93,71 @@ describe("TabManager", () => {
     tabManager = new TabManager(1);
   });
 
+  describe("lazily restored shells", () => {
+    const saved = (url: string, title: string, groupId?: string): Types.SavedTab => ({
+      url,
+      title,
+      groupId,
+    });
+
+    it("hold their slot without a webContents", () => {
+      const shell = tabManager.addDiscardedShell(
+        saved("https://www.figma.com/design/a", "A", "group-a"),
+      );
+      expect(shell.discarded).toBe(true);
+      expect(shell.title).toBe("A");
+      expect(shell.groupId).toBe("group-a");
+      expect(tabManager.getAll().get(shell.id)).toBe(shell);
+      expect(tabManager.getTabUrl(shell.id)).toBe("https://www.figma.com/design/a");
+      expect(tabManager.getByPath("/design/a")).toBe(shell);
+    });
+
+    it("revive in place: same id, title, group and order, routable by webContents id", () => {
+      const a = tabManager.addTab("https://www.figma.com/design/a", "A");
+      const shell = tabManager.addDiscardedShell(
+        saved("https://www.figma.com/design/b", "B", "group-b"),
+      );
+      const c = tabManager.addTab("https://www.figma.com/design/c", "C");
+
+      const revived = tabManager.reviveTab(shell);
+
+      expect(revived.id).toBe(shell.id);
+      expect(revived.title).toBe("B");
+      expect(revived.groupId).toBe("group-b");
+      expect(revived.url).toBe("https://www.figma.com/design/b");
+      expect(tabManager.getAll().get(shell.id)).toBe(revived);
+      expect([...tabManager.getAll().keys()]).toEqual([a.id, shell.id, c.id]);
+      expect(revived.webContentsId).not.toBe(revived.id);
+      expect(tabManager.getByWebContentsId(revived.webContentsId)).toBe(revived);
+    });
+
+    it("fold an account switch made before first focus into the first load", () => {
+      const shell = tabManager.addDiscardedShell(saved("https://www.figma.com/design/a", "A"));
+      tabManager.reapplyUserId("user-2");
+      expect(shell.pendingUserId).toBe("user-2");
+
+      const revived = tabManager.reviveTab(shell);
+      expect(new URL(revived.url!).searchParams.get("fuid")).toBe("user-2");
+    });
+
+    it("close without touching a webContents", () => {
+      const a = tabManager.addTab("https://www.figma.com/design/a", "A");
+      const shell = tabManager.addDiscardedShell(saved("https://www.figma.com/design/b", "B"));
+      tabManager.close(shell.id);
+      expect(tabManager.getAll().has(shell.id)).toBe(false);
+      expect(tabManager.getAll().has(a.id)).toBe(true);
+    });
+
+    it("are skipped by bulk operations that need a live view", () => {
+      tabManager.addDiscardedShell(saved("https://www.figma.com/design/a", "A"));
+      expect(() => {
+        tabManager.reloadAll();
+        tabManager.setBoundsForAllTab({ x: 0, y: 0, width: 100, height: 100 });
+        tabManager.closeAll();
+      }).not.toThrow();
+    });
+  });
+
   describe("getById", () => {
     it("should return mainTab for id 'mainTab'", () => {
       const tab = tabManager.getById("mainTab");

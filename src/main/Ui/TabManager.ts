@@ -4,7 +4,28 @@ import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
 import { parseURL } from "Utils/Common";
 import CommunityTab from "./CommunityTab";
 import MainTab from "./MainTab";
-import Tab from "./Tab";
+import Tab, { allocateLogicalTabId } from "./Tab";
+
+/**
+ * A saved tab restored lazily on launch (app.lazyRestoreTabs): it holds a
+ * slot in the tab strip — position, group, title — but no webContents until
+ * its first focus revives it from `url`. Deliberately NOT a `Tab` with a
+ * nulled-out `.view`: `Tab.view` is touched unconditionally (no null checks)
+ * by most of Tab.ts/TabManager.ts/Window.ts, so a distinct shape that never
+ * claims to have a view means every call site that needs a live view is
+ * forced (by the type checker, via the existing `instanceof Tab` pattern
+ * already used throughout) to handle "this tab isn't loaded right now"
+ * instead of crashing the first time a discarded tab is touched by a path
+ * nobody thought to test.
+ */
+export interface DiscardedTab {
+  readonly discarded: true;
+  id: number;
+  title?: string;
+  url: string;
+  groupId?: string;
+  pendingUserId?: string;
+}
 
 export default class TabManager {
   public mainTab: MainTab;
@@ -13,7 +34,15 @@ export default class TabManager {
   public hasOpenedCommunityTab: boolean = false;
 
   public lastFocusedTab: number | undefined;
-  private tabs: Map<number, Tab> = new Map();
+  /**
+   * Single map, ordered exactly as the tab strip renders (sortTabs reorders
+   * this directly) — live and discarded tabs share one ordering so a
+   * discarded tab keeps its position instead of needing a second structure
+   * kept in sync with this one.
+   */
+  private tabs: Map<number, Tab | DiscardedTab> = new Map();
+  /** Real webContents id -> logical tab id, for the handful of call sites that only have the raw id an IPC event arrived on (event.sender.id). Only live tabs have an entry. */
+  private webContentsIndex: Map<number, number> = new Map();
 
   public get mainTabWebContentId() {
     return this.mainTab.view.webContents.id;
@@ -48,13 +77,20 @@ export default class TabManager {
    */
   public reapplyUserId(userId: string, sourceWebContentsId?: number) {
     this.tabs.forEach((tab) => {
-      if (!tab.view.webContents.isDestroyed() && tab.view.webContents.id === sourceWebContentsId) {
+      if (
+        tab instanceof Tab &&
+        !tab.view.webContents.isDestroyed() &&
+        tab.webContentsId === sourceWebContentsId
+      ) {
         // The tab the switch came from already runs as `userId`; reloading it
         // would boot its canvas a second time.
         tab.pendingUserId = undefined;
-      } else if (tab.id === this.lastFocusedTab) {
+      } else if (tab instanceof Tab && tab.id === this.lastFocusedTab) {
         this.refreshTabUserId(tab, userId);
       } else {
+        // Discarded tabs can't be refreshed live (no webContents) — stash it
+        // the same way a background live tab does, so a later revive folds
+        // it into the initial load instead of a second navigation.
         tab.pendingUserId = userId;
       }
     });
@@ -63,7 +99,7 @@ export default class TabManager {
   /** Apply a deferred account switch (see reapplyUserId) right before a tab is focused. */
   public applyPendingUserId(tabId: number) {
     const tab = this.tabs.get(tabId);
-    if (!tab || tab.pendingUserId === undefined) return;
+    if (!tab || !(tab instanceof Tab) || tab.pendingUserId === undefined) return;
 
     this.refreshTabUserId(tab, tab.pendingUserId);
   }
@@ -98,6 +134,7 @@ export default class TabManager {
     tab.title = title;
     tab.loadUrl(url);
     this.tabs.set(tab.id, tab);
+    this.webContentsIndex.set(tab.webContentsId, tab.id);
 
     if (title === NEW_FILE_TAB_TITLE) {
       this.hasOpenedNewFileTab = true;
@@ -110,7 +147,84 @@ export default class TabManager {
   public promoteWarmTab(tab: Tab): void {
     tab.title = NEW_FILE_TAB_TITLE;
     this.tabs.set(tab.id, tab);
+    this.webContentsIndex.set(tab.webContentsId, tab.id);
     this.hasOpenedNewFileTab = true;
+  }
+
+  /**
+   * Insert a tab directly in the discarded state — no WebContentsView is
+   * constructed at all. Used for lazy session restore (see Window.restoreTabs): every saved
+   * tab except the one that was actually active last session shows up in the
+   * strip immediately, but costs nothing until clicked.
+   */
+  public addDiscardedShell(saved: Types.SavedTab): DiscardedTab {
+    const discarded: DiscardedTab = {
+      discarded: true,
+      id: allocateLogicalTabId(),
+      title: saved.title,
+      url: saved.url ?? RECENT_FILES,
+      groupId: saved.groupId,
+    };
+    this.tabs.set(discarded.id, discarded);
+
+    if (discarded.title === NEW_FILE_TAB_TITLE) {
+      this.hasOpenedNewFileTab = true;
+    }
+
+    return discarded;
+  }
+
+  /**
+   * Resolve a live Tab from the real webContents id an IPC event arrived on
+   * (event.sender.id) — never a DiscardedTab, since a discarded tab has no
+   * webContents left to send an event. Use this instead of a raw
+   * `getAll().get(event.sender.id)` anywhere a handler needs "the tab that
+   * just sent me this," since a tab's logical id and its real webContents id
+   * are different numbers (see Tab.ts).
+   */
+  public getByWebContentsId(webContentsId: number): Tab | undefined {
+    const logicalId = this.webContentsIndex.get(webContentsId);
+    if (logicalId === undefined) return undefined;
+    const tab = this.tabs.get(logicalId);
+    return tab instanceof Tab ? tab : undefined;
+  }
+
+  /**
+   * Rebuild the live view for a discarded tab, preserving its logical id
+   * (and therefore its position/group) even though the fresh
+   * WebContentsView gets a brand-new real webContents id — exactly why tab
+   * identity is decoupled from it (see Tab.ts). Attaches nothing and shows
+   * nothing; that's Window.setTabFocus's job, mirroring how addTab only
+   * attaches hidden and a separate setTabFocus call does the showing.
+   */
+  public reviveTab(discarded: DiscardedTab): Tab {
+    const tab = new Tab(this.windowId);
+    tab.id = discarded.id;
+    tab.title = discarded.title;
+    tab.groupId = discarded.groupId;
+
+    // Fold a deferred account switch into the initial load instead of the
+    // normal live-tab path of loading once and re-navigating a second time
+    // (see refreshTabUserId) — there's no "already showing the old account"
+    // moment to correct for here, so there's no reason to pay for two loads.
+    let url = discarded.url;
+    if (discarded.pendingUserId) {
+      const parsedUrl = parseURL(url);
+      if (parsedUrl) {
+        parsedUrl.searchParams.set("fuid", discarded.pendingUserId);
+        url = parsedUrl.toString();
+      }
+    }
+    tab.loadUrl(url);
+
+    this.tabs.set(tab.id, tab);
+    this.webContentsIndex.set(tab.webContentsId, tab.id);
+
+    if (tab.title === NEW_FILE_TAB_TITLE) {
+      this.hasOpenedNewFileTab = true;
+    }
+
+    return tab;
   }
 
   public addCommunityTab() {
@@ -124,7 +238,7 @@ export default class TabManager {
     this.communityTab = undefined;
   }
   public handleCallbackForTab(webContentsId: number, callbackID: number, args: unknown) {
-    const tab = this.getById(webContentsId);
+    const tab = this.getByWebContentsId(webContentsId);
 
     if (tab) {
       tab.view.webContents.send("handleCallback", callbackID, args);
@@ -133,11 +247,12 @@ export default class TabManager {
 
   public closeAll() {
     for (const tab of this.tabs.values()) {
-      if (tab.view?.webContents && !tab.view.webContents.isDestroyed()) {
+      if (tab instanceof Tab && !tab.view.webContents.isDestroyed()) {
         tab.view.webContents.destroy();
       }
     }
     this.tabs.clear();
+    this.webContentsIndex.clear();
 
     // mainTab and communityTab live outside the map. Leaving them behind was
     // invisible while every window close ended the process; with the tray
@@ -158,22 +273,25 @@ export default class TabManager {
     }
 
     for (let i = 0; i < array.length; i++) {
-      const tab = array[i];
+      const entry = array[i];
       const next = array[i + 1];
 
       if (!next) {
         break;
       }
-      if (tab[0] === tabId) {
+      if (entry[0] === tabId) {
         nextTabId = next[0];
         break;
       }
 
-      nextTabId = tab[0];
+      nextTabId = entry[0];
     }
 
-    if (tab.view?.webContents && !tab.view.webContents.isDestroyed()) {
-      tab.view.webContents.destroy();
+    if (tab instanceof Tab) {
+      this.webContentsIndex.delete(tab.webContentsId);
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.destroy();
+      }
     }
     if (tab.title === NEW_FILE_TAB_TITLE) {
       this.hasOpenedNewFileTab = false;
@@ -190,7 +308,7 @@ export default class TabManager {
 
   public reloadAll() {
     this.tabs.forEach((t) => {
-      if (!t.view.webContents.isDestroyed()) {
+      if (t instanceof Tab && !t.view.webContents.isDestroyed()) {
         t.view.webContents.reload();
       }
     });
@@ -199,7 +317,7 @@ export default class TabManager {
     this.mainTab.updateScale(scale);
     if (this.communityTab) this.communityTab.updateScale(scale);
     this.tabs.forEach((t) => {
-      t.updateScale(scale);
+      if (t instanceof Tab) t.updateScale(scale);
     });
   }
 
@@ -219,7 +337,7 @@ export default class TabManager {
 
   public getTabByIndex(index: number) {
     let i = 0;
-    let foundTab: Types.Tab | undefined;
+    let foundTab: Tab | DiscardedTab | undefined;
 
     this.tabs.forEach((tab) => {
       if (index === i) {
@@ -246,7 +364,7 @@ export default class TabManager {
   public reloadTab(tabId: number) {
     const tab = this.getById(tabId);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       tab.view.webContents.reload();
     }
   }
@@ -262,7 +380,7 @@ export default class TabManager {
   public handleUrl(path: string) {
     this.mainTab.handleUrl(path);
   }
-  public getById(id: Types.TabIdType): Tab | MainTab | CommunityTab | undefined {
+  public getById(id: Types.TabIdType): Tab | DiscardedTab | MainTab | CommunityTab | undefined {
     switch (id) {
       case "mainTab": {
         return this.mainTab;
@@ -284,7 +402,7 @@ export default class TabManager {
     return undefined;
   }
   public getByTitle(title: string) {
-    let foundTab: Tab | undefined;
+    let foundTab: Tab | DiscardedTab | undefined;
 
     this.tabs.forEach((tab) => {
       if (tab.title === title) {
@@ -295,10 +413,11 @@ export default class TabManager {
     return foundTab;
   }
   public getByPath(path: string) {
-    let foundTab: Tab | undefined;
+    let foundTab: Tab | DiscardedTab | undefined;
 
     this.tabs.forEach((tab) => {
-      const pathname = parseURL(tab.url ?? tab.getUrl())?.pathname;
+      const liveUrl = tab instanceof Tab ? (tab.url ?? tab.getUrl()) : tab.url;
+      const pathname = parseURL(liveUrl)?.pathname;
       if (!pathname) return;
       // Plain substring match — the pathname is user data, not a pattern.
       if (path.includes(pathname)) {
@@ -334,7 +453,7 @@ export default class TabManager {
   public setBounds(id: number, bounds: Rectangle) {
     const tab = this.getById(id);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       tab.setBounds(bounds);
     }
   }
@@ -347,7 +466,7 @@ export default class TabManager {
   public setBoundsForActiveTab(bounds: Rectangle) {
     this.mainTab.setBounds(bounds);
     const active = this.getById(this.lastFocusedTab);
-    if (active && active !== this.mainTab) {
+    if (active && active !== this.mainTab && !("discarded" in active)) {
       active.setBounds(bounds);
     }
   }
@@ -360,12 +479,12 @@ export default class TabManager {
     }
 
     for (const [_, tab] of this.tabs) {
-      tab.setBounds(bounds);
+      if (!("discarded" in tab)) tab.setBounds(bounds);
     }
   }
   public sortTabs(tabs: Types.TabFront[]) {
     const entries = [...this.tabs.entries()];
-    const next = new Map<number, Tab>();
+    const next = new Map<number, Tab | DiscardedTab>();
     const placed = new Set<number>();
 
     // Apply the requested order for ids we actually have.
@@ -388,8 +507,9 @@ export default class TabManager {
 
   public getTabUrl(tabId: number) {
     const tab = this.tabs.get(tabId);
+    if (!tab) return undefined;
 
-    return tab.view.webContents.getURL();
+    return tab instanceof Tab ? tab.view.webContents.getURL() : tab.url;
   }
 
   public isNewFileTab(tabId: number) {
@@ -414,14 +534,14 @@ export default class TabManager {
   public handlePluginMenuAction(pluginMenuAction: Menu.MenuAction) {
     const tab = this.getById(this.lastFocusedTab);
 
-    if (tab) {
+    if (tab && !("discarded" in tab)) {
       tab.view.webContents.send("handlePluginMenuAction", pluginMenuAction);
     }
   }
 
   public getActiveTabPath(): string {
     const tab = this.getById(this.lastFocusedTab);
-    if (!tab) return "";
+    if (!tab || "discarded" in tab) return "";
     const tabUri = tab.view.webContents.getURL();
 
     return parseURL(tabUri)?.pathname ?? "";

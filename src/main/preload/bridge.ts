@@ -69,6 +69,7 @@ const RECEIVE_CHANNELS = [
   "openCommunity",
   "communityTabWasClose",
   "setLoading",
+  "setTabDiscarded",
   "frameStyleChanged",
   "figmaThemeChanged",
   "settingsTabOpened",

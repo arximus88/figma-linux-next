@@ -142,3 +142,27 @@ describe("pendingRestart", () => {
     expect(pendingRestart(base(), saved)).toEqual([]);
   });
 });
+
+describe("lazy restore settings", () => {
+  it("persists startup preferences without requiring an immediate restart", () => {
+    const changed = edit((s) => {
+      s.app.lazyRestoreTabs = true;
+      s.app.lazyRestoreEagerCount = 2;
+    });
+    const { next, effects } = planSettingsUpdate(base(), changed);
+    expect(next.app.lazyRestoreTabs).toBe(true);
+    expect(next.app.lazyRestoreEagerCount).toBe(2);
+    expect(effects).toEqual([]);
+    expect(pendingRestart(base(), next)).toEqual([]);
+  });
+  it("keeps the eager count in the supported range", () => {
+    for (const count of [0, 11, NaN, Infinity, 1.5]) {
+      const changed = edit((s) => {
+        s.app.lazyRestoreEagerCount = count;
+      });
+      expect(planSettingsUpdate(base(), changed).next.app.lazyRestoreEagerCount).toBe(
+        base().app.lazyRestoreEagerCount,
+      );
+    }
+  });
+});
