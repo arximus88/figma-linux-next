@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional lazy session restore: load only the most recently used tabs at startup (1–10,
+  default 3), and load the rest when selected. Tab order and groups survive the restart.
+  Off by default; turn it on in Settings → Tabs & windows. Thanks to
+  [@jangoux](https://github.com/jangoux)
+  ([#64](https://github.com/arximus88/figma-linux-next/pull/64)).
+
 ## [0.22.0] - 2026-10-08
 
 A small release. Exports through Zenity dialogs work again on zenity 4, and a file can now be

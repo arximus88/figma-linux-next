@@ -83,6 +83,34 @@
   </div>
 </section>
 
+<section class="settings-group">
+  <h3 class="settings-group-title">Startup loading</h3>
+  <div class="settings-card">
+    <SettingRow
+      setting={SETTINGS.lazyRestoreTabs}
+      subtitle={$settings.app.saveLastOpenedTabs ? undefined : "Enable restoring open tabs on startup in General to use this setting."}
+    >
+      <Toggle
+        bind:checked={$settings.app.lazyRestoreTabs}
+        disabled={!$settings.app.saveLastOpenedTabs}
+      />
+    </SettingRow>
+    <SettingRow setting={SETTINGS.lazyRestoreEagerCount}>
+      <input
+        class="s-range"
+        type="range"
+        min="1"
+        max="10"
+        step="1"
+        aria-label={SETTINGS.lazyRestoreEagerCount.title}
+        disabled={!$settings.app.saveLastOpenedTabs || !$settings.app.lazyRestoreTabs}
+        bind:value={$settings.app.lazyRestoreEagerCount}
+      />
+      <span class="s-value">{$settings.app.lazyRestoreEagerCount}</span>
+    </SettingRow>
+  </div>
+</section>
+
 <style>
   .frame-block {
     padding: 12px 16px 16px;

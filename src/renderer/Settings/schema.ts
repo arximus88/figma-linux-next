@@ -155,6 +155,20 @@ export const SETTINGS = {
       "Opening a file that is already open starts a new tab instead of switching to it, so two of its pages can stay a click apart.",
     keywords: "duplicate same file twice multiple tabs pages",
   }),
+  lazyRestoreTabs: setting({
+    id: "lazy-restore-tabs",
+    section: "tabs",
+    title: "Load restored tabs on demand",
+    subtitle: "Load a few tabs at startup. The remaining tabs load when you select them.",
+    keywords: "lazy restore startup session memory ram background defer",
+  }),
+  lazyRestoreEagerCount: setting({
+    id: "lazy-restore-eager-count",
+    section: "tabs",
+    title: "Tabs to load at startup",
+    subtitle: "Number of restored tabs to load immediately when loading on demand is enabled.",
+    keywords: "lazy restore eager count startup session memory",
+  }),
   mcpServer: setting({
     id: "mcp-server",
     section: "integrations",

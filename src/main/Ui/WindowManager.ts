@@ -1,7 +1,6 @@
 import { app, clipboard, nativeTheme, type IpcMainEvent, type WebContents } from "electron";
 
 import Window from "./Window";
-import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
@@ -672,7 +671,9 @@ export default class WindowManager {
     if (!tabInfo) return;
 
     const tab = window.tabs.get(tabId);
-    const currentGroupId = tab instanceof Tab ? tab.groupId : undefined;
+    // groupId lives on both a live Tab and a discarded shell — a discarded
+    // tab's group membership is still real, just not currently rendered.
+    const currentGroupId = tab?.groupId;
 
     this.menuManager.openTabMenuHandler(
       window.win,
@@ -769,8 +770,10 @@ export default class WindowManager {
     window.toggleDevTools();
   }
   private updateFullscreenMenuState(event: IpcMainEvent, state: Menu.State) {
-    const tabId = event.sender.id;
-    const window = this.getWindowByWebContentsId(tabId);
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    // Menu/panel state is keyed by the logical tab id, not the real
+    // webContents id this event arrived on (see Tab.ts).
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id ?? event.sender.id;
 
     this.menuManager.setTabMenu(tabId, state);
 
@@ -778,14 +781,16 @@ export default class WindowManager {
   }
 
   private setIsInVoiceCall(event: IpcMainEvent, isInVoiceCall: boolean) {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = event.sender.id;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id;
+    if (!window || tabId === undefined) return;
 
     window.setIsInVoiceCall(tabId, isInVoiceCall);
   }
   private setUsingMicrophone(event: IpcMainEvent, isUsingMicrophone: boolean) {
-    const window = this.windows.get(this.lastFocusedwindowId);
-    const tabId = event.sender.id;
+    const window = this.getWindowByWebContentsId(event.sender.id);
+    const tabId = window?.getTabByWebContentsId(event.sender.id)?.id;
+    if (!window || tabId === undefined) return;
 
     window.setUsingMicrophone(tabId, isUsingMicrophone);
   }
@@ -829,8 +834,8 @@ export default class WindowManager {
   private setTabEditorType(event: IpcMainEvent, type: Types.EditorType) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) {
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) {
       logger.info(`[editor-type] tab ${tab.id} url=${tab.url ?? "?"} type=${type}`);
       tab.setEditorType(type);
     }
@@ -838,14 +843,14 @@ export default class WindowManager {
   private setTabIsLibrary(event: IpcMainEvent, isLibrary: boolean) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) tab.setIsLibrary(isLibrary);
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) tab.setIsLibrary(isLibrary);
   }
   private setTabPreviewData(event: IpcMainEvent, data: unknown) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (!(tab instanceof Tab)) return;
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (!tab) return;
     // Re-validated here: the renderer is Figma's page and could send anything.
     const d = data as Types.TabPreviewData | null;
     tab.previewData =
@@ -854,8 +859,8 @@ export default class WindowManager {
   private setTabUrl(event: IpcMainEvent, url: string) {
     const window = this.getWindowByWebContentsId(event.sender.id);
     if (!window) return;
-    const tab = window.tabs.get(event.sender.id);
-    if (tab instanceof Tab) tab.updateUrlAndDeriveType(url);
+    const tab = window.getTabByWebContentsId(event.sender.id);
+    if (tab) tab.updateUrlAndDeriveType(url);
   }
   private openFile(event: IpcMainEvent, ...args: string[]) {
     const window = this.getWindowByWebContentsId(event.sender.id);

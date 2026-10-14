@@ -203,6 +203,7 @@
     <div
       class="{tabClass} {currentTabId === item.id ? tabActiveClass : ''}"
       class:tab-grouped={grouped}
+      class:tab-discarded={item.discarded}
     >
       <div
         role="button"
@@ -550,5 +551,13 @@
   @keyframes tab-skeleton-pulse {
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
+  }
+
+  /* Not loaded yet (app.lazyRestoreTabs) — click loads it, same as any other tab. */
+  .tab-discarded {
+    opacity: 0.55;
+  }
+  .tab-discarded:hover {
+    opacity: 0.8;
   }
 </style>

@@ -46,13 +46,14 @@ export class WarmTabManager {
   /** webContents id of the live warm tab, if any (for IPC routing). */
   get activeWebContentsId(): number | null {
     if (this.warmTab && !this.warmTab.view.webContents.isDestroyed()) {
-      return this.warmTab.id;
+      return this.warmTab.webContentsId;
     }
     return null;
   }
 
-  isWarmTab(id: number): boolean {
-    return !!this.warmTab && id === this.warmTab.id;
+  /** @param webContentsId the real webContents id an IPC event arrived on (e.g. event.sender.id) — NOT the warm tab's logical `.id`, which is unrelated once tab identity is decoupled from webContents id (see Tab.ts). */
+  isWarmTab(webContentsId: number): boolean {
+    return !!this.warmTab && webContentsId === this.warmTab.webContentsId;
   }
 
   /**
@@ -80,9 +81,10 @@ export class WarmTabManager {
   /**
    * Track the warm tab's readiness signal (setLoading(false)). Returns true if
    * the event originated from the warm tab (and must not be forwarded).
+   * @param webContentsId the real webContents id the setLoading event arrived on.
    */
-  handleSetLoading(tabId: number, loading: boolean): boolean {
-    if (this.warmTab && tabId === this.warmTab.id) {
+  handleSetLoading(webContentsId: number, loading: boolean): boolean {
+    if (this.warmTab && webContentsId === this.warmTab.webContentsId) {
       if (loading === false) {
         this.warmTabBootstrapped = true;
       }
