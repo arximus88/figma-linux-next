@@ -54,14 +54,41 @@ export interface ToolContext {
    * configured export directory.
    */
   getSaveBaseDir: () => string;
+  /** How long a script in the page may take before the tool gives up. Tests shorten it. */
+  scriptTimeoutMs?: number;
 }
 
 export class ToolHandlers {
   constructor(private ctx: ToolContext) {}
 
-  /** Run a script in the active Figma tab. Single chokepoint for view access. */
-  private exec(script: string): Promise<any> {
-    return this.ctx.viewProvider.executeInBrowserView(script);
+  /**
+   * Run a script in the active Figma tab. Single chokepoint for view access.
+   *
+   * Bounded: a call Figma never answers (a raster exportAsync that stalled was
+   * seen live) used to hang the tool, and the MCP client with it, for good.
+   * executeJavaScript cannot be cancelled, so the script may still finish in
+   * the page; the caller just stops waiting and gets an error it can act on.
+   */
+  private async exec(script: string): Promise<any> {
+    const ms = this.ctx.scriptTimeoutMs ?? 60_000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Figma did not answer within ${Math.round(ms / 1000)} s. ` +
+                "The tab may still be loading or busy; retry, or switch to the tab in the app first.",
+            ),
+          ),
+        ms,
+      );
+    });
+    try {
+      return await Promise.race([this.ctx.viewProvider.executeInBrowserView(script), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
@@ -208,7 +235,12 @@ export class ToolHandlers {
       }
 
       this.ctx.log.warn("Falling back to capturePage for the visible window");
-      return this.capturePageFallback(savePath);
+      return this.capturePageFallback(
+        savePath,
+        result.noSelection
+          ? "Nothing is selected, so this is a capture of the whole window, not a node export. Select a node or pass a nodeId to export it. `scale` was not applied."
+          : `${result.error}. This is a capture of the whole window, not a node export. \`scale\` was not applied.`,
+      );
     }
 
     if (result?.base64) {
@@ -271,7 +303,7 @@ export class ToolHandlers {
    * window, not a node. Only reached when no nodeId was asked for; the result
    * is marked so a caller can tell it apart from a real node export.
    */
-  private async capturePageFallback(savePath: string | null = null) {
+  private async capturePageFallback(savePath: string | null, degraded: string) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
 
@@ -282,10 +314,7 @@ export class ToolHandlers {
       "",
       "canvas (capturePage fallback)",
       savePath,
-      {
-        degraded:
-          "Plugin API unavailable: this is a capture of the whole window, not a node export. `scale` was not applied.",
-      },
+      { degraded },
     );
   }
 

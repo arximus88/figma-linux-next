@@ -104,34 +104,56 @@ export const HELPERS_PREAMBLE = `
 `;
 
 /**
- * JS expression (renderer side) evaluating to the error for a tab without
- * `window.figma`, naming the reason instead of a generic "not available".
+ * Renderer-side function body for PLUGIN_API_UNAVAILABLE: why `window.figma`
+ * is missing, as `{ blocked, reason }`. `blocked` means it will not appear
+ * however long one waits; otherwise the editor may still be on its way.
  *
- * Figma installs `window.figma` itself (early.js + the plugin-permission check
- * that gates "Run plugin"), and only when all of these hold: the page is a
- * file, the file is editable — `INITIAL_OPTIONS.editing_file.can_edit === false`
- * makes the property permanently undefined — the editor has finished loading,
- * and the account may run plugins in this file. A background tab that has not
- * been shown yet never gets that far. Issue #67: a single generic message
- * covered all of these and left the reporter nothing to act on.
- *
- * Each message carries its own advice, so errorHints has no entry for it — a
- * generic "open a file" hint would contradict the view-only case.
+ * Figma installs `window.figma` itself, and the rules below are read from its
+ * bundle (2026-10-15), not guessed:
+ *   - early.js defines the property with a getter that returns undefined
+ *     forever when `editing_file.can_edit === false` — Dev Mode included, so
+ *     Dev seats and files shared as "can view" never get it;
+ *   - the installer waits for the editor to load, then requires, in the design
+ *     editor: a team or org file, not read-only, `canRunExtensions` (the org
+ *     may turn plugins off); in Dev Mode: full Dev Mode access and
+ *     `can_export`; Sites files are excluded.
+ * `canRunExtensions` is not on the page, so "plugins are off" stays the
+ * fallback. Issue #67: one generic message used to cover all of these.
  */
-export const PLUGIN_API_UNAVAILABLE = `(function () {
-      var base = "Figma Plugin API not available — ";
+const PLUGIN_API_DIAGNOSIS = `
       try {
         var options = window.INITIAL_OPTIONS;
         var file = options && options.editing_file;
         if (!file) {
-          return base + "the active tab is not a Figma file (" + location.pathname + "). Open a design file and make it the active tab.";
+          return { blocked: true, reason: "the active tab is not a Figma file (" + location.pathname + "). Open a design file and make it the active tab." };
         }
         if (file.can_edit === false) {
-          return base + "this file is open view-only, and Figma does not expose its Plugin API in view-only files. Open a file you can edit, or duplicate this one to your drafts.";
+          return { blocked: true, reason: "you can only view this file (a Dev or View seat, or a file shared with you as \\"can view\\"). Figma never exposes its Plugin API without edit access, Dev Mode included, so this local server cannot read the file. Ask for edit access, duplicate the file to your drafts, or use Figma's own remote MCP server, which works with view access." };
+        }
+        if (file.editor_type === "sites") {
+          return { blocked: true, reason: "Figma does not expose its Plugin API in Sites files." };
+        }
+        var devMode = new URLSearchParams(location.search).get("m") === "dev";
+        if (devMode && file.can_access_full_dev_mode === false) {
+          return { blocked: true, reason: "the file is open in Dev Mode and your seat has no full Dev Mode access, which Figma requires for its Plugin API there. Switch to the design editor (Shift+D)." };
+        }
+        if (devMode && file.can_export === false) {
+          return { blocked: true, reason: "the file is open in Dev Mode and copying/exporting is restricted in it; Figma then withholds its Plugin API. Switch to the design editor (Shift+D)." };
+        }
+        if (file.team_id == null && file.parent_org_id == null) {
+          return { blocked: true, reason: "the file belongs to no team or organization, and Figma exposes its Plugin API only in team and org files. Move it into a team." };
         }
         if (document.visibilityState !== "visible") {
-          return base + "the tab is in the background and Figma has not finished loading its editor. Switch to the tab in the app and retry.";
+          return { blocked: false, reason: "the tab is in the background and Figma has not finished loading its editor. Switch to the tab in the app and retry." };
         }
       } catch (e) {}
-      return base + "Figma exposes it only once the editor has finished loading and plugins are allowed for this file and account. Wait for the canvas to load; if it persists, check that running a plugin (Plugins menu) works in this file.";
-    })()`;
+      return { blocked: false, reason: "Figma exposes it only once the editor has finished loading and plugins are allowed for this file and account. Wait for the canvas to load; if it persists, check that running a plugin (Plugins menu) works in this file — an organization can turn plugins off." };
+`;
+
+/**
+ * JS expression (renderer side) evaluating to the error for a tab without
+ * `window.figma`, naming the reason. Each message carries its own advice, so
+ * errorHints has no entry for it — a generic "open a file" hint would
+ * contradict the view-only case.
+ */
+export const PLUGIN_API_UNAVAILABLE = `("Figma Plugin API not available — " + (function () {${PLUGIN_API_DIAGNOSIS}})().reason)`;
