@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP tools no longer fail on a file that was reloaded or in front at launch**
+  ([#67](https://github.com/arximus88/figma-linux-next/issues/67)). Figma gives a tab its Plugin API
+  only after the tab has been hidden and shown again once the file loads, so a reloaded tab, and
+  sometimes the one in front at launch, answered "Plugin API not available" until you switched
+  tabs. The tools now wake such a tab themselves and wait up to five seconds for the API.
+- **MCP errors name the actual reason** ([#67](https://github.com/arximus88/figma-linux-next/issues/67)).
+  View access (a Dev or View seat, or a file shared as "can view"), Dev Mode without full access, a
+  file with exports restricted, Sites files and files outside a team each get their own message,
+  following the rules Figma itself applies. A file you can only view never exposes the API, Dev Mode
+  included; the message now says so and points to Figma's remote MCP server.
+- **`get_screenshot` with nothing selected says so.** It returned the window capture labelled
+  "Plugin API unavailable" even when the API was fine and simply nothing was selected.
 - **Settings opened during startup no longer disappears.** Choosing Settings from the tray while
   the window was still starting showed it for a moment, then Home covered it and its tab never
   appeared in the strip. It now opens once the window is ready.

@@ -96,12 +96,12 @@ truth. (Verified live: a magenta test frame + text showed correct pixels via `ge
 Open `figma://file/…` or `https://figma.com/…` through the app's open flow → this lands as a **new
 focused tab** → confirm with `get_file_info` → operate.
 
-**Debug a stuck read** — if a Figma MCP tool errors with "Figma Plugin API not available" or "No Figma
-window open", the #1 cause is that the app's active tab isn't a foregrounded, fully-booted **design**
-tab (it's the New-File tab, Recents mid-load, a changelog overlay, or a *background* editor whose Plugin
-API is dormant). Fix: `setTabFocus` a real design tab (panel click / IPC) and retry `get_file_info` — the
-Plugin API wakes within ~1–2s of the tab becoming the active foreground tab. Use chrome-figma
-`take_snapshot`/`take_screenshot` only to *see* the window state when that doesn't resolve it.
+**Debug a stuck read** — the tools wait up to 5 s for Figma's Plugin API and wake the active tab
+themselves (see the gotcha below), so a "Figma Plugin API not available — <reason>" error is final:
+read the reason. "you can only view this file", "not a Figma file", Dev Mode without full access and
+Sites files will not change by waiting or switching tabs. "finished loading … plugins are allowed"
+means the file is still loading or the org has turned plugins off — check that the Plugins menu runs
+a plugin in that file. "No Figma window open" means no window at all.
 
 ## Gotchas
 
@@ -109,14 +109,16 @@ Plugin API wakes within ~1–2s of the tab becoming the active foreground tab. U
   Changing it requires `setTabFocus` (panel click / IPC) or the app open-file flow. chrome-figma
   `select_page` / `bringToFront` / `navigate_page` on a background target do **not** retarget it — that's
   the single most common mistaken assumption. Re-confirm with `get_file_info` after every real switch.
-- **Plugin API is dormant on non-active tabs.** `window.figma` (used by every read/write tool) is a lazy
-  getter that returns `undefined` until Figma initializes on the tab that is the app's active,
-  foreground design editor. A freshly-launched app with restored tabs, or a design tab sitting in the
-  background, will fail with "Plugin API not available" — bring a design tab to focus via `setTabFocus`
-  and it wakes within ~1–2s. This is state, not a bug.
-- **The MainTab (Recents / Home) is a real Figma page** with `window.figma` — MCP tools work there once
-  it's the active tab. A "not available" error means the tab is mid-load or on a non-Figma URL (New-File
-  tab), not that Home tabs are unsupported.
+- **When Figma installs `window.figma`** (read from its bundle, 2026-10-15): early.js makes it a
+  getter that stays `undefined` forever when `editing_file.can_edit === false` — Dev seats and files
+  shared as "can view", **Dev Mode included**. Otherwise it appears after the file loads, in a team or
+  org file, when plugins are allowed (`canRunExtensions`; Dev Mode: full Dev Mode access and
+  `can_export`), and only after the page goes hidden → visible once loaded. A tab that loaded while
+  already on screen (in front at launch, reloaded in place) never gets it on its own; the MCP wakes it
+  with a same-tick `setVisible(false/true)` (`FigmaViewProvider.wakeActiveTab`). Background tabs get it
+  when switched to.
+- **Recents / Home has no Plugin API.** Figma installs it only with a file open, so tools fail there
+  with "not a Figma file". Switch to a design tab.
 - **CDP needs a restart.** Toggling CDP or its port does nothing until the app relaunches. The Figma MCP
   server port, by contrast, rebinds live on save.
 - **Write tools are gated.** `use_figma`, `figma_text`, `create_new_file` only appear when Settings →

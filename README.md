@@ -63,6 +63,13 @@ round-trip. Everything binds to `127.0.0.1` and is configured in **Settings → 
 Read access is on out of the box; anything that mutates your files or exposes window control is
 off-by-default and opt-in.
 
+The data plane reads files through Figma's own Plugin API (`window.figma`), which Figma exposes only
+when you can **edit** the file: not with a Dev or View seat, not in files shared with you as
+"can view" (Dev Mode included), not in Sites files, and not where your organization has turned
+plugins off. When a tool can't read a file it says which of these applies. For files you can only
+view, use [Figma's remote MCP server](https://help.figma.com/hc/en-us/articles/32132100833559),
+which works with view access.
+
 ## Tech Stack
 
 - **Electron 44** (Chromium 152)

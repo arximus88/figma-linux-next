@@ -28,6 +28,7 @@ import {
   USE_FIGMA_SCRIPT,
   VARIABLE_DEFS_SCRIPT,
 } from "../scripts";
+import { PLUGIN_API_STATE, withPluginApiWait } from "../scripts/helpers";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
@@ -54,14 +55,58 @@ export interface ToolContext {
    * configured export directory.
    */
   getSaveBaseDir: () => string;
+  /** How long a tool waits for Figma's Plugin API to appear. Tests shorten it. */
+  pluginApiWaitMs?: number;
 }
 
 export class ToolHandlers {
   constructor(private ctx: ToolContext) {}
 
-  /** Run a script in the active Figma tab. Single chokepoint for view access. */
-  private exec(script: string): Promise<any> {
-    return this.ctx.viewProvider.executeInBrowserView(script);
+  /**
+   * Run a script in the active Figma tab. Single chokepoint for view access.
+   * Scripts that need the Plugin API get it ready first (readyPluginApi).
+   */
+  private async exec(script: string): Promise<any> {
+    const { viewProvider } = this.ctx;
+    if (!script.includes("window.figma")) return viewProvider.executeInBrowserView(script);
+
+    const deadline = await this.readyPluginApi();
+    // Still waits in the page: a tab switch between the last probe and this
+    // call lands the script in a tab that may be a moment from ready.
+    return viewProvider.executeInBrowserView(
+      withPluginApiWait(script, Math.max(0, deadline - Date.now())),
+    );
+  }
+
+  /**
+   * Wait for `window.figma` in the active tab, waking the tab while it is due.
+   *
+   * Figma installs it a second or two after a tab comes to the front, and only
+   * if the page went hidden → visible after its file loaded. The tab in front
+   * at launch or after a reload loaded while visible and never gets it until
+   * the user switches away and back — so wake it (FigmaViewProvider
+   * .wakeActiveTab) every second until the API is there, is never coming
+   * (PLUGIN_API_STATE "blocked"), or the time is up. A wake before the file
+   * has loaded does nothing, hence the repeats. Returns the deadline.
+   */
+  private async readyPluginApi(): Promise<number> {
+    const { viewProvider } = this.ctx;
+    const deadline = Date.now() + (this.ctx.pluginApiWaitMs ?? 5000);
+    let lastWake = 0;
+    for (;;) {
+      let state: unknown;
+      try {
+        state = await viewProvider.executeInBrowserView(PLUGIN_API_STATE);
+      } catch {
+        return deadline; // no view: the real call raises the error
+      }
+      if (state !== "pending" || Date.now() >= deadline) return deadline;
+      if (Date.now() - lastWake >= 1000) {
+        viewProvider.wakeActiveTab?.();
+        lastWake = Date.now();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
 
   /**
@@ -208,7 +253,12 @@ export class ToolHandlers {
       }
 
       this.ctx.log.warn("Falling back to capturePage for the visible window");
-      return this.capturePageFallback(savePath);
+      return this.capturePageFallback(
+        savePath,
+        result.noSelection
+          ? "Nothing is selected, so this is a capture of the whole window, not a node export. Select a node or pass a nodeId to export it. `scale` was not applied."
+          : `${result.error}. This is a capture of the whole window, not a node export. \`scale\` was not applied.`,
+      );
     }
 
     if (result?.base64) {
@@ -271,7 +321,7 @@ export class ToolHandlers {
    * window, not a node. Only reached when no nodeId was asked for; the result
    * is marked so a caller can tell it apart from a real node export.
    */
-  private async capturePageFallback(savePath: string | null = null) {
+  private async capturePageFallback(savePath: string | null, degraded: string) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
 
@@ -282,10 +332,7 @@ export class ToolHandlers {
       "",
       "canvas (capturePage fallback)",
       savePath,
-      {
-        degraded:
-          "Plugin API unavailable: this is a capture of the whole window, not a node export. `scale` was not applied.",
-      },
+      { degraded },
     );
   }
 

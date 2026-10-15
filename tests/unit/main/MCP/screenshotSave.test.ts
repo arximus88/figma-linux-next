@@ -124,6 +124,32 @@ describe("get_screenshot: a failed node export does not silently become a window
     expect(fs.existsSync(target)).toBe(true);
   });
 
+  // The capture used to say "Plugin API unavailable" when the API was fine and
+  // simply nothing was selected — sending the agent after the wrong problem.
+  test("nothing selected: the capture says that, not that the API is missing", async () => {
+    const { handlers } = makeHandlers({
+      execResult: { error: "No node selected", noSelection: true },
+      capturePage: () => ({ toPNG: () => Buffer.from(PNG_BASE64, "base64") }),
+    });
+
+    const meta = metaOf(await handlers.toolGetScreenshot({}));
+
+    expect(meta.degraded).toContain("Nothing is selected");
+    expect(meta.degraded).not.toContain("unavailable");
+  });
+
+  test("API missing: the capture carries the reason the script gave", async () => {
+    const reason = "Figma Plugin API not available — you can only view this file";
+    const { handlers } = makeHandlers({
+      execResult: { error: reason },
+      capturePage: () => ({ toPNG: () => Buffer.from(PNG_BASE64, "base64") }),
+    });
+
+    const meta = metaOf(await handlers.toolGetScreenshot({}));
+
+    expect(meta.degraded).toContain(reason);
+  });
+
   test("a successful node export is not marked degraded", async () => {
     const { handlers, calls } = makeHandlers({
       execResult: { base64: PNG_BASE64, nodeId: "1:2", nodeName: "Frame 280" },

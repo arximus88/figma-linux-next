@@ -80,6 +80,13 @@ export interface FigmaViewProvider {
   getActiveTabView(): WebContentsView | null;
   /** Get the URL of the currently focused tab. */
   getActiveTabUrl(): string | null;
+  /**
+   * Hide and re-show the active tab's view. Figma installs `window.figma` only
+   * after the page goes from hidden to visible once its file has loaded; a tab
+   * that loaded while already on screen (the one in front at launch, or after
+   * a reload) never gets it until the user switches away and back.
+   */
+  wakeActiveTab?(): void;
 }
 
 export interface Logger {
