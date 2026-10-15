@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { DESIGN_CONTEXT_SCRIPT, FILE_INFO_SCRIPT } from "Main/MCP/scripts";
-import { PLUGIN_API_STATE, PLUGIN_API_UNAVAILABLE } from "Main/MCP/scripts/helpers";
+import { PLUGIN_API_UNAVAILABLE } from "Main/MCP/scripts/helpers";
 
 interface EditingFile {
   can_edit?: boolean;
@@ -45,7 +45,6 @@ function evalOn(expression: string, page: Page): string {
 }
 
 const messageFor = (page: Page) => evalOn(PLUGIN_API_UNAVAILABLE, page);
-const stateFor = (page: Page) => evalOn(PLUGIN_API_STATE, page);
 
 // Issue #67: every case below used to collapse into one generic
 // "ensure a file is open and fully loaded".
@@ -123,28 +122,6 @@ describe("window.figma missing: the error names the reason", () => {
       {},
     );
     expect(msg.startsWith("Figma Plugin API not available — ")).toBe(true);
-  });
-});
-
-describe("PLUGIN_API_STATE: whether waiting can help", () => {
-  it("ready once window.figma is there", () => {
-    expect(stateFor({ editingFile: { ...TEAM_FILE, can_edit: false }, figma: {} })).toBe("ready");
-  });
-
-  it("pending while an editable file loads or sits in the background", () => {
-    expect(stateFor({ editingFile: TEAM_FILE })).toBe("pending");
-    expect(stateFor({ editingFile: TEAM_FILE, visibility: "hidden" })).toBe("pending");
-  });
-
-  it("blocked where Figma will never install it", () => {
-    expect(stateFor({ editingFile: null, pathname: "/files/recents" })).toBe("blocked");
-    expect(stateFor({ editingFile: { ...TEAM_FILE, can_edit: false } })).toBe("blocked");
-    expect(
-      stateFor({
-        editingFile: { ...TEAM_FILE, can_access_full_dev_mode: false },
-        search: "?m=dev",
-      }),
-    ).toBe("blocked");
   });
 });
 

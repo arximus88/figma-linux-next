@@ -28,7 +28,6 @@ import {
   USE_FIGMA_SCRIPT,
   VARIABLE_DEFS_SCRIPT,
 } from "../scripts";
-import { PLUGIN_API_STATE, withPluginApiWait } from "../scripts/helpers";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
@@ -55,8 +54,8 @@ export interface ToolContext {
    * configured export directory.
    */
   getSaveBaseDir: () => string;
-  /** How long a tool waits for Figma's Plugin API to appear. Tests shorten it. */
-  pluginApiWaitMs?: number;
+  /** How long a script in the page may take before the tool gives up. Tests shorten it. */
+  scriptTimeoutMs?: number;
 }
 
 export class ToolHandlers {
@@ -64,48 +63,31 @@ export class ToolHandlers {
 
   /**
    * Run a script in the active Figma tab. Single chokepoint for view access.
-   * Scripts that need the Plugin API get it ready first (readyPluginApi).
+   *
+   * Bounded: a call Figma never answers (a raster exportAsync that stalled was
+   * seen live) used to hang the tool, and the MCP client with it, for good.
+   * executeJavaScript cannot be cancelled, so the script may still finish in
+   * the page; the caller just stops waiting and gets an error it can act on.
    */
   private async exec(script: string): Promise<any> {
-    const { viewProvider } = this.ctx;
-    if (!script.includes("window.figma")) return viewProvider.executeInBrowserView(script);
-
-    const deadline = await this.readyPluginApi();
-    // Still waits in the page: a tab switch between the last probe and this
-    // call lands the script in a tab that may be a moment from ready.
-    return viewProvider.executeInBrowserView(
-      withPluginApiWait(script, Math.max(0, deadline - Date.now())),
-    );
-  }
-
-  /**
-   * Wait for `window.figma` in the active tab, waking the tab while it is due.
-   *
-   * Figma installs it a second or two after a tab comes to the front, and only
-   * if the page went hidden → visible after its file loaded. The tab in front
-   * at launch or after a reload loaded while visible and never gets it until
-   * the user switches away and back — so wake it (FigmaViewProvider
-   * .wakeActiveTab) every second until the API is there, is never coming
-   * (PLUGIN_API_STATE "blocked"), or the time is up. A wake before the file
-   * has loaded does nothing, hence the repeats. Returns the deadline.
-   */
-  private async readyPluginApi(): Promise<number> {
-    const { viewProvider } = this.ctx;
-    const deadline = Date.now() + (this.ctx.pluginApiWaitMs ?? 5000);
-    let lastWake = 0;
-    for (;;) {
-      let state: unknown;
-      try {
-        state = await viewProvider.executeInBrowserView(PLUGIN_API_STATE);
-      } catch {
-        return deadline; // no view: the real call raises the error
-      }
-      if (state !== "pending" || Date.now() >= deadline) return deadline;
-      if (Date.now() - lastWake >= 1000) {
-        viewProvider.wakeActiveTab?.();
-        lastWake = Date.now();
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
+    const ms = this.ctx.scriptTimeoutMs ?? 60_000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Figma did not answer within ${Math.round(ms / 1000)} s. ` +
+                "The tab may still be loading or busy; retry, or switch to the tab in the app first.",
+            ),
+          ),
+        ms,
+      );
+    });
+    try {
+      return await Promise.race([this.ctx.viewProvider.executeInBrowserView(script), timeout]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

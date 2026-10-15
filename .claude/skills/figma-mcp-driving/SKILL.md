@@ -96,9 +96,8 @@ truth. (Verified live: a magenta test frame + text showed correct pixels via `ge
 Open `figma://file/…` or `https://figma.com/…` through the app's open flow → this lands as a **new
 focused tab** → confirm with `get_file_info` → operate.
 
-**Debug a stuck read** — the tools wait up to 5 s for Figma's Plugin API and wake the active tab
-themselves (see the gotcha below), so a "Figma Plugin API not available — <reason>" error is final:
-read the reason. "you can only view this file", "not a Figma file", Dev Mode without full access and
+**Debug a stuck read** — a "Figma Plugin API not available — <reason>" error names the reason:
+read it. "you can only view this file", "not a Figma file", Dev Mode without full access and
 Sites files will not change by waiting or switching tabs. "finished loading … plugins are allowed"
 means the file is still loading or the org has turned plugins off — check that the Plugins menu runs
 a plugin in that file. "No Figma window open" means no window at all.
@@ -113,10 +112,12 @@ a plugin in that file. "No Figma window open" means no window at all.
   getter that stays `undefined` forever when `editing_file.can_edit === false` — Dev seats and files
   shared as "can view", **Dev Mode included**. Otherwise it appears after the file loads, in a team or
   org file, when plugins are allowed (`canRunExtensions`; Dev Mode: full Dev Mode access and
-  `can_export`), and only after the page goes hidden → visible once loaded. A tab that loaded while
-  already on screen (in front at launch, reloaded in place) never gets it on its own; the MCP wakes it
-  with a same-tick `setVisible(false/true)` (`FigmaViewProvider.wakeActiveTab`). Background tabs get it
-  when switched to.
+  `can_export`). Background tabs get it a second or so after they are switched to. A tab that never
+  got it although none of these apply was seen only in test setups (several instances on one profile
+  copy) and was not reproduced on clean installs.
+- **Scripts are bounded at 60 s.** A Figma call that never settles (a raster `exportAsync` stalled once
+  on the host, SVG fine, not reproduced since) returns "Figma did not answer within 60 s" instead of
+  hanging the client.
 - **Recents / Home has no Plugin API.** Figma installs it only with a file open, so tools fail there
   with "not a Figma file". Switch to a design tab.
 - **CDP needs a restart.** Toggling CDP or its port does nothing until the app relaunches. The Figma MCP

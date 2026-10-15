@@ -106,14 +106,6 @@ export default class App {
         if (!tabId) return null;
         return win.getTabInfo(tabId)?.url ?? null;
       },
-      wakeActiveTab: () => {
-        const view = viewProvider.getActiveTabView();
-        // Same tick: Chromium still sees hidden → visible, nothing paints in between.
-        if (view?.getVisible()) {
-          view.setVisible(false);
-          view.setVisible(true);
-        }
-      },
     };
     this.mcpServer.setViewProvider(viewProvider);
     this.mcpServer.setWriteToolsEnabled(!!storage.settings.mcp?.enableWriteTools);

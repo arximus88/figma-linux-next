@@ -9,11 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **MCP tools no longer fail on a file that was reloaded or in front at launch**
-  ([#67](https://github.com/arximus88/figma-linux-next/issues/67)). Figma gives a tab its Plugin API
-  only after the tab has been hidden and shown again once the file loads, so a reloaded tab, and
-  sometimes the one in front at launch, answered "Plugin API not available" until you switched
-  tabs. The tools now wake such a tab themselves and wait up to five seconds for the API.
+- **MCP tools no longer hang forever.** A Figma call that never finished (a PNG export that
+  stalled was seen in testing) kept the tool, and the AI client waiting on it, stuck with no
+  error. Tools now give up after 60 seconds and say so.
 - **MCP errors name the actual reason** ([#67](https://github.com/arximus88/figma-linux-next/issues/67)).
   View access (a Dev or View seat, or a file shared as "can view"), Dev Mode without full access, a
   file with exports restricted, Sites files and files outside a team each get their own message,

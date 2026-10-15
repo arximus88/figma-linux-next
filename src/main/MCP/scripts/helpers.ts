@@ -104,10 +104,9 @@ export const HELPERS_PREAMBLE = `
 `;
 
 /**
- * Renderer-side function body shared by PLUGIN_API_STATE and
- * PLUGIN_API_UNAVAILABLE: why `window.figma` is missing, as
- * `{ blocked, reason }`. `blocked` means it will not appear however long we
- * wait; otherwise the editor is still on its way.
+ * Renderer-side function body for PLUGIN_API_UNAVAILABLE: why `window.figma`
+ * is missing, as `{ blocked, reason }`. `blocked` means it will not appear
+ * however long one waits; otherwise the editor may still be on its way.
  *
  * Figma installs `window.figma` itself, and the rules below are read from its
  * bundle (2026-10-15), not guessed:
@@ -150,37 +149,6 @@ const PLUGIN_API_DIAGNOSIS = `
       } catch (e) {}
       return { blocked: false, reason: "Figma exposes it only once the editor has finished loading and plugins are allowed for this file and account. Wait for the canvas to load; if it persists, check that running a plugin (Plugins menu) works in this file — an organization can turn plugins off." };
 `;
-
-/** JS expression (renderer side): `"ready"`, `"blocked"` or `"pending"`. */
-export const PLUGIN_API_STATE = `(function () {
-      if (window.figma) return "ready";
-      return (function () {${PLUGIN_API_DIAGNOSIS}})().blocked ? "blocked" : "pending";
-    })()`;
-
-/**
- * Wrap a tool script so it first waits, in the page, for `window.figma`.
- *
- * Figma installs it a second or two after a tab comes to the front or a file
- * finishes loading; a call landing in that gap used to fail with "not
- * available" though a retry would have worked. The wait runs in the same
- * page as the script: polling from main as a separate call raced tab
- * switches — the probe saw the old tab ready, the script then ran in the new
- * one. Stops early when the API is never coming (PLUGIN_API_STATE "blocked");
- * after `waitMs` the script runs anyway and reports why.
- */
-export function withPluginApiWait(script: string, waitMs: number): string {
-  return `(function () {
-  var deadline = Date.now() + ${waitMs};
-  return new Promise(function (resolve) {
-    (function poll() {
-      if (${PLUGIN_API_STATE} !== "pending" || Date.now() >= deadline) resolve();
-      else setTimeout(poll, 250);
-    })();
-  }).then(function () {
-    return (${script});
-  });
-})()`;
-}
 
 /**
  * JS expression (renderer side) evaluating to the error for a tab without
