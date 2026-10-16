@@ -232,7 +232,9 @@ new App(new WindowManager(), new Session(), new FontManager());
   open-url GET is a simple request any page could fire — and only https figma.com URLs for a
   signed-in user id (`WindowManager.getKnownUserIds`) are opened. Protocol read out of the
   production bundle on 2026-10-11 (`routeAgentRequest` is pure and unit-tested). Setting:
-  `app.figmaAgentEnabled` (default on); the port is fixed by Figma's page.
+  `app.figmaAgentEnabled`, **default off**: `figma-agent-linux` (AUR, local fonts for figma.com in
+  a browser) listens on the same `127.0.0.1:44950` via a systemd socket. If this app binds first,
+  the browser silently loses local fonts — we 404 the font endpoints. The port is fixed by Figma's page.
 
 **UrlHandlerIntegration** (`src/main/UrlHandlerIntegration.ts`):
 - Makes sure `figma://` reaches the app when no package registered it: an AppImage always writes/refreshes its own `.desktop` (path may move); a bare binary (`nix run`, unpacked zip) writes a "local" entry only if `xdg-mime` reports no handler at all. Flatpak and dev are skipped. Rules live in the pure `planUrlHandler()` (unit-tested)

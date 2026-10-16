@@ -66,7 +66,7 @@
 
   // The listener binds live like the MCP server; the port is fixed by figma.com's page.
   let agentChip: Chip = $derived.by(() => {
-    const enabled = $settings.app.figmaAgentEnabled !== false;
+    const enabled = $settings.app.figmaAgentEnabled === true;
     const s = agentStatus;
     if (!s) return { kind: "muted", text: enabled ? "Starting…" : "Off" };
     if (!enabled) return s.listening ? { kind: "pending", text: "Stopping…" } : { kind: "muted", text: "Off" };
@@ -193,6 +193,10 @@
       <p class="s-hint">
         This is the address Figma's page probes for the official helper, so the port cannot change.
         Only requests from figma.com are answered, and only figma.com links are opened.
+      </p>
+      <p class="s-hint">
+        <b>figma-agent-linux</b> (local fonts for figma.com in a browser) uses the same port. With
+        both, whichever starts first gets it; if this app does, the browser loses your local fonts.
       </p>
     </details>
   </div>

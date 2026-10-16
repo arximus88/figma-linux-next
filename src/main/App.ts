@@ -121,7 +121,7 @@ export default class App {
       this.mcpServer.start(storage.settings.mcp?.serverPort ?? MCP_PORT);
     }
     // Browser hand-off: figma.com in a browser probes this to offer "Open in desktop app".
-    if (storage.settings.app.figmaAgentEnabled !== false) {
+    if (storage.settings.app.figmaAgentEnabled === true) {
       void this.figmaAgent.start();
     }
 

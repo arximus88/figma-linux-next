@@ -47,7 +47,7 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     tabHoverPreviews: true,
     allowDuplicateFileTabs: false,
     trayEnabled: false,
-    figmaAgentEnabled: true,
+    figmaAgentEnabled: false,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",
   },

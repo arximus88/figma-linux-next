@@ -49,8 +49,11 @@ Not affiliated with or endorsed by Figma, Inc.
 On Mac and Windows, Figma in a browser offers **Open in desktop app** and an **Open links in desktop
 app** preference. It does not use `figma://` for that: the page probes a small local helper the
 official app installs at `127.0.0.1:44950` and, when it answers, hands the file link over. The page's
-own platform check already includes Linux, so figma-linux-next answers that probe (on by default,
+own platform check already includes Linux, so figma-linux-next answers that probe (off by default, turn on in
 **Settings → Integrations → Open links from your browser**).
+
+If you use [figma-agent-linux](https://github.com/neetly/figma-agent-linux) for local fonts on
+figma.com, keep this off: both listen on the same port, and whichever starts first takes it.
 
 To use it, open any file on figma.com in Chrome or Firefox and pick **Main menu → Preferences →
 Open links in desktop app**; **Open in desktop app** in the same menu does it once. Chrome 142 and

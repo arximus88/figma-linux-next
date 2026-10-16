@@ -32,7 +32,9 @@ test.describe("Browser hand-off (FigmaAgent)", () => {
   });
 
   test("answers figma.com's probe and opens the handed-over link in a tab", async () => {
-    const handle = await launchApp({ settings: { userId: "42" } });
+    const handle = await launchApp({
+      settings: { userId: "42", app: { figmaAgentEnabled: true } },
+    });
     const panel = await findPanelPage(handle.app);
 
     await expect.poll(agentUp).toBe(true);
@@ -64,30 +66,43 @@ test.describe("Browser hand-off (FigmaAgent)", () => {
     await closeApp(handle);
   });
 
-  test("the Settings toggle stops and restarts the listener", async () => {
+  test("the Settings toggle starts and stops the listener", async () => {
     const handle = await launchApp();
     const page = await openSettings(handle);
     await page.getByRole("button", { name: "Integrations", exact: true }).click();
 
     const chip = page.locator("#setting-browser-handoff [role=status]");
     const toggle = page.getByRole("switch", { name: "Open links from your browser" });
-    await expect(chip).toHaveText("Listening on :44950");
-
-    await toggle.click();
     await expect(chip).toHaveText("Off");
-    await expect.poll(agentUp).toBe(false);
 
     await toggle.click();
     await expect(chip).toHaveText("Listening on :44950");
     await expect.poll(agentUp).toBe(true);
 
+    await toggle.click();
+    await expect(chip).toHaveText("Off");
+    await expect.poll(agentUp).toBe(false);
+
     await closeApp(handle);
   });
 
-  test("stays off across a restart when turned off", async () => {
-    const first = await launchApp({ settings: { app: { figmaAgentEnabled: false } } });
+  // figma-agent-linux (local fonts for figma.com in a browser) owns the same port
+  // through a systemd socket. Grabbing it unasked would cost those users their fonts.
+  test("is off on a fresh profile, and a turned-on listener comes back after a restart", async () => {
+    const first = await launchApp();
+    await findPanelPage(first.app);
     await first.panel.waitForTimeout(500);
     expect(await agentUp()).toBe(false);
+
+    const page = await openSettings(first);
+    await page.getByRole("button", { name: "Integrations", exact: true }).click();
+    await page.getByRole("switch", { name: "Open links from your browser" }).click();
+    await expect.poll(agentUp).toBe(true);
     await closeApp(first);
+    await expect.poll(agentUp).toBe(false);
+
+    const second = await launchApp({ userDataDir: first.userDataDir });
+    await expect.poll(agentUp).toBe(true);
+    await closeApp(second);
   });
 });

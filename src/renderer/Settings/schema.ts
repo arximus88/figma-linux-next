@@ -196,7 +196,8 @@ export const SETTINGS = {
     title: "Open links from your browser",
     subtitle:
       "Answer figma.com's desktop-app check, so Figma in Chrome or Firefox can hand file links to this app.",
-    keywords: "browser links open in desktop app handoff agent chrome firefox slack",
+    keywords:
+      "browser links open in desktop app handoff agent chrome firefox slack figma-agent-linux 44950",
   }),
   fontDirs: setting({
     id: "font-dirs",

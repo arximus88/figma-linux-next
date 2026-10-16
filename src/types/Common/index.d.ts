@@ -214,7 +214,8 @@ declare namespace Types {
       /** Open an already-open file in a new tab instead of switching to it. */
       allowDuplicateFileTabs: boolean;
       trayEnabled: boolean;
-      /** Answer figma.com's desktop-app check on 127.0.0.1:44950 so browser links can open here. */
+      /** Answer figma.com's desktop-app check on 127.0.0.1:44950 so browser links can open here.
+       *  Off by default: figma-agent-linux listens on the same port. */
       figmaAgentEnabled: boolean;
       windowsState: {
         [key: string]: WindowState;
