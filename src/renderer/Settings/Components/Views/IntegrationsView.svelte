@@ -10,7 +10,16 @@
   // Re-read after every save: the server starts, stops and rebinds live, and a
   // rebind finishes a moment after the save returns, hence the second read.
   let status = $state<Types.McpStatus | null>(null);
+  let agentStatus = $state<Types.FigmaAgentStatus | null>(null);
   function readStatus() {
+    window.figmaApi
+      .invoke("getFigmaAgentStatus")
+      .then((s: Types.FigmaAgentStatus) => {
+        agentStatus = s;
+      })
+      .catch(() => {
+        agentStatus = null;
+      });
     window.figmaApi
       .invoke("getMcpStatus")
       .then((s: Types.McpStatus) => {
@@ -53,6 +62,17 @@
     const matches = c.active === wantOn && (!wantOn || c.port === $settings.mcp.remoteDebugPort);
     if (!matches) return { kind: "pending", text: "Restart required" };
     return c.active ? { kind: "active", text: `Open on :${c.port}` } : { kind: "muted", text: "Off" };
+  });
+
+  // The listener binds live like the MCP server; the port is fixed by figma.com's page.
+  let agentChip: Chip = $derived.by(() => {
+    const enabled = $settings.app.figmaAgentEnabled !== false;
+    const s = agentStatus;
+    if (!s) return { kind: "muted", text: enabled ? "Starting…" : "Off" };
+    if (!enabled) return s.listening ? { kind: "pending", text: "Stopping…" } : { kind: "muted", text: "Off" };
+    if (s.listening) return { kind: "active", text: `Listening on :${s.port}` };
+    if (s.portInUse) return { kind: "error", text: `Port ${s.port} in use` };
+    return { kind: "pending", text: `Starting on :${s.port}…` };
   });
 
   let figmaSnippet = $derived(
@@ -147,6 +167,33 @@
         started, not that this port is open.
       </p>
       <McpSnippet title=".mcp.json — chrome-figma" code={chromeSnippet} />
+    </details>
+  </div>
+
+  <div class="settings-card">
+    <div class="service-head" id={`setting-${SETTINGS.browserHandoff.id}`}>
+      <div class="service-text">
+        <span class="service-title">
+          <SettingsIcon name="general" size={16} />
+          {SETTINGS.browserHandoff.title}
+          <span class="s-chip {agentChip.kind}" role="status">{agentChip.text}</span>
+        </span>
+        <span class="service-desc">{SETTINGS.browserHandoff.subtitle}</span>
+      </div>
+      <Toggle bind:checked={$settings.app.figmaAgentEnabled} label={SETTINGS.browserHandoff.title} />
+    </div>
+    <details class="service-details">
+      <summary><SettingsIcon name="chevron" size={14} />How to turn it on in the browser</summary>
+      <p class="s-hint">
+        Open any file on figma.com, then <b>Main menu → Preferences → Open links in desktop app</b>;
+        <b>Open in desktop app</b> in the same menu does it once. Chrome 142 and newer first ask to
+        allow <i>local network access</i> for figma.com; the link that triggers that prompt stays in
+        the browser, the next one opens here. The same account must be signed in here.
+      </p>
+      <p class="s-hint">
+        This is the address Figma's page probes for the official helper, so the port cannot change.
+        Only requests from figma.com are answered, and only figma.com links are opened.
+      </p>
     </details>
   </div>
 

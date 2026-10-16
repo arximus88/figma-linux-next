@@ -120,6 +120,16 @@ export default class WindowManager {
     }
   }
 
+  /** Figma user ids signed in here: the stored one plus whatever each window runs as. */
+  public getKnownUserIds(): string[] {
+    const ids = new Set<string>();
+    if (storage.settings.userId) ids.add(String(storage.settings.userId));
+    for (const window of this.windows.values()) {
+      if (window.userId) ids.add(String(window.userId));
+    }
+    return [...ids];
+  }
+
   public setUserIdOnAllWindows(userId: string, sourceWebContentsId?: number) {
     for (const [_, window] of this.windows) {
       window.setUserId(userId, sourceWebContentsId);

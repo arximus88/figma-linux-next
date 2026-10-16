@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Figma links from your browser can open in the app**
+  ([discussion #37](https://github.com/arximus88/figma-linux-next/discussions/37),
+  [#39](https://github.com/arximus88/figma-linux-next/issues/39)). figma.com never used `figma://`
+  for this: in a browser it looks for the official app's local helper on `127.0.0.1:44950` and,
+  when it answers, offers **Open in desktop app** and the **Open links in desktop app** preference.
+  The page's platform check already included Linux; only the helper was missing. The app now
+  answers that check (on by default, Settings → Integrations → Open links from your browser). It
+  accepts requests only from figma.com and opens only figma.com links, for an account signed in
+  here. Chrome 142 and newer ask once to allow local network access for figma.com; the link that
+  triggers the prompt stays in the browser, the next one opens here.
+  
 ### Fixed
 
 - **MCP tools no longer hang forever.** A Figma call that never finished (a PNG export that

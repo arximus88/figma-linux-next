@@ -93,6 +93,7 @@ const INVOKE_CHANNELS = [
   "updateFigmaUiScale",
   "updatePanelScale",
   "getMcpStatus",
+  "getFigmaAgentStatus",
 ] as const;
 
 type SendChannel = (typeof SEND_CHANNELS)[number];

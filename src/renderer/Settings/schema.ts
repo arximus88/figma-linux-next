@@ -190,6 +190,14 @@ export const SETTINGS = {
     subtitle: "127.0.0.1 only. Any local process can attach while it is open.",
     keywords: "cdp port remote debugging",
   }),
+  browserHandoff: setting({
+    id: "browser-handoff",
+    section: "integrations",
+    title: "Open links from your browser",
+    subtitle:
+      "Answer figma.com's desktop-app check, so Figma in Chrome or Firefox can hand file links to this app.",
+    keywords: "browser links open in desktop app handoff agent chrome firefox slack",
+  }),
   fontDirs: setting({
     id: "font-dirs",
     section: "advanced",
