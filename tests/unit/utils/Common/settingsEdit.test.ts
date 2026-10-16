@@ -55,10 +55,11 @@ describe("planSettingsUpdate", () => {
         s.mcp.enableWriteTools = !s.mcp.enableWriteTools;
         s.app.frameStyleAuto = !s.app.frameStyleAuto;
         s.app.tabHoverPreviews = !s.app.tabHoverPreviews;
+        s.app.figmaAgentEnabled = !s.app.figmaAgentEnabled;
       }),
     );
     expect(effects.map((e) => e.type as string).sort()).toEqual(
-      ["dialogs", "frameStyle", "mcpWriteTools", "panelLayout", "tray"].sort(),
+      ["dialogs", "figmaAgent", "frameStyle", "mcpWriteTools", "panelLayout", "tray"].sort(),
     );
   });
 

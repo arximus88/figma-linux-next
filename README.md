@@ -34,6 +34,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Local system fonts** — full fontconfig (`fc-list`) enumeration plus fontkit for variable-font axes; variable fonts and all named instances work, just like the official desktop app (the web app can't reach them).
 - **Shader, Halftone & Noise effects** — Figma's new WebGPU canvas effects render, matching the official app (opt-in, Experimental). They require X11/XWayland: on a Wayland session, enabling them relaunches the app under XWayland, so you trade native Wayland features (fractional scaling, per-monitor DPI) for shaders while they're on.
 - **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
+- **Figma links open in the app** — the app answers the local-helper check figma.com makes from a browser, so **Open in desktop app** and the **Open links in desktop app** preference work on Linux like they do on Mac and Windows. See [Opening links from your browser](#opening-links-from-your-browser).
 - **Built-in MCP server for AI assistants** — a [Model Context Protocol](https://modelcontextprotocol.io) server (default port 3845) lets AI tools like Claude Code read **and** write your open design: scene-graph metadata, design context, variables/styles, screenshots, plus create/edit nodes and Mermaid→FigJam diagrams. Read-only by default; write tools, the port, and an optional Chrome DevTools control plane are toggled in Settings. See [AI integration (MCP)](#ai-integration-mcp).
 - **Latest Chromium engine** — Electron 44 / Chromium 152, so the canvas, WebGL and color handling track the current web app.
 - **Up-to-date Google Fonts** — Google Sans, Google Sans Flex, Google Sans Code and other recent additions are available.
@@ -42,6 +43,20 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Instant new-file tab** — pre-loaded in the background after login, opens with no delay.
 - **System tray** — opt-in in Settings: Figma stays in the tray when the last window closes; "Show Figma" brings it back (restoring a minimised window), with New Window, Settings and Quit alongside. Native on KDE Plasma, needs the AppIndicator extension on GNOME.
 - **Config isolation** — uses `~/.config/figma-linux-next`, no conflicts with legacy installations.
+
+## Opening links from your browser
+
+On Mac and Windows, Figma in a browser offers **Open in desktop app** and an **Open links in desktop
+app** preference. It does not use `figma://` for that: the page probes a small local helper the
+official app installs at `127.0.0.1:44950` and, when it answers, hands the file link over. The page's
+own platform check already includes Linux, so figma-linux-next answers that probe (on by default,
+**Settings → Integrations → Open links from your browser**).
+
+To use it, open any file on figma.com in Chrome or Firefox and pick **Main menu → Preferences →
+Open links in desktop app**; **Open in desktop app** in the same menu does it once. Chrome 142 and
+newer first ask to allow *local network access* for figma.com — the link that triggers that prompt
+stays in the browser, the next one opens here. The same account must be signed in here. Only requests from figma.com are answered and only figma.com links are opened; the port is the
+one Figma's page looks for and cannot change. A `figma://` link still opens the app directly.
 
 ## AI integration (MCP)
 

@@ -13,6 +13,7 @@ import TrayManager from "./Ui/TrayManager";
 import type Session from "./Session";
 import type FontManager from "./Fonts";
 import { McpServer } from "./MCP";
+import { FigmaAgentServer } from "./FigmaAgent";
 import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
 
@@ -28,6 +29,7 @@ import FileController from "./controllers/FileController";
 export default class App {
   private authController: AuthController;
   private mcpServer: McpServer;
+  private figmaAgent: FigmaAgentServer;
   private trayManager: TrayManager;
 
   constructor(
@@ -55,6 +57,10 @@ export default class App {
     registerUrlHandler();
 
     this.mcpServer = new McpServer(logger);
+    this.figmaAgent = new FigmaAgentServer({
+      isKnownUser: (id) => this.windowManager.getKnownUserIds().includes(id),
+      openUrl: (url) => this.openUrlFromBrowser(url),
+    });
     this.trayManager = new TrayManager(this.windowManager);
 
     // Initialize controllers — registers all IPC handlers through the registry
@@ -70,6 +76,7 @@ export default class App {
 
     // MCP runtime status for the settings UI (real server/CDP state)
     ipcRegistry.handle("getMcpStatus", () => this.getMcpStatus(), "App");
+    ipcRegistry.handle("getFigmaAgentStatus", () => this.figmaAgent.getStatus(), "App");
 
     // Seal the registry — no more IPC registrations after this point
     ipcRegistry.seal();
@@ -112,6 +119,10 @@ export default class App {
     // Server is opt-out (default on). Only bind when enabled.
     if (storage.settings.mcp?.serverEnabled !== false) {
       this.mcpServer.start(storage.settings.mcp?.serverPort ?? MCP_PORT);
+    }
+    // Browser hand-off: figma.com in a browser probes this to offer "Open in desktop app".
+    if (storage.settings.app.figmaAgentEnabled !== false) {
+      void this.figmaAgent.start();
     }
 
     setTimeout(() => {
@@ -206,6 +217,7 @@ export default class App {
     // on port 3845 keeps the event loop alive and the process hangs after
     // window close, blocking subsequent launches via the single-instance lock.
     this.mcpServer.stop();
+    void this.figmaAgent.stop();
     this.windowManager.saveState();
     storage.save().finally(() => app.quit());
   }
@@ -219,6 +231,7 @@ export default class App {
     // (vite.config.mts, onstart).
     if (process.env.VITE_DEV_SERVER_URL && process.send) {
       this.mcpServer.stop();
+      void this.figmaAgent.stop();
       this.windowManager.saveState();
       await storage.save();
       process.send(Const.DEV_RELAUNCH_MESSAGE);
@@ -234,6 +247,7 @@ export default class App {
     // the close (Window.flushSettings), which would cancel the quit.
     await this.windowManager.flushSettings();
     this.mcpServer.stop();
+    void this.figmaAgent.stop();
     this.windowManager.saveState();
     await storage.save();
 
@@ -256,7 +270,23 @@ export default class App {
       if (enabled) void this.mcpServer.restart(port);
       else this.mcpServer.stop();
     });
+    app.on("figmaAgentChanged", (enabled: boolean) => {
+      if (enabled) void this.figmaAgent.start();
+      else void this.figmaAgent.stop();
+    });
   };
+
+  /**
+   * A file link handed over by figma.com in the browser. Mirrors second-instance:
+   * with the tray on the process may be alive with no window to open it in.
+   */
+  private openUrlFromBrowser(url: string) {
+    if (!this.windowManager.hasWindows()) {
+      this.windowManager.restoreState();
+    }
+    this.windowManager.focusLastWindow();
+    this.windowManager.openUrl(url);
+  }
 
   /** Real runtime state of both MCP integrations, for the settings UI. */
   private getMcpStatus(): Types.McpStatus {

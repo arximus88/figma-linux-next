@@ -97,6 +97,9 @@ export default class SettingsController {
       case "mcpServer":
         app.emit("mcpServerConfigChanged", { enabled: effect.enabled, port: effect.port });
         break;
+      case "figmaAgent":
+        app.emit("figmaAgentChanged", effect.enabled);
+        break;
       case "frameStyle":
         this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(storage.settings.app));
         break;
