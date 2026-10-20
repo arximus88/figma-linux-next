@@ -109,6 +109,29 @@ test.describe("Settings tab", () => {
     await closeApp(handle);
   });
 
+  // Tray → Settings while the window is still starting: the panel's load puts
+  // Home in front, and used to bury Settings under it with no tab in the strip.
+  test("opened while the window starts, stays in front", async () => {
+    const handle = await launchApp({
+      // As soon as the panel starts loading. did-start-loading fires inside the
+      // Window constructor, before WindowManager registers it — hence the tick.
+      mainHook: `
+        const { app } = require("electron");
+        app.once("browser-window-created", (_, win) => {
+          win.webContents.once("did-start-loading", () =>
+            setImmediate(() => app.emit("openSettingsView")),
+          );
+        });
+      `,
+    });
+    const panel = await findPanelPage(handle.app);
+
+    await expect(settingsTab(panel)).toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => shownView(handle.app)).toContain("settings.html");
+
+    await closeApp(handle);
+  });
+
   test("follows the window size", async () => {
     const handle = await launchApp();
     await openSettings(handle);

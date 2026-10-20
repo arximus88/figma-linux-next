@@ -627,7 +627,7 @@ export const SCREENSHOT_SCRIPT = (nodeId: string | null, scale: number) => `
     `
         : `
       const sel = figma.currentPage.selection;
-      if (!sel || sel.length === 0) return { error: "No node selected" };
+      if (!sel || sel.length === 0) return { error: "No node selected", noSelection: true };
       target = sel[0];
     `
     }

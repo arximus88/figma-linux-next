@@ -132,6 +132,7 @@ The application is a classic Electron app with two processes:
 - Persistent settings (Storage)
 - Dialogs (Native or Zenity backends)
 - MCP server for AI assistant integration (McpServer)
+- The local helper figma.com probes from a browser so file links open here (FigmaAgent)
 
 **Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
@@ -219,6 +220,21 @@ new App(new WindowManager(), new Session(), new FontManager());
 - MCP protocol (JSON-RPC 2.0 over Streamable HTTP) on port **3845**
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
+
+**FigmaAgent** (`src/main/FigmaAgent.ts`):
+- The local helper figma.com looks for from a *browser*. The page never uses `figma://` for
+  "Open in desktop app": it probes `http://127.0.0.1:44950/figma/...` (the official app's font
+  helper) and, if it answers, shows the menu item, the "Open links in desktop app" preference and
+  redirects file links on load. Its platform check includes Linux. Endpoints answered: `/version`
+  (`{version}`, ≥ 24 or the page skips the preference push), `/desktop/can-open-url`
+  (`{canOpen}`), `/desktop/open-url` (`{opened}`, routed to `WindowManager.openUrl`), and the
+  preference POST. Everything else 404s. Requests without a figma.com `Origin` get 403 — the
+  open-url GET is a simple request any page could fire — and only https figma.com URLs for a
+  signed-in user id (`WindowManager.getKnownUserIds`) are opened. Protocol read out of the
+  production bundle on 2026-10-11 (`routeAgentRequest` is pure and unit-tested). Setting:
+  `app.figmaAgentEnabled`, **default off**: `figma-agent-linux` (AUR, local fonts for figma.com in
+  a browser) listens on the same `127.0.0.1:44950` via a systemd socket. If this app binds first,
+  the browser silently loses local fonts — we 404 the font endpoints. The port is fixed by Figma's page.
 
 **UrlHandlerIntegration** (`src/main/UrlHandlerIntegration.ts`):
 - Makes sure `figma://` reaches the app when no package registered it: an AppImage always writes/refreshes its own `.desktop` (path may move); a bare binary (`nix run`, unpacked zip) writes a "local" entry only if `xdg-mime` reports no handler at all. Flatpak and dev are skipped. Rules live in the pure `planUrlHandler()` (unit-tested)
@@ -368,6 +384,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 | `src/main/Dialogs/index.ts` | Dialog provider (Native / Zenity) |
 | `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
 | `src/main/UrlHandlerIntegration.ts` | figma:// handler registration for AppImage / bare-binary launches |
+| `src/main/FigmaAgent.ts` | Local helper figma.com probes from a browser (port 44950) so browser links open in the app |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |

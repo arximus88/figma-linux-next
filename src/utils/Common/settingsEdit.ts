@@ -25,6 +25,7 @@ export const EDITABLE_APP_KEYS = [
   "allowDuplicateFileTabs",
   "trayEnabled",
   "panelHeight",
+  "figmaAgentEnabled",
 ] as const;
 
 export const EDITABLE_UI_KEYS = ["scalePanel", "scaleFigmaUI"] as const;
@@ -116,6 +117,7 @@ export type SettingsEffect =
   | { type: "dialogs"; useZenity: boolean }
   | { type: "mcpWriteTools"; enabled: boolean }
   | { type: "mcpServer"; enabled: boolean; port: number }
+  | { type: "figmaAgent"; enabled: boolean }
   | { type: "frameStyle" }
   | { type: "panelLayout" };
 
@@ -160,6 +162,9 @@ export function planSettingsUpdate(
       enabled: b.mcp.serverEnabled !== false,
       port: b.mcp.serverPort,
     });
+  }
+  if (a.app.figmaAgentEnabled !== b.app.figmaAgentEnabled) {
+    effects.push({ type: "figmaAgent", enabled: !!b.app.figmaAgentEnabled });
   }
   if (a.app.frameStyleAuto !== b.app.frameStyleAuto || a.app.frameStyle !== b.app.frameStyle) {
     effects.push({ type: "frameStyle" });

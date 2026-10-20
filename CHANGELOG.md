@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Figma links from your browser can open in the app**
+  ([discussion #37](https://github.com/arximus88/figma-linux-next/discussions/37),
+  [#39](https://github.com/arximus88/figma-linux-next/issues/39)). figma.com never used `figma://`
+  for this: in a browser it looks for the official app's local helper on `127.0.0.1:44950` and,
+  when it answers, offers **Open in desktop app** and the **Open links in desktop app** preference.
+  The page's platform check already included Linux; only the helper was missing. The app now
+  answers that check (off by default: Settings → Integrations → Open links from your browser; it
+  shares the port with [figma-agent-linux](https://github.com/neetly/figma-agent-linux)). It
+  accepts requests only from figma.com and opens only figma.com links, for an account signed in
+  here. Chrome 142 and newer ask once to allow local network access for figma.com; the link that
+  triggers the prompt stays in the browser, the next one opens here. Thanks to
+  [@richard-grosjean](https://github.com/richard-grosjean) for reading the protocol out of Figma's
+  bundle and building this ([#73](https://github.com/arximus88/figma-linux-next/pull/73)).
+  
+### Fixed
+
+- **MCP tools no longer hang forever.** A Figma call that never finished (a PNG export that
+  stalled was seen in testing) kept the tool, and the AI client waiting on it, stuck with no
+  error. Tools now give up after 60 seconds and say so.
+- **MCP errors name the actual reason** ([#67](https://github.com/arximus88/figma-linux-next/issues/67)).
+  View access (a Dev or View seat, or a file shared as "can view"), Dev Mode without full access, a
+  file with exports restricted, Sites files and files outside a team each get their own message,
+  following the rules Figma itself applies. A file you can only view never exposes the API, Dev Mode
+  included; the message now says so and points to Figma's remote MCP server.
+- **`get_screenshot` with nothing selected says so.** It returned the window capture labelled
+  "Plugin API unavailable" even when the API was fine and simply nothing was selected.
+- **Settings opened during startup no longer disappears.** Choosing Settings from the tray while
+  the window was still starting showed it for a moment, then Home covered it and its tab never
+  appeared in the strip. It now opens once the window is ready.
+
 ## [0.22.1] - 2026-10-14
 
 A maintenance release for the Flatpak package: it moves off the end-of-life Freedesktop 24.08

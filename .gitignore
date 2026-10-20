@@ -14,7 +14,10 @@ snap/prime
 snap/snap
 snap/stage
 bun.lockb
-docs
+# Keep local investigations ignored; track the issue-notes archive.
+/docs/*
+!/docs/README.md
+!/docs/notes/
 
 # Flatpak local build output (flatpak-builder --user --install build-dir flatpak/...)
 build-dir

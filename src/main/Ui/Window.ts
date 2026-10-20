@@ -212,6 +212,10 @@ export default class Window {
     return [...ids];
   }
 
+  public get userId(): string {
+    return this._userId;
+  }
+
   public setUserId(id: string, sourceWebContentsId?: number) {
     const previousId = this._userId;
     this._userId = id;
@@ -897,6 +901,12 @@ export default class Window {
 
   /** Open Settings as a tab, or bring it to the front if it already is one. */
   public openSettingsView() {
+    // Same race as openUrl: opened while the window starts (tray → Settings),
+    // the panel's load would put Home in front of it and miss settingsTabOpened.
+    if (!this.panelLoaded) {
+      this.window.webContents.once("did-finish-load", () => this.openSettingsView());
+      return;
+    }
     this.hideTabPreview();
     this.hideTabGroupPrompt();
     this.settingsTab.show();
