@@ -32,7 +32,7 @@
     tabActiveClass = "tab--active",
     tabTextClass = "tab-text",
     tabCloseClass = "tab-close",
-  } = $props<{
+  }: {
     currentTabId: number | undefined;
     items: Types.TabFront[];
     groups?: Types.TabGroup[];
@@ -53,7 +53,7 @@
     tabActiveClass?: string;
     tabTextClass?: string;
     tabCloseClass?: string;
-  }>();
+  } = $props();
 
   // The tab transition is `|global` (see TabSlideParams in ./motion), so it
   // would also fire for every tab already present when the panel mounts.

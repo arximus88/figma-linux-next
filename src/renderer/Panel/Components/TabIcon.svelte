@@ -10,13 +10,13 @@
   import NewFile from "Common/Icons/TabType/NewFile.svelte";
   import { NEW_FILE_TAB_TITLE } from "Const";
 
-  let { editorType, isLibrary = false, active = false, title, size = "16" } = $props<{
+  let { editorType, isLibrary = false, active = false, title, size = "16" }: {
     editorType?: Types.EditorType;
     isLibrary?: boolean;
     active?: boolean;
     title?: string;
     size?: string;
-  }>();
+  } = $props();
 
   const isNewFileTab = $derived(title === NEW_FILE_TAB_TITLE);
 </script>
