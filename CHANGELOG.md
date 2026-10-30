@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-30
+
+Files reopen where you left them, trackpad pan and pinch speeds are adjustable, links from your
+browser can open in the app, and the engine moves to Electron 45 (Chromium 156).
+
 ### Added
 
 - **Figma links from your browser can open in the app**
@@ -29,8 +34,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [@jangoux](https://github.com/jangoux)
   ([#77](https://github.com/arximus88/figma-linux-next/pull/77)).
 
+- **Trackpad pan and pinch-zoom speed**
+  ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Figma tunes both gestures for
+  a Mac trackpad, so on Linux panning ran too fast and pinching barely zoomed. Settings → General
+  → Trackpad now has a speed for each, from 0.25× to 4×. At the default 1× nothing changes. A mouse
+  wheel is never affected, and changes apply to open files right away. Thanks to
+  [figmix](https://gitlab.com/Valo27/figmix) for showing the canvas accepts rescaled wheel events.
+
 ### Fixed
 
+- **Files reopen on the page and at the spot you left**
+  ([#72](https://github.com/arximus88/figma-linux-next/issues/72)). After a restart, restored tabs
+  came back on the page and zoom the file was first opened with. Figma keeps your current page and
+  viewport in the address of the tab as you work, and the saved session now uses that address.
 - **MCP tools no longer hang forever.** A Figma call that never finished (a PNG export that
   stalled was seen in testing) kept the tool, and the AI client waiting on it, stuck with no
   error. Tools now give up after 60 seconds and say so.
@@ -47,19 +63,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **WebGPU shaders no longer leave Wayland on NVIDIA-only systems.** The XWayland relaunch behind the
-  toggle exists because Chromium blocks WebGPU-to-GL interop on Linux except for GPUs it has
-  qualified; the only way past that on a blocked GPU drags Vulkan compositing in, which the
-  Wayland platform rejects. NVIDIA drivers 535.183.01 and newer have been on Chromium's
-  allowlist since Chrome 147, and with the Electron the app ships, WebGPU and the interop are
-  hardware-accelerated on native Wayland with no flag at all (measured on an RTX 3080). The app
-  now checks DRM GPU vendors and reads the driver version from `/proc/driver/nvidia/version`.
-  When every detected GPU is NVIDIA and the driver qualifies, it keeps native Wayland with the toggle on. Hybrid systems, unknown GPUs, AMD and older drivers keep
-  the existing XWayland fallback where supported. The setting text now says so instead of "Runs the app under XWayland". This also
-  fixes keyboard input under XWayland for those systems
-  ([#81](https://github.com/arximus88/figma-linux-next/issues/81)): they no longer leave Wayland.
-  Thanks to [@richard-grosjean](https://github.com/richard-grosjean)
-  ([#74](https://github.com/arximus88/figma-linux-next/pull/74)).
+- **Electron 45.1.0 (Chromium 156)**, up from 44.5.1. Brings the Linux fixes from the 44.x line: paste
+  no longer hangs on X11 until a restart, and a D-Bus call on a disconnected bus no longer crashes
+  the app. First login was re-checked on a clean profile. File watching for local plugin
+  development moves to chokidar 6.
+- **WebGPU shaders no longer leave Wayland on NVIDIA-only systems**
+  ([#74](https://github.com/arximus88/figma-linux-next/pull/74)). The XWayland relaunch behind the
+  toggle exists because Chromium blocks WebGPU-to-GL interop on Linux except on GPUs it has
+  qualified. NVIDIA drivers 535.183.01 and newer have been qualified since Chrome 147, and the
+  shaders then render on native Wayland with no flag at all (measured on an RTX 3080). The app now
+  reads the DRM GPU vendors and `/proc/driver/nvidia/version`; when every GPU is NVIDIA and the
+  driver qualifies, it stays on Wayland with the toggle on. Hybrid systems, unknown GPUs, AMD and
+  older drivers keep the XWayland fallback, and the setting text says which one applies. On those
+  NVIDIA systems this also ends the keyboard trouble under XWayland
+  ([#81](https://github.com/arximus88/figma-linux-next/issues/81)): typing into the properties
+  panel, Delete and copy/paste work again. Thanks to
+  [@richard-grosjean](https://github.com/richard-grosjean).
 
 ## [0.22.1] - 2026-10-14
 

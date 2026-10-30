@@ -27,7 +27,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Desktop-native window frames & tabs** — auto-selects GNOME (Adwaita), KDE Plasma (Breeze), or Legacy Windows chrome with Light/Dark/System themes, optional hidden min/max buttons, configurable `+` tab button position, and tab hover preview cards.
 - **Instant new-file tab** — pre-loaded in the background after login so new tabs open without delay.
 - **System tray & config isolation** — optional tray mode (native on KDE Plasma, AppIndicator on GNOME) and isolated settings in `~/.config/figma-linux-next`.
-- **Latest Chromium & Google Fonts** — powered by Electron 44 (Chromium 152) with up-to-date Google Sans, Google Sans Flex, and Google Sans Code.
+- **Latest Chromium & Google Fonts** — powered by Electron 45 (Chromium 156) with up-to-date Google Sans, Google Sans Flex, and Google Sans Code.
 
 ## Installation
 
@@ -131,7 +131,7 @@ cp ~/.config/figma-linux/settings.json ~/.config/figma-linux-next/
 
 ## Building from source
 
-Built with **Electron 44** (Chromium 152), **Svelte 5** (runes), **Vite 8**, **Bun**, and **Biome**.
+Built with **Electron 45** (Chromium 156), **Svelte 5** (runes), **Vite 8**, **Bun**, and **Biome**.
 
 ```bash
 git clone https://github.com/arximus88/figma-linux-next.git
