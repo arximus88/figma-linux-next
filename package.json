@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.22.1",
+  "version": "0.23.0",
   "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
@@ -34,7 +34,7 @@
     ]
   },
   "dependencies": {
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "electron-log": "^5.4.4",
     "fontkit": "^2.0.4"
   },
@@ -42,20 +42,20 @@
     "electron"
   ],
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
-    "@playwright/test": "^1.63.0",
+    "@biomejs/biome": "^2.6.4",
+    "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
-    "@types/bun": "^1.4.2",
+    "@types/bun": "^1.4.4",
     "@types/fontkit": "^2.0.9",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.6",
     "cross-env": "^10.1.0",
-    "electron": "44.5.1",
-    "electron-builder": "^26.15.3",
+    "electron": "45.1.0",
+    "electron-builder": "^26.18.0",
     "lint-staged": "^17.6.0",
     "nodemon": "^3.1.14",
     "svelte": "^5.57.1",
-    "svelte-check": "^4.7.6",
+    "svelte-check": "^4.7.7",
     "svelte-preprocess": "^6.0.5",
     "typescript": "^6.0.3",
     "vite": "^8.3.2",

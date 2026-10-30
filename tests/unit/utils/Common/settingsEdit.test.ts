@@ -55,10 +55,11 @@ describe("planSettingsUpdate", () => {
         s.mcp.enableWriteTools = !s.mcp.enableWriteTools;
         s.app.frameStyleAuto = !s.app.frameStyleAuto;
         s.app.tabHoverPreviews = !s.app.tabHoverPreviews;
+        s.app.figmaAgentEnabled = !s.app.figmaAgentEnabled;
       }),
     );
     expect(effects.map((e) => e.type as string).sort()).toEqual(
-      ["dialogs", "frameStyle", "mcpWriteTools", "panelLayout", "tray"].sort(),
+      ["dialogs", "figmaAgent", "frameStyle", "mcpWriteTools", "panelLayout", "tray"].sort(),
     );
   });
 
@@ -140,5 +141,53 @@ describe("pendingRestart", () => {
       s.ui.scalePanel = 1.2;
     });
     expect(pendingRestart(base(), saved)).toEqual([]);
+  });
+});
+
+describe("lazy restore settings", () => {
+  it("persists startup preferences without requiring an immediate restart", () => {
+    const changed = edit((s) => {
+      s.app.lazyRestoreTabs = true;
+      s.app.lazyRestoreEagerCount = 2;
+    });
+    const { next, effects } = planSettingsUpdate(base(), changed);
+    expect(next.app.lazyRestoreTabs).toBe(true);
+    expect(next.app.lazyRestoreEagerCount).toBe(2);
+    expect(effects).toEqual([]);
+    expect(pendingRestart(base(), next)).toEqual([]);
+  });
+  it("keeps the eager count in the supported range", () => {
+    for (const count of [0, 11, NaN, Infinity, 1.5]) {
+      const changed = edit((s) => {
+        s.app.lazyRestoreEagerCount = count;
+      });
+      expect(planSettingsUpdate(base(), changed).next.app.lazyRestoreEagerCount).toBe(
+        base().app.lazyRestoreEagerCount,
+      );
+    }
+  });
+});
+
+describe("trackpad speeds", () => {
+  it("a changed speed is saved and pushed to the open tabs", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => {
+        s.app.trackpadZoomSpeed = 2.5;
+      }),
+    );
+    expect(next.app.trackpadZoomSpeed).toBe(2.5);
+    expect(effects).toContainEqual({ type: "trackpad", pan: 1, zoom: 2.5 });
+  });
+
+  it("an out-of-range speed keeps the current value and pushes nothing", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => {
+        s.app.trackpadPanSpeed = 0;
+      }),
+    );
+    expect(next.app.trackpadPanSpeed).toBe(1);
+    expect(effects.some((e) => e.type === "trackpad")).toBe(false);
   });
 });

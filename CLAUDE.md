@@ -132,6 +132,7 @@ The application is a classic Electron app with two processes:
 - Persistent settings (Storage)
 - Dialogs (Native or Zenity backends)
 - MCP server for AI assistant integration (McpServer)
+- The local helper figma.com probes from a browser so file links open here (FigmaAgent)
 
 **Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
@@ -219,6 +220,21 @@ new App(new WindowManager(), new Session(), new FontManager());
 - MCP protocol (JSON-RPC 2.0 over Streamable HTTP) on port **3845**
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
+
+**FigmaAgent** (`src/main/FigmaAgent.ts`):
+- The local helper figma.com looks for from a *browser*. The page never uses `figma://` for
+  "Open in desktop app": it probes `http://127.0.0.1:44950/figma/...` (the official app's font
+  helper) and, if it answers, shows the menu item, the "Open links in desktop app" preference and
+  redirects file links on load. Its platform check includes Linux. Endpoints answered: `/version`
+  (`{version}`, ≥ 24 or the page skips the preference push), `/desktop/can-open-url`
+  (`{canOpen}`), `/desktop/open-url` (`{opened}`, routed to `WindowManager.openUrl`), and the
+  preference POST. Everything else 404s. Requests without a figma.com `Origin` get 403 — the
+  open-url GET is a simple request any page could fire — and only https figma.com URLs for a
+  signed-in user id (`WindowManager.getKnownUserIds`) are opened. Protocol read out of the
+  production bundle on 2026-10-11 (`routeAgentRequest` is pure and unit-tested). Setting:
+  `app.figmaAgentEnabled`, **default off**: `figma-agent-linux` (AUR, local fonts for figma.com in
+  a browser) listens on the same `127.0.0.1:44950` via a systemd socket. If this app binds first,
+  the browser silently loses local fonts — we 404 the font endpoints. The port is fixed by Figma's page.
 
 **UrlHandlerIntegration** (`src/main/UrlHandlerIntegration.ts`):
 - Makes sure `figma://` reaches the app when no package registered it: an AppImage always writes/refreshes its own `.desktop` (path may move); a bare binary (`nix run`, unpacked zip) writes a "local" entry only if `xdg-mime` reports no handler at all. Flatpak and dev are skipped. Rules live in the pure `planUrlHandler()` (unit-tested)
@@ -327,6 +343,14 @@ The App class applies extensive Chromium flags in `applySwitches()`:
 
 Custom switches can be added in settings under `app.commandSwitches`.
 
+WebGPU shaders (`app.enableWebGPU`): Chromium blocks WebGPU-to-GL interop on Linux
+(`software_rendering_list.json` entry 186, crbug 442791440) except Intel Gen12+ (Chrome 145+)
+and NVIDIA ≥ 535.183.01 (Chrome 147+); AMD has no exception as of 2026-10. On a blocked GPU the
+toggle relaunches the packaged app under XWayland (`shouldRelaunchUnderX11`, `src/main/index.ts`).
+`Utils/Main/nativeWebGpu.ts` reads `/proc/driver/nvidia/version` before Chromium starts and skips
+the relaunch only when all DRM GPUs are NVIDIA and the driver is allowlisted — measured 2026-10-11 on an RTX 3080 with Electron 44:
+native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not detected yet.
+
 ### Window Frame Styles
 
 `Types.FrameStyle` is `"windows" | "gnome" | "macos" | "kde"` (`src/types/Common/index.d.ts`).
@@ -368,6 +392,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 | `src/main/Dialogs/index.ts` | Dialog provider (Native / Zenity) |
 | `src/main/MCP/McpServer.ts` | MCP protocol server (port 3845) |
 | `src/main/UrlHandlerIntegration.ts` | figma:// handler registration for AppImage / bare-binary launches |
+| `src/main/FigmaAgent.ts` | Local helper figma.com probes from a browser (port 44950) so browser links open in the app |
 | `src/main/ExtensionManager.ts` | Plugin system with hot-reloading |
 | `src/renderer/Panel/App.svelte` | Main toolbar UI |
 | `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
@@ -383,7 +408,9 @@ Custom switches can be added in settings under `app.commandSwitches`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "44.5.1"` (Chromium 152, Node 24), bumped 2026-10-01 from 44.2.0. OAuth first login re-verified on 44.5.1 (2026-10-01, clean profile, bundled binary): `__Host-figma.authn` lands.
+`package.json` lists an exact version, currently `"electron": "45.1.0"` (Chromium 156, Node 24), bumped 2026-10-29 from 44.5.1 (via 44.10.0). OAuth first login re-verified on 45.1.0 (2026-10-30, clean profile, bundled binary): `__Host-figma.authn` lands. 44.10.0 was never shipped or login-tested on its own.
+
+45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 
 History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on GNOME/AppIndicator, Cinnamon, XFCE; electron#52674, fixed in 43.4.1). 44.0 rebuilt the `clipboard` module: every method is async, payloads are `ClipboardItem` → `Blob` by MIME type, `readImage/writeImage/readBuffer/writeBuffer` are gone, and the module no longer exists in renderers — which is why `ClipboardController` now owns both read and write and the tab preload only forwards `getClipboardData`/`setClipboardData`.
 

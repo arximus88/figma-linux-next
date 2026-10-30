@@ -1,6 +1,7 @@
 import { app } from "electron";
 
 import { logger } from "./Logger";
+import { type GpuFacts, hasNativeWebGpu, UNKNOWN_GPU } from "Utils/Main/nativeWebGpu";
 
 // Vulkan switches — both trigger Vulkan usage and are incompatible with ozone=wayland.
 const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-graphite"];
@@ -8,10 +9,14 @@ const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-grap
 /**
  * Decide whether the process must relaunch itself under a clean X11 environment.
  *
- * Figma's WebGPU shader effects only composite under X11 ozone, and Electron reads
+ * For GPUs outside Chromium's interop allowlist, WebGPU effects need the X11 workaround. Electron reads
  * WAYLAND_DISPLAY during early native init — too early to strip in JS — so a Wayland session
  * with shaders enabled must spawn a fresh child with WAYLAND_DISPLAY removed (see index.ts).
  * Pure + env-injectable so the decision is unit-testable without spawning anything.
+ *
+ * Not needed at all on a GPU Chromium already allowlists for WebGPU on Linux (NVIDIA
+ * 535.183.01+, see Utils/Main/nativeWebGpu): there the effects composite on native Wayland
+ * without any flag, so the app stays on Wayland and keeps fractional scaling.
  *
  * Guards: FIGMA_FORCE_X11 prevents an infinite relaunch loop; dev is skipped (vite owns the
  * Electron process); test is skipped (Playwright drives the launched process directly, so
@@ -25,10 +30,12 @@ const VULKAN_SWITCHES = ["use-vulkan", "enable-unsafe-webgpu", "enable-skia-grap
 export function shouldRelaunchUnderX11(
   settings: Partial<Types.SettingsInterface["app"]>,
   env: NodeJS.ProcessEnv = process.env,
+  gpu: GpuFacts = UNKNOWN_GPU,
 ): boolean {
   return Boolean(
     settings?.enableWebGPU &&
       env.WAYLAND_DISPLAY &&
+      !hasNativeWebGpu(gpu) &&
       !env.FIGMA_FORCE_X11 &&
       env.NODE_ENV !== "dev" &&
       env.NODE_ENV !== "test" &&
@@ -49,7 +56,10 @@ export function shouldRelaunchUnderX11(
  * That is why the same flags work in a standalone probe but not in the app. The caller in
  * `index.ts` reads settings.json synchronously (via fs) and invokes this before `start()`.
  */
-export function applyChromiumSwitches(settings: Partial<Types.SettingsInterface["app"]> = {}) {
+export function applyChromiumSwitches(
+  settings: Partial<Types.SettingsInterface["app"]> = {},
+  gpu: GpuFacts = UNKNOWN_GPU,
+) {
   // Chromium flags for better performance and GPU support
   // Full flags reference: https://peter.sh/experiments/chromium-command-line-switches/
 
@@ -66,7 +76,7 @@ export function applyChromiumSwitches(settings: Partial<Types.SettingsInterface[
   const userForcesVulkan = effectiveSwitches.some((s) => VULKAN_SWITCHES.includes(s.switch));
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define -- hoisted helper, kept below for readability
-  applyDefaultOptimizations(isWayland, userForcesVulkan, !!settings.enableWebGPU);
+  applyDefaultOptimizations(isWayland, userForcesVulkan, !!settings.enableWebGPU, gpu);
 
   if (effectiveSwitches.length) {
     for (const item of effectiveSwitches) {
@@ -90,12 +100,13 @@ function applyDefaultOptimizations(
   isWayland: boolean,
   userForcesVulkan: boolean,
   enableShaders: boolean,
+  gpu: GpuFacts,
 ) {
   // Figma's Shader / Halftone / Noise effects need WebGPU output to composite onto the
   // canvas. Chromium's WebGPU↔GL interop (webgpu_on_vk_via_gl_interop) does exactly that,
-  // and it is available under X11 ozone but DISABLED under Wayland ozone (crbug 442791440 /
-  // 475935650 — the entry is Wayland-specific). So we just run the app under X11/XWayland:
-  // the effects then render through the lightweight GaneshGL compositor + interop. We do
+  // and Chromium allows it for qualified GPUs (crbug 442791440 / 475935650).
+  // Other GPUs use X11/XWayland with the blocklist bypass; allowlisted NVIDIA-only
+  // systems can stay on native Wayland. The effects render through GaneshGL + interop. We do
   // NOT enable Skia Graphite — Graphite (GraphiteDawnVulkan) also renders the effects but
   // adds noticeable canvas-pan latency; GaneshGL + interop is the faster path.
   //
@@ -107,6 +118,12 @@ function applyDefaultOptimizations(
   const shadersActive = enableShaders && !isWayland;
   if (shadersActive) {
     app.commandLine.appendSwitch("ozone-platform", "x11");
+  } else if (enableShaders && hasNativeWebGpu(gpu)) {
+    // Chromium's own allowlist covers this GPU: WebGPU and the GL interop are on by
+    // default under Wayland, no relaunch and no unsafe-webgpu switch required.
+    logger.info(
+      `WebGPU shaders enabled — NVIDIA driver ${gpu.nvidiaDriver} is on Chromium's WebGPU allowlist, staying on native Wayland`,
+    );
   } else if (enableShaders) {
     logger.info(
       process.env.FLATPAK_ID

@@ -79,6 +79,7 @@ mock.module("electron", () => ({
   globalShortcut: {},
   screen: {},
   nativeTheme: {},
+  webContents: { getAllWebContents: (): unknown[] => [] },
   systemPreferences: {},
   crashReporter: {},
   powerMonitor: {},

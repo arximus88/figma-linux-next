@@ -69,6 +69,7 @@ const RECEIVE_CHANNELS = [
   "openCommunity",
   "communityTabWasClose",
   "setLoading",
+  "setTabDiscarded",
   "frameStyleChanged",
   "figmaThemeChanged",
   "settingsTabOpened",
@@ -93,6 +94,7 @@ const INVOKE_CHANNELS = [
   "updateFigmaUiScale",
   "updatePanelScale",
   "getMcpStatus",
+  "getFigmaAgentStatus",
 ] as const;
 
 type SendChannel = (typeof SEND_CHANNELS)[number];

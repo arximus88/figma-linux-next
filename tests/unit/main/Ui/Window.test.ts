@@ -254,7 +254,7 @@ describe("Window Tab Routing", () => {
       test("a file asking to open itself does not clone its own tab", () => {
         const tabManager: any = (windowInstance as any).tabManager;
         const file = tabManager.addTab("https://www.figma.com/design/abc123/My-file", "My file");
-        const fromItself = { sender: { id: file.id }, reply: mock() } as any;
+        const fromItself = { sender: { id: file.webContentsId }, reply: mock() } as any;
 
         windowInstance.openFile(fromItself, "/design/abc123/My-file");
 
@@ -305,6 +305,26 @@ describe("Window Tab Routing", () => {
       windowInstance.setTabFocus(42);
 
       expect(applySpy).toHaveBeenCalledWith(42);
+    });
+  });
+
+  describe("Saved session keeps the page and viewport Figma moved to (#72)", () => {
+    test("getState saves the URL the page shows now, not the one it was opened with", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A?m=auto", "File A");
+      // Figma rewrites its own URL with history.replaceState as you move around.
+      const moved = "https://www.figma.com/design/abc/A?node-id=4-6&p=f&viewport=641%2C553%2C1";
+      tab.view.webContents.getURL = () => moved;
+
+      expect(windowInstance.getState().tabs[0].url).toBe(moved);
+    });
+
+    test("a page that left the file (login, error page) keeps the file URL", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A", "File A");
+      tab.view.webContents.getURL = () => "chrome-error://chromewebdata/";
+
+      expect(windowInstance.getState().tabs[0].url).toBe("https://www.figma.com/design/abc/A");
     });
   });
 
@@ -655,6 +675,136 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("Lazy tab restore (app.lazyRestoreTabs)", () => {
+    test("only the previously-active tab is restored live; the rest become discarded shells", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      const originalLazy = storage.settings.app.lazyRestoreTabs;
+      storage.settings.app.saveLastOpenedTabs = true;
+      storage.settings.app.lazyRestoreTabs = true;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "/design/abc/B",
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [],
+        };
+
+        const restored = new Window(persisted);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab");
+        const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A" },
+          { title: "File B", url: "https://www.figma.com/design/abc/B" },
+          { title: "File C", url: "https://www.figma.com/design/abc/C" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        // Only the tab matching lastActiveTabPath gets a real WebContentsView.
+        expect(addTabSpy.mock.calls.length).toBe(1);
+        expect(addTabSpy).toHaveBeenCalledWith(
+          "https://www.figma.com/design/abc/B",
+          "File B",
+          undefined,
+        );
+        expect(setTabFocusSpy).toHaveBeenCalled();
+
+        // The other two are present (title/url known) but never got a view.
+        const tabManager: any = (restored as any).tabManager;
+        const allTabs = [...tabManager.getAll().values()];
+        const discardedTitles = allTabs
+          .filter((t: any) => t.discarded)
+          .map((t: any) => t.title)
+          .sort();
+        expect(discardedTitles).toEqual(["File A", "File C"]);
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+        storage.settings.app.lazyRestoreTabs = originalLazy;
+      }
+    });
+
+    test("restores the N most-recently-focused tabs live, not just the active one", () => {
+      const originalSaveTabs = storage.settings.app.saveLastOpenedTabs;
+      const originalLazy = storage.settings.app.lazyRestoreTabs;
+      const originalEagerCount = storage.settings.app.lazyRestoreEagerCount;
+      storage.settings.app.saveLastOpenedTabs = true;
+      storage.settings.app.lazyRestoreTabs = true;
+      storage.settings.app.lazyRestoreEagerCount = 2;
+
+      try {
+        const persisted: any = {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          isMaximized: false,
+          lastActiveTabPath: "/design/abc/B",
+          // Most-recent-first; B and C were focused more recently than A.
+          recentTabPaths: ["/design/abc/B", "/design/abc/C", "/design/abc/A"],
+          hasOpenedCommunityTab: false,
+          userId: "",
+          tabs: [],
+          tabGroups: [],
+        };
+
+        const restored = new Window(persisted);
+
+        const scheduled: Array<() => void> = [];
+        const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(((
+          fn: () => void,
+        ) => {
+          scheduled.push(fn);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+        const addTabSpy = spyOn(restored, "addTab");
+        const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        restored.restoreTabs([
+          { title: "File A", url: "https://www.figma.com/design/abc/A" },
+          { title: "File B", url: "https://www.figma.com/design/abc/B" },
+          { title: "File C", url: "https://www.figma.com/design/abc/C" },
+        ]);
+        while (scheduled.length) scheduled.shift()!();
+
+        // Top 2 of recentTabPaths (B, C) restore live — A doesn't, even
+        // though it's a saved tab, because it's third in recency and the
+        // budget is 2.
+        expect(addTabSpy.mock.calls.length).toBe(2);
+        const restoredTitles = addTabSpy.mock.calls.map((call: any[]) => call[1]).sort();
+        expect(restoredTitles).toEqual(["File B", "File C"]);
+        expect(setTabFocusSpy).toHaveBeenCalled();
+
+        const tabManager: any = (restored as any).tabManager;
+        const allTabs = [...tabManager.getAll().values()];
+        const discardedTitles = allTabs.filter((t: any) => t.discarded).map((t: any) => t.title);
+        expect(discardedTitles).toEqual(["File A"]);
+
+        setTimeoutSpy.mockRestore();
+      } finally {
+        storage.settings.app.saveLastOpenedTabs = originalSaveTabs;
+        storage.settings.app.lazyRestoreTabs = originalLazy;
+        storage.settings.app.lazyRestoreEagerCount = originalEagerCount;
+      }
+    });
+  });
+
   describe("New Group popover (TabGroupPromptView)", () => {
     test("promptNewTabGroup only asks the panel for an anchor when the tab is known", () => {
       const send: any = windowInstance.win.webContents.send;
@@ -893,10 +1043,12 @@ describe("Warm tab lifecycle", () => {
   test("promotion clears the skeleton flag once the warm tab has bootstrapped", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    // event.sender.id is always the real webContents id — the warm tab's
+    // logical `.id` (from the counter, see Tab.ts) is a different number.
+    const warmWebContentsId = lastWarmTab.webContentsId;
 
     // Warm tab signals readiness via setLoading(false) from its own webContents.
-    w.setLoading({ sender: { id: warmId } } as any, { loading: false } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: false } as any);
 
     const tabManager: any = (w as any).tabManager;
     spyOn(tabManager, "promoteWarmTab");
@@ -911,13 +1063,15 @@ describe("Warm tab lifecycle", () => {
   test("setLoading from the warm tab is swallowed (not forwarded to the panel)", () => {
     w.setUserId("user-1");
     flushTimers();
-    const warmId = lastWarmTab.id;
+    const warmWebContentsId = lastWarmTab.webContentsId;
     const send: any = w.win.webContents.send;
     send.mockClear?.();
 
-    w.setLoading({ sender: { id: warmId } } as any, { loading: true } as any);
+    w.setLoading({ sender: { id: warmWebContentsId } } as any, { loading: true } as any);
 
-    const forwarded = send.mock.calls.some((c: any[]) => c[0] === "setLoading" && c[1] === warmId);
+    const forwarded = send.mock.calls.some(
+      (c: any[]) => c[0] === "setLoading" && c[1] === warmWebContentsId,
+    );
     expect(forwarded).toBe(false);
   });
 
@@ -1000,5 +1154,140 @@ describe("Warm tab lifecycle", () => {
     w.setUserId("user-1");
 
     expect(reapplySpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("lazy restore boundaries and duplicate tabs", () => {
+  let previous: any;
+  beforeEach(() => {
+    previous = { ...storage.settings.app };
+    storage.settings.app.lazyRestoreTabs = true;
+    storage.settings.app.lazyRestoreEagerCount = 2;
+  });
+  afterEach(() => {
+    Object.assign(storage.settings.app, previous);
+  });
+  function restore(state: any, tabs: Types.SavedTab[]) {
+    const w = new Window({ lastActiveTabPath: "", ...state } as any);
+    const scheduled: (() => void)[] = [];
+    const timer = spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      scheduled.push(fn);
+      return 0;
+    }) as any);
+    try {
+      w.restoreTabs(tabs);
+      while (scheduled.length) scheduled.shift()!();
+    } finally {
+      timer.mockRestore();
+    }
+    return w;
+  }
+  const tabs = ["a", "b", "c"].map((key) => ({
+    title: key,
+    url: `https://www.figma.com/design/${key}`,
+  }));
+  test("active tab counts toward the eager limit even when recency is stale", () => {
+    const w = restore(
+      { lastActiveTabPath: "/design/c", recentTabPaths: ["/design/a", "/design/b"] },
+      tabs,
+    );
+    expect(
+      [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
+    ).toEqual(["a", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("c");
+  });
+  test("exact paths do not confuse one file key with a prefix of another", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const w = restore({ lastActiveTabPath: "/design/abc" }, [
+      { title: "prefix", url: "https://www.figma.com/design/a" },
+      { title: "exact", url: "https://www.figma.com/design/abc" },
+    ]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("exact");
+    expect([...w.tabs.values()].filter((tab) => tab instanceof Tab)).toHaveLength(1);
+  });
+  test("saved indices identify duplicate file tabs and retain recency across restarts", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const duplicates = [
+      { title: "page1", url: "https://www.figma.com/design/a?page-id=1" },
+      { title: "page2", url: "https://www.figma.com/design/a?page-id=2" },
+      tabs[2],
+    ];
+    const w = restore({ lastActiveTabIndex: 1, recentTabIndices: [1, 2, 0] }, duplicates);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("page2");
+    const saved = w.getState();
+    expect(saved.lastActiveTabIndex).toBe(1);
+    expect(saved.recentTabIndices).toEqual([1, 2, 0]);
+    const next = restore(saved, saved.tabs);
+    expect(next.tabs.get(next.getLatestFocusedTabId())?.title).toBe("page2");
+    expect(next.getState().recentTabIndices).toEqual([1, 2, 0]);
+  });
+  test("unloaded tabs keep their title, group and saved order", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const grouped = [
+      { title: "a", url: "https://www.figma.com/design/a", groupId: "g1" },
+      { title: "b", url: "https://www.figma.com/design/b" },
+      { title: "c", url: "https://www.figma.com/design/c", groupId: "g1" },
+    ];
+    const w = restore({ lastActiveTabIndex: 1 }, grouped);
+    const restored = [...w.tabs.values()];
+    expect(restored.map((tab) => tab.title)).toEqual(["a", "b", "c"]);
+    expect(restored.map((tab) => tab.groupId)).toEqual(["g1", undefined, "g1"]);
+    expect(restored.map((tab) => tab instanceof Tab)).toEqual([false, true, false]);
+
+    const added = (w.win.webContents.send as any).mock.calls
+      .filter(([channel]: [string]) => channel === "didTabAdd")
+      .map(([, info]: [string, any]) => info);
+    const shells = added.filter((info: any) => info.discarded);
+    expect(shells.map((info: any) => [info.id, info.title, info.groupId])).toEqual([
+      [restored[0].id, "a", "g1"],
+      [restored[2].id, "c", "g1"],
+    ]);
+  });
+  test("an unloaded tab loads on first focus, in place", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const w = restore({ lastActiveTabIndex: 0 }, [
+      tabs[0],
+      { title: "b", url: "https://www.figma.com/design/b", groupId: "g1" },
+      tabs[2],
+    ]);
+    const order = [...w.tabs.keys()];
+    const shellId = order[1];
+    expect(w.tabs.get(shellId)).not.toBeInstanceOf(Tab);
+    const send = w.win.webContents.send as any;
+    const addChildView = w.win.contentView.addChildView as any;
+    send.mockClear();
+    addChildView.mockClear();
+
+    w.setTabFocus(shellId);
+
+    const live = w.tabs.get(shellId) as Tab;
+    expect(live).toBeInstanceOf(Tab);
+    expect(live.title).toBe("b");
+    expect(live.groupId).toBe("g1");
+    expect(live.view.webContents.loadURL).toHaveBeenCalledWith("https://www.figma.com/design/b");
+    expect(addChildView).toHaveBeenCalledWith(live.view);
+    expect(send).toHaveBeenCalledWith("setTabDiscarded", shellId, false);
+    expect(send).toHaveBeenCalledWith("focusTab", shellId);
+    expect(w.getLatestFocusedTabId()).toBe(shellId);
+    expect([...w.tabs.keys()]).toEqual(order);
+
+    // Events from the new webContents reach the same strip entry.
+    w.setTabTitle({ sender: { id: live.webContentsId } } as any, "renamed");
+    expect(send).toHaveBeenCalledWith("setTitle", { id: shellId, title: "renamed" });
+
+    // Focusing it again reuses the loaded view.
+    w.setTabFocus(order[0]);
+    w.setTabFocus(shellId);
+    expect(w.tabs.get(shellId)).toBe(live);
+  });
+  test("empty sessions create no views", () => {
+    expect(restore({}, []).tabs.size).toBe(0);
+  });
+  test("saved Home focus does not force a file to the front", () => {
+    const w = restore({ lastActiveTabIndex: -1, recentTabIndices: [1] }, tabs);
+    expect(w.tabs.has(w.getLatestFocusedTabId())).toBe(false);
+    expect(
+      [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
+    ).toEqual(["b"]);
   });
 });

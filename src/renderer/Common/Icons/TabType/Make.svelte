@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { active = false, size = "16" } = $props<{ active?: boolean; size?: string }>();
+  let { active = false, size = "16" }: { active?: boolean; size?: string } = $props();
   // Inactive follows the tab text; active picks the per-type accent from theme.css
   // (light/dark variants) so it reads on both panel themes.
   const color = $derived(active ? "var(--tabicon-make)" : "currentColor");

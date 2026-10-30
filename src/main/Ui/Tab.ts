@@ -29,6 +29,29 @@ import { logger } from "Main/Logger";
 const THUMBNAIL_WIDTH = 560;
 const THUMBNAIL_JPEG_QUALITY = 72;
 
+/**
+ * Logical tab ids are allocated from this counter instead of reusing
+ * `webContents.id` directly. A lazily restored tab (see TabManager's
+ * DiscardedTab) holds a slot in the strip before it has any webContents, and
+ * on first focus gets a brand-new WebContentsView with an unpredictable
+ * webContents id — but the tab's identity in the tab strip, its group
+ * membership, and the user's click target must survive that swap unchanged. Starting well above any realistic webContents id keeps the two
+ * id spaces visually distinguishable in logs without requiring every caller
+ * that only wants "the real OS-level webContents id" to change — those use
+ * the new `webContentsId` getter below instead.
+ */
+let nextLogicalTabId = 1_000_000_000;
+
+/**
+ * Allocate a fresh logical tab id without constructing a Tab (and therefore
+ * without spinning up a WebContentsView/renderer process) — used to insert a
+ * tab directly in the discarded state, e.g. lazily restoring a saved session
+ * (see Window.restoreTabs / TabManager.addDiscardedShell).
+ */
+export function allocateLogicalTabId(): number {
+  return nextLogicalTabId++;
+}
+
 export default class Tab {
   public id: number;
   public title?: string;
@@ -58,6 +81,11 @@ export default class Tab {
   constructor(private windowId: number) {
     this.initTab();
     this.registerEvents();
+  }
+
+  /** The real, live webContents id — distinct from `id` (see nextLogicalTabId above). */
+  public get webContentsId() {
+    return this.view.webContents.id;
   }
 
   public get editorType() {
@@ -103,6 +131,18 @@ export default class Tab {
   public getUrl() {
     return this.view.webContents.getURL();
   }
+  /**
+   * The file as the page shows it now, for the saved session. Figma rewrites
+   * its own URL (page, selection, `viewport=x,y,zoom`) with
+   * history.replaceState, which never reaches `url`, so a restart used to reopen
+   * the file where it was first loaded (#72). Falls back to `url` when the page
+   * is somewhere a restore should not return to (login, an error page).
+   */
+  public get sessionUrl(): string {
+    const wc = this.view.webContents;
+    const live = wc.isDestroyed() ? "" : wc.getURL();
+    return isFigmaRunUrl(live) ? live : this.url;
+  }
 
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);
@@ -144,7 +184,7 @@ export default class Tab {
         preload: isDev ? preloadScriptPathDev : preloadScriptPathProd,
       },
     });
-    this.id = this.view.webContents.id;
+    this.id = allocateLogicalTabId();
 
     app.emit("requestBoundsForTabView", this.windowId);
   }

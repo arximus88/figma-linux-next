@@ -32,7 +32,7 @@
     tabActiveClass = "tab--active",
     tabTextClass = "tab-text",
     tabCloseClass = "tab-close",
-  } = $props<{
+  }: {
     currentTabId: number | undefined;
     items: Types.TabFront[];
     groups?: Types.TabGroup[];
@@ -53,7 +53,7 @@
     tabActiveClass?: string;
     tabTextClass?: string;
     tabCloseClass?: string;
-  }>();
+  } = $props();
 
   // The tab transition is `|global` (see TabSlideParams in ./motion), so it
   // would also fire for every tab already present when the panel mounts.
@@ -203,6 +203,7 @@
     <div
       class="{tabClass} {currentTabId === item.id ? tabActiveClass : ''}"
       class:tab-grouped={grouped}
+      class:tab-discarded={item.discarded}
     >
       <div
         role="button"
@@ -550,5 +551,13 @@
   @keyframes tab-skeleton-pulse {
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
+  }
+
+  /* Not loaded yet (app.lazyRestoreTabs) — click loads it, same as any other tab. */
+  .tab-discarded {
+    opacity: 0.55;
+  }
+  .tab-discarded:hover {
+    opacity: 0.8;
   }
 </style>

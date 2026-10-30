@@ -35,3 +35,33 @@
     </SettingRow>
   </div>
 </section>
+
+<section class="settings-group">
+  <h3 class="settings-group-title">Trackpad</h3>
+  <div class="settings-card">
+    <SettingRow setting={SETTINGS.trackpadPanSpeed}>
+      <input
+        class="s-range"
+        type="range"
+        min="0.25"
+        max="4"
+        step="0.25"
+        aria-label={SETTINGS.trackpadPanSpeed.title}
+        bind:value={$settings.app.trackpadPanSpeed}
+      />
+      <span class="s-value">{$settings.app.trackpadPanSpeed}×</span>
+    </SettingRow>
+    <SettingRow setting={SETTINGS.trackpadZoomSpeed}>
+      <input
+        class="s-range"
+        type="range"
+        min="0.25"
+        max="4"
+        step="0.25"
+        aria-label={SETTINGS.trackpadZoomSpeed.title}
+        bind:value={$settings.app.trackpadZoomSpeed}
+      />
+      <span class="s-value">{$settings.app.trackpadZoomSpeed}×</span>
+    </SettingRow>
+  </div>
+</section>

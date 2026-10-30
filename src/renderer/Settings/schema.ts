@@ -111,7 +111,8 @@ export const SETTINGS = {
     id: "webgpu",
     section: "appearance",
     title: "WebGPU shaders",
-    subtitle: "Shader, Halftone and Noise effects. Runs the app under XWayland.",
+    subtitle:
+      "Shader, Halftone and Noise effects. NVIDIA-only systems with driver 535.183.01 or newer stay on native Wayland. Other systems use XWayland where supported.",
     keywords: "gpu shader effects halftone noise xwayland vulkan",
   }),
   frameAuto: setting({
@@ -155,6 +156,35 @@ export const SETTINGS = {
       "Opening a file that is already open starts a new tab instead of switching to it, so two of its pages can stay a click apart.",
     keywords: "duplicate same file twice multiple tabs pages",
   }),
+  lazyRestoreTabs: setting({
+    id: "lazy-restore-tabs",
+    section: "tabs",
+    title: "Load restored tabs on demand",
+    subtitle: "Load a few tabs at startup. The remaining tabs load when you select them.",
+    keywords: "lazy restore startup session memory ram background defer",
+  }),
+  lazyRestoreEagerCount: setting({
+    id: "lazy-restore-eager-count",
+    section: "tabs",
+    title: "Tabs to load at startup",
+    subtitle: "Number of restored tabs to load immediately when loading on demand is enabled.",
+    keywords: "lazy restore eager count startup session memory",
+  }),
+  trackpadPanSpeed: setting({
+    id: "trackpad-pan-speed",
+    section: "general",
+    title: "Trackpad pan speed",
+    subtitle: "How far the canvas moves for a two-finger swipe. 1× is Figma's own speed.",
+    keywords: "touchpad scroll swipe two finger gesture move canvas fast slow",
+  }),
+  trackpadZoomSpeed: setting({
+    id: "trackpad-zoom-speed",
+    section: "general",
+    title: "Trackpad pinch zoom speed",
+    subtitle:
+      "How much a pinch zooms the canvas. 1× is Figma's own speed. A mouse wheel is not affected.",
+    keywords: "touchpad pinch zoom gesture magnify canvas fast slow",
+  }),
   mcpServer: setting({
     id: "mcp-server",
     section: "integrations",
@@ -189,6 +219,15 @@ export const SETTINGS = {
     title: "Debugging port",
     subtitle: "127.0.0.1 only. Any local process can attach while it is open.",
     keywords: "cdp port remote debugging",
+  }),
+  browserHandoff: setting({
+    id: "browser-handoff",
+    section: "integrations",
+    title: "Open links from your browser",
+    subtitle:
+      "Answer figma.com's desktop-app check, so Figma in Chrome or Firefox can hand file links to this app.",
+    keywords:
+      "browser links open in desktop app handoff agent chrome firefox slack figma-agent-linux 44950",
   }),
   fontDirs: setting({
     id: "font-dirs",

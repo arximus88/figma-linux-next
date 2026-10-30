@@ -78,3 +78,20 @@ describe("WindowManager.setUserIdOnAllWindows", () => {
     expect(windowA.setUserId).toHaveBeenCalledWith("user-42", 77);
   });
 });
+
+test("voice and microphone IPC resolve the sending window, not the focused window", () => {
+  const manager = new WindowManager() as any;
+  const owner = {
+    allWebContentsIds: [71],
+    getTabByWebContentsId: (id: number) => (id === 71 ? { id: 1001 } : undefined),
+    setIsInVoiceCall: mock(),
+    setUsingMicrophone: mock(),
+  };
+  manager.windows.set(1, owner);
+  manager.windows.set(2, { allWebContentsIds: [72] });
+  manager.lastFocusedwindowId = 2;
+  manager.setIsInVoiceCall({ sender: { id: 71 } }, true);
+  manager.setUsingMicrophone({ sender: { id: 71 } }, false);
+  expect(owner.setIsInVoiceCall).toHaveBeenCalledWith(1001, true);
+  expect(owner.setUsingMicrophone).toHaveBeenCalledWith(1001, false);
+});
