@@ -22,7 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   triggers the prompt stays in the browser, the next one opens here. Thanks to
   [@richard-grosjean](https://github.com/richard-grosjean) for reading the protocol out of Figma's
   bundle and building this ([#73](https://github.com/arximus88/figma-linux-next/pull/73)).
-  
+
+- **Lazy session restore** (opt-in). Only the most recently used tabs load at startup (1–10,
+  default 3); the rest load when you select them. Tab order and groups survive the restart.
+  Off by default; turn it on in Settings → Tabs & windows. Thanks to
+  [@jangoux](https://github.com/jangoux)
+  ([#77](https://github.com/arximus88/figma-linux-next/pull/77)).
+
 ### Fixed
 
 - **MCP tools no longer hang forever.** A Figma call that never finished (a PNG export that

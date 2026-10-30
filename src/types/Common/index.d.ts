@@ -40,6 +40,8 @@ declare namespace Types {
     loading?: boolean;
     /** Tab group this tab belongs to, if any. See `TabGroup`. */
     groupId?: string;
+    /** True while a lazily restored tab has not loaded yet (see app.lazyRestoreTabs) — its first focus loads it. */
+    discarded?: boolean;
     view: import("electron").WebContentsView;
   }
 
@@ -56,6 +58,7 @@ declare namespace Types {
     | "isInVoiceCall"
     | "loading"
     | "groupId"
+    | "discarded"
   >;
 
   interface AddTabProps {
@@ -178,6 +181,11 @@ declare namespace Types {
     height: number;
     isMaximized: boolean;
     lastActiveTabPath: string;
+    /** Pathnames of the most-recently-focused tabs in this window, most-recent-first (capped, deduped) — used by lazyRestoreTabs to decide which saved tabs restore live vs. as a discarded shell. Falls back to just [lastActiveTabPath] for state saved before this field existed. */
+    recentTabPaths?: string[];
+    /** Indices into saved tabs distinguish duplicate file tabs. */
+    recentTabIndices?: number[];
+    lastActiveTabIndex?: number;
     hasOpenedCommunityTab: boolean;
     userId: string;
     tabs: SavedTab[];
@@ -211,6 +219,10 @@ declare namespace Types {
       newTabButtonAfterTabs: boolean;
       /** Show a card with the tab's last thumbnail when the pointer rests on it. */
       tabHoverPreviews: boolean;
+      /** On launch, only your most-recently-used tabs (see lazyRestoreEagerCount) are restored live — every other saved tab starts already-discarded (title/group shown, no process) and loads on first click. */
+      lazyRestoreTabs: boolean;
+      /** How many of the most-recently-focused tabs restore live on launch while lazyRestoreTabs is on. */
+      lazyRestoreEagerCount: number;
       /** Open an already-open file in a new tab instead of switching to it. */
       allowDuplicateFileTabs: boolean;
       trayEnabled: boolean;
