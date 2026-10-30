@@ -131,6 +131,18 @@ export default class Tab {
   public getUrl() {
     return this.view.webContents.getURL();
   }
+  /**
+   * The file as the page shows it now, for the saved session. Figma rewrites
+   * its own URL (page, selection, `viewport=x,y,zoom`) with
+   * history.replaceState, which never reaches `url`, so a restart used to reopen
+   * the file where it was first loaded (#72). Falls back to `url` when the page
+   * is somewhere a restore should not return to (login, an error page).
+   */
+  public get sessionUrl(): string {
+    const wc = this.view.webContents;
+    const live = wc.isDestroyed() ? "" : wc.getURL();
+    return isFigmaRunUrl(live) ? live : this.url;
+  }
 
   public setBounds(bounds: Rectangle) {
     this.view.setBounds(bounds);

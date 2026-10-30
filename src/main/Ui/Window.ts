@@ -276,7 +276,7 @@ export default class Window {
     for (const [_, tab] of this.tabs) {
       tabs.push({
         title: tab.title,
-        url: tab.url,
+        url: tab instanceof Tab ? tab.sessionUrl : tab.url,
         groupId: tab.groupId,
       });
     }

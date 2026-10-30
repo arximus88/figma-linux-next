@@ -308,6 +308,26 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("Saved session keeps the page and viewport Figma moved to (#72)", () => {
+    test("getState saves the URL the page shows now, not the one it was opened with", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A?m=auto", "File A");
+      // Figma rewrites its own URL with history.replaceState as you move around.
+      const moved = "https://www.figma.com/design/abc/A?node-id=4-6&p=f&viewport=641%2C553%2C1";
+      tab.view.webContents.getURL = () => moved;
+
+      expect(windowInstance.getState().tabs[0].url).toBe(moved);
+    });
+
+    test("a page that left the file (login, error page) keeps the file URL", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab("https://www.figma.com/design/abc/A", "File A");
+      tab.view.webContents.getURL = () => "chrome-error://chromewebdata/";
+
+      expect(windowInstance.getState().tabs[0].url).toBe("https://www.figma.com/design/abc/A");
+    });
+  });
+
   describe("Bug 3: saveLastOpenedTabs persisted empty tabs after closeAll", () => {
     test("getState returns cached snapshot after cacheStateBeforeClose, even when live tabs map has been cleared", () => {
       const tabManager: any = (windowInstance as any).tabManager;
