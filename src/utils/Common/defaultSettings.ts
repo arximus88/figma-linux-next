@@ -50,6 +50,8 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     allowDuplicateFileTabs: false,
     trayEnabled: false,
     figmaAgentEnabled: false,
+    trackpadPanSpeed: 1,
+    trackpadZoomSpeed: 1,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",
   },

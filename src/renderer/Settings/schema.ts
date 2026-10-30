@@ -170,6 +170,21 @@ export const SETTINGS = {
     subtitle: "Number of restored tabs to load immediately when loading on demand is enabled.",
     keywords: "lazy restore eager count startup session memory",
   }),
+  trackpadPanSpeed: setting({
+    id: "trackpad-pan-speed",
+    section: "general",
+    title: "Trackpad pan speed",
+    subtitle: "How far the canvas moves for a two-finger swipe. 1× is Figma's own speed.",
+    keywords: "touchpad scroll swipe two finger gesture move canvas fast slow",
+  }),
+  trackpadZoomSpeed: setting({
+    id: "trackpad-zoom-speed",
+    section: "general",
+    title: "Trackpad pinch zoom speed",
+    subtitle:
+      "How much a pinch zooms the canvas. 1× is Figma's own speed. A mouse wheel is not affected.",
+    keywords: "touchpad pinch zoom gesture magnify canvas fast slow",
+  }),
   mcpServer: setting({
     id: "mcp-server",
     section: "integrations",

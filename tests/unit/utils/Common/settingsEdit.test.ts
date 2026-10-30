@@ -167,3 +167,27 @@ describe("lazy restore settings", () => {
     }
   });
 });
+
+describe("trackpad speeds", () => {
+  it("a changed speed is saved and pushed to the open tabs", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => {
+        s.app.trackpadZoomSpeed = 2.5;
+      }),
+    );
+    expect(next.app.trackpadZoomSpeed).toBe(2.5);
+    expect(effects).toContainEqual({ type: "trackpad", pan: 1, zoom: 2.5 });
+  });
+
+  it("an out-of-range speed keeps the current value and pushes nothing", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => {
+        s.app.trackpadPanSpeed = 0;
+      }),
+    );
+    expect(next.app.trackpadPanSpeed).toBe(1);
+    expect(effects.some((e) => e.type === "trackpad")).toBe(false);
+  });
+});

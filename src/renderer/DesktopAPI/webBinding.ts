@@ -3,6 +3,7 @@ import * as E from "electron";
 
 import { sendMsgToMain, registerCallbackWithMainProcess } from "Utils/Render/webBindingsHelpers";
 import { observeFigmaTheme } from "./themeObserver";
+import { installTrackpadTuning } from "./trackpad";
 import { normalizeTabPreviewData } from "Utils/Common/tabPreviewData";
 
 import {
@@ -549,6 +550,7 @@ const init = (fileBrowser: boolean): void => {
 
   initWebBindings();
   observeFigmaTheme();
+  if (!fileBrowser) installTrackpadTuning();
 
   E.webFrame.executeJavaScript(`(${initWebApi.toString()})(${JSON.stringify(initWebOptions)})`);
 

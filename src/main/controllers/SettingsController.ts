@@ -100,6 +100,9 @@ export default class SettingsController {
       case "figmaAgent":
         app.emit("figmaAgentChanged", effect.enabled);
         break;
+      case "trackpad":
+        this.windowManager.broadcastTrackpadSpeeds({ pan: effect.pan, zoom: effect.zoom });
+        break;
       case "frameStyle":
         this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(storage.settings.app));
         break;

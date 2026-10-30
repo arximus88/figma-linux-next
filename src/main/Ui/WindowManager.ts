@@ -1,4 +1,11 @@
-import { app, clipboard, nativeTheme, type IpcMainEvent, type WebContents } from "electron";
+import {
+  app,
+  clipboard,
+  nativeTheme,
+  webContents,
+  type IpcMainEvent,
+  type WebContents,
+} from "electron";
 
 import Window from "./Window";
 import MenuManager from "./MenuManager";
@@ -104,6 +111,15 @@ export default class WindowManager {
   public broadcastSettingsToPanels() {
     for (const [_, window] of this.windows) {
       window.pushSettingsToPanel();
+    }
+  }
+
+  /** New trackpad speeds for every loaded figma.com page (tabs, the warm tab). Shells pick them up on load. */
+  public broadcastTrackpadSpeeds(speeds: { pan: number; zoom: number }) {
+    for (const wc of webContents.getAllWebContents()) {
+      if (!wc.isDestroyed() && wc.getURL().startsWith("https://www.figma.com/")) {
+        wc.send("trackpadSpeedsChanged", speeds);
+      }
     }
   }
 

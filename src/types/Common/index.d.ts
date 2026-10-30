@@ -229,6 +229,10 @@ declare namespace Types {
       /** Answer figma.com's desktop-app check on 127.0.0.1:44950 so browser links can open here.
        *  Off by default: figma-agent-linux listens on the same port. */
       figmaAgentEnabled: boolean;
+      /** Two-finger pan speed on the canvas, 0.25–4; 1 leaves Figma's own speed. */
+      trackpadPanSpeed: number;
+      /** Pinch-to-zoom speed on the canvas, 0.25–4; 1 leaves Figma's own speed. */
+      trackpadZoomSpeed: number;
       windowsState: {
         [key: string]: WindowState;
       };
