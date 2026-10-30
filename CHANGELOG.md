@@ -39,6 +39,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the window was still starting showed it for a moment, then Home covered it and its tab never
   appeared in the strip. It now opens once the window is ready.
 
+### Changed
+
+- **WebGPU shaders no longer leave Wayland on NVIDIA-only systems.** The XWayland relaunch behind the
+  toggle exists because Chromium blocks WebGPU-to-GL interop on Linux except for GPUs it has
+  qualified; the only way past that on a blocked GPU drags Vulkan compositing in, which the
+  Wayland platform rejects. NVIDIA drivers 535.183.01 and newer have been on Chromium's
+  allowlist since Chrome 147, and with the Electron the app ships, WebGPU and the interop are
+  hardware-accelerated on native Wayland with no flag at all (measured on an RTX 3080). The app
+  now checks DRM GPU vendors and reads the driver version from `/proc/driver/nvidia/version`.
+  When every detected GPU is NVIDIA and the driver qualifies, it keeps native Wayland with the toggle on. Hybrid systems, unknown GPUs, AMD and older drivers keep
+  the existing XWayland fallback where supported. The setting text now says so instead of "Runs the app under XWayland". This also
+  fixes keyboard input under XWayland for those systems
+  ([#81](https://github.com/arximus88/figma-linux-next/issues/81)): they no longer leave Wayland.
+  Thanks to [@richard-grosjean](https://github.com/richard-grosjean)
+  ([#74](https://github.com/arximus88/figma-linux-next/pull/74)).
+
 ## [0.22.1] - 2026-10-14
 
 A maintenance release for the Flatpak package: it moves off the end-of-life Freedesktop 24.08

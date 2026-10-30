@@ -103,6 +103,20 @@ describe("applyChromiumSwitches — Wayland vs X11 truth-table", () => {
     expect(has("ozone-platform")).toBe(false);
   });
 
+  test("Wayland + enableWebGPU on an allowlisted NVIDIA driver: stays native Wayland, no unsafe-webgpu", () => {
+    process.env.WAYLAND_DISPLAY = "wayland-0";
+
+    applyChromiumSwitches({ enableWebGPU: true }, { nvidiaDriver: "615.78.08" });
+
+    // Chromium turns WebGPU + GL interop on by itself for NVIDIA >= 535.183.01, so the
+    // Wayland defaults are kept exactly: no X11 platform, no blocklist bypass, no flag.
+    expect(switchValue("ozone-platform-hint")).toBe("auto");
+    expect(has("ozone-platform")).toBe(false);
+    expect(has("ignore-gpu-blocklist")).toBe(false);
+    expect(has("enable-unsafe-webgpu")).toBe(false);
+    expect(features()).toContain("WaylandWindowDecorations");
+  });
+
   test("Wayland + enableWebGPU: does NOT force ozone=x11 (shaders inactive on Wayland)", () => {
     process.env.WAYLAND_DISPLAY = "wayland-0";
 
@@ -188,6 +202,18 @@ describe("shouldRelaunchUnderX11", () => {
 
   test("no WAYLAND_DISPLAY (X11 session) → no relaunch", () => {
     expect(shouldRelaunchUnderX11(webgpu, { NODE_ENV: "production" })).toBe(false);
+  });
+
+  test("NVIDIA driver on Chromium's WebGPU allowlist → no relaunch (native Wayland works)", () => {
+    const env = { WAYLAND_DISPLAY: "wayland-0", NODE_ENV: "production" };
+    expect(shouldRelaunchUnderX11(webgpu, env, { nvidiaDriver: "615.78.08" })).toBe(false);
+    expect(shouldRelaunchUnderX11(webgpu, env, { nvidiaDriver: "535.183.01" })).toBe(false);
+  });
+
+  test("NVIDIA driver below the allowlist, or no NVIDIA at all → relaunch as before", () => {
+    const env = { WAYLAND_DISPLAY: "wayland-0", NODE_ENV: "production" };
+    expect(shouldRelaunchUnderX11(webgpu, env, { nvidiaDriver: "470.256.02" })).toBe(true);
+    expect(shouldRelaunchUnderX11(webgpu, env, { nvidiaDriver: null })).toBe(true);
   });
 
   test("FLATPAK_ID set → no relaunch (regression: zypak spawn interception segfaults)", () => {

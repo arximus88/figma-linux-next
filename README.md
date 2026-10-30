@@ -22,7 +22,7 @@ Not affiliated with or endorsed by Figma, Inc.
 - **Built-in MCP server for AI assistants** — live [Model Context Protocol](https://modelcontextprotocol.io) server (`127.0.0.1:3845`) so tools like Claude Code can inspect and edit your open design without installing a plugin. See [AI integration (MCP)](#ai-integration-mcp).
 - **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
 - **Figma links open in the app** — answers Figma's browser probe so **Open in desktop app** and **Open links in desktop app** work on Linux just like on macOS and Windows. See [Opening links from your browser](#opening-links-from-your-browser).
-- **Shader, Halftone & Noise effects** — supports Figma's WebGPU canvas effects (Experimental, opt-in in Settings; runs under X11/XWayland when enabled on Wayland).
+- **Shader, Halftone & Noise effects** — supports Figma's WebGPU canvas effects (Experimental, opt-in in Settings). NVIDIA-only systems with driver 535.183.01 or newer keep native Wayland; elsewhere the app runs under X11/XWayland while it is enabled.
 - **Native Wayland & X11** — runs natively on GNOME, KDE Plasma, Sway, Hyprland, and Niri with a clean X11 fallback. Tested on x64 and arm64 (including Asahi Linux).
 - **Desktop-native window frames & tabs** — auto-selects GNOME (Adwaita), KDE Plasma (Breeze), or Legacy Windows chrome with Light/Dark/System themes, optional hidden min/max buttons, configurable `+` tab button position, and tab hover preview cards.
 - **Instant new-file tab** — pre-loaded in the background after login so new tabs open without delay.
