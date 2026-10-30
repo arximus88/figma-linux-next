@@ -400,7 +400,7 @@ Custom switches can be added in settings under `app.commandSwitches`.
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "45.1.0"` (Chromium 156, Node 24), bumped 2026-10-29 from 44.5.1 (via 44.10.0). OAuth first login last verified on 44.5.1 (2026-10-01, clean profile, bundled binary): `__Host-figma.authn` lands. **45.1.0 not verified yet.**
+`package.json` lists an exact version, currently `"electron": "45.1.0"` (Chromium 156, Node 24), bumped 2026-10-29 from 44.5.1 (via 44.10.0). OAuth first login re-verified on 45.1.0 (2026-10-30, clean profile, bundled binary): `__Host-figma.authn` lands. 44.10.0 was never shipped or login-tested on its own.
 
 45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 
