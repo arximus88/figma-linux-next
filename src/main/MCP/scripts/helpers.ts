@@ -125,6 +125,12 @@ const PLUGIN_API_DIAGNOSIS = `
         var options = window.INITIAL_OPTIONS;
         var file = options && options.editing_file;
         if (!file) {
+          var isFilePath = ["/design/", "/file/", "/figjam/", "/board/", "/jam/", "/make/", "/slides/", "/proto/"].some(function (p) {
+            return location.pathname.indexOf(p) === 0;
+          });
+          if (isFilePath) {
+            return { blocked: true, reason: "the active tab is a Figma file (" + location.pathname + "), but its file session is not initialized (e.g. opened via in-app navigation or stored in personal drafts outside a team). Move the file into a team, or reload the tab (Ctrl+R)." };
+          }
           return { blocked: true, reason: "the active tab is not a Figma file (" + location.pathname + "). Open a design file and make it the active tab." };
         }
         if (file.can_edit === false) {
