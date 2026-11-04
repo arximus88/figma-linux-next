@@ -26,10 +26,17 @@ export default class FontController {
   }
 
   private async getFontFile(_: IpcMainInvokeEvent, data: WebApi.GetFontFile) {
-    // The path comes from the Figma page. Only files under the configured
-    // font directories may be read — otherwise this is an arbitrary file read.
-    if (!isInsideDirs(data.path, storage.settings.app.fontDirs)) {
-      logger.warn(`getFontFile: refused path outside fontDirs: ${data.path}`);
+    // The path comes from the Figma page, so it must be a font we listed:
+    // otherwise this is an arbitrary file read. fc-list puts fonts wherever the
+    // system keeps them (/nix/store/... on NixOS, /run/host/local-fonts in the
+    // Flatpak sandbox), so the list itself is the allowlist; the configured
+    // font directories still cover files added after the list was built.
+    const dirs = storage.settings.app.fontDirs;
+    const listed = await this.fontManager.getFonts(dirs);
+    if (!Object.hasOwn(listed, data.path) && !isInsideDirs(data.path, dirs)) {
+      logger.warn(
+        `getFontFile: refused path that is neither a listed font nor in fontDirs: ${data.path}`,
+      );
       return null;
     }
     const file = await this.fontManager.getFontFile(data.path);
