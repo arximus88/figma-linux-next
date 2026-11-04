@@ -13,7 +13,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { MCP_HOST } from "../config";
 import {
-  CREATE_PAGE_SCRIPT,
   DESIGN_CONTEXT_SCRIPT,
   DESIGN_SYSTEM_RULES_SCRIPT,
   FIGJAM_SCRIPT,
@@ -34,6 +33,21 @@ import {
   USE_FIGMA_CODE_SCRIPT,
   USE_FIGMA_MAX_CODE_CHARS,
 } from "../scripts/useFigmaCode";
+import {
+  DOWNLOAD_ASSETS_SCRIPT,
+  type DownloadOptions,
+  RENAME_FILE_SCRIPT,
+  UPLOAD_ASSET_SCRIPT,
+  WHOAMI_SCRIPT,
+} from "../scripts/assets";
+import { fileKeysOfUrl } from "../utils/fileKey";
+import {
+  classifyUpload,
+  newUploadToken,
+  UPLOAD_MAX_PER_CALL,
+  UPLOAD_TTL_MS,
+  type UploadTicket,
+} from "../utils/uploads";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
@@ -62,9 +76,23 @@ export interface ToolContext {
   getSaveBaseDir: () => string;
   /** How long a script in the page may take before the tool gives up. Tests shorten it. */
   scriptTimeoutMs?: number;
+  /** upload_assets tickets, shared with the HTTP route that receives the bytes. */
+  uploads?: Map<string, UploadTicket>;
+  /** The file these handlers are bound to (fileKey argument), if any. */
+  fileKey?: string;
 }
 
 const DESIGN_SYSTEM_ENTITIES = new Set(["component", "variable", "style"]);
+
+/** figma.com path segment of a new file per editor type. */
+const NEW_FILE_PATHS: Record<string, string> = {
+  design: "design",
+  figjam: "board",
+  slides: "slides",
+};
+
+/** How long download_assets / screenshot URLs stay fetchable. */
+const ASSET_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Validate search_design_system `queries` the way Figma's remote tool expects
@@ -696,13 +724,176 @@ export class ToolHandlers {
     return toolResult(text);
   }
 
-  // ── Tool: create_new_file (create page, write) ──────────────────────────
+  // ── Tool: create_new_file (write) ────────────────────────────────────────
 
+  /**
+   * A real new file, like Figma's remote create_new_file (this used to add a
+   * page; use_figma with figma.createPage() does that now). The file is
+   * created the way the app's own "New design file" button does it — a tab on
+   * figma.com/<editor>/new — and lands in the drafts of the account's current
+   * team. Figma gives it a key once the editor has saved it, which is what
+   * this waits for; then it is renamed through the web app's own endpoint,
+   * since figma.root.name is read-only in the page.
+   */
   public async toolCreateNewFile(args: Record<string, unknown>) {
-    const name = (args.name as string) || "Untitled Page";
-    const result = await this.exec(CREATE_PAGE_SCRIPT(name));
-    if (result?.error) return toolError(result.error);
+    const open = this.ctx.viewProvider.openNewFileTab?.bind(this.ctx.viewProvider);
+    if (!open) return toolError("Creating files needs an app window; none is open.");
+    const editorType = (args.editorType as string) || "design";
+    const path = NEW_FILE_PATHS[editorType];
+    if (!path)
+      return toolError(`editorType must be one of ${Object.keys(NEW_FILE_PATHS).join(", ")}`);
+    const fileName = String(args.fileName ?? args.name ?? "").trim();
+
+    const url = await open(`https://www.figma.com/${path}/new`);
+    const fileKey = fileKeysOfUrl(url)[0];
+    if (!fileKey) return toolError(`The new file opened but has no key yet (${url}).`);
+
+    const result: Record<string, unknown> = { fileKey, url: url.split("?")[0], editorType };
+    if (fileName) {
+      const renamed = await this.ctx.viewProvider.executeInBrowserView(
+        RENAME_FILE_SCRIPT(fileKey, fileName),
+        fileKey,
+      );
+      if (renamed?.ok) result.fileName = fileName;
+      else result.renameError = renamed?.error ?? "rename failed";
+    }
+    if (args.planKey || args.projectId) {
+      result.note =
+        "planKey/projectId are not applied: the file is created in your drafts, like the app's New file button. Move it in Figma if needed.";
+    }
     return toolResult(safeStringify(result));
+  }
+
+  // ── Tool: whoami (read) ──────────────────────────────────────────────────
+
+  public async toolWhoami() {
+    const result = await this.exec(WHOAMI_SCRIPT);
+    if (!result) return toolError("The Figma tab returned nothing; it may still be loading.");
+    return toolResult(safeStringify(result));
+  }
+
+  // ── Tool: download_assets (read) ─────────────────────────────────────────
+
+  public async toolDownloadAssets(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    if (!nodeId) return toolError("nodeId is required");
+    const format = args.defaultFormat as DownloadOptions["format"] | undefined;
+    if (format && !["png", "jpg", "svg", "pdf"].includes(format)) {
+      return toolError("defaultFormat must be png, jpg, svg or pdf");
+    }
+    const scale =
+      typeof args.defaultScale === "number" ? Math.min(4, Math.max(0.01, args.defaultScale)) : null;
+
+    const out = await this.exec(DOWNLOAD_ASSETS_SCRIPT(nodeId, { format: format ?? null, scale }));
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+
+    const MIME: Record<string, string> = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+      pdf: "application/pdf",
+    };
+    const store = (data: Buffer, ext: string) => {
+      const id = `${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext === "original" ? "bin" : ext}`;
+      this.ctx.assetStore.set(id, { data, contentType: MIME[ext] ?? "application/octet-stream" });
+      setTimeout(() => this.ctx.assetStore.delete(id), ASSET_TTL_MS);
+      return `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${id}`;
+    };
+
+    const response = {
+      nodeId: out.nodeId,
+      nodeName: out.nodeName,
+      export: {
+        url: store(Buffer.from(out.export.base64, "base64"), out.export.format),
+        format: out.export.format,
+        scale: out.export.scale,
+      },
+      rawImages: (out.rawImages ?? []).map((img: any) => ({
+        url: store(Buffer.from(img.base64, "base64"), img.format),
+        format: img.format,
+        imageHash: img.imageHash,
+        width: img.width,
+        height: img.height,
+      })),
+      svgAssets: (out.svgAssets ?? []).map((svg: any) => ({
+        url: store(Buffer.from(svg.svg, "utf8"), "svg"),
+        format: "svg",
+        nodeId: svg.nodeId,
+        name: svg.name,
+        width: svg.width,
+        height: svg.height,
+      })),
+      notes: out.notes,
+      expiresInSeconds: ASSET_TTL_MS / 1000,
+      howToDownload: "curl -o <file> <url>; the URLs are local to this machine and expire.",
+    };
+    return toolResult(safeStringify(response));
+  }
+
+  // ── Tool: upload_assets (write) ──────────────────────────────────────────
+
+  public async toolUploadAssets(args: Record<string, unknown>) {
+    if (!this.ctx.uploads) return toolError("Uploads are not available in this server.");
+    const nodeIds: (string | null)[] = Array.isArray(args.nodeIds)
+      ? args.nodeIds.map((id) => normalizeNodeId(id))
+      : args.nodeId
+        ? [normalizeNodeId(args.nodeId)]
+        : [];
+    const count = nodeIds.length || (typeof args.count === "number" ? Math.floor(args.count) : 1);
+    if (count < 1 || count > UPLOAD_MAX_PER_CALL) {
+      return toolError(`count must be between 1 and ${UPLOAD_MAX_PER_CALL}`);
+    }
+    if (typeof args.count === "number" && nodeIds.length && nodeIds.length !== args.count) {
+      return toolError("nodeIds must have exactly `count` entries, one per upload URL");
+    }
+    const scaleMode = (args.scaleMode as UploadTicket["scaleMode"]) || "FILL";
+    if (!["FILL", "FIT", "TILE"].includes(scaleMode))
+      return toolError("scaleMode must be FILL, FIT or TILE");
+    const pageId = normalizeNodeId(args.currentPageId);
+
+    const uploads = [];
+    for (let i = 0; i < count; i++) {
+      const token = newUploadToken();
+      const targetNodeId = nodeIds[i] ?? null;
+      this.ctx.uploads.set(token, {
+        fileKey: this.ctx.fileKey,
+        targetNodeId,
+        scaleMode,
+        pageId,
+        expiresAt: Date.now() + UPLOAD_TTL_MS,
+      });
+      uploads.push({
+        url: `http://${MCP_HOST}:${this.ctx.getPort()}/upload/${token}`,
+        ...(targetNodeId ? { targetNodeId } : {}),
+      });
+    }
+    return toolResult(
+      safeStringify({
+        uploads,
+        expiresInSeconds: UPLOAD_TTL_MS / 1000,
+        howToUpload:
+          "POST the raw bytes to each URL once, with the real Content-Type: " +
+          "curl -X POST -H 'Content-Type: image/png' --data-binary @image.png <url>. " +
+          "PNG, JPEG, GIF, WebP or SVG, up to 10 MB. The response names the node that was created or filled.",
+      }),
+    );
+  }
+
+  /** Place the bytes POSTed to an upload URL. Called by the HTTP route. */
+  public async placeUpload(
+    ticket: UploadTicket,
+    contentType: string | undefined,
+    body: Uint8Array,
+  ) {
+    const kind = classifyUpload(contentType, body);
+    if (typeof kind !== "string") return { error: kind.error };
+    const base64 = Buffer.from(body).toString("base64");
+    const out = await this.exec(UPLOAD_ASSET_SCRIPT(base64, kind, ticket));
+    return out ?? { error: "The Figma tab returned nothing; it may still be loading." };
   }
 
   // ── Tool: figma_find (read) ──────────────────────────────────────────────

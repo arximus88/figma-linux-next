@@ -19,7 +19,9 @@ export function fileKeysOfUrl(url: string): string[] {
   if (parsed.hostname !== "figma.com" && !parsed.hostname.endsWith(".figma.com")) return [];
   const match = parsed.pathname.match(FILE_PATH);
   if (!match) return [];
-  return match[2] ? [match[1], match[2]] : [match[1]];
+  // Real keys are 22+ characters; /design/new (a file still being created) is not one.
+  const keys = [match[1], match[2]].filter((k): k is string => !!k && k.length >= 10);
+  return keys;
 }
 
 /** True when the tab at `url` shows the file (or branch) `fileKey`. */

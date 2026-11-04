@@ -418,6 +418,135 @@ describe("McpServer (Streamable HTTP transport)", () => {
     });
   });
 
+  describe("assets, whoami and new files", () => {
+    const call = (sessionId: string, name: string, args: Record<string, unknown>) =>
+      rpc(
+        { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } },
+        sessionId,
+      );
+    const json = (res: any) => JSON.parse(res.json.result.content[0].text);
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+    it("hands out upload URLs that place the bytes in the file they were issued for, once", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await call(sessionId, "upload_assets", {
+        count: 2,
+        nodeIds: ["1-2", "1:3"],
+        fileKey: "AbC123xyz456",
+      });
+      const { uploads } = json(res);
+      expect(uploads.map((u: any) => u.targetNodeId)).toEqual(["1:2", "1:3"]);
+      expect(provider.calls).toHaveLength(0);
+
+      provider.nextResult = { nodeId: "1:2", targetNodeId: "1:2", imageHash: "h" };
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: PNG,
+      });
+      expect(post.status).toBe(200);
+      expect((await post.json()).targetNodeId).toBe("1:2");
+      expect(provider.calls).toHaveLength(1);
+      expect(provider.calls[0].fileKey).toBe("AbC123xyz456");
+      expect(provider.calls[0].script).toContain(Buffer.from(PNG).toString("base64"));
+      expect(provider.calls[0].script).toContain('"1:2"');
+
+      const again = await fetch(uploads[0].url, { method: "POST", body: PNG });
+      expect(again.status).toBe(404);
+    });
+
+    it("refuses an upload that is not an image without touching the page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: "#!/bin/sh",
+      });
+      expect(post.status).toBe(422);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("checks the write switch again when the bytes arrive", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      server.setWriteToolsEnabled(false);
+      const post = await fetch(uploads[0].url, { method: "POST", body: PNG });
+      expect(post.status).toBe(403);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("refuses an upload POSTed by a web page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { Origin: "https://evil.example" },
+        body: PNG,
+      });
+      expect(post.status).toBe(403);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("serves downloaded assets at the URLs it returns, with their types", async () => {
+      const sessionId = await initialize();
+      provider.nextResult = {
+        nodeId: "1:2",
+        nodeName: "Card",
+        export: { format: "png", scale: 1, base64: Buffer.from(PNG).toString("base64") },
+        rawImages: [
+          {
+            imageHash: "h1",
+            format: "jpeg",
+            width: 4,
+            height: 4,
+            base64: Buffer.from([0xff, 0xd8]).toString("base64"),
+          },
+        ],
+        svgAssets: [{ nodeId: "1:5", name: "icon", width: 24, height: 24, svg: "<svg/>" }],
+      };
+      const out = json(await call(sessionId, "download_assets", { nodeId: "1-2" }));
+      expect(provider.calls[0].script).toContain('"1:2"');
+
+      const exp = await fetch(out.export.url);
+      expect(exp.headers.get("content-type")).toBe("image/png");
+      expect(new Uint8Array(await exp.arrayBuffer())).toEqual(PNG);
+      const raw = await fetch(out.rawImages[0].url);
+      expect(raw.headers.get("content-type")).toBe("image/jpeg");
+      const svg = await fetch(out.svgAssets[0].url);
+      expect(await svg.text()).toBe("<svg/>");
+      expect(out.svgAssets[0].nodeId).toBe("1:5");
+    });
+
+    it("creates a real file, waits for its key and names it", async () => {
+      server.setWriteToolsEnabled(true);
+      const opened: string[] = [];
+      (provider as any).openNewFileTab = async (url: string) => {
+        opened.push(url);
+        return "https://www.figma.com/design/NewKey1234567890abcdef/Untitled?node-id=0-1";
+      };
+      server.setViewProvider(provider);
+      const sessionId = await initialize();
+      provider.nextResult = { ok: true };
+      const out = json(
+        await call(sessionId, "create_new_file", { fileName: "Agent draft", editorType: "figjam" }),
+      );
+      expect(opened).toEqual(["https://www.figma.com/board/new"]);
+      expect(out).toEqual({
+        fileKey: "NewKey1234567890abcdef",
+        url: "https://www.figma.com/design/NewKey1234567890abcdef/Untitled",
+        editorType: "figjam",
+        fileName: "Agent draft",
+      });
+      expect(provider.calls[0].fileKey).toBe("NewKey1234567890abcdef");
+      expect(provider.calls[0].script).toContain('"Agent draft"');
+    });
+  });
+
   describe("Origin guard", () => {
     const initBody = {
       jsonrpc: "2.0",

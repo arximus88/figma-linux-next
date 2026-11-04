@@ -336,6 +336,33 @@ const BASE_TOOLS: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: "whoami",
+    description:
+      "Who is signed in and what the current file belongs to: user id and name, and for the " +
+      "tab's file its key, name, editor type, team/org ids, whether you can edit it, and the " +
+      "plan key. Useful before create_new_file and to explain a view-only file.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "download_assets",
+    description:
+      "Download the assets of one node: `export` (a render of the whole node), `rawImages` (the " +
+      "original images used as fills anywhere in its subtree, with their real format, max 20) and " +
+      "`svgAssets` (SVGs of its vector parts such as icons and logos, max 20). Each comes as a " +
+      "local URL on this server to fetch with curl; URLs expire after 10 minutes. Export " +
+      "precedence: defaultFormat/defaultScale when given, else the node's own export settings, " +
+      "else PNG at 1x. Use rawImages with upload_assets to move images between files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string", description: "Node ID ('1:2' or '1-2')." },
+        defaultFormat: { type: "string", enum: ["png", "jpg", "svg", "pdf"] },
+        defaultScale: { type: "number", minimum: 0.01, maximum: 4 },
+      },
+      required: ["nodeId"],
+    },
+  },
 ];
 
 // ── Write Tool Definitions (gated by settings) ──────────────────────────────
@@ -403,19 +430,59 @@ const BASE_WRITE_TOOLS: ToolDefinition[] = [
   {
     name: "create_new_file",
     description:
-      "Creates a new page in the current Figma file and navigates to it. " +
-      "Note: the Figma Plugin API within the renderer cannot create separate files — " +
-      "this tool creates a new page as the closest equivalent. " +
-      "⚠ This is a WRITE tool that modifies the file.",
+      "Create a new Figma file and open it in a tab, like Figma's remote create_new_file. It is " +
+      "created the way the app's New file button does it, in your drafts, and named `fileName`. " +
+      "Returns the new fileKey and URL; pass the fileKey to use_figma and the other tools. " +
+      "(This tool used to add a page to the current file; for that, use use_figma with " +
+      "`figma.createPage()`.) ⚠ WRITE tool.",
     inputSchema: {
       type: "object",
       properties: {
-        name: {
+        fileName: { type: "string", description: "Name for the new file." },
+        editorType: {
           type: "string",
-          description: "Name for the new page.",
+          enum: ["design", "figjam", "slides"],
+          description: "Default design.",
         },
+        planKey: {
+          type: "string",
+          description: "Accepted for compatibility; the file goes to your drafts.",
+        },
+        projectId: { type: "string", description: "Accepted for compatibility; not applied." },
       },
-      required: ["name"],
+      required: ["fileName"],
+    },
+  },
+  {
+    name: "upload_assets",
+    description:
+      "Upload images or SVGs into a Figma file. Call with `count` to get that many single-use " +
+      "upload URLs on this server, then POST the raw bytes to each with the right Content-Type " +
+      "(image/png, image/jpeg, image/gif, image/webp, image/svg+xml; max 10 MB). With `nodeIds` " +
+      "(one per URL, same order) a raster image becomes the fill of that existing node " +
+      "(`scaleMode` FILL/FIT/TILE); otherwise a rectangle of the image's size is placed on " +
+      "`currentPageId` (or the current page) right of the existing content. SVGs become editable " +
+      "vector nodes. Each POST answers with the node it created or filled. URLs expire in 10 " +
+      "minutes. ⚠ WRITE tool.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        count: {
+          type: "integer",
+          minimum: 1,
+          maximum: 60,
+          description: "Number of upload URLs (default 1).",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 60,
+          description: "Existing nodes to fill, one per upload URL. Length must equal count.",
+        },
+        nodeId: { type: "string", description: "Deprecated: one target node; use nodeIds." },
+        scaleMode: { type: "string", enum: ["FILL", "FIT", "TILE"], description: "Default FILL." },
+        currentPageId: { type: "string", description: "Page to place new image frames on." },
+      },
     },
   },
   {

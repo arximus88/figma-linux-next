@@ -17,7 +17,7 @@ import { McpServer } from "./MCP";
 import { FigmaAgentServer } from "./FigmaAgent";
 import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
-import { urlMatchesFileKey } from "./MCP/utils/fileKey";
+import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -126,6 +126,38 @@ export default class App {
       },
       getActiveTabView: (fileKey?: string) =>
         (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,
+      // A new file has no key until Figma's editor has saved it once; the tab
+      // starts on /<editor>/new and is replaced with /<editor>/<key>/... .
+      openNewFileTab: async (url: string) => {
+        const win = this.windowManager.getLastFocusedWindow();
+        if (!win) throw new Error("No Figma window open");
+        const tab = win.openTabInFront(url);
+        if (!tab) throw new Error(`Could not open ${url}`);
+        const wc = tab.view.webContents;
+        // Figma saves a new file, and only then gives it a key, once its editor
+        // has loaded; on a slow test machine that took minutes.
+        const deadline = Date.now() + 180_000;
+        const pageKeyScript =
+          "(function(){var k=window.figma&&window.figma.fileKey;return k?location.origin+'/design/'+k+'/':location.href;})()";
+        while (Date.now() < deadline) {
+          if (wc.isDestroyed()) throw new Error("The new file's tab was closed");
+          // The view's URL can lag behind the page's (history.replaceState), and
+          // the Plugin API knows the key as soon as the editor has it.
+          let current = tab.getUrl();
+          if (!fileKeysOfUrl(current).length && !wc.isLoading()) {
+            current = String(await wc.executeJavaScript(pageKeyScript).catch(() => current));
+          }
+          if (fileKeysOfUrl(current).length) {
+            logger.info(`[MCP] create_new_file: ${current.split("?")[0]}`);
+            return current;
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        logger.warn(`[MCP] create_new_file: no file key after 180 s, tab at ${tab.getUrl()}`);
+        throw new Error(
+          "Figma has not finished creating the file after 3 minutes. It is open in the active tab: wait for it to load, then call get_file_info without fileKey.",
+        );
+      },
       getActiveTabUrl: (fileKey?: string) => {
         if (fileKey) return fileTab(fileKey).getUrl();
         const win = this.windowManager.getLastFocusedWindow();

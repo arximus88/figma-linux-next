@@ -52,7 +52,10 @@ export type ToolName =
   | "figma_tree"
   | "use_figma"
   | "create_new_file"
-  | "figma_text";
+  | "figma_text"
+  | "whoami"
+  | "download_assets"
+  | "upload_assets";
 
 export interface ToolDefinition {
   name: ToolName;
@@ -84,6 +87,12 @@ export interface FigmaViewProvider {
   getActiveTabView(fileKey?: string): WebContentsView | null;
   /** The tab's URL, same targeting as above. */
   getActiveTabUrl(fileKey?: string): string | null;
+  /**
+   * Open `url` (a Figma "new file" URL) in a new tab in front of the last
+   * focused window and resolve with the tab's URL once Figma has given the
+   * file its key. Optional: providers without windows (tests) omit it.
+   */
+  openNewFileTab?(url: string): Promise<string>;
 }
 
 export interface Logger {

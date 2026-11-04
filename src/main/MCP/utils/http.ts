@@ -62,6 +62,18 @@ export async function collectBody(req: http.IncomingMessage): Promise<string> {
   return parts.join("");
 }
 
+/** Collects the raw request body, refusing more than `maxBytes`. */
+export async function collectBytes(req: http.IncomingMessage, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > maxBytes) throw new Error(`asset is larger than ${maxBytes} bytes`);
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
 /** Validates the Host header allows only loopback addresses. */
 export function isValidHost(hostHeader: string): boolean {
   let hostname: string;

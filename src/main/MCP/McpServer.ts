@@ -42,7 +42,15 @@ import type {
 } from "./types";
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
-import { collectBody, cors, isAllowedOrigin, isValidHost, replyError } from "./utils/http";
+import {
+  collectBody,
+  collectBytes,
+  cors,
+  isAllowedOrigin,
+  isValidHost,
+  replyError,
+} from "./utils/http";
+import { UPLOAD_MAX_BYTES, type UploadTicket } from "./utils/uploads";
 import { readFileKeyArg } from "./utils/fileKey";
 import { toolError } from "./utils/toolResponse";
 
@@ -53,6 +61,7 @@ export class McpServer {
   private sessions: SessionManager;
   private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
+  private uploads = new Map<string, UploadTicket>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private handlers: ToolHandlers | null = null;
@@ -81,9 +90,11 @@ export class McpServer {
     this.log.info("View provider attached");
   }
 
-  private makeHandlers(provider: FigmaViewProvider): ToolHandlers {
+  private makeHandlers(provider: FigmaViewProvider, fileKey?: string): ToolHandlers {
     return new ToolHandlers({
       viewProvider: provider,
+      uploads: this.uploads,
+      fileKey,
       log: this.log,
       codeConnectMap: this.codeConnectMap,
       assetStore: this.assetStore,
@@ -102,11 +113,15 @@ export class McpServer {
    */
   private handlersFor(fileKey: string): ToolHandlers {
     const base = this.viewProvider!;
-    return this.makeHandlers({
-      executeInBrowserView: (script) => base.executeInBrowserView(script, fileKey),
-      getActiveTabView: () => base.getActiveTabView(fileKey),
-      getActiveTabUrl: () => base.getActiveTabUrl(fileKey),
-    });
+    return this.makeHandlers(
+      {
+        executeInBrowserView: (script) => base.executeInBrowserView(script, fileKey),
+        getActiveTabView: () => base.getActiveTabView(fileKey),
+        getActiveTabUrl: () => base.getActiveTabUrl(fileKey),
+        openNewFileTab: base.openNewFileTab?.bind(base),
+      },
+      fileKey,
+    );
   }
 
   /** Enable or disable write tools and notify connected clients. */
@@ -255,6 +270,12 @@ export class McpServer {
     // Asset serving — GET /assets/:id
     if (req.method === "GET" && req.url?.startsWith("/assets/")) {
       this.handleAssetRequest(req, res);
+      return;
+    }
+
+    // upload_assets — POST /upload/:token
+    if (req.url?.startsWith("/upload/")) {
+      await this.handleUpload(req, res);
       return;
     }
 
@@ -559,6 +580,9 @@ export class McpServer {
     use_figma: { write: true, run: (h, a) => h.toolUseFigma(a) },
     create_new_file: { write: true, run: (h, a) => h.toolCreateNewFile(a) },
     figma_text: { write: true, run: (h, a) => h.toolFigmaText(a) },
+    whoami: { run: (h) => h.toolWhoami() },
+    download_assets: { run: (h, a) => h.toolDownloadAssets(a) },
+    upload_assets: { write: true, run: (h, a) => h.toolUploadAssets(a) },
   };
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -580,6 +604,49 @@ export class McpServer {
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
       return toolError(err?.message ?? String(err));
+    }
+  }
+
+  // ── Asset Upload ─────────────────────────────────────────────────────────
+
+  /**
+   * Receive the bytes for one upload_assets URL and place them in the file the
+   * URL was issued for. Single use; expired or unknown tokens get 404, and the
+   * write-tools switch is checked again here, not only when the URL was issued.
+   */
+  private async handleUpload(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const reply = (status: number, body: unknown) => {
+      res.writeHead(status, { "Content-Type": "application/json", ...cors() });
+      res.end(JSON.stringify(body));
+    };
+    if (req.method !== "POST") return reply(405, { error: "POST the asset bytes" });
+
+    const now = Date.now();
+    for (const [token, ticket] of this.uploads)
+      if (ticket.expiresAt < now) this.uploads.delete(token);
+
+    const token = req.url!.slice("/upload/".length);
+    const ticket = this.uploads.get(token);
+    if (!ticket)
+      return reply(404, { error: "Unknown or expired upload URL; call upload_assets again" });
+    this.uploads.delete(token);
+    if (!this._writeToolsEnabled) return reply(403, { error: McpServer.WRITE_TOOLS_DISABLED });
+    if (!this.viewProvider) return reply(503, { error: "No Figma window open" });
+
+    let body: Buffer;
+    try {
+      body = await collectBytes(req, UPLOAD_MAX_BYTES);
+    } catch (err: any) {
+      return reply(413, { error: err?.message ?? String(err) });
+    }
+
+    try {
+      const handlers = ticket.fileKey ? this.handlersFor(ticket.fileKey) : this.handlers!;
+      const result = await handlers.placeUpload(ticket, req.headers["content-type"], body);
+      reply(result?.error ? 422 : 200, result);
+    } catch (err: any) {
+      this.log.error("upload failed:", err?.message ?? err);
+      reply(500, { error: err?.message ?? String(err) });
     }
   }
 

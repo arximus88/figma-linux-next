@@ -25,6 +25,8 @@ describe("fileKey routing", () => {
       false,
     );
     expect(urlMatchesFileKey("not a url", "x")).toBe(false);
+    // A file still being created has no key yet.
+    expect(fileKeysOfUrl("https://www.figma.com/design/new?localFileKey=LOCAL_1")).toEqual([]);
   });
 
   it("accepts a bare key or a pasted URL as the argument", () => {
