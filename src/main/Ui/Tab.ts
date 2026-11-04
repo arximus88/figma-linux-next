@@ -1,6 +1,5 @@
 import {
   app,
-  shell,
   type Event,
   type Rectangle,
   type WebContents,
@@ -10,6 +9,7 @@ import {
   type DidCreateWindowDetails,
 } from "electron";
 
+import { openInBrowser } from "Main/openInBrowser";
 import { preloadScriptPathDev, preloadScriptPathProd } from "Utils/Main";
 import {
   isDev,
@@ -224,7 +224,7 @@ export default class Tab {
     }
 
     if (isFigmaDocLink(newUrl)) {
-      shell.openExternal(newUrl);
+      void openInBrowser(newUrl, "Tab");
 
       event.preventDefault();
       return;
@@ -261,7 +261,7 @@ export default class Tab {
     }
 
     if (isExternallyOpenableUrl(url)) {
-      shell.openExternal(url);
+      void openInBrowser(url, "Tab");
     }
   }
 
@@ -335,7 +335,7 @@ export default class Tab {
     }
 
     if (isExternallyOpenableUrl(url)) {
-      shell.openExternal(url);
+      void openInBrowser(url, "Tab");
     } else {
       logger.warn(`[Tab ${this.id}] window.open blocked, unsupported scheme: ${url}`);
     }

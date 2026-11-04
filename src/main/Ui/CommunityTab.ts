@@ -1,6 +1,5 @@
 import {
   app,
-  shell,
   type BrowserWindow,
   WebContentsView,
   type Rectangle,
@@ -8,6 +7,7 @@ import {
   type DidCreateWindowDetails,
 } from "electron";
 
+import { openInBrowser } from "Main/openInBrowser";
 import { preloadScriptPathDev, preloadScriptPathProd, toggleDetachedDevTools } from "Utils/Main";
 import { isDev, isFigmaRunUrl, isRecentFilesLink, isFigmaUrl } from "Utils/Common";
 import { storage } from "Main/Storage";
@@ -67,7 +67,7 @@ export default class CommunityTab {
       return;
     }
 
-    shell.openExternal(url);
+    void openInBrowser(url, "CommunityTab");
   }
   private onDomReady(_event: Electron.Event) {}
   private windowOpenHandler(details: HandlerDetails) {
@@ -76,7 +76,7 @@ export default class CommunityTab {
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlFromCommunity", url);
     } else {
-      shell.openExternal(url);
+      void openInBrowser(url, "CommunityTab");
     }
 
     return { action: "deny" as const };
@@ -93,7 +93,7 @@ export default class CommunityTab {
       return;
     }
 
-    shell.openExternal(url);
+    void openInBrowser(url, "CommunityTab");
   }
 
   private registerEvents() {
