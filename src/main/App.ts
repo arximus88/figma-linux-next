@@ -17,6 +17,7 @@ import { McpServer } from "./MCP";
 import { FigmaAgentServer } from "./FigmaAgent";
 import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
+import { urlMatchesFileKey } from "./MCP/utils/fileKey";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -92,22 +93,41 @@ export default class App {
     this.session.handleAppReady();
     this.trayManager.apply(storage.settings.app.trayEnabled);
 
-    // Wire up the FigmaViewProvider — dynamically resolves the last focused window
+    // Wire up the FigmaViewProvider. Without a fileKey it follows the last
+    // focused window's active tab; with one it finds the tab showing that file.
+    const fileTab = (fileKey: string): Tab => {
+      const found = this.windowManager.findFileTab(fileKey, urlMatchesFileKey);
+      if (!found) {
+        throw new Error(
+          `File ${fileKey} is not open in figma-linux-next. Open it in the app, or omit fileKey to use the active tab.`,
+        );
+      }
+      if ("discarded" in found) {
+        throw new Error(
+          `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but is not loaded yet (lazy session restore). Select its tab in the app once, then retry.`,
+        );
+      }
+      return found.tab;
+    };
+    const activeTab = (): Tab | null => {
+      const win = this.windowManager.getLastFocusedWindow();
+      if (!win) return null;
+      const tabId = win.getLatestFocusedTabId();
+      if (!tabId) return null;
+      const tab = win.tabs.get(tabId);
+      return tab instanceof Tab ? tab : null;
+    };
     const viewProvider: FigmaViewProvider = {
-      executeInBrowserView: (script: string) => {
+      executeInBrowserView: (script: string, fileKey?: string) => {
+        if (fileKey) return fileTab(fileKey).view.webContents.executeJavaScript(script);
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) throw new Error("No Figma window open");
         return win.executeInBrowserView(script);
       },
-      getActiveTabView: () => {
-        const win = this.windowManager.getLastFocusedWindow();
-        if (!win) return null;
-        const tabId = win.getLatestFocusedTabId();
-        if (!tabId) return null;
-        const tab = win.tabs.get(tabId);
-        return tab instanceof Tab ? tab.view : null;
-      },
-      getActiveTabUrl: () => {
+      getActiveTabView: (fileKey?: string) =>
+        (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,
+      getActiveTabUrl: (fileKey?: string) => {
+        if (fileKey) return fileTab(fileKey).getUrl();
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) return null;
         const tabId = win.getLatestFocusedTabId();

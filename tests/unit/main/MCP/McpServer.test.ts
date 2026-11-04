@@ -23,7 +23,9 @@ const silentLogger = {
 /** A mock FigmaViewProvider whose next executeInBrowserView result is settable. */
 class MockProvider implements FigmaViewProvider {
   public nextResult: unknown = null;
-  executeInBrowserView(_script: string): Promise<any> {
+  public calls: { script: string; fileKey?: string }[] = [];
+  executeInBrowserView(script: string, fileKey?: string): Promise<any> {
+    this.calls.push({ script, fileKey });
     return Promise.resolve(this.nextResult);
   }
   getActiveTabView(): null {
@@ -320,6 +322,100 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(status.listening).toBe(true);
     expect(typeof status.port).toBe("number");
     expect(base).toContain(`:${status.port}/`);
+  });
+
+  describe("use_figma code and fileKey", () => {
+    const call = (sessionId: string, name: string, args: Record<string, unknown>) =>
+      rpc(
+        { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } },
+        sessionId,
+      );
+    const text = (res: any) => res.json.result.content[0].text as string;
+
+    it("runs code in the page and returns what it returned", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      provider.nextResult = { result: JSON.stringify({ createdNodeIds: ["1:5"] }), changes: 1 };
+
+      const res = await call(sessionId, "use_figma", {
+        code: "const i = (await figma.getNodeByIdAsync('1:2')).createInstance(); return { createdNodeIds: [i.id] };",
+        description: "instance of Button",
+      });
+      expect(res.json.result.isError).toBeUndefined();
+      expect(JSON.parse(text(res))).toEqual({ createdNodeIds: ["1:5"] });
+      expect(provider.calls).toHaveLength(1);
+      expect(provider.calls[0].script).toContain("createInstance()");
+      expect(provider.calls[0].fileKey).toBeUndefined();
+    });
+
+    it("reports a rolled-back failure as an error that says the file is unchanged", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      provider.nextResult = {
+        error: "Cannot read 'x' of null",
+        rolledBack: true,
+        changesBeforeError: 3,
+      };
+      const res = await call(sessionId, "use_figma", { code: "return 1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("Cannot read 'x' of null");
+      expect(text(res)).toContain("were undone; the file is as it was");
+    });
+
+    it("refuses code that does not parse without touching the page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await call(sessionId, "use_figma", { code: "return (1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("SyntaxError");
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("keeps code behind the write-tools switch", async () => {
+      const sessionId = await initialize();
+      const res = await call(sessionId, "use_figma", { code: "return 1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("routes a read tool to the tab of the named file, from a key or a URL", async () => {
+      const sessionId = await initialize();
+      provider.nextResult = { fileName: "Other file" };
+      await call(sessionId, "get_file_info", { fileKey: "AbC123xyz456" });
+      await call(sessionId, "get_file_info", {
+        fileKey: "https://www.figma.com/design/AbC123xyz456/Other?node-id=1-2",
+      });
+      expect(provider.calls.map((c) => c.fileKey)).toEqual(["AbC123xyz456", "AbC123xyz456"]);
+    });
+
+    it("refuses a malformed fileKey instead of using the active tab", async () => {
+      const sessionId = await initialize();
+      const res = await call(sessionId, "get_file_info", { fileKey: "../../x" });
+      expect(res.json.result.isError).toBe(true);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("surfaces 'file not open' from the provider as a tool error", async () => {
+      const sessionId = await initialize();
+      provider.executeInBrowserView = (_s: string, fileKey?: string) => {
+        throw new Error(`File ${fileKey} is not open in figma-linux-next.`);
+      };
+      const res = await call(sessionId, "get_file_info", { fileKey: "AbC123xyz456" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("AbC123xyz456 is not open");
+    });
+
+    it("advertises fileKey on file tools and code on use_figma", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/list" }, sessionId);
+      const byName = new Map<string, any>(res.json.result.tools.map((t: any) => [t.name, t]));
+      for (const name of ["get_metadata", "get_screenshot", "use_figma", "figma_text"]) {
+        expect(byName.get(name).inputSchema.properties.fileKey).toBeDefined();
+      }
+      expect(byName.get("get_code_connect_map").inputSchema.properties.fileKey).toBeUndefined();
+      expect(byName.get("use_figma").inputSchema.properties.code.type).toBe("string");
+    });
   });
 
   describe("Origin guard", () => {

@@ -28,6 +28,11 @@ import {
   USE_FIGMA_SCRIPT,
   VARIABLE_DEFS_SCRIPT,
 } from "../scripts";
+import {
+  checkUseFigmaSyntax,
+  USE_FIGMA_CODE_SCRIPT,
+  USE_FIGMA_MAX_CODE_CHARS,
+} from "../scripts/useFigmaCode";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
@@ -574,15 +579,59 @@ export class ToolHandlers {
   // ── Tool: use_figma (write) ─────────────────────────────────────────────
 
   public async toolUseFigma(args: Record<string, unknown>) {
+    if (typeof args.code === "string") return this.runUseFigmaCode(args.code, args.description);
+
     const action = args.action as string;
     const params = args.params as Record<string, unknown>;
-    if (!action) return toolError("action is required");
+    if (!action)
+      return toolError("Pass `code` (Plugin API JavaScript), or the legacy `action` + `params`.");
     if (!params) return toolError("params is required");
 
     const paramsJson = JSON.stringify(params);
     const result = await this.exec(USE_FIGMA_SCRIPT(action, paramsJson));
     if (result?.error) return toolError(result.error);
     return toolResult(safeStringify(result));
+  }
+
+  /** use_figma with `code`: see scripts/useFigmaCode.ts for the contract. */
+  private async runUseFigmaCode(code: string, description: unknown) {
+    if (!code.trim()) return toolError("code is empty");
+    if (code.length > USE_FIGMA_MAX_CODE_CHARS) {
+      return toolError(
+        `code is ${code.length} characters; the limit is ${USE_FIGMA_MAX_CODE_CHARS}. Split the work into several calls.`,
+      );
+    }
+    const syntaxError = checkUseFigmaSyntax(code);
+    if (syntaxError) {
+      return toolError(
+        `SyntaxError: ${syntaxError}. Nothing was run. The code is the body of an async function: use top-level await and return, no wrapping IIFE.`,
+      );
+    }
+    if (typeof description === "string" && description) {
+      this.ctx.log.info(`use_figma: ${description.slice(0, 200)}`);
+    }
+
+    const out = await this.exec(USE_FIGMA_CODE_SCRIPT(code));
+    if (!out || typeof out !== "object") {
+      return toolError(
+        "The Figma tab returned nothing. It may be reloading; retry once it has loaded.",
+      );
+    }
+    if (typeof out.error === "string") {
+      const parts = [out.error];
+      if (out.rolledBack) {
+        parts.push(
+          "Any changes the script made before the error were undone; the file is as it was.",
+        );
+      } else if (out.note) {
+        parts.push(out.note);
+      }
+      return toolError(parts.join(" "));
+    }
+    const text = out.truncated
+      ? `${out.result}\n\n[truncated: the result was ${out.length} characters; return less, e.g. ids instead of whole objects]`
+      : (out.result ?? "null");
+    return toolResult(text);
   }
 
   // ── Tool: create_new_file (create page, write) ──────────────────────────

@@ -74,12 +74,16 @@ export interface CodeConnectEntry {
 /** Minimal interface for querying the Figma BrowserView.
  *  Matches figma-linux-next Window class public surface. */
 export interface FigmaViewProvider {
-  /** Execute arbitrary JS in the active Figma tab's webContents. */
-  executeInBrowserView(script: string): Promise<any>;
-  /** Get the active tab's WebContentsView (for capturePage). */
-  getActiveTabView(): WebContentsView | null;
-  /** Get the URL of the currently focused tab. */
-  getActiveTabUrl(): string | null;
+  /**
+   * Execute arbitrary JS in a Figma tab's webContents: the tab showing
+   * `fileKey` when given, otherwise the active tab. Rejects when `fileKey`
+   * is given and no open tab shows that file.
+   */
+  executeInBrowserView(script: string, fileKey?: string): Promise<any>;
+  /** The tab's WebContentsView (for capturePage), same targeting as above. */
+  getActiveTabView(fileKey?: string): WebContentsView | null;
+  /** The tab's URL, same targeting as above. */
+  getActiveTabUrl(fileKey?: string): string | null;
 }
 
 export interface Logger {

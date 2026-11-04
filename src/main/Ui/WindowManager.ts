@@ -8,6 +8,7 @@ import {
 } from "electron";
 
 import Window from "./Window";
+import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
@@ -66,6 +67,34 @@ export default class WindowManager {
 
   public getLastFocusedWindow(): Window | undefined {
     return this.windows.get(this.lastFocusedwindowId);
+  }
+
+  /**
+   * The open tab showing the Figma file `fileKey`, for MCP tools that name a
+   * file instead of acting on the active tab. Searches the last focused window
+   * first, so a file open twice resolves to the one the user just worked in.
+   * `discarded` marks a tab that is in the strip but not loaded (lazy restore):
+   * it has no page to run a script in until the user selects it.
+   */
+  public findFileTab(
+    fileKey: string,
+    matches: (url: string, fileKey: string) => boolean,
+  ): { tab: Tab } | { discarded: true; title?: string } | undefined {
+    const last = this.windows.get(this.lastFocusedwindowId);
+    const ordered = last
+      ? [last, ...[...this.windows.values()].filter((w) => w !== last)]
+      : [...this.windows.values()];
+    let discarded: { discarded: true; title?: string } | undefined;
+    for (const window of ordered) {
+      for (const tab of window.tabs.values()) {
+        if (tab instanceof Tab) {
+          if (!tab.view.webContents.isDestroyed() && matches(tab.getUrl(), fileKey)) return { tab };
+        } else if ("discarded" in tab && matches(tab.url, fileKey)) {
+          discarded ??= { discarded: true, title: tab.title };
+        }
+      }
+    }
+    return discarded;
   }
 
   /** Close the Settings tab of the window `webContentsId` belongs to (panel or Settings). */

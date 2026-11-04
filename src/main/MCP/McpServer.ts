@@ -43,6 +43,7 @@ import type {
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
 import { collectBody, cors, isAllowedOrigin, isValidHost, replyError } from "./utils/http";
+import { readFileKeyArg } from "./utils/fileKey";
 import { toolError } from "./utils/toolResponse";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
@@ -76,7 +77,12 @@ export class McpServer {
   /** Set the provider that gives us access to the Figma webContents. */
   public setViewProvider(provider: FigmaViewProvider): void {
     this.viewProvider = provider;
-    this.handlers = new ToolHandlers({
+    this.handlers = this.makeHandlers(provider);
+    this.log.info("View provider attached");
+  }
+
+  private makeHandlers(provider: FigmaViewProvider): ToolHandlers {
+    return new ToolHandlers({
       viewProvider: provider,
       log: this.log,
       codeConnectMap: this.codeConnectMap,
@@ -87,7 +93,20 @@ export class McpServer {
       // a different place from one call to the next.
       getSaveBaseDir: () => storage.settings.app.exportDir || app.getPath("pictures"),
     });
-    this.log.info("View provider attached");
+  }
+
+  /**
+   * Handlers bound to the tab that shows `fileKey` instead of the active tab.
+   * Built per call: the provider resolves the tab at execution time, so a
+   * file opened or closed between calls is seen as it is now.
+   */
+  private handlersFor(fileKey: string): ToolHandlers {
+    const base = this.viewProvider!;
+    return this.makeHandlers({
+      executeInBrowserView: (script) => base.executeInBrowserView(script, fileKey),
+      getActiveTabView: () => base.getActiveTabView(fileKey),
+      getActiveTabUrl: () => base.getActiveTabUrl(fileKey),
+    });
   }
 
   /** Enable or disable write tools and notify connected clients. */
@@ -556,7 +575,8 @@ export class McpServer {
     }
 
     try {
-      return await entry.run(this.handlers, args);
+      const fileKey = readFileKeyArg(args.fileKey);
+      return await entry.run(fileKey ? this.handlersFor(fileKey) : this.handlers, args);
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
       return toolError(err?.message ?? String(err));

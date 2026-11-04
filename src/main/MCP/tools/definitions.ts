@@ -11,7 +11,7 @@ import type { ToolDefinition } from "../types";
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
 
-export const TOOLS: ToolDefinition[] = [
+const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_design_context",
     description:
@@ -303,32 +303,42 @@ export const TOOLS: ToolDefinition[] = [
 
 // ── Write Tool Definitions (gated by settings) ──────────────────────────────
 
-export const WRITE_TOOLS: ToolDefinition[] = [
+const BASE_WRITE_TOOLS: ToolDefinition[] = [
   {
     name: "use_figma",
     description:
-      "General-purpose tool for creating, editing, or deleting objects in a Figma file. " +
-      "Accepts an action and params object. Supported actions: create_frame, create_text, " +
-      "create_rectangle, update_node, delete_node, set_variable, reparent_node. " +
-      "All create actions accept an optional parentNodeId to place the node inside a frame. " +
-      "create_text accepts fills to set text color at creation time. " +
-      "Use get_metadata or figma_find first to discover node IDs before updating or deleting. " +
-      "ORDERING: when building inside a parent, the API applies steps as create → resize → " +
-      "set layoutMode/sizing → appendChild → THEN fills/strokes; appendChild resets fills to " +
-      "the parent default, so set colors after parenting (this tool already orders correctly, " +
-      "but split your own multi-step builds the same way). " +
-      "TWO-STAGE for complex layouts: first create the structure (frames, children, auto-layout) " +
-      "with hardcoded colors, then do a second pass to bind variables / set fills / set text once " +
-      "nodes are parented — don't bind variables before a node has a parent. " +
-      "For editing the text of an existing TEXT node, prefer the figma_text tool (it auto-loads fonts). " +
+      "Create, edit, inspect or delete anything in a Figma file by running JavaScript against " +
+      "the Figma Plugin API — the same contract as Figma's remote use_figma tool, so its " +
+      "figma-use skill applies. `code` is the BODY of an async function: `figma` is in scope, " +
+      "use top-level `await` and `return` (the returned value, JSON-serialized, is the only " +
+      "output; console.log is not returned; nodes come back as {id, name, type}). Do not wrap " +
+      "it in an IIFE and do not call figma.closePlugin(). Atomic: if the script throws, the " +
+      "changes it made are undone and the error says so. On success the whole script is one " +
+      "undo step for the user. Return the ids of every node you create or change. Examples: " +
+      "`const c = await figma.importComponentByKeyAsync(key); const i = c.createInstance(); " +
+      "return { createdNodeIds: [i.id] };` — load fonts with `await figma.loadFontAsync(...)` " +
+      "before editing text; switch pages with `await figma.setCurrentPageAsync(page)`. " +
+      "Runs in the tab showing `fileKey`, or the active tab when omitted. " +
+      "Legacy form: `action` + `params` (create_frame, create_text, create_rectangle, " +
+      "update_node, delete_node, set_variable, reparent_node) still works. " +
       "⚠ This is a WRITE tool that modifies the file.",
     inputSchema: {
       type: "object",
       properties: {
+        code: {
+          type: "string",
+          maxLength: 50000,
+          description:
+            "JavaScript to execute, the body of an async function with `figma` (Plugin API) in scope. Use `return` for output.",
+        },
+        description: {
+          type: "string",
+          maxLength: 2000,
+          description: "A concise description of what the code aims to do (logged).",
+        },
         action: {
           type: "string",
-          description:
-            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable, reparent_node.",
+          description: "Legacy: one fixed action instead of `code`.",
           enum: [
             "create_frame",
             "create_text",
@@ -342,18 +352,15 @@ export const WRITE_TOOLS: ToolDefinition[] = [
         params: {
           type: "object",
           description:
-            "Parameters for the action. " +
-            "For create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId; " +
-            "auto-layout: layoutMode (HORIZONTAL|VERTICAL), paddingTop/Bottom/Left/Right, itemSpacing, primaryAxisAlignItems (MIN|CENTER|MAX|SPACE_BETWEEN), counterAxisAlignItems (MIN|CENTER|MAX), primaryAxisSizingMode (FIXED|AUTO), counterAxisSizingMode (FIXED|AUTO). " +
-            "For create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
-            "For create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
-            "For update_node: nodeId (required), plus any: name, x, y, width, height, fills, strokes, strokeWeight, strokeAlign, cornerRadius, characters, opacity, visible, layoutMode, padding*, itemSpacing, primaryAxisAlignItems, counterAxisAlignItems, primaryAxisSizingMode, counterAxisSizingMode. " +
-            "For delete_node: nodeId (required). " +
-            "For reparent_node: nodeId (required), parentNodeId (required). " +
-            "For set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
+            "Legacy: parameters for `action`. " +
+            "create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId, layoutMode, padding*, itemSpacing, *AxisAlignItems, *AxisSizingMode. " +
+            "create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
+            "create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
+            "update_node: nodeId plus any of the above, characters, opacity, visible. " +
+            "delete_node: nodeId. reparent_node: nodeId, parentNodeId. " +
+            "set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
         },
       },
-      required: ["action", "params"],
     },
   },
   {
@@ -397,3 +404,40 @@ export const WRITE_TOOLS: ToolDefinition[] = [
     },
   },
 ];
+
+// ── fileKey on every tool ─────────────────────────────────────────────────────
+
+/**
+ * Figma's remote MCP addresses files by `fileKey`. Here it is optional: given,
+ * the tool runs in the open tab showing that file (an error if none does);
+ * omitted, it runs in the active tab as before. A pasted figma.com URL works too.
+ */
+const FILE_KEY_PROPERTY = {
+  type: "string",
+  description:
+    "Key of the Figma file to act on (the id in figma.com/design/<fileKey>/…; a full file URL also works). " +
+    "The file must be open in a tab of the app. Omit to use the active tab.",
+};
+
+/** Tools that never touch a file: code-connect bookkeeping lives in the server. */
+const NO_FILE_TOOLS = new Set(["get_code_connect_map", "add_code_connect_map"]);
+
+function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
+  return tools.map((tool) =>
+    NO_FILE_TOOLS.has(tool.name)
+      ? tool
+      : {
+          ...tool,
+          inputSchema: {
+            ...tool.inputSchema,
+            properties: {
+              ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
+              fileKey: FILE_KEY_PROPERTY,
+            },
+          },
+        },
+  );
+}
+
+export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);
+export const WRITE_TOOLS: ToolDefinition[] = withFileKey(BASE_WRITE_TOOLS);
