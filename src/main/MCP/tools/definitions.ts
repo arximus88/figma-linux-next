@@ -39,17 +39,19 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_metadata",
     description:
-      "Returns a sparse XML scene-graph outline of a node or the current page — layer IDs, " +
-      "types, names, positions, and sizes only. No fills, strokes, or styling. Use this to " +
-      "navigate large designs and discover node IDs before calling get_design_context on " +
-      "specific nodes. When nodeId is omitted, uses the current selection or the full page. " +
-      "Supports Figma Design files.",
+      "Sparse XML outline of the document — layer IDs, types, names, positions and sizes only " +
+      "(no fills, strokes or styling). Without nodeId it lists the document's pages (id + name, " +
+      "the current one marked), like Figma's remote get_metadata; pass a page id (e.g. '0:1') to " +
+      "outline that page, or a node id to outline that node. When something is selected, the " +
+      "response starts with a 'Currently selected nodes:' block. Use the ids with " +
+      "get_design_context or use_figma. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
         nodeId: {
           type: "string",
-          description: "Node ID in '1:2' format. Omit to use current selection or full page.",
+          description:
+            "Page or node ID ('1:2' or '1-2'). Omit to list the pages. Do not guess an id.",
         },
         depth: {
           type: "number",
@@ -85,9 +87,23 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "string",
           description: "Node ID in '1:2' format. Omit to capture current selection.",
         },
+        maxDimension: {
+          type: "integer",
+          minimum: 1,
+          maximum: 65536,
+          description:
+            "Cap on the longer edge of the PNG in pixels (default 1024; small nodes render at up to 2x). " +
+            "Raise it to inspect detail, lower it for thumbnails. The response gives width/height and " +
+            "original_width/original_height.",
+        },
+        contentsOnly: {
+          type: "boolean",
+          description:
+            "true renders the node in isolation, without overlapping layers that sit above it on the canvas. Default false: what the user sees.",
+        },
         scale: {
           type: "number",
-          description: "Export scale (default: 2, range: 0.5–4).",
+          description: "Fixed export scale (0.01–4). Overrides maxDimension; prefer maxDimension.",
         },
         savePath: {
           type: "string",
@@ -226,20 +242,41 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "search_design_system",
     description:
-      "Searches local variables, styles, and components in the current Figma file " +
-      "by text query. Returns matching variables (with values by mode), styles " +
-      "(paint/text/effect/grid), and components. Use this to find existing design " +
-      "system elements before creating new ones. Results capped at 50 per category. " +
-      "Supports Figma Design files.",
+      "Search design-system assets, Figma remote-MCP style. Pass `queries` as an array of objects, " +
+      'never strings: [{"entity":"component","query":"button"},{"entity":"variable","query":"surface"}]. ' +
+      "`entity` is exactly component, variable or style. Results come back in a `results` array in " +
+      "the same order, each with the ids/keys needed next (component key for " +
+      "importComponentByKeyAsync, variable id/key for binding). Scope: this file's components " +
+      "(every page) and styles, library components the file already uses (found through its " +
+      "instances), and variables from this file and its enabled libraries. Library components " +
+      "the file does not use yet, and library styles, cannot be listed through the Plugin API. Combine the searches " +
+      "you need in one call. The legacy `query` string still searches everything locally.",
     inputSchema: {
       type: "object",
       properties: {
+        queries: {
+          type: "array",
+          maxItems: 20,
+          items: {
+            type: "object",
+            properties: {
+              entity: { type: "string", enum: ["component", "variable", "style"] },
+              query: { type: "string" },
+            },
+            required: ["entity", "query"],
+          },
+        },
+        includeLibraryKeys: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only search variables of these libraries (library name or collection key from earlier results).",
+        },
         query: {
           type: "string",
-          description: "Text to search for in variable, style, and component names.",
+          description: "Legacy: one text query over local variables, styles and components.",
         },
       },
-      required: ["query"],
     },
   },
   {

@@ -63,7 +63,10 @@ describe("MCP node-id script builders — injection safety", () => {
     ["METADATA_XML_SCRIPT", (id) => METADATA_XML_SCRIPT(id, 2)],
     ["VARIABLE_DEFS_SCRIPT", (id) => VARIABLE_DEFS_SCRIPT(id)],
     ["FIGJAM_SCRIPT", (id) => FIGJAM_SCRIPT(id)],
-    ["SCREENSHOT_SCRIPT", (id) => SCREENSHOT_SCRIPT(id, 2)],
+    [
+      "SCREENSHOT_SCRIPT",
+      (id) => SCREENSHOT_SCRIPT(id, { scale: null, maxDimension: 1024, contentsOnly: false }),
+    ],
     ["FIND_NODES_SCRIPT", (id) => FIND_NODES_SCRIPT(id, "{}")],
     ["TREE_SCRIPT", (id) => TREE_SCRIPT(id, 5)],
     ["SET_TEXT_SCRIPT", (id) => SET_TEXT_SCRIPT(id, JSON.stringify("hi"))],

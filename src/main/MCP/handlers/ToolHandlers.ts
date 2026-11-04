@@ -22,6 +22,7 @@ import {
   GENERATE_DIAGRAM_SCRIPT,
   METADATA_XML_SCRIPT,
   SCREENSHOT_SCRIPT,
+  SEARCH_DESIGN_SYSTEM_QUERIES_SCRIPT,
   SEARCH_DESIGN_SYSTEM_SCRIPT,
   SET_TEXT_SCRIPT,
   TREE_SCRIPT,
@@ -61,6 +62,33 @@ export interface ToolContext {
   getSaveBaseDir: () => string;
   /** How long a script in the page may take before the tool gives up. Tests shorten it. */
   scriptTimeoutMs?: number;
+}
+
+const DESIGN_SYSTEM_ENTITIES = new Set(["component", "variable", "style"]);
+
+/**
+ * Validate search_design_system `queries` the way Figma's remote tool expects
+ * them. Returns the cleaned list, or an error message that shows the right
+ * shape (agents often pass plain strings).
+ */
+export function parseDesignSystemQueries(
+  value: unknown,
+): { entity: string; query: string }[] | string {
+  const shape = 'queries must be an array of objects like {"entity":"component","query":"button"}';
+  if (!Array.isArray(value) || value.length === 0) return shape;
+  if (value.length > 20) return "At most 20 queries per call.";
+  const out: { entity: string; query: string }[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return `${shape}; got ${JSON.stringify(item)}`;
+    const { entity, query } = item as Record<string, unknown>;
+    if (typeof entity !== "string" || !DESIGN_SYSTEM_ENTITIES.has(entity)) {
+      return `entity must be "component", "variable" or "style"; got ${JSON.stringify(entity)}`;
+    }
+    if (typeof query !== "string" || !query.trim())
+      return `every query needs a non-empty "query" string`;
+    out.push({ entity, query: query.trim() });
+  }
+  return out;
 }
 
 export class ToolHandlers {
@@ -215,11 +243,16 @@ export class ToolHandlers {
 
   public async toolGetScreenshot(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
-    const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.5, args.scale)) : 2;
+    const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.01, args.scale)) : null;
+    const maxDimension =
+      typeof args.maxDimension === "number" && args.maxDimension > 0
+        ? Math.min(65536, Math.round(args.maxDimension))
+        : 1024;
+    const contentsOnly = args.contentsOnly === true;
     const savePath = args.savePath ? String(args.savePath) : null;
 
     // Try Plugin API exportAsync first
-    const script = SCREENSHOT_SCRIPT(nodeId, scale);
+    const script = SCREENSHOT_SCRIPT(nodeId, { scale, maxDimension, contentsOnly });
     const result = await this.exec(script);
 
     if (result?.error) {
@@ -249,7 +282,14 @@ export class ToolHandlers {
     }
 
     if (result?.base64) {
-      return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath);
+      const { width, height, original_width, original_height } = result;
+      return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath, {
+        width,
+        height,
+        original_width,
+        original_height,
+        scale: result.scale,
+      });
     }
 
     return toolError("Screenshot export returned no data");
@@ -376,7 +416,11 @@ export class ToolHandlers {
     if (result.nodeIds?.length > 0) {
       for (const nid of result.nodeIds.slice(0, 5)) {
         try {
-          const ssScript = SCREENSHOT_SCRIPT(nid, 1);
+          const ssScript = SCREENSHOT_SCRIPT(nid, {
+            scale: 1,
+            maxDimension: 1024,
+            contentsOnly: false,
+          });
           const ssResult = await this.exec(ssScript);
           if (ssResult?.base64) {
             const buffer = Buffer.from(ssResult.base64, "base64");
@@ -568,8 +612,26 @@ export class ToolHandlers {
   // ── Tool: search_design_system ──────────────────────────────────────────
 
   public async toolSearchDesignSystem(args: Record<string, unknown>) {
+    if (args.queries !== undefined) {
+      const parsed = parseDesignSystemQueries(args.queries);
+      if (typeof parsed === "string") return toolError(parsed);
+      const keys = Array.isArray(args.includeLibraryKeys)
+        ? args.includeLibraryKeys.filter((k): k is string => typeof k === "string")
+        : null;
+      const result = await this.exec(
+        SEARCH_DESIGN_SYSTEM_QUERIES_SCRIPT(
+          JSON.stringify(parsed),
+          JSON.stringify(keys?.length ? keys : null),
+        ),
+      );
+      if (result?.error) return toolError(result.error);
+      return toolResult(safeStringify(result));
+    }
+
+    // Legacy single `query`: every entity, the original response shape.
     const query = (args.query as string) || "";
-    if (!query) return toolError("query is required");
+    if (!query)
+      return toolError("Pass `queries`: [{ entity: 'component' | 'variable' | 'style', query }].");
 
     const result = await this.exec(SEARCH_DESIGN_SYSTEM_SCRIPT(query));
     if (result?.error) return toolError(result.error);
