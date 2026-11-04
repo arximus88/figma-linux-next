@@ -322,6 +322,19 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(base).toContain(`:${status.port}/`);
   });
 
+  it("opens a GET SSE stream on /mcp with session id", async () => {
+    const sessionId = await initialize();
+    const controller = new AbortController();
+    const res = await fetch(base, {
+      method: "GET",
+      headers: { "Mcp-Session-Id": sessionId },
+      signal: controller.signal,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    controller.abort();
+  });
+
   it("restart() rebinds on a new port and serves there", async () => {
     const newPort = await getFreePort();
     const { didStart, port } = await server.restart(newPort, "127.0.0.1");

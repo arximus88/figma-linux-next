@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { describe, expect, it } from "bun:test";
 
 import { isInsideDirs, safeExportName } from "Utils/Main/safePath";
@@ -22,10 +23,17 @@ describe("safeExportName", () => {
     expect(safeExportName("Frame 1.png")).toBe("Frame 1.png");
   });
 
-  it("strips directory parts", () => {
-    expect(safeExportName("../../.bashrc")).toBe(".bashrc");
-    expect(safeExportName("/etc/cron.d/x")).toBe("x");
-    expect(safeExportName("a\\..\\b.svg")).toBe("b.svg");
+  it("keeps subfolders from frame names", () => {
+    expect(safeExportName("cool/test.png")).toBe(path.join("cool", "test.png"));
+    expect(safeExportName("a\\b\\c.svg")).toBe(path.join("a", "b", "c.svg"));
+    expect(safeExportName("Icons / home.png")).toBe(path.join("Icons", "home.png"));
+    expect(safeExportName("a/ /b.png")).toBeNull();
+  });
+
+  it("refuses names that escape the directory", () => {
+    expect(safeExportName("../../.bashrc")).toBeNull();
+    expect(safeExportName("/etc/cron.d/x")).toBeNull();
+    expect(safeExportName("a\\..\\b.svg")).toBeNull();
   });
 
   it("refuses empty and dot names", () => {

@@ -9,7 +9,7 @@ import { storage } from "../Storage";
 import { dialogs } from "../Dialogs";
 import { logger } from "../Logger";
 import { mkPath } from "Utils/Main";
-import { safeExportName } from "Utils/Main/safePath";
+import { isInsideDirs, safeExportName } from "Utils/Main/safePath";
 import { ipcRegistry } from "./registry";
 import type WindowManager from "../Ui/WindowManager";
 
@@ -106,6 +106,11 @@ export default class FileController {
       }
 
       const outputPath = path.join(directoryPath, name);
+      if (!isInsideDirs(outputPath, [directoryPath])) {
+        logger.error(`writeFiles: "${file.name}" resolves outside "${directoryPath}", skipped`);
+        failed.push({ name: file.name, reason: "the file name is not usable" });
+        continue;
+      }
 
       try {
         await mkPath(path.dirname(outputPath));

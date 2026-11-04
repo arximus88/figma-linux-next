@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-04
+
+Locally installed fonts work on NixOS and in the Flatpak, frame names with `/` export into
+subfolders again, and the MCP server no longer stalls strict clients.
+
+### Fixed
+
+- **Local fonts on NixOS and Flatpak**
+  ([#83](https://github.com/arximus88/figma-linux-next/issues/83)). A font showed up in the
+  picker but Figma reported it missing: the app only served font files under a fixed list of
+  folders, and NixOS keeps fonts in `/nix/store/...` while the Flatpak sees
+  `/usr/local/share/fonts` as `/run/host/local-fonts`. Any font the system's fontconfig lists is
+  now served; other paths are still refused. The `fontDirs` / `local-fonts.conf` workarounds from
+  the issue are no longer needed. Thanks to [@iamcalledrob](https://github.com/iamcalledrob) for
+  pinning down the cause, and to [@PaulIndrome](https://github.com/PaulIndrome) and
+  [@sgrenzh](https://github.com/sgrenzh) for the Flatpak reports.
+
+- **Exports keep subfolders from frame names.** A frame named `nox/icon.png` exported into the
+  chosen folder as `icon.png`, dropping the folder; it lands in `nox/icon.png` again
+  (`Icons / home` → `Icons/home.png`). Names that would leave the folder (`..`, absolute paths)
+  are refused and listed in the export report. Thanks to [@Tanza3D](https://github.com/Tanza3D)
+  ([#85](https://github.com/arximus88/figma-linux-next/pull/85)).
+
+- **MCP clients that wait for headers no longer time out.** The `GET /mcp` event stream sent its
+  headers only with the first event, so clients such as the Go MCP SDK hung on connect. When a
+  file tab has no file session yet, the "Plugin API not available" error now says so and suggests
+  reloading the tab ([#67](https://github.com/arximus88/figma-linux-next/issues/67)). Thanks to
+  [@noobweer](https://github.com/noobweer)
+  ([#84](https://github.com/arximus88/figma-linux-next/pull/84)).
+
 ## [0.23.0] - 2026-10-30
 
 Files reopen where you left them, trackpad pan and pinch speeds are adjustable, links from your
