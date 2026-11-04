@@ -15,11 +15,16 @@ export function isInsideDirs(file: string, dirs: readonly string[]): boolean {
 
 /**
  * Turn an export file name from the web app into a relative path that stays
- * inside the chosen directory. Subfolders from `/` in frame names are kept;
- * absolute paths, `..` and empty or dot-only parts are refused.
+ * inside the chosen directory. Subfolders from `/` in frame names are kept
+ * (`Icons / home.png` → `Icons/home.png`; the spaces around the slash are
+ * how Figma users write it, not part of the folder name); absolute paths,
+ * `..` and empty or dot-only parts are refused.
  */
 export function safeExportName(name: string): string | null {
-  const parts = name.replace(/\\/g, "/").split("/");
+  const parts = name
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => part.trim());
 
   for (const part of parts) {
     if (!part || part === "." || part === "..") {

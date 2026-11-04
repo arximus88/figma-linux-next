@@ -194,11 +194,23 @@ describe("writeFiles: failures are reported, once, and accurately", () => {
 });
 
 describe("writeFiles: names stay inside the chosen directory", () => {
-  test("a traversing name is written into the directory, not above it", async () => {
+  test("a traversing name is refused and reported, nothing lands above the directory", async () => {
     openDialogResult = [tmpDir];
-    await writeFiles([file("../escaped.png")]);
+    await writeFiles([file("../escaped.png"), file("ok.png")]);
 
     expect(fs.existsSync(path.join(path.dirname(tmpDir), "escaped.png"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, "escaped.png"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, "escaped.png"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, "ok.png"))).toBe(true);
+    expect(logText()).toContain('refusing unsafe export name "../escaped.png"');
+    expect(JSON.stringify(messageBoxes)).toContain("../escaped.png");
+  });
+
+  test("a slash in a frame name exports into a subfolder (#85)", async () => {
+    openDialogResult = [tmpDir];
+    await writeFiles([file("nox/icon.png", "a"), file("Icons / home.svg", "b")]);
+
+    expect(fs.readFileSync(path.join(tmpDir, "nox", "icon.png"), "utf8")).toBe("a");
+    expect(fs.readFileSync(path.join(tmpDir, "Icons", "home.svg"), "utf8")).toBe("b");
+    expect(fs.existsSync(path.join(tmpDir, "icon.png"))).toBe(false);
   });
 });

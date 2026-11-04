@@ -26,6 +26,8 @@ describe("safeExportName", () => {
   it("keeps subfolders from frame names", () => {
     expect(safeExportName("cool/test.png")).toBe(path.join("cool", "test.png"));
     expect(safeExportName("a\\b\\c.svg")).toBe(path.join("a", "b", "c.svg"));
+    expect(safeExportName("Icons / home.png")).toBe(path.join("Icons", "home.png"));
+    expect(safeExportName("a/ /b.png")).toBeNull();
   });
 
   it("refuses names that escape the directory", () => {
