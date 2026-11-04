@@ -372,7 +372,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 
 **Logger** (`src/main/Logger/AppLogger.ts`):
 - Multi-sink architecture: console + file
-- File logs: `~/.config/figma-linux-next/logs/app.log`
+- File logs: `~/.config/figma-linux-next/logs/figma-linux-next.log` (Flatpak: `~/.var/app/app.borys.FigmaLinuxNext/config/figma-linux-next/logs/`), file level `debug`
 - Configurable log level in settings
 
 ## Critical Files Reference
