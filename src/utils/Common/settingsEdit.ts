@@ -9,7 +9,7 @@
  * listed here; everything else stays main's.
  */
 
-import { isValidTrackpadSpeed } from "./trackpad";
+import { isValidMomentumGlide, isValidTrackpadSpeed } from "./trackpad";
 
 export const EDITABLE_APP_KEYS = [
   "enableColorSpaceSrgb",
@@ -32,6 +32,8 @@ export const EDITABLE_APP_KEYS = [
   "figmaAgentEnabled",
   "trackpadPanSpeed",
   "trackpadZoomSpeed",
+  "trackpadMomentum",
+  "trackpadMomentumGlide",
 ] as const;
 
 export const EDITABLE_UI_KEYS = ["scalePanel", "scaleFigmaUI"] as const;
@@ -124,7 +126,7 @@ export type SettingsEffect =
   | { type: "mcpWriteTools"; enabled: boolean }
   | { type: "mcpServer"; enabled: boolean; port: number }
   | { type: "figmaAgent"; enabled: boolean }
-  | { type: "trackpad"; pan: number; zoom: number }
+  | { type: "trackpad"; pan: number; zoom: number; momentum: boolean; glide: number }
   | { type: "frameStyle" }
   | { type: "panelLayout" };
 
@@ -164,6 +166,10 @@ export function planSettingsUpdate(
   if (!isValidTrackpadSpeed(next.app.trackpadZoomSpeed)) {
     next.app.trackpadZoomSpeed = current.app.trackpadZoomSpeed;
   }
+  if (!isValidMomentumGlide(next.app.trackpadMomentumGlide)) {
+    next.app.trackpadMomentumGlide = current.app.trackpadMomentumGlide;
+  }
+  next.app.trackpadMomentum = !!next.app.trackpadMomentum;
 
   const effects: SettingsEffect[] = [];
   const a = current;
@@ -190,9 +196,17 @@ export function planSettingsUpdate(
   }
   if (
     a.app.trackpadPanSpeed !== b.app.trackpadPanSpeed ||
-    a.app.trackpadZoomSpeed !== b.app.trackpadZoomSpeed
+    a.app.trackpadZoomSpeed !== b.app.trackpadZoomSpeed ||
+    a.app.trackpadMomentum !== b.app.trackpadMomentum ||
+    a.app.trackpadMomentumGlide !== b.app.trackpadMomentumGlide
   ) {
-    effects.push({ type: "trackpad", pan: b.app.trackpadPanSpeed, zoom: b.app.trackpadZoomSpeed });
+    effects.push({
+      type: "trackpad",
+      pan: b.app.trackpadPanSpeed,
+      zoom: b.app.trackpadZoomSpeed,
+      momentum: b.app.trackpadMomentum,
+      glide: b.app.trackpadMomentumGlide,
+    });
   }
   if (a.app.frameStyleAuto !== b.app.frameStyleAuto || a.app.frameStyle !== b.app.frameStyle) {
     effects.push({ type: "frameStyle" });

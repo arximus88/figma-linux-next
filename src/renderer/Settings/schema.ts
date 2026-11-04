@@ -185,6 +185,21 @@ export const SETTINGS = {
       "How much a pinch zooms the canvas. 1× is Figma's own speed. A mouse wheel is not affected.",
     keywords: "touchpad pinch zoom gesture magnify canvas fast slow",
   }),
+  trackpadMomentum: setting({
+    id: "trackpad-momentum",
+    section: "general",
+    title: "Trackpad momentum",
+    subtitle:
+      "The canvas keeps moving and zooming for a moment after your fingers lift, as on macOS.",
+    keywords: "touchpad inertia momentum kinetic glide fling coast swipe pinch macos",
+  }),
+  trackpadMomentumGlide: setting({
+    id: "trackpad-momentum-glide",
+    section: "general",
+    title: "Momentum glide",
+    subtitle: "How long the canvas keeps moving after you let go. Higher glides further.",
+    keywords: "touchpad inertia friction momentum glide decay length",
+  }),
   mcpServer: setting({
     id: "mcp-server",
     section: "integrations",

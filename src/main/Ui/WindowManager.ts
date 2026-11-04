@@ -16,6 +16,7 @@ import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { isPreviewAnchor } from "Utils/Main/tabPreview";
+import type { TrackpadTuning } from "Utils/Common/trackpad";
 import { isMenuAnchor } from "Utils/Main/menuPosition";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
@@ -143,8 +144,8 @@ export default class WindowManager {
     }
   }
 
-  /** New trackpad speeds for every loaded figma.com page (tabs, the warm tab). Shells pick them up on load. */
-  public broadcastTrackpadSpeeds(speeds: { pan: number; zoom: number }) {
+  /** New trackpad tuning for every loaded figma.com page (tabs, the warm tab). Shells pick it up on load. */
+  public broadcastTrackpadSpeeds(speeds: TrackpadTuning) {
     for (const wc of webContents.getAllWebContents()) {
       if (!wc.isDestroyed() && wc.getURL().startsWith("https://www.figma.com/")) {
         wc.send("trackpadSpeedsChanged", speeds);

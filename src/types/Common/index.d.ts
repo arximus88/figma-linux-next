@@ -233,6 +233,10 @@ declare namespace Types {
       trackpadPanSpeed: number;
       /** Pinch-to-zoom speed on the canvas, 0.25–4; 1 leaves Figma's own speed. */
       trackpadZoomSpeed: number;
+      /** Pan and pinch keep going after the fingers lift (off by default). */
+      trackpadMomentum: boolean;
+      /** Share of momentum speed kept per frame, 0.5–0.95; higher glides longer. */
+      trackpadMomentumGlide: number;
       windowsState: {
         [key: string]: WindowState;
       };

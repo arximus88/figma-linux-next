@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Trackpad momentum** ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go
+  of a two-finger swipe or a pinch mid-motion and the canvas keeps moving, slowing down as on
+  macOS. Off by default: Settings → General → Trackpad → Trackpad momentum, with a Momentum glide
+  slider for how far it carries on. A mouse wheel never glides, and a click, a key or a new
+  gesture stops the canvas where it is. Idea from [figmix](https://gitlab.com/Valo27/figmix).
+
 ## [0.23.1] - 2026-11-04
 
 Locally installed fonts work on NixOS and in the Flatpak, frame names with `/` export into

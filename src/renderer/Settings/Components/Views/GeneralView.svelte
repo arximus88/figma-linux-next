@@ -63,5 +63,21 @@
       />
       <span class="s-value">{$settings.app.trackpadZoomSpeed}×</span>
     </SettingRow>
+    <SettingRow setting={SETTINGS.trackpadMomentum}>
+      <Toggle bind:checked={$settings.app.trackpadMomentum} />
+    </SettingRow>
+    <SettingRow setting={SETTINGS.trackpadMomentumGlide}>
+      <input
+        class="s-range"
+        type="range"
+        min="0.5"
+        max="0.95"
+        step="0.05"
+        aria-label={SETTINGS.trackpadMomentumGlide.title}
+        disabled={!$settings.app.trackpadMomentum}
+        bind:value={$settings.app.trackpadMomentumGlide}
+      />
+      <span class="s-value">{$settings.app.trackpadMomentumGlide}</span>
+    </SettingRow>
   </div>
 </section>

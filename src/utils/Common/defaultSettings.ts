@@ -52,6 +52,8 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     figmaAgentEnabled: false,
     trackpadPanSpeed: 1,
     trackpadZoomSpeed: 1,
+    trackpadMomentum: false,
+    trackpadMomentumGlide: 0.85,
     figmaTheme: "dark" as Types.FigmaThemePreference,
     lastSeenChangelogVersion: "",
   },
