@@ -55,6 +55,14 @@ describe("window.figma missing: the error names the reason", () => {
     expect(msg).toContain("not a Figma file (/files/recents)");
   });
 
+  it("a file URL without editing_file in INITIAL_OPTIONS advises moving to a team or reloading", () => {
+    const msg = messageFor({ editingFile: null, pathname: "/design/abc/Untitled" });
+    expect(msg.startsWith("Figma Plugin API not available — ")).toBe(true);
+    expect(msg).toContain("active tab is a Figma file (/design/abc/Untitled)");
+    expect(msg).toContain("Move the file into a team, or reload the tab");
+    expect(msg).not.toContain("not a Figma file");
+  });
+
   it("view access (a Dev seat, a file shared as can view) points at the remote server", () => {
     const msg = messageFor({ editingFile: { ...TEAM_FILE, can_edit: false } });
     expect(msg).toContain("you can only view this file");
