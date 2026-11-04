@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { renderChangelogHtml } from "../src/renderer/Changelog/buildHtml.mjs";
+import { renderChangelogHtml } from "../src/renderer/Changelog/buildHtml.mts";
 
 export function generateChangelogData(rootDir: string = process.cwd()): boolean {
   const md = fs.readFileSync(path.join(rootDir, "CHANGELOG.md"), "utf-8");

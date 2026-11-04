@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import electron from "vite-plugin-electron";
 import path from "node:path";
-import { generateChangelogData } from "./scripts/generate-changelog-data.mjs";
-import { DEV_RELAUNCH_MESSAGE } from "./src/constants/dev";
+import { generateChangelogData } from "./scripts/generate-changelog-data.mts";
+import { DEV_RELAUNCH_MESSAGE } from "./src/constants/dev.mts";
 
 const CHANGELOG_PATH = path.resolve(import.meta.dirname, "CHANGELOG.md");
 const PKG_PATH = path.resolve(import.meta.dirname, "package.json");

@@ -1,3 +1,3 @@
 export * from "./other";
 export * from "./app";
-export * from "./dev";
+export * from "./dev.mjs";
