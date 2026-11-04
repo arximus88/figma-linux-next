@@ -220,6 +220,13 @@ new App(new WindowManager(), new Session(), new FontManager());
 - MCP protocol (JSON-RPC 2.0 over Streamable HTTP) on port **3845**
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
+- Tool surface mirrors Figma's remote MCP: `use_figma` runs Plugin API `code` (atomic via an undo
+  marker, `scripts/useFigmaCode.ts`), every file tool takes `fileKey` (routes to that file's tab,
+  `utils/fileKey.ts` + `WindowManager.findFileTab`), plus `whoami`, `download_assets`,
+  `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file). The page's
+  `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
+  empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`
 
 **FigmaAgent** (`src/main/FigmaAgent.ts`):
 - The local helper figma.com looks for from a *browser*. The page never uses `figma://` for

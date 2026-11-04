@@ -12,15 +12,22 @@
  *   3. The Figma MCP server is enabled (default) — reachable on the port below.
  *
  * Run:
- *   bun run scripts/mcp-smoke.ts            # port 3845
- *   bun run scripts/mcp-smoke.ts 4000       # custom server port
+ *   bun run scripts/mcp-smoke.ts                      # port 3845, the active tab
+ *   bun run scripts/mcp-smoke.ts 4000                 # custom server port
+ *   bun run scripts/mcp-smoke.ts --file <fileKey>     # a specific open file (recommended:
+ *                                                     # point it at a scratch file, it writes)
  *   MCP_PORT=4000 bun run scripts/mcp-smoke.ts
+ *
+ * create_new_file is not exercised: it creates a real file in your drafts.
  *
  * FigJam tools (get_figjam, generate_diagram) need a FigJam file; they are
  * marked SKIP when a Design file is open.
  */
 
-const PORT = Number(process.env.MCP_PORT ?? process.argv[2] ?? 3845);
+const args = process.argv.slice(2);
+const fileFlag = args.indexOf("--file");
+const FILE_KEY = fileFlag >= 0 ? args.splice(fileFlag, 2)[1] : process.env.MCP_FILE_KEY;
+const PORT = Number(process.env.MCP_PORT ?? args[0] ?? 3845);
 const BASE = `http://127.0.0.1:${PORT}/mcp`;
 
 let session = "";
@@ -50,7 +57,8 @@ async function rpc(method: string, params?: unknown): Promise<any> {
 
 type ToolResult = { isError: boolean; text: string; hasImage: boolean; err?: unknown };
 async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
-  const j = await rpc("tools/call", { name, arguments: args });
+  const withFile = FILE_KEY && !("fileKey" in args) ? { ...args, fileKey: FILE_KEY } : args;
+  const j = await rpc("tools/call", { name, arguments: withFile });
   if (j?.error) return { isError: true, text: "", hasImage: false, err: j.error };
   const content = j?.result?.content ?? [];
   const textItem = content.find((c: any) => c.type === "text");
@@ -69,7 +77,7 @@ function parseJson(text: string): any {
 }
 
 async function main() {
-  console.log(`\n▶ Figma MCP smoke test — ${BASE}\n`);
+  console.log(`\n▶ Figma MCP smoke test — ${BASE}${FILE_KEY ? ` — file ${FILE_KEY}` : " — active tab"}\n`);
 
   // ── Preflight ────────────────────────────────────────────────────────────
   let init: any = null;
@@ -96,7 +104,7 @@ async function main() {
   }
 
   const probe = await call("get_file_info");
-  if (probe.isError && /not available|No Figma window|not open/i.test(probe.text)) {
+  if (probe.isError && /not available|No Figma window|not open|did not answer|not loaded yet|returned nothing/i.test(probe.text)) {
     console.error(`\n✗ No Figma file reachable: ${probe.text}\n  Open a Design file in the app and retry.`);
     process.exit(4);
   }
@@ -236,6 +244,82 @@ async function main() {
     record("use_figma:reparent_node", "SKIP", "missing ids");
   }
 
+  // ── Remote-MCP parity (code, pages, queries, assets) ─────────────────────
+  console.log("\n■ remote parity");
+  const who = parseJson((await call("whoami")).text);
+  record("whoami", who?.user?.id ? "PASS" : "FAIL", who?.currentFile?.fileKey ?? "");
+
+  const pages = await call("get_metadata");
+  record("get_metadata:pages", /<document[^>]*>[\s\S]*<page id=/.test(pages.text) ? "PASS" : "FAIL");
+
+  const code = await call("use_figma", {
+    description: "smoke: create a rectangle",
+    code: "const r = figma.createRectangle(); r.name = 'MCP Smoke Code'; r.x = -5000; r.resize(40, 40); return { createdNodeIds: [r.id] };",
+  });
+  const codeId: string | undefined = parseJson(code.text)?.createdNodeIds?.[0];
+  record("use_figma:code", codeId ? "PASS" : "FAIL", codeId ?? code.text.slice(0, 60));
+
+  const failing = await call("use_figma", {
+    code: "const r = figma.createRectangle(); r.name = 'MCP Smoke Rollback'; throw new Error('smoke rollback');",
+  });
+  const leftover = parseJson(
+    (
+      await call("use_figma", {
+        code: "return figma.currentPage.findAll(n => n.name === 'MCP Smoke Rollback').length;",
+      })
+    ).text,
+  );
+  record(
+    "use_figma:rollback",
+    failing.isError && /were undone/.test(failing.text) && leftover === 0 ? "PASS" : "FAIL",
+    failing.isError ? `${leftover} left` : "the throwing script reported success",
+  );
+
+  const syntax = await call("use_figma", { code: "return (1;" });
+  record("use_figma:syntax", syntax.isError && /SyntaxError/.test(syntax.text) ? "PASS" : "FAIL");
+
+  const queries = parseJson(
+    (await call("search_design_system", { queries: [{ entity: "variable", query: varName }] })).text,
+  );
+  record("search_design_system:queries", queries?.results?.[0]?.total >= 1 ? "PASS" : "FAIL");
+
+  const small = await call("get_screenshot", { nodeId: frameId, maxDimension: 64 });
+  const smallMeta = parseJson(small.text);
+  record(
+    "get_screenshot:maxDimension",
+    small.hasImage && Math.max(smallMeta?.width ?? 999, smallMeta?.height ?? 999) <= 64 ? "PASS" : "FAIL",
+  );
+
+  const assets = parseJson((await call("download_assets", { nodeId: frameId })).text);
+  const exportOk = assets?.export?.url ? (await fetch(assets.export.url)).ok : false;
+  record("download_assets", exportOk ? "PASS" : "FAIL", assets?.export?.format ?? "");
+
+  if (codeId) {
+    const ticket = parseJson((await call("upload_assets", { nodeIds: [codeId] })).text);
+    const url: string | undefined = ticket?.uploads?.[0]?.url;
+    // A 1x1 PNG.
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const posted = url
+      ? await fetch(url, { method: "POST", headers: { "Content-Type": "image/png" }, body: png })
+      : null;
+    const fill = parseJson(
+      (
+        await call("use_figma", {
+          code: `const n = await figma.getNodeByIdAsync(${JSON.stringify(codeId)}); return n.fills[0] && n.fills[0].type;`,
+        })
+      ).text,
+    );
+    record("upload_assets", posted?.ok && fill === "IMAGE" ? "PASS" : "FAIL", posted ? `HTTP ${posted.status}` : "no url");
+    await call("use_figma", {
+      code: `const n = await figma.getNodeByIdAsync(${JSON.stringify(codeId)}); if (n) n.remove(); return true;`,
+    });
+  } else {
+    record("upload_assets", "SKIP", "no node to fill");
+  }
+
   // ── FigJam (needs a FigJam file) ─────────────────────────────────────────
   console.log("\n■ figjam (needs a FigJam file)");
   const figjam = await call("get_figjam");
@@ -253,7 +337,15 @@ async function main() {
     const del = await call("use_figma", { action: "delete_node", params: { nodeId: id } });
     record(`use_figma:delete_node(${label})`, !del.isError && parseJson(del.text)?.success ? "PASS" : "FAIL");
   }
-  console.log("  note: the 'MCP Smoke' variable collection is left behind (no delete-variable tool).");
+  const dropped = parseJson(
+    (
+      await call("use_figma", {
+        description: "smoke: remove the variable collection it created",
+        code: `const cs = await figma.variables.getLocalVariableCollectionsAsync(); let n = 0; for (const c of cs) if (c.name === ${JSON.stringify(`MCP Smoke ${runId}`)}) { c.remove(); n++; } return n;`,
+      })
+    ).text,
+  );
+  record("cleanup:variables", dropped === 1 ? "PASS" : "FAIL", `${dropped ?? "?"} collection(s)`);
 
   finish();
 }
