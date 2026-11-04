@@ -14,12 +14,18 @@ export function isInsideDirs(file: string, dirs: readonly string[]): boolean {
 }
 
 /**
- * Reduce an export file name from the web app to something that stays inside
- * the chosen directory: drops any directory part (`../`, absolute prefixes)
- * and refuses empty or dot-only names.
+ * Turn an export file name from the web app into a relative path that stays
+ * inside the chosen directory. Subfolders from `/` in frame names are kept;
+ * absolute paths, `..` and empty or dot-only parts are refused.
  */
 export function safeExportName(name: string): string | null {
-  const base = path.basename(name.replace(/\\/g, "/"));
-  if (!base || base === "." || base === "..") return null;
-  return base;
+  const parts = name.replace(/\\/g, "/").split("/");
+
+  for (const part of parts) {
+    if (!part || part === "." || part === "..") {
+      return null;
+    }
+  }
+
+  return parts.join(path.sep);
 }
