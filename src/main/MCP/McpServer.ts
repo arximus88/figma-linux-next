@@ -42,7 +42,7 @@ import type {
 } from "./types";
 import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
-import { collectBody, cors, isValidHost, replyError } from "./utils/http";
+import { collectBody, cors, isAllowedOrigin, isValidHost, replyError } from "./utils/http";
 import { toolError } from "./utils/toolResponse";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
@@ -206,6 +206,20 @@ export class McpServer {
       res.writeHead(403);
       res.end("Access denied — invalid Host header");
       return;
+    }
+
+    // Origin validation: the MCP spec requires it, and without it any web page
+    // could call these tools through the user's browser.
+    const origin = req.headers.origin;
+    if (!isAllowedOrigin(origin)) {
+      this.log.error("Access denied — Origin not allowed:", origin);
+      res.writeHead(403);
+      res.end("Access denied — Origin not allowed");
+      return;
+    }
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
     }
 
     // Standard security headers

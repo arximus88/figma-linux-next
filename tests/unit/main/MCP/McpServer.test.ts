@@ -322,6 +322,100 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(base).toContain(`:${status.port}/`);
   });
 
+  describe("Origin guard", () => {
+    const initBody = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "page", version: "1" },
+      },
+    };
+
+    it("refuses a web page's request: no session, no tool run", async () => {
+      let executed = false;
+      provider.executeInBrowserView = async () => {
+        executed = true;
+        return { fileName: "Secret design" };
+      };
+      const sessionId = await initialize();
+      server.setWriteToolsEnabled(true);
+
+      for (const origin of ["https://evil.example", "null", "http://localhost.evil.example"]) {
+        const init = await fetch(base, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: origin },
+          body: JSON.stringify(initBody),
+        });
+        expect(init.status).toBe(403);
+        expect(init.headers.get("mcp-session-id")).toBeNull();
+
+        // Even with a session id leaked or guessed, the call is refused.
+        const call = await fetch(base, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: origin,
+            "Mcp-Session-Id": sessionId,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: { name: "get_file_info", arguments: {} },
+          }),
+        });
+        expect(call.status).toBe(403);
+      }
+      expect(executed).toBe(false);
+    });
+
+    it("refuses the CORS preflight from a web page", async () => {
+      const res = await fetch(base, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://evil.example",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      });
+      expect(res.status).toBe(403);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
+
+    it("refuses the legacy SSE endpoint and assets from a web page", async () => {
+      const port = new URL(base).port;
+      for (const path of ["/sse", "/assets/x.png"]) {
+        const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+          headers: { Origin: "https://evil.example" },
+        });
+        expect(res.status).toBe(403);
+      }
+    });
+
+    it("serves a local browser tool and echoes its origin, never a wildcard", async () => {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost:6274" },
+        body: JSON.stringify(initBody),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:6274");
+    });
+
+    it("serves clients that send no Origin without CORS headers for anyone", async () => {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(initBody),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
+  });
+
   it("opens a GET SSE stream on /mcp with session id", async () => {
     const sessionId = await initialize();
     const controller = new AbortController();

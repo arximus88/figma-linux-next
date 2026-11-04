@@ -8,12 +8,14 @@
 import type http from "node:http";
 
 /**
- * Returns the minimum CORS headers required for MCP local transport.
+ * CORS headers shared by every response. `Access-Control-Allow-Origin` is not
+ * here: the request guard in McpServer echoes it per request, and only for a
+ * loopback origin (see isAllowedOrigin). A wildcard let any web page the user
+ * visited drive the server through their browser.
  * See: https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/transports/
  */
 export function cors(): Record<string, string> {
   return {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id",
     "Access-Control-Expose-Headers": "Mcp-Session-Id",
@@ -70,13 +72,39 @@ export function isValidHost(hostHeader: string): boolean {
   } catch {
     return false;
   }
+  return isLoopbackHostname(hostname);
+}
 
-  // Allow only loopback addresses. URL.hostname keeps the brackets for IPv6,
-  // so the loopback comes through as "[::1]".
+/** URL.hostname keeps the brackets for IPv6, so the loopback comes through as "[::1]". */
+function isLoopbackHostname(hostname: string): boolean {
   return (
     hostname === "127.0.0.1" ||
     hostname === "::1" ||
     hostname === "[::1]" ||
     hostname === "localhost"
   );
+}
+
+/**
+ * Who may talk to the MCP server, judged by the Origin header.
+ *
+ * - No Origin: a CLI or desktop MCP client (Node, Go, Python). Browsers always
+ *   send Origin on cross-origin fetches and on every POST, so a web page can't
+ *   hide it.
+ * - A loopback http(s) origin: browser-based local tools such as the MCP
+ *   Inspector on localhost.
+ * - Anything else, including "null" (sandboxed iframes, file://): refused.
+ *   Otherwise any site the user opens could read their open designs, and
+ *   with write tools on, change them.
+ */
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  if (origin === undefined) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return isLoopbackHostname(parsed.hostname);
 }
