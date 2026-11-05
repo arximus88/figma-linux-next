@@ -15,13 +15,15 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_design_context",
     description:
-      "Get the design context for a layer or your selection in Figma. Returns the full " +
-      "scene-graph subtree as JSON including node tree structure, layout properties, " +
-      "typography, fills, strokes, effects, auto-layout, and component metadata. " +
-      "Supports Figma Design and Figma Make files. When nodeId is omitted, uses the currently selected nodes. " +
-      "⚠ WARNING: responses can be very large (10k–100k+ tokens) depending on node complexity and depth. " +
-      "Always use get_metadata first to identify a specific nodeId, then call with depth ≤ 3. " +
-      "Avoid calling on page-level or large container nodes without a targeted nodeId.",
+      "Get the design context for a layer or your selection in Figma: one element per visible " +
+      "layer with the CSS it needs (flex layout, sizes, colours, borders, radii, shadows, fonts), " +
+      "bound variables as var(--name, value), text style names, component and variant names, " +
+      "then legends defining the variables, text styles and components used (with their " +
+      "descriptions). A reference to adapt to the target project, not code to paste. Repeated " +
+      "instances of a component are written out once; icons collapse to <svg/> (download_assets " +
+      "returns the files). When nodeId is omitted, uses the currently selected nodes. Pass a " +
+      "frame, not a page: get_metadata lists a page's frames. " +
+      "Supports Figma Design and Figma Make files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -31,7 +33,9 @@ const BASE_TOOLS: ToolDefinition[] = [
         },
         depth: {
           type: "number",
-          description: "Maximum depth to traverse (default: 10).",
+          description:
+            "Levels of layers to write out (default: 10). Deeper containers are cut off with a " +
+            "note to call again on their id.",
         },
       },
     },
@@ -116,13 +120,11 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_variable_defs",
     description:
-      "Returns the variables and styles used in your Figma selection or the entire file. " +
-      "When a node is selected or nodeId is provided, returns only variables/styles bound " +
-      "to those nodes. When nothing is selected and no nodeId is given, returns ALL local " +
-      "variable collections and ALL local styles from the file. For each variable: name, " +
-      "resolved type, collection name, and values by mode (e.g. Light/Dark). For each " +
-      "style: name, type (PAINT/TEXT/EFFECT/GRID), and description. " +
-      "Supports Figma Design files.",
+      "Returns the variables and styles a layer (nodeId) or your selection uses, one per line: " +
+      "the value the layer renders with (its mode, aliases followed to a colour or number), the " +
+      "token an alias points at, the CSS variable from the variable's code syntax, and text " +
+      "style definitions. With nothing selected and no nodeId: every local variable with its " +
+      "value in each mode, and the local text styles. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -246,10 +248,11 @@ const BASE_TOOLS: ToolDefinition[] = [
       'never strings: [{"entity":"component","query":"button"},{"entity":"variable","query":"surface"}]. ' +
       "`entity` is exactly component, variable or style. Results come back in a `results` array in " +
       "the same order, each with the ids/keys needed next (component key for " +
-      "importComponentByKeyAsync, variable id/key for binding). Scope: this file's components " +
-      "(every page) and styles, library components the file already uses (found through its " +
-      "instances), and variables from this file and its enabled libraries. Library components " +
-      "the file does not use yet, and library styles, cannot be listed through the Plugin API. Combine the searches " +
+      "importComponentByKeyAsync / importComponentSetByKeyAsync, variable id/key for binding). " +
+      "Components: this file's own (every page), then Figma's ranked asset search over every " +
+      "team and community library you can reach, used in this file or not, with descriptions. " +
+      "Variables: this file and its enabled libraries. Styles: this file only (Figma has " +
+      "library style search turned off). Combine the searches " +
       "you need in one call. The legacy `query` string still searches everything locally.",
     inputSchema: {
       type: "object",
@@ -270,7 +273,7 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Only search variables of these libraries (library name or collection key from earlier results).",
+            "Only return library variables and components of these libraries (library name, or a key from earlier results).",
         },
         query: {
           type: "string",
@@ -343,6 +346,35 @@ const BASE_TOOLS: ToolDefinition[] = [
       "tab's file its key, name, editor type, team/org ids, whether you can edit it, and the " +
       "plan key. Useful before create_new_file and to explain a view-only file.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_comments",
+    description:
+      "The comment threads on the file, read from figma.com with your session: each thread's id, " +
+      "the layer it is pinned to (id and name), author, date and text, with its replies. " +
+      "Resolved threads are left out unless includeResolved is true. Works in view-only files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        includeResolved: {
+          type: "boolean",
+          description: "Also list resolved threads (default false).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_versions",
+    description:
+      "The file's version history, newest first: version id, date, author, and the label and " +
+      "description of named versions (the rest are autosaves). Works in view-only files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "How many versions to list (default 20, max 100)." },
+        namedOnly: { type: "boolean", description: "Only versions someone named or described." },
+      },
+    },
   },
   {
     name: "download_assets",

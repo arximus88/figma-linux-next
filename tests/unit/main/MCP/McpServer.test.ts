@@ -145,7 +145,7 @@ describe("McpServer (Streamable HTTP transport)", () => {
 
   it("calls a tool returning a JSON string (get_design_context)", async () => {
     const sessionId = await initialize();
-    provider.nextResult = JSON.stringify({ id: "1:2", name: "Frame", type: "FRAME" });
+    provider.nextResult = JSON.stringify({ text: '<frame id="1:2" name="Frame"/>\n' });
     const res = await rpc(
       {
         jsonrpc: "2.0",

@@ -196,11 +196,10 @@ async function main() {
   // Selection-sensitive: with a node selected it runs in selection mode, so assert
   // the tool returns a valid shape rather than requiring our file-wide variable.
   const vars = await call("get_variable_defs");
-  const vj = parseJson(vars.text);
   record(
     "get_variable_defs",
-    !vars.isError && Array.isArray(vj?.variables) ? "PASS" : "FAIL",
-    vj?.source ? `${vj.source} mode` : "",
+    !vars.isError && /^(Used by|Local variables|No variables)/.test(vars.text) ? "PASS" : "FAIL",
+    vars.text.split("\n")[0].slice(0, 60),
   );
 
   const search = await call("search_design_system", { query: varName });
@@ -248,6 +247,15 @@ async function main() {
   console.log("\n■ remote parity");
   const who = parseJson((await call("whoami")).text);
   record("whoami", who?.user?.id ? "PASS" : "FAIL", who?.currentFile?.fileKey ?? "");
+
+  const versions = await call("get_versions", { limit: 3 });
+  record("get_versions", /^Versions of this file/.test(versions.text) ? "PASS" : "FAIL", versions.text.split("\n")[0].slice(0, 50));
+  const comments = await call("get_comments");
+  record(
+    "get_comments",
+    !comments.isError && /^(No comments|\d+ comment thread)/.test(comments.text) ? "PASS" : "FAIL",
+    comments.text.split("\n")[0].slice(0, 50),
+  );
 
   const pages = await call("get_metadata");
   record("get_metadata:pages", /<document[^>]*>[\s\S]*<page id=/.test(pages.text) ? "PASS" : "FAIL");

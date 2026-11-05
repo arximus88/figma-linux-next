@@ -40,6 +40,7 @@ import {
   UPLOAD_ASSET_SCRIPT,
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
+import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -218,18 +219,16 @@ export class ToolHandlers {
       return toolError(result.error);
     }
 
-    const json = JSON.stringify(result, null, 2);
-    const approxTokens = Math.round(json.length / 4);
-    const WARNING_TOKENS = 8_000;
-
-    if (approxTokens > WARNING_TOKENS) {
-      const warn =
+    const text = String(result?.text ?? "");
+    const approxTokens = Math.round(text.length / 3.5);
+    if (approxTokens > 20_000) {
+      return toolResult(
         `⚠ Large response (~${(approxTokens / 1000).toFixed(1)}k tokens). ` +
-        `This may fill context quickly. Consider re-calling with a more specific nodeId or a smaller depth.\n\n`;
-      return toolResult(warn + json);
+          "Call get_metadata on this node and ask for its parts, or pass a smaller depth.\n\n" +
+          text,
+      );
     }
-
-    return toolResult(json);
+    return toolResult(text);
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────
@@ -395,14 +394,9 @@ export class ToolHandlers {
 
   public async toolGetVariableDefs(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
-    const script = VARIABLE_DEFS_SCRIPT(nodeId);
-    const result = await this.exec(script);
-
-    if (result?.error) {
-      return toolError(result.error);
-    }
-
-    return toolResult(safeStringify(result));
+    const result = await this.exec(VARIABLE_DEFS_SCRIPT(nodeId));
+    if (result?.error) return toolError(result.error);
+    return toolResult(String(result?.text ?? ""));
   }
 
   // ── Tool: get_code_connect_map ───────────────────────────────────────────
@@ -653,7 +647,7 @@ export class ToolHandlers {
         ),
       );
       if (result?.error) return toolError(result.error);
-      return toolResult(safeStringify(result));
+      return toolResult(safeStringify(result, 0));
     }
 
     // Legacy single `query`: every entity, the original response shape.
@@ -770,6 +764,24 @@ export class ToolHandlers {
     const result = await this.exec(WHOAMI_SCRIPT);
     if (!result) return toolError("The Figma tab returned nothing; it may still be loading.");
     return toolResult(safeStringify(result));
+  }
+
+  // ── Tool: get_comments / get_versions (read) ─────────────────────────────
+
+  public async toolGetComments(args: Record<string, unknown>) {
+    const out = await this.exec(COMMENTS_SCRIPT(args.includeResolved === true));
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(String(out.text));
+  }
+
+  public async toolGetVersions(args: Record<string, unknown>) {
+    const limit =
+      typeof args.limit === "number" ? Math.min(100, Math.max(1, Math.round(args.limit))) : 20;
+    const out = await this.exec(VERSIONS_SCRIPT(limit, args.namedOnly === true));
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(String(out.text));
   }
 
   // ── Tool: download_assets (read) ─────────────────────────────────────────

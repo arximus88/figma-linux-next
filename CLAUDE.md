@@ -223,7 +223,11 @@ new App(new WindowManager(), new Session(), new FontManager());
 - Tool surface mirrors Figma's remote MCP: `use_figma` runs Plugin API `code` (atomic via an undo
   marker, `scripts/useFigmaCode.ts`), every file tool takes `fileKey` (routes to that file's tab,
   `utils/fileKey.ts` + `WindowManager.findFileTab`), plus `whoami`, `download_assets`,
-  `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file). The page's
+  `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file),
+  `get_comments` / `get_versions` (figma.com endpoints the page can read). `get_design_context`
+  answers in markup with CSS and variable/style/component legends (`scripts/designContext.ts`);
+  component search uses Figma's internal asset search, found in the page's bundler by method
+  name. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
 - Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`

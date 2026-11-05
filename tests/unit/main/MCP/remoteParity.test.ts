@@ -85,8 +85,64 @@ function fakeDocument() {
   return { figma, page2, button };
 }
 
-const run = (script: string, figma: any) =>
-  new Function("window", `return (${script});`)({ figma });
+const run = (script: string, figma: any, extra: Record<string, unknown> = {}) =>
+  new Function("window", `return (${script});`)({ figma, ...extra });
+
+/**
+ * The page's bundler, reduced to what the search uses: a module whose source
+ * mentions the endpoint and whose export has postComponents, answering like
+ * Figma's /api/search/components.
+ */
+function fakeBundler(meta: unknown[], seen: unknown[] = []) {
+  const factories: Record<string, unknown> = {
+    "1": function other() {},
+    "2": function searchModule() {
+      return "postComponents( /api/search/components";
+    },
+  };
+  const req: any = (id: string) =>
+    id === "2"
+      ? {
+          $W: {
+            postComponents: async (args: unknown) => {
+              seen.push(args);
+              return { data: { meta } };
+            },
+          },
+        }
+      : {};
+  req.m = factories;
+  return {
+    rspackChunk_figma_web_bundler: { push: (chunk: any[]) => chunk[2](req) },
+  };
+}
+
+const LIBRARY_HITS = [
+  {
+    name: "Button",
+    type: "state_group",
+    key: "ds-button",
+    file_name: "mdx-ds",
+    library_key: "lk-mdx",
+    description: "Primary action.\n\nMin height 44px.",
+    containing_frame: { pageName: "Buttons" },
+  },
+  {
+    name: "IconButton",
+    type: "component",
+    key: "ds-icon",
+    file_name: "Blade",
+    library_key: "lk-blade",
+    description: "",
+  },
+  {
+    name: "DS Button",
+    type: "state_group",
+    key: "lib-set-key",
+    file_name: "mdx-ds",
+    library_key: "lk-mdx",
+  },
+];
 
 describe("get_metadata", () => {
   it("lists the pages when no node is given, the current one marked", async () => {
@@ -177,13 +233,67 @@ describe("get_screenshot sizing", () => {
 });
 
 describe("search_design_system queries", () => {
-  const search = async (queries: unknown[], libraryKeys: string[] | null = null) => {
+  const search = async (
+    queries: unknown[],
+    libraryKeys: string[] | null = null,
+    bundler: Record<string, unknown> = fakeBundler([]),
+  ) => {
     const { figma } = fakeDocument();
+    figma.fileKey = "file-key";
     return run(
       SEARCH_DESIGN_SYSTEM_QUERIES_SCRIPT(JSON.stringify(queries), JSON.stringify(libraryKeys)),
       figma,
+      bundler,
     );
   };
+
+  it("adds Figma's ranked search over all libraries after the file's own components, once each", async () => {
+    const seen: any[] = [];
+    const out = await search(
+      [{ entity: "component", query: "button" }],
+      null,
+      fakeBundler(LIBRARY_HITS, seen),
+    );
+    expect(seen).toEqual([{ query: "button", openFileKey: "file-key", fv: 0 }]);
+    const hits = out.results[0].results;
+    expect(hits.map((c: any) => [c.source, c.name, c.key])).toEqual([
+      ["local", "Button", "btn-key"],
+      ["library (used in this file)", "DS Button", "lib-set-key"],
+      ["library", "Button", "ds-button"],
+      ["library", "IconButton", "ds-icon"],
+    ]);
+    expect(hits[2]).toEqual({
+      source: "library",
+      library: "mdx-ds",
+      name: "Button",
+      type: "COMPONENT_SET",
+      key: "ds-button",
+      description: "Primary action. Min height 44px.",
+      page: "Buttons",
+    });
+    expect(hits[3].description).toBeUndefined();
+  });
+
+  it("keeps only the libraries asked for, by name or key", async () => {
+    const out = await search(
+      [{ entity: "component", query: "button" }],
+      ["lk-blade"],
+      fakeBundler(LIBRARY_HITS),
+    );
+    expect(out.results[0].results.map((c: any) => c.key)).toEqual(["ds-icon"]);
+  });
+
+  it("falls back to the file and says so when Figma's search module is gone", async () => {
+    const out = await search([{ entity: "component", query: "ds button" }], null, fakeBundler([]));
+    expect(out.results[0].results.map((c: any) => c.key)).toEqual(["lib-set-key"]);
+    const gone = await search([{ entity: "component", query: "ds button" }], null, {
+      rspackChunk_figma_web_bundler: {
+        push: (chunk: any[]) => chunk[2](Object.assign(() => ({}), { m: {} })),
+      },
+    });
+    expect(gone.results[0].results.map((c: any) => c.key)).toEqual(["lib-set-key"]);
+    expect(gone.notes.join(" ")).toContain("library search was not found");
+  });
 
   it("answers each query in order, with the keys a follow-up call needs", async () => {
     const out = await search([
@@ -247,6 +357,7 @@ describe("search_design_system queries", () => {
         "null",
       ),
       figma,
+      fakeBundler([]),
     );
     expect(out.results[0].total).toBe(0);
     expect(out.notes.join(" ")).toContain(

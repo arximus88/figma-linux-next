@@ -55,7 +55,9 @@ export type ToolName =
   | "figma_text"
   | "whoami"
   | "download_assets"
-  | "upload_assets";
+  | "upload_assets"
+  | "get_comments"
+  | "get_versions";
 
 export interface ToolDefinition {
   name: ToolName;

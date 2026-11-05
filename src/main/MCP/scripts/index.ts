@@ -14,113 +14,7 @@ import { HELPERS_PREAMBLE, PLUGIN_API_UNAVAILABLE } from "./helpers";
 // webContents.executeJavaScript(). They use the internal Figma scene graph
 // that's available in the global scope.
 
-export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
-(function() {
-  try {
-    const figma = window.figma;
-    if (!figma) return JSON.stringify({ error: ${PLUGIN_API_UNAVAILABLE} });
-${HELPERS_PREAMBLE}
-    function serializeNode(node, currentDepth, maxDepth) {
-      if (!node || currentDepth > maxDepth) return null;
-      const result = {
-        id: node.id,
-        name: node.name,
-        type: node.type,
-        visible: node.visible,
-      };
-
-      // Layout
-      if ('x' in node) result.x = node.x;
-      if ('y' in node) result.y = node.y;
-      if ('width' in node) result.width = node.width;
-      if ('height' in node) result.height = node.height;
-      if ('rotation' in node) result.rotation = node.rotation;
-      if ('opacity' in node) result.opacity = node.opacity;
-
-      // Auto-layout
-      if ('layoutMode' in node && node.layoutMode !== 'NONE') {
-        result.layoutMode = node.layoutMode;
-        result.primaryAxisSizingMode = node.primaryAxisSizingMode;
-        result.counterAxisSizingMode = node.counterAxisSizingMode;
-        result.primaryAxisAlignItems = node.primaryAxisAlignItems;
-        result.counterAxisAlignItems = node.counterAxisAlignItems;
-        result.paddingLeft = node.paddingLeft;
-        result.paddingRight = node.paddingRight;
-        result.paddingTop = node.paddingTop;
-        result.paddingBottom = node.paddingBottom;
-        result.itemSpacing = node.itemSpacing;
-      }
-
-      // Sizing constraints
-      if ('constraints' in node) result.constraints = node.constraints;
-      if ('layoutSizingHorizontal' in node) result.layoutSizingHorizontal = node.layoutSizingHorizontal;
-      if ('layoutSizingVertical' in node) result.layoutSizingVertical = node.layoutSizingVertical;
-
-      // Fills, strokes, effects
-      if ('fills' in node) assignClone(result, 'fills', node.fills);
-      if ('strokes' in node) assignClone(result, 'strokes', node.strokes);
-      if ('effects' in node) assignClone(result, 'effects', node.effects);
-      if ('strokeWeight' in node) result.strokeWeight = node.strokeWeight;
-      if ('cornerRadius' in node) result.cornerRadius = node.cornerRadius;
-
-      // Typography
-      if (node.type === 'TEXT') {
-        result.characters = node.characters;
-        if ('fontSize' in node) result.fontSize = node.fontSize;
-        if ('fontName' in node) assignClone(result, 'fontName', node.fontName);
-        if ('textAlignHorizontal' in node) result.textAlignHorizontal = node.textAlignHorizontal;
-        if ('textAlignVertical' in node) result.textAlignVertical = node.textAlignVertical;
-        if ('lineHeight' in node) assignClone(result, 'lineHeight', node.lineHeight);
-        if ('letterSpacing' in node) assignClone(result, 'letterSpacing', node.letterSpacing);
-      }
-
-      // Component info
-      if ('componentProperties' in node) assignClone(result, 'componentProperties', node.componentProperties);
-      if (node.type === 'INSTANCE' && node.mainComponent) {
-        result.mainComponentId = node.mainComponent.id;
-        result.mainComponentName = node.mainComponent.name;
-      }
-      if (node.type === 'COMPONENT') {
-        result.isComponent = true;
-      }
-
-      // Children
-      if ('children' in node && currentDepth < maxDepth) {
-        result.children = node.children.map(c => serializeNode(c, currentDepth + 1, maxDepth)).filter(Boolean);
-      }
-
-      return result;
-    }
-
-    let targetNodes;
-    ${
-      nodeId
-        ? `
-      const target = figma.getNodeById(${JSON.stringify(nodeId)});
-      if (!target) return JSON.stringify({ error: "Node not found: " + ${JSON.stringify(nodeId)} });
-      targetNodes = [target];
-    `
-        : `
-      targetNodes = figma.currentPage.selection;
-      if (!targetNodes || targetNodes.length === 0) {
-        return JSON.stringify({ error: "No nodes selected. Select a node in Figma or provide a nodeId." });
-      }
-    `
-    }
-
-    const result = {
-      fileName: figma.root.name,
-      currentPage: figma.currentPage.name,
-      selectionCount: targetNodes.length,
-      nodes: targetNodes.map(n => serializeNode(n, 0, ${depth})),
-    };
-
-    return JSON.stringify(result);
-  } catch (e) {
-    return JSON.stringify({ error: e.message || String(e) });
-  }
-})()
-`;
+export { DESIGN_CONTEXT_SCRIPT } from "./designContext";
 
 export const FILE_INFO_SCRIPT = `
 (function() {
@@ -186,12 +80,15 @@ ${HELPERS_PREAMBLE}
         try { if ('width' in node) attrs.push('width="' + Math.round(node.width) + '"'); } catch(_) {}
         try { if ('height' in node) attrs.push('height="' + Math.round(node.height) + '"'); } catch(_) {}
         try {
-          if (node.type === 'TEXT' && 'characters' in node) {
+          // Most text layers are named after their text; repeat it only when not.
+          if (node.type === 'TEXT' && 'characters' in node && node.characters !== node.name) {
             attrs.push('text="' + escapeXml(String(node.characters).substring(0, 80)) + '"');
           }
         } catch(_) {}
 
-        if ('children' in node && node.children && node.children.length > 0 && currentDepth < ${depth}) {
+        // An instance is outlined as one element, as Figma's remote tool does:
+        // its insides belong to the component (get_design_context shows them).
+        if (node.type !== 'INSTANCE' && 'children' in node && node.children && node.children.length > 0 && currentDepth < ${depth}) {
           let xml = pad + '<' + tag + ' ' + attrs.join(' ') + '>\\n';
           for (let i = 0; i < node.children.length; i++) {
             try { xml += nodeToXml(node.children[i], indent + 1, currentDepth + 1); } catch(_) {}
@@ -259,152 +156,7 @@ ${HELPERS_PREAMBLE}
 })()
 `;
 
-export const VARIABLE_DEFS_SCRIPT = (nodeId: string | null) => `
-(function() {
-  try {
-    const figma = window.figma;
-    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
-
-${HELPERS_PREAMBLE}
-    let targetNodes = null;
-    let fileWideMode = false;
-    ${
-      nodeId
-        ? `
-      const target = figma.getNodeById(${JSON.stringify(nodeId)});
-      if (!target) return { error: "Node not found: " + ${JSON.stringify(nodeId)} };
-      targetNodes = [target];
-    `
-        : `
-      const sel = figma.currentPage.selection;
-      if (sel && sel.length > 0) {
-        targetNodes = sel;
-      } else {
-        fileWideMode = true;
-      }
-    `
-    }
-
-    const variables = {};
-    const styles = {};
-
-    if (fileWideMode) {
-      // Collect ALL local variable collections from the file
-      try {
-        const collections = figma.variables.getLocalVariableCollections();
-        for (const coll of collections) {
-          for (const varId of coll.variableIds) {
-            try {
-              const v = figma.variables.getVariableById(varId);
-              if (v && !variables[v.id]) {
-                const values = {};
-                for (const mode of coll.modes) {
-                  assignClone(values, mode.name, v.valuesByMode[mode.modeId]);
-                }
-                variables[v.id] = {
-                  name: v.name,
-                  type: v.resolvedType,
-                  collection: coll.name,
-                  valuesByMode: values,
-                };
-              }
-            } catch(e) {}
-          }
-        }
-      } catch(e) {}
-
-      // Collect ALL local styles from the file
-      const styleFns = [
-        ['PAINT', 'getLocalPaintStyles'],
-        ['TEXT', 'getLocalTextStyles'],
-        ['EFFECT', 'getLocalEffectStyles'],
-        ['GRID', 'getLocalGridStyles'],
-      ];
-      for (const [type, fn] of styleFns) {
-        try {
-          const localStyles = figma[fn]();
-          for (const s of localStyles) {
-            if (!styles[s.id]) {
-              styles[s.id] = {
-                name: s.name,
-                type: type,
-                description: s.description || null,
-              };
-            }
-          }
-        } catch(e) {}
-      }
-
-      return {
-        variables: Object.values(variables),
-        styles: Object.values(styles),
-        source: 'file',
-      };
-    }
-
-    // Selection-based collection
-    function collectVariables(node) {
-      if ('boundVariables' in node && node.boundVariables) {
-        for (const [prop, binding] of Object.entries(node.boundVariables)) {
-          try {
-            const bindings = Array.isArray(binding) ? binding : [binding];
-            for (const b of bindings) {
-              if (b && b.id) {
-                const v = figma.variables.getVariableById(b.id);
-                if (v && !variables[v.id]) {
-                  const collection = figma.variables.getVariableCollectionById(v.variableCollectionId);
-                  variables[v.id] = {
-                    name: v.name,
-                    type: v.resolvedType,
-                    collection: collection ? collection.name : null,
-                    valuesByMode: {},
-                  };
-                  if (collection) {
-                    for (const mode of collection.modes) {
-                      assignClone(variables[v.id].valuesByMode, mode.name, v.valuesByMode[mode.modeId]);
-                    }
-                  }
-                }
-              }
-            }
-          } catch(e) {}
-        }
-      }
-
-      const styleProps = ['fillStyleId', 'strokeStyleId', 'textStyleId', 'effectStyleId', 'gridStyleId'];
-      for (const prop of styleProps) {
-        if (prop in node && node[prop] && typeof node[prop] === 'string') {
-          try {
-            const style = figma.getStyleById(node[prop]);
-            if (style && !styles[style.id]) {
-              styles[style.id] = {
-                name: style.name,
-                type: style.type,
-                description: style.description || null,
-              };
-            }
-          } catch(e) {}
-        }
-      }
-
-      if ('children' in node) {
-        node.children.forEach(collectVariables);
-      }
-    }
-
-    targetNodes.forEach(collectVariables);
-
-    return {
-      variables: Object.values(variables),
-      styles: Object.values(styles),
-      source: 'selection',
-      nodeCount: targetNodes.length,
-    };
-  } catch (e) {
-    return { error: e.message || String(e) };
-  }
-})()
-`;
+export { VARIABLE_DEFS_SCRIPT } from "./variableDefs";
 
 export const FIGJAM_SCRIPT = (nodeId: string | null) => `
 (function() {
@@ -729,6 +481,10 @@ ${HELPERS_PREAMBLE}
     const queries = ${queriesJson};
     const onlyLibraries = ${libraryKeysJson};
     const LIMIT = 25;
+    // Descriptions come HTML-escaped from Figma (m&#39;ята); one line, plain.
+    const plainText = function (s) {
+      return String(s || '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim();
+    };
     const notes = [];
     const matches = function (name, q) { return String(name || '').toLowerCase().indexOf(q) !== -1; };
 
@@ -819,7 +575,7 @@ ${HELPERS_PREAMBLE}
         try {
           for (const node of page.findAllWithCriteria({ types: ['COMPONENT', 'COMPONENT_SET'] })) {
             if (node.type === 'COMPONENT' && node.parent && node.parent.type === 'COMPONENT_SET') continue;
-            components.push({ source: 'local', id: node.id, key: node.key, name: node.name, type: node.type, description: node.description || undefined, page: page.name });
+            components.push({ source: 'local', id: node.id, key: node.key, name: node.name, type: node.type, description: plainText(node.description).slice(0, 300) || undefined, page: page.name });
           }
           for (const inst of page.findAllWithCriteria({ types: ['INSTANCE'] })) {
             if (instances.length >= MAX_INSTANCES) break;
@@ -840,9 +596,11 @@ ${HELPERS_PREAMBLE}
         for (const main of mains) {
           if (!main || !main.remote) continue;
           const set = main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : null;
+          const owner = set || main;
+          const description = plainText(owner.description || main.description).slice(0, 300) || undefined;
           const entry = set
-            ? { source: 'library (used in this file)', key: set.key, name: set.name, type: 'COMPONENT_SET', variantKey: main.key, variant: main.name }
-            : { source: 'library (used in this file)', key: main.key, name: main.name, type: 'COMPONENT' };
+            ? { source: 'library (used in this file)', key: set.key, name: set.name, type: 'COMPONENT_SET', variantKey: main.key, variant: main.name, description: description }
+            : { source: 'library (used in this file)', key: main.key, name: main.name, type: 'COMPONENT', description: description };
           if (!entry.key || seenKeys[entry.key]) continue;
           seenKeys[entry.key] = true;
           components.push(entry);
@@ -851,6 +609,56 @@ ${HELPERS_PREAMBLE}
       if (instances.length >= MAX_INSTANCES) notes.push('Only the first ' + MAX_INSTANCES + ' instances were inspected for library components.');
       if (skipped.length) notes.push('Not searched for components (did not load in time): ' + skipped.join(', ') + '. Retry, or narrow with get_metadata on those pages.');
       return components;
+    }
+
+    // Figma's own asset search (POST /api/search/components), the one the
+    // Assets panel and the remote MCP use: ranked components from every team
+    // library and community library the user can reach, used or not. It is an
+    // internal module, found by its method name and cached; if a Figma deploy
+    // moves it, the search falls back to this file and its instances.
+    async function searchLibraryComponents(q) {
+      let api = window.__flnAssetSearch;
+      if (!api) {
+        try {
+          let req = null;
+          window.rspackChunk_figma_web_bundler.push([[Math.random()], {}, function (r) { req = r; }]);
+          for (const id of Object.keys(req.m || {})) {
+            let src = '';
+            try { src = String(req.m[id]); } catch (e) { continue; }
+            if (src.indexOf('postComponents(') === -1 || src.indexOf('/api/search/components') === -1) continue;
+            const mod = req(id);
+            for (const k of Object.keys(mod || {})) {
+              try { if (mod[k] && typeof mod[k].postComponents === 'function') { api = mod[k]; break; } } catch (e) {}
+            }
+            if (api) break;
+          }
+        } catch (e) {}
+        if (!api) { notes.push("Figma's library search was not found in this page; only this file and the library components it uses were searched."); return null; }
+        window.__flnAssetSearch = api;
+      }
+      try {
+        const res = await api.postComponents({ query: q, openFileKey: figma.fileKey, fv: 0 });
+        const meta = res && res.data && res.data.meta;
+        if (!Array.isArray(meta)) return null;
+        return meta.filter(function (c) {
+          return !onlyLibraries || onlyLibraries.indexOf(c.file_name) !== -1 || onlyLibraries.indexOf(c.library_key) !== -1;
+        }).map(function (c) {
+          const entry = {
+            source: 'library',
+            library: c.file_name,
+            name: c.name,
+            type: c.type === 'state_group' ? 'COMPONENT_SET' : 'COMPONENT',
+            key: c.key,
+          };
+          const d = plainText(c.description);
+          if (d) entry.description = d.slice(0, 300);
+          if (c.containing_frame && c.containing_frame.pageName) entry.page = c.containing_frame.pageName;
+          return entry;
+        });
+      } catch (e) {
+        notes.push('library search failed: ' + (e.message || e));
+        return null;
+      }
     }
 
     const results = [];
@@ -862,7 +670,15 @@ ${HELPERS_PREAMBLE}
       } else if (item.entity === 'style') {
         hits = onlyLibraries ? [] : (await getStyles()).filter(function (st) { return matches(st.name, q); });
       } else if (item.entity === 'component') {
-        hits = onlyLibraries ? [] : (await getComponents()).filter(function (c) { return matches(c.name, q) || matches(c.description, q); });
+        const local = onlyLibraries ? [] : (await getComponents()).filter(function (c) { return matches(c.name, q) || matches(c.description, q); });
+        const library = (await searchLibraryComponents(item.query)) || [];
+        const seen = {};
+        hits = [];
+        for (const c of local.concat(library)) {
+          if (c.key && seen[c.key]) continue;
+          if (c.key) seen[c.key] = true;
+          hits.push(c);
+        }
       } else {
         results.push({ entity: item.entity, query: item.query, error: 'entity must be component, variable or style' });
         continue;
@@ -871,7 +687,7 @@ ${HELPERS_PREAMBLE}
     }
     const out = { results: results };
     if (notes.length) out.notes = notes.filter(function (n, i) { return notes.indexOf(n) === i; });
-    out.scope = "This file's components and styles, library components this file already uses (via its instances), and variables from this file and its enabled libraries. Unused library components and library styles cannot be listed through the Plugin API.";
+    out.scope = "Components: this file's, then Figma's ranked search over every team and community library you can reach (import with importComponentByKeyAsync / importComponentSetByKeyAsync). Variables: this file and its enabled libraries. Styles: this file only; Figma has library style search turned off.";
     return out;
   } catch (e) {
     return { error: e.message || String(e) };

@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     rectangle, an SVG becomes vectors).
   - `create_new_file` creates a real file instead of a page.
 
+- **Leaner, more useful MCP answers.** Measured on a 54-layer phone screen against Figma's
+  remote server:
+  - `get_design_context` returns markup with CSS instead of raw JSON: variables by name
+    (`var(--color-text, #14191f)`), text style names defined once, component names and
+    descriptions, a repeated component written out once, icons as one `<svg/>`. 95k characters
+    became 10k (Figma's own: 19k).
+  - `get_variable_defs` gives the value each token renders with, follows aliases to the colour,
+    and names the token behind it, instead of raw `VariableID` references.
+  - `get_metadata` stops at component instances and no longer repeats a text layer's text when
+    it is also its name.
+  - `search_design_system` finds components in every team and community library you can reach,
+    not only the ones the file already uses, with their descriptions.
+  - New tools: `get_comments` (comment threads with the layer each is pinned to) and
+    `get_versions` (version history with named versions). Both work in view-only files.
+
 - **Trackpad momentum (experimental)**
   ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go of a two-finger swipe
   or a pinch mid-motion and the canvas keeps moving, slowing down as on macOS. Off by default:

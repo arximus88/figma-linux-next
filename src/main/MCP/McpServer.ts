@@ -583,6 +583,8 @@ export class McpServer {
     whoami: { run: (h) => h.toolWhoami() },
     download_assets: { run: (h, a) => h.toolDownloadAssets(a) },
     upload_assets: { write: true, run: (h, a) => h.toolUploadAssets(a) },
+    get_comments: { run: (h, a) => h.toolGetComments(a) },
+    get_versions: { run: (h, a) => h.toolGetVersions(a) },
   };
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {

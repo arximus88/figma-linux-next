@@ -35,7 +35,8 @@ open, or whose tab is only lazily restored, is an error, never a silent fallback
 
 The Figma MCP mirrors **Figma's remote MCP** (claude.ai Figma connector): `use_figma` takes Plugin
 API `code`, `get_metadata` without a node lists pages, `search_design_system` takes `queries[]`,
-plus `whoami`, `download_assets`, `upload_assets`, `create_new_file`. Figma's own `figma-use` skill
+plus `whoami`, `download_assets`, `upload_assets`, `create_new_file`, and two it lacks:
+`get_comments`, `get_versions`. Figma's own `figma-use` skill
 therefore applies to `use_figma` here; the differences of running in the page instead of a plugin
 sandbox are listed under Gotchas.
 
@@ -104,7 +105,7 @@ switching needed, unless a file answers "in the background" (focus it once, then
 `use_figma` with `code` (body of an async function, `figma` in scope, top-level `await`,
 `return` the ids you created). Example, the instance case from issue #69:
 `const set = await figma.importComponentSetByKeyAsync(key); const i = set.defaultVariant.createInstance(); return { createdNodeIds: [i.id] };`
-— take `key` from `search_design_system`, which also finds library components the file already uses.
+— take `key` from `search_design_system`, which searches every team and community library.
 A throwing script is undone; the error says "…were undone; the file is as it was".
 
 **Move images between files** — `download_assets(nodeId)` on the source (its `rawImages` are the
@@ -175,11 +176,19 @@ a plugin in that file. "No Figma window open" means no window at all.
   `triggerUndo`, which reverts exactly the marker and the script's changes. Do not call
   `figma.commitUndo()` in your code: rollback then only reaches changes after it, and the error
   says so. A successful script is one Ctrl+Z for the user and leaves no marker.
-- **Library reach.** Variables of enabled libraries are searchable; library components only
-  once the file uses them (found through instances). Unused library components and library
-  styles cannot be listed through the Plugin API — Figma's remote server can, this one cannot.
-- **`get_variable_defs` is selection-sensitive.** With a node selected it runs in selection mode (only
-  bound vars); for the whole file, clear the selection first. `search_design_system` is always file-wide.
+- **Library reach.** Components: `search_design_system` calls Figma's own asset search
+  (`POST /api/search/components`, the internal module found by its `postComponents` method) —
+  every team and community library, used or not. If a Figma deploy moves that module the
+  search says so in `notes` and falls back to the file plus its instances. Variables: this file
+  and enabled libraries. Styles: local only; Figma answers library style search with "not
+  enabled in production" (2026-11-06).
+- **`get_design_context` is markup with CSS**, not JSON: variables as `var(--name, value)`,
+  `text-style="…"` with one definition in the legend, components named, a repeated instance
+  written out once (`same-as`, `texts` for what differs), icons as `<svg/>`. About 10k
+  characters for a 54-layer phone screen (Figma's remote: 19k; our old JSON: 95k).
+- **`get_variable_defs` is selection-sensitive.** With a nodeId or selection it lists what those
+  layers bind, valued as they render (their mode, aliases followed, `← token` it points at); with
+  neither, every local variable in every mode. `search_design_system` is always file-wide.
 - **`get_metadata` without nodeId lists pages** (as Figma's remote tool does), no longer the
   current page's tree. Pass a page id for its outline.
 - **Screenshots differ.** Figma MCP `get_screenshot` exports a node via the Plugin API (design pixels);
@@ -200,7 +209,7 @@ bun scripts/mcp-smoke.ts 3845 --file <fileKey>    # a specific open file — use
 
 It also checks the remote-parity surface: `use_figma` code, rollback and syntax errors, the page
 list, batched queries, `maxDimension`, `download_assets` and an `upload_assets` round trip. It does
-not run `create_new_file` (that creates a real draft). 30 PASS / 1 SKIP on 2026-11-04.
+not run `create_new_file` (that creates a real draft). 32 PASS / 1 SKIP on 2026-11-06.
 
 FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam file is open.
 
@@ -209,7 +218,8 @@ FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam f
 **Figma MCP (data) — read:** `whoami`, `get_file_info`, `get_metadata` (no nodeId → pages),
 `get_design_context`, `figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
 outline), `get_variable_defs`, `search_design_system` (`queries: [{entity, query}]`),
-`get_screenshot` (`maxDimension`, `contentsOnly`), `download_assets`, `get_code_connect_map` /
+`get_screenshot` (`maxDimension`, `contentsOnly`), `download_assets`, `get_comments`,
+`get_versions`, `get_code_connect_map` /
 `add_code_connect_map`, `create_design_system_rules`, `get_figjam`.
 **Figma MCP — write (gated):** `use_figma` (`code`; legacy `action`+`params` still works),
 `figma_text` (safe text edit w/ font autoload), `create_new_file` (a real file), `upload_assets`,
