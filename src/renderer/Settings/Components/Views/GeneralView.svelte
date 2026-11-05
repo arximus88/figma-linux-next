@@ -63,7 +63,7 @@
       />
       <span class="s-value">{$settings.app.trackpadZoomSpeed}×</span>
     </SettingRow>
-    <SettingRow setting={SETTINGS.trackpadMomentum}>
+    <SettingRow setting={SETTINGS.trackpadMomentum} badge="Experimental">
       <Toggle bind:checked={$settings.app.trackpadMomentum} />
     </SettingRow>
     <SettingRow setting={SETTINGS.trackpadMomentumGlide}>

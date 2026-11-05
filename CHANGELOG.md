@@ -9,11 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Trackpad momentum** ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go
-  of a two-finger swipe or a pinch mid-motion and the canvas keeps moving, slowing down as on
-  macOS. Off by default: Settings → General → Trackpad → Trackpad momentum, with a Momentum glide
-  slider for how far it carries on. A mouse wheel never glides, and a click, a key or a new
-  gesture stops the canvas where it is. Idea from [figmix](https://gitlab.com/Valo27/figmix).
+- **Figma MCP speaks the remote server's language.** The built-in server now takes the same
+  tool calls as Figma's remote MCP, so prompts and skills written for it work here:
+  - `use_figma` runs Plugin API `code` (an async function body with `figma` in scope). A script
+    that throws is undone; one that succeeds is a single undo step. The old `action`/`params`
+    form still works.
+  - Every file tool takes `fileKey` (a key or a pasted figma.com link) and runs in the tab
+    showing that file, instead of whichever tab is in front
+    ([#67](https://github.com/arximus88/figma-linux-next/issues/67)).
+  - `get_metadata` lists pages when no node is given, `get_screenshot` takes `maxDimension` and
+    `contentsOnly`, and `search_design_system` takes batched `queries` and searches every page
+    and the file's enabled libraries.
+  - New tools: `whoami`, `download_assets` (node export, original fill images, SVGs of vector
+    parts) and `upload_assets` (single-use local URLs; an image becomes a fill or a new
+    rectangle, an SVG becomes vectors).
+  - `create_new_file` creates a real file instead of a page.
+
+- **Trackpad momentum (experimental)**
+  ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go of a two-finger swipe
+  or a pinch mid-motion and the canvas keeps moving, slowing down as on macOS. Off by default:
+  Settings → General → Trackpad momentum, with a Momentum glide slider for how far it carries on.
+  A mouse wheel never glides, and a click, a key or a new gesture stops the canvas where it is.
+  Not yet tried on many touchpads, so feedback in #47 is welcome. Idea from
+  [figmix](https://gitlab.com/Valo27/figmix).
+
+### Fixed
+
+- **Web pages can no longer reach the MCP server.** It answered any site with
+  `Access-Control-Allow-Origin: *`, so a page open in your browser could read your open designs
+  (and edit them with write tools on). Requests from other origins now get 403; command-line and
+  desktop clients and the MCP Inspector on localhost are unaffected.
+
+- **Failed browser hand-offs are logged**
+  ([#41](https://github.com/arximus88/figma-linux-next/issues/41)). When a link or a plugin's
+  "Log in" could not open in the browser, nothing happened and the log said nothing. Each
+  hand-off and the reason it failed are now written to the log.
 
 ## [0.23.1] - 2026-11-04
 

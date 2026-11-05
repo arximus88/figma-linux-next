@@ -191,7 +191,7 @@ export const SETTINGS = {
     title: "Trackpad momentum",
     subtitle:
       "The canvas keeps moving and zooming for a moment after your fingers lift, as on macOS.",
-    keywords: "touchpad inertia momentum kinetic glide fling coast swipe pinch macos",
+    keywords: "touchpad inertia momentum kinetic glide fling coast swipe pinch macos experimental",
   }),
   trackpadMomentumGlide: setting({
     id: "trackpad-momentum-glide",
