@@ -78,11 +78,9 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_screenshot",
     description:
-      "Capture a screenshot of the currently selected node or the visible canvas. " +
-      "Returns a local URL (http://127.0.0.1:<mcpPort>/assets/<id>.png, on the MCP server's " +
-      "configured port) that can be fetched " +
-      "to get the PNG image data. Helps preserve layout fidelity in generated code. " +
-      "Recommended to keep on — only skip if concerned about token limits. " +
+      "Capture a PNG of a node (nodeId), else of the selection, else of the visible window. " +
+      "The image comes back inline, or — with savePath — is written to disk and only its path " +
+      "is returned. Helps preserve layout fidelity in generated code. " +
       "Supports Figma Design and FigJam files.",
     inputSchema: {
       type: "object",
@@ -112,7 +110,7 @@ const BASE_TOOLS: ToolDefinition[] = [
         savePath: {
           type: "string",
           description:
-            "Optional path to save the PNG on disk (absolute or relative to cwd). E.g. 'assets/frame.png' or '/tmp/design.png'. If omitted, image is returned inline only.",
+            "Write the PNG here instead of returning it inline (the response gives savedTo; open that file to see it). Absolute, or relative to the app's export directory (the response says which). If the write fails the image comes back inline.",
         },
       },
     },
@@ -249,10 +247,11 @@ const BASE_TOOLS: ToolDefinition[] = [
       "`entity` is exactly component, variable or style. Results come back in a `results` array in " +
       "the same order, each with the ids/keys needed next (component key for " +
       "importComponentByKeyAsync / importComponentSetByKeyAsync, variable id/key for binding). " +
-      "Components: this file's own (every page), then Figma's ranked asset search over every " +
-      "team and community library you can reach, used in this file or not, with descriptions. " +
-      "Variables: this file and its enabled libraries. Styles: this file only (Figma has " +
-      "library style search turned off). Combine the searches " +
+      "Components: this file's own (every page) and the library ones it uses, then Figma's ranked " +
+      "asset search over team libraries and UI kits (Simple Design System, iOS, Material…), " +
+      "libraries enabled in this file first, with descriptions. Variables: this file, its enabled " +
+      "team libraries and UI kits (import library ones with figma.variables.importVariableByKeyAsync). " +
+      "Styles: this file only; use get_library_styles for a library's. Combine the searches " +
       "you need in one call. The legacy `query` string still searches everything locally.",
     inputSchema: {
       type: "object",
@@ -273,7 +272,7 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Only return library variables and components of these libraries (library name, or a key from earlier results).",
+            "Only return library variables and components of these libraries: a name as list_libraries shows it, or a library key.",
         },
         query: {
           type: "string",

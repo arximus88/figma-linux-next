@@ -1,3 +1,4 @@
+import { FIGMA_HELPERS_LIBRARY, NODE_HELPER_PATTERN } from "./figmaHelpers";
 import { PLUGIN_API_UNAVAILABLE } from "./helpers";
 
 /**
@@ -26,6 +27,11 @@ import { PLUGIN_API_UNAVAILABLE } from "./helpers";
  * success the marker is restored in the same step, so the user sees the
  * script as one undo step and no leftover data.
  *
+ * The code sees Figma's remote-runtime helpers (figma.createAutoLayout,
+ * figma.io.write, node.set/query/matches/screenshot/tree/placeholder,
+ * page.findPlacement) through a proxy of `figma`: see figmaHelpers.ts. Images
+ * from screenshot()/io.write come back next to the result as `images`.
+ *
  * The result is serialized in the page: nodes become {id, name, type} (they are
  * not structured-cloneable), cycles and functions are dropped, and the size is
  * capped so one careless `return figma.root` cannot flood the client.
@@ -51,12 +57,28 @@ export const USE_FIGMA_CODE_SCRIPT = (code: string) => `
   } catch (e) {}
   const settle = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
 
+  // Helpers of Figma's remote use_figma (figmaHelpers.ts). Built once per page.
+  // The type probe creates and removes nodes, so it only runs inside the
+  // marked undo step.
+  let session = null;
+  try {
+    const lib = window.__flnFigmaHelpers || (window.__flnFigmaHelpers = ${FIGMA_HELPERS_LIBRARY});
+    session = lib.begin(figma, marked && ${NODE_HELPER_PATTERN.test(code) ? "true" : "false"});
+  } catch (e) {}
+  const finish = function () { try { if (window.__flnFigmaHelpers) window.__flnFigmaHelpers.end(); } catch (e) {} };
+  const extras = function () {
+    if (!session) return {};
+    const o = session.out;
+    return { images: o.images, files: o.files, notes: o.notes };
+  };
+
   let value;
   try {
     value = await (async function (figma) {
 ${code}
-    }).call(undefined, figma);
+    }).call(undefined, session ? session.api : figma);
   } catch (err) {
+    finish();
     const message = (err && err.message) ? err.message : String(err);
     if (!marked) {
       return { error: message, rolledBack: false, note: "Undo is not available in this tab, so changes made before the error may remain; check with get_metadata." };
@@ -75,10 +97,12 @@ ${code}
     }
     return { error: message, rolledBack: rolledBack, note: note };
   }
+  finish();
   try {
     if (marked) figma.root.setSharedPluginData(NS, KEY, previous);
     figma.commitUndo();
   } catch (e) {}
+  const more = extras();
 
   const seen = new WeakSet();
   const json = JSON.stringify(value === undefined ? null : value, function (key, v) {
@@ -96,9 +120,9 @@ ${code}
   });
   const max = ${USE_FIGMA_MAX_RESULT_CHARS};
   if (json && json.length > max) {
-    return { result: json.slice(0, max), truncated: true, length: json.length };
+    return Object.assign({ result: json.slice(0, max), truncated: true, length: json.length }, more);
   }
-  return { result: json };
+  return Object.assign({ result: json }, more);
 })()`;
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
@@ -118,4 +142,29 @@ export function checkUseFigmaSyntax(code: string): string | null {
   } catch (err) {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/** What the in-page wrapper returns on success, besides `result`. */
+export interface UseFigmaExtras {
+  images?: { name: string; mimeType: string; data: string }[];
+  files?: { path: string; text: string }[];
+  notes?: string[];
+}
+
+/**
+ * The MCP content of a successful use_figma call: the result text, then any
+ * io.write text files and notes, then each screenshot()/io.write image as an
+ * image item preceded by its caption, the way Figma's remote tool shows them.
+ */
+export function useFigmaContent(text: string, extras: UseFigmaExtras) {
+  type Item = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+  const parts = [text];
+  for (const f of extras.files ?? []) parts.push(`--- ${f.path} ---\n${f.text}`);
+  for (const n of extras.notes ?? []) parts.push(`Note: ${n}`);
+  const content: Item[] = [{ type: "text", text: parts.join("\n\n") }];
+  for (const img of extras.images ?? []) {
+    content.push({ type: "text", text: img.name });
+    content.push({ type: "image", data: img.data, mimeType: img.mimeType });
+  }
+  return { content };
 }

@@ -17,6 +17,13 @@ export interface ErrorHint {
 
 export const ERROR_HINTS: ErrorHint[] = [
   {
+    // Helpers of Figma's remote use_figma, added here per node type as the
+    // type is met (scripts/figmaHelpers.ts) — a type never met has none.
+    match:
+      /\.(set|query|matches|screenshot|tree|findPlacement) is not a function|createAutoLayout is not a function/,
+    hint: "this app adds the remote use_figma helpers (set, query, screenshot, tree, …) to node types it has already met in this tab, and this node's type was new. Use the plain Plugin API for it (assign properties, findAll, exportAsync); the next call will usually have the helper.",
+  },
+  {
     match: /unloaded font|font.*not.*loaded|loadFontAsync/i,
     hint: "load the font before setting characters — use the figma_text tool (it auto-loads fonts), or await figma.loadFontAsync(node.fontName) first.",
   },

@@ -247,3 +247,34 @@ describe("get_screenshot: a failed write never reports success", () => {
     expect(meta.saveError).toBeUndefined();
   });
 });
+
+describe("get_screenshot: a saved image is not sent twice", () => {
+  const ok = { base64: PNG_BASE64, nodeId: "1:2", nodeName: "Frame" };
+  const kinds = (response: any) => response.content.map((c: any) => c.type);
+
+  test("without savePath the image comes back inline", async () => {
+    const { handlers } = makeHandlers({ execResult: ok });
+    expect(kinds(await handlers.toolGetScreenshot({ nodeId: "1:2" }))).toEqual(["image", "text"]);
+  });
+
+  test("with savePath only the path comes back, and the file is there", async () => {
+    const target = path.join(tmpDir, "shot.png");
+    const { handlers } = makeHandlers({ execResult: ok });
+    const response: any = await handlers.toolGetScreenshot({ nodeId: "1:2", savePath: target });
+    expect(kinds(response)).toEqual(["text"]);
+    expect(metaOf(response).savedTo).toBe(target);
+    expect(fs.readFileSync(target).toString("base64")).toBe(PNG_BASE64);
+  });
+
+  test("when the file cannot be written the image comes back inline after all", async () => {
+    const blocker = path.join(tmpDir, "not-a-dir");
+    fs.writeFileSync(blocker, "x");
+    const { handlers } = makeHandlers({ execResult: ok });
+    const response: any = await handlers.toolGetScreenshot({
+      nodeId: "1:2",
+      savePath: path.join(blocker, "shot.png"),
+    });
+    expect(kinds(response)).toEqual(["image", "text"]);
+    expect(metaOf(response).saveError).toBeTruthy();
+  });
+});

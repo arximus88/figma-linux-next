@@ -8,6 +8,7 @@
  */
 
 import { HELPERS_PREAMBLE, PLUGIN_API_UNAVAILABLE } from "./helpers";
+import { LIB_PREAMBLE } from "./libraries";
 
 // ── Figma Plugin API Queries ───────────────────────────────────────────────────
 // These JS snippets run inside the Figma webapp's renderer context via
@@ -462,12 +463,18 @@ export const SCREENSHOT_SCRIPT = (
  * search_design_system with Figma's remote shape: `queries` is a list of
  * {entity: component|variable|style, query}, answered in the same order.
  *
- * What the Plugin API can reach decides the scope: local components, styles
- * and variables of this file, plus variables of the libraries enabled for it
- * (figma.teamLibrary). Library components and styles are not listable from a
- * plugin, so they are not searched; a component from a library is used by
- * key (importComponentByKeyAsync) once known. Each hit carries the ids/keys a
- * follow-up use_figma call needs.
+ * Sources: this file's components, styles and variables; the library
+ * components it already uses (through its instances); variables of enabled
+ * team libraries (figma.teamLibrary); and two searches of Figma's own page —
+ * the Assets panel's team-library search (/api/search/components) and its
+ * UI-kit search (/api/search/community_libraries/library_assets). The second
+ * is the only place the default kits (Simple Design System, iOS, Material…)
+ * show up: figma.teamLibrary lists none of their variables and the team search
+ * none of their components (measured 2026-11-06 in a file with SDS enabled).
+ * Library names come from the same list as list_libraries, so
+ * includeLibraryKeys takes a name or a key, and hits from libraries enabled in
+ * this file come first. Each hit carries the ids/keys a follow-up use_figma
+ * call needs.
  */
 export const SEARCH_DESIGN_SYSTEM_QUERIES_SCRIPT = (
   queriesJson: string,
@@ -480,13 +487,90 @@ export const SEARCH_DESIGN_SYSTEM_QUERIES_SCRIPT = (
 ${HELPERS_PREAMBLE}
     const queries = ${queriesJson};
     const onlyLibraries = ${libraryKeysJson};
-    const LIMIT = 25;
+    const LIMIT = 20;
     // Descriptions come HTML-escaped from Figma (m&#39;ята); one line, plain.
     const plainText = function (s) {
       return String(s || '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim();
     };
     const notes = [];
     const matches = function (name, q) { return String(name || '').toLowerCase().indexOf(q) !== -1; };
+
+    // Library names, and which libraries this file has on — the list_libraries
+    // data (libraries.ts). null when Figma moved those internals: the search
+    // then works as before, without names for UI-kit hits or enabled-first order.
+    let libInfoP = null;
+    function libraryInfo() {
+      if (!libInfoP) libInfoP = (async function () {
+        try {
+${LIB_PREAMBLE}
+          const r = await libraryList();
+          const names = {}, enabled = {};
+          r.list.forEach(function (l) { names[l.key] = l.name; if (l.on) enabled[l.key] = true; });
+          return { names: names, enabled: enabled, pick: function (w) { return pickLibrary(r.list, w); } };
+        } catch (e) { return null; }
+      })();
+      return libInfoP;
+    }
+    // includeLibraryKeys holds names or keys; a name also stands for its key.
+    let wantedP = null;
+    function wanted() {
+      if (!onlyLibraries) return Promise.resolve(null);
+      if (!wantedP) wantedP = libraryInfo().then(function (info) {
+        const set = {};
+        onlyLibraries.forEach(function (w) {
+          set[w] = true;
+          const l = info && info.pick(w);
+          if (l) set[l.key] = true;
+        });
+        return set;
+      });
+      return wantedP;
+    }
+    function allowed(set, libraryKey, libraryName) {
+      return !set || !!set[libraryKey] || (!!libraryName && !!set[libraryName]);
+    }
+    /** Library hits from libraries enabled in this file first; order kept otherwise. */
+    function enabledFirst(list, info) {
+      if (!info) return list;
+      return list.map(function (h, i) { return { h: h, i: i, on: info.enabled[h.libraryKey] ? 0 : 1 }; })
+        .sort(function (a, b) { return a.on - b.on || a.i - b.i; })
+        .map(function (x) { return x.h; });
+    }
+    function bundlerExport(needle, method) {
+      let req = null;
+      window.rspackChunk_figma_web_bundler.push([[Math.random()], {}, function (r) { req = r; }]);
+      for (const id of Object.keys((req && req.m) || {})) {
+        let src = '';
+        try { src = String(req.m[id]); } catch (e) { continue; }
+        if (src.indexOf(needle) === -1) continue;
+        try {
+          const mod = req(id);
+          for (const k of Object.keys(mod || {})) { if (mod[k] && typeof mod[k][method] === 'function') return mod[k]; }
+        } catch (e) {}
+      }
+      return null;
+    }
+    // The Assets panel's UI-kit search, once per query text per call.
+    const kitResults = {};
+    function searchKits(q) {
+      if (kitResults[q]) return kitResults[q];
+      kitResults[q] = (async function () {
+        let api = window.__flnKitSearch;
+        if (!api) {
+          try { api = bundlerExport('community_libraries/library_assets', 'getCommunityLibraryAssets'); } catch (e) {}
+          if (!api) { notes.push("Figma's UI kit search was not found in this page; default kits such as Simple Design System were not searched."); return null; }
+          window.__flnKitSearch = api;
+        }
+        try {
+          const res = await api.getCommunityLibraryAssets({ query: q });
+          return (res && res.data && res.data.meta && res.data.meta.results) || null;
+        } catch (e) {
+          notes.push('UI kit search failed: ' + (e.message || e));
+          return null;
+        }
+      })();
+      return kitResults[q];
+    }
 
     // ── Load each source once, lazily ──
     let localVars = null, libVars = null, styles = null, components = null;
@@ -616,6 +700,45 @@ ${HELPERS_PREAMBLE}
     // library and community library the user can reach, used or not. It is an
     // internal module, found by its method name and cached; if a Figma deploy
     // moves it, the search falls back to this file and its instances.
+    function libraryEntry(c, library, isSet, key) {
+      const entry = { source: 'library', library: library, name: c.name, type: isSet ? 'COMPONENT_SET' : 'COMPONENT', key: key };
+      const d = plainText(c.description);
+      if (d) entry.description = d.slice(0, 160);
+      if (c.containing_frame && c.containing_frame.pageName) entry.page = c.containing_frame.pageName;
+      Object.defineProperty(entry, 'libraryKey', { value: c.library_key, enumerable: false });
+      return entry;
+    }
+    async function searchKitComponents(q) {
+      const kit = await searchKits(q);
+      if (!kit) return [];
+      const info = await libraryInfo();
+      const set = await wanted();
+      const out = [];
+      (kit.state_groups || []).forEach(function (c) {
+        const name = info && info.names[c.library_key];
+        if (allowed(set, c.library_key, name)) out.push(libraryEntry(c, name || 'UI kit', true, c.key));
+      });
+      (kit.components || []).forEach(function (c) {
+        if (c.state_group_id) return;
+        const name = info && info.names[c.library_key];
+        if (allowed(set, c.library_key, name)) out.push(libraryEntry(c, name || 'UI kit', false, c.component_key || c.key));
+      });
+      return out;
+    }
+    async function searchKitVariables(q) {
+      const kit = await searchKits(q);
+      if (!kit) return [];
+      const info = await libraryInfo();
+      const set = await wanted();
+      return (kit.variables || []).filter(function (v) {
+        return allowed(set, v.library_key, info && info.names[v.library_key]);
+      }).map(function (v) {
+        const entry = { source: 'library', library: (info && info.names[v.library_key]) || 'UI kit', key: v.key, name: v.name, type: v.variable_type };
+        Object.defineProperty(entry, 'libraryKey', { value: v.library_key, enumerable: false });
+        return entry;
+      });
+    }
+
     async function searchLibraryComponents(q) {
       let api = window.__flnAssetSearch;
       if (!api) {
@@ -640,20 +763,9 @@ ${HELPERS_PREAMBLE}
         const res = await api.postComponents({ query: q, openFileKey: figma.fileKey, fv: 0 });
         const meta = res && res.data && res.data.meta;
         if (!Array.isArray(meta)) return null;
-        return meta.filter(function (c) {
-          return !onlyLibraries || onlyLibraries.indexOf(c.file_name) !== -1 || onlyLibraries.indexOf(c.library_key) !== -1;
-        }).map(function (c) {
-          const entry = {
-            source: 'library',
-            library: c.file_name,
-            name: c.name,
-            type: c.type === 'state_group' ? 'COMPONENT_SET' : 'COMPONENT',
-            key: c.key,
-          };
-          const d = plainText(c.description);
-          if (d) entry.description = d.slice(0, 300);
-          if (c.containing_frame && c.containing_frame.pageName) entry.page = c.containing_frame.pageName;
-          return entry;
+        const set = await wanted();
+        return meta.filter(function (c) { return allowed(set, c.library_key, c.file_name); }).map(function (c) {
+          return libraryEntry(c, c.file_name, c.type === 'state_group', c.key);
         });
       } catch (e) {
         notes.push('library search failed: ' + (e.message || e));
@@ -666,12 +778,19 @@ ${HELPERS_PREAMBLE}
       const q = String(item.query || '').toLowerCase();
       let hits = [];
       if (item.entity === 'variable') {
-        hits = (onlyLibraries ? [] : (await getLocalVariables())).concat(await getLibraryVariables()).filter(function (v) { return matches(v.name, q) || matches(v.collection, q); });
+        const own = (onlyLibraries ? [] : (await getLocalVariables())).concat(await getLibraryVariables()).filter(function (v) { return matches(v.name, q) || matches(v.collection, q); });
+        const seenVars = {};
+        hits = [];
+        for (const v of own.concat(enabledFirst(await searchKitVariables(item.query), await libraryInfo()))) {
+          if (v.key && seenVars[v.key]) continue;
+          if (v.key) seenVars[v.key] = true;
+          hits.push(v);
+        }
       } else if (item.entity === 'style') {
         hits = onlyLibraries ? [] : (await getStyles()).filter(function (st) { return matches(st.name, q); });
       } else if (item.entity === 'component') {
         const local = onlyLibraries ? [] : (await getComponents()).filter(function (c) { return matches(c.name, q) || matches(c.description, q); });
-        const library = (await searchLibraryComponents(item.query)) || [];
+        const library = enabledFirst(((await searchLibraryComponents(item.query)) || []).concat(await searchKitComponents(item.query)), await libraryInfo());
         const seen = {};
         hits = [];
         for (const c of local.concat(library)) {
@@ -687,7 +806,7 @@ ${HELPERS_PREAMBLE}
     }
     const out = { results: results };
     if (notes.length) out.notes = notes.filter(function (n, i) { return notes.indexOf(n) === i; });
-    out.scope = "Components: this file's, then Figma's ranked search over every team and community library you can reach (import with importComponentByKeyAsync / importComponentSetByKeyAsync). Variables: this file and its enabled libraries. Styles: this file only; Figma has library style search turned off.";
+    out.scope = "Components: this file's, the library ones it uses, then Figma's ranked search over team libraries and UI kits, libraries enabled in this file first (import with importComponentByKeyAsync / importComponentSetByKeyAsync). Variables: this file, its enabled team libraries and UI kits (library ones: figma.variables.importVariableByKeyAsync(key)). Styles: this file only; for library styles use get_library_styles.";
     return out;
   } catch (e) {
     return { error: e.message || String(e) };
