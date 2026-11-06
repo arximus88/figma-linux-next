@@ -6,7 +6,7 @@
  * verbatim from McpServer.ts (Phase 3 of decomposition); no behavior change.
  */
 
-import type { ToolDefinition } from "../types";
+import type { ToolAnnotations, ToolDefinition, ToolName } from "../types";
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
@@ -605,21 +605,70 @@ const FILE_KEY_PROPERTY = {
 /** Tools that never touch a file: code-connect bookkeeping lives in the server. */
 const NO_FILE_TOOLS = new Set(["get_code_connect_map", "add_code_connect_map"]);
 
+// What each tool does to the user's file, as MCP annotations. A Record over
+// every ToolName, so a new tool does not compile until it says. Mirrors how
+// Figma's remote server labels the same tools: reads are read-only, tools that
+// only add (a node, a file, a diagram) carry no hint beyond destructive=false,
+// tools that can change or delete existing layers are destructive, and the
+// ones that send prompts to a generative model are open-world.
+const READ: ToolAnnotations = { readOnlyHint: true };
+const ADDS: ToolAnnotations = { readOnlyHint: false, destructiveHint: false };
+const CHANGES: ToolAnnotations = { readOnlyHint: false, destructiveHint: true };
+
+export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
+  get_design_context: READ,
+  get_metadata: READ,
+  get_file_info: READ,
+  get_screenshot: READ,
+  get_variable_defs: READ,
+  get_code_connect_map: READ,
+  // Kept in the server's memory for the session; the file is not touched.
+  add_code_connect_map: ADDS,
+  create_design_system_rules: READ,
+  get_figjam: READ,
+  generate_diagram: ADDS,
+  search_design_system: READ,
+  figma_find: READ,
+  figma_tree: READ,
+  whoami: READ,
+  get_comments: READ,
+  get_versions: READ,
+  list_libraries: READ,
+  get_library_styles: READ,
+  get_library_updates: READ,
+  get_code_connect: READ,
+  download_assets: READ,
+  use_figma: CHANGES,
+  create_new_file: ADDS,
+  upload_assets: ADDS,
+  figma_text: CHANGES,
+  // Figma's agent runs its own code in the file: it can edit or delete layers.
+  figma_agent_prompt: { ...CHANGES, openWorldHint: true },
+  figma_agent_threads: READ,
+  figma_agent_read: READ,
+  figma_ai_credits: READ,
+  figma_ai_generate_image: { ...ADDS, openWorldHint: true },
+  // replace: true swaps the source layer's image fill.
+  figma_ai_edit_image: { ...CHANGES, openWorldHint: true },
+};
+
 function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
-  return tools.map((tool) =>
-    NO_FILE_TOOLS.has(tool.name)
-      ? tool
-      : {
-          ...tool,
-          inputSchema: {
-            ...tool.inputSchema,
-            properties: {
-              ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
-              fileKey: FILE_KEY_PROPERTY,
+  return tools
+    .map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS[t.name] }))
+    .map((tool) =>
+      NO_FILE_TOOLS.has(tool.name)
+        ? tool
+        : {
+            ...tool,
+            inputSchema: {
+              ...tool.inputSchema,
+              properties: {
+                ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
+                fileKey: FILE_KEY_PROPERTY,
+              },
             },
           },
-        },
-  );
+    );
 }
 
 export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);

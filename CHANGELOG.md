@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP tools say what they do to your file.** Every tool now carries the standard MCP
+  annotations, like Figma's remote server: reading tools are marked read-only, `use_figma`,
+  `figma_text`, the Figma agent and image editing are marked destructive, and the Figma AI tools
+  that call a generative model are marked open-world. Clients show these next to each tool
+  (Claude Code's `/mcp` list) and can use them to decide what needs your approval.
+
 ## [0.24.0] - 2026-11-06
 
 The MCP server grows up: it takes the same tool calls as Figma's remote MCP, its answers fit an
