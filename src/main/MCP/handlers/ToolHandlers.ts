@@ -171,6 +171,29 @@ export class ToolHandlers {
   }
 
   /**
+   * Whether the tab's Figma editor has finished opening the file, asked with a
+   * 3 s limit. Until it has, the page is busy loading and every request it
+   * makes to figma.com waits behind that: measured on 2026-11-06, a thread
+   * list took 12-20 s per call (and the page sometimes did not answer at all)
+   * until window.figma appeared, then 0.3 s. Tools that talk to Figma's AI
+   * back end check this first so a call fails at once with advice instead of
+   * running into the client's ~30 s limit.
+   */
+  public async editorNotReady(): Promise<string | null> {
+    let ready: unknown = null;
+    try {
+      ready = await this.exec("!!(window.figma && window.figma.root)", 3_000);
+    } catch {
+      ready = false;
+    }
+    if (ready) return null;
+    return (
+      "Figma is still opening this file: its editor has not finished loading, and until it has, " +
+      "every request to Figma takes 10-20 s. Retry in a minute (a large file can take longer)."
+    );
+  }
+
+  /**
    * Run a script with a print()/logs channel. The script (a self-contained IIFE
    * expression) is inlined into a wrapper that exposes a `print(...)` function in
    * its lexical scope and captures emitted lines into `__logs`. The wrapper

@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   started it, the exchange says "code layer still building" until Make reports back, and it names
   the Make thread, whose reading lists the files each patch changed.
 
+- **Figma AI tools no longer hang while a file is opening.** Until Figma's editor has loaded a
+  file, every request the page makes to Figma waits behind the load, 10-20 s each, and loading
+  took from 10 seconds to over two minutes in testing. A call made in that window ran into the
+  client's limit with no explanation. The AI tools now check the editor first (3 s at most) and
+  say the file is still opening.
+
 ## [0.24.0] - 2026-11-06
 
 The MCP server grows up: it takes the same tool calls as Figma's remote MCP, its answers fit an
