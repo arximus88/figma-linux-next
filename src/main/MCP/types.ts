@@ -69,10 +69,24 @@ export type ToolName =
   | "figma_ai_generate_image"
   | "figma_ai_edit_image";
 
+/**
+ * MCP tool annotations (spec 2025-03-26). Clients show them next to the tool
+ * (Claude Code: "read-only", "destructive", "open-world") and may use them to
+ * decide what needs the user's approval. Hints only: the server still gates
+ * writes and AI tools behind their switches.
+ */
+export interface ToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 export interface ToolDefinition {
   name: ToolName;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations?: ToolAnnotations;
 }
 
 export interface AssetEntry {

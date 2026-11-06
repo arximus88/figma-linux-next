@@ -127,6 +127,26 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(names).toContain("use_figma");
   });
 
+  it("labels every tool with what it does to the file, as Figma's server does", async () => {
+    server.setWriteToolsEnabled(true);
+    server.setAiToolsEnabled(true);
+    const sessionId = await initialize();
+    const res = await rpc({ jsonrpc: "2.0", id: 5, method: "tools/list" }, sessionId);
+    const tools: { name: string; annotations?: Record<string, boolean> }[] = res.json.result.tools;
+    const of = (name: string) => tools.find((t) => t.name === name)?.annotations;
+    // Clients show these (Claude Code: read-only / destructive / open-world).
+    expect(tools.filter((t) => !t.annotations).map((t) => t.name)).toEqual([]);
+    expect(of("get_design_context")).toEqual({ readOnlyHint: true });
+    expect(of("use_figma")).toEqual({ readOnlyHint: false, destructiveHint: true });
+    expect(of("create_new_file")).toEqual({ readOnlyHint: false, destructiveHint: false });
+    expect(of("figma_agent_prompt")).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+    expect(of("figma_ai_credits")).toEqual({ readOnlyHint: true });
+  });
+
   it("calls a tool returning a direct object (get_file_info)", async () => {
     const sessionId = await initialize();
     provider.nextResult = { name: "Test File", type: "design" };
