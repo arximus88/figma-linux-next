@@ -233,6 +233,22 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- `use_figma` also has the helpers Figma's `figma-use` skill teaches and its remote runtime
+  provides (`figma.createAutoLayout`, `figma.io.write`, `node.set/query/matches/screenshot/tree/
+  placeholder`, `page.findPlacement`): `scripts/figmaHelpers.ts`. Page `figma` is frozen, so code
+  gets a Proxy over it; node helpers go onto each node type's prototype as that type passes by,
+  plus a one-time probe (creates and removes one node per type, inside the undo step) only when
+  the code mentions a node helper. Images from `screenshot()` / `io.write` come back as MCP
+  `image` items. Without them agents lost a round trip per run to `... is not a function`
+  (measured in an agent benchmark against Figma's remote MCP, 2026-11-06).
+- A tab that is not in front gets no `requestAnimationFrame`, and Figma waits for a frame before
+  `exportAsync`, `importComponentByKeyAsync` and team-library calls — they hung to the 60 s
+  timeout. `executeInBrowserView` wraps every MCP script in `BackgroundWaker.during()`
+  (`utils/backgroundWaker.ts`): `setBackgroundThrottling(false)` for the call, back to `true`
+  after 60 s idle, untouched if it was already off. Not caused by the node being on another page.
+- `search_design_system` covers UI kits (Simple Design System, iOS, Material) through the Assets
+  panel's kit search (`/api/search/community_libraries/library_assets`); `figma.teamLibrary` and
+  the team component search never return them. `includeLibraryKeys` takes a library name or key.
 - Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`
 
 **FigmaAgent** (`src/main/FigmaAgent.ts`):

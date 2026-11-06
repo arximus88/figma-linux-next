@@ -88,34 +88,149 @@ function fakeDocument() {
 const run = (script: string, figma: any, extra: Record<string, unknown> = {}) =>
   new Function("window", `return (${script});`)({ figma, ...extra });
 
+/** A page bundler made of modules: each has the source text searched for and its exports. */
+function modulesBundler(mods: Record<string, { source: string; exports: unknown }>) {
+  const req: any = (id: string) => mods[id]?.exports ?? {};
+  req.m = Object.fromEntries(
+    Object.entries(mods).map(([id, m]) => [id, { toString: () => m.source }]),
+  );
+  req.m["0"] = function other() {};
+  return { rspackChunk_figma_web_bundler: { push: (chunk: any[]) => chunk[2](req) } };
+}
+
+interface KitResults {
+  components?: unknown[];
+  state_groups?: unknown[];
+  variables?: unknown[];
+}
+
 /**
- * The page's bundler, reduced to what the search uses: a module whose source
- * mentions the endpoint and whose export has postComponents, answering like
- * Figma's /api/search/components.
+ * The page's bundler, reduced to what the search uses: the Assets panel's
+ * team-library search (/api/search/components) and its UI-kit search
+ * (/api/search/community_libraries/library_assets), answering like Figma's.
  */
-function fakeBundler(meta: unknown[], seen: unknown[] = []) {
-  const factories: Record<string, unknown> = {
-    "1": function other() {},
-    "2": function searchModule() {
-      return "postComponents( /api/search/components";
+function fakeBundler(
+  meta: unknown[],
+  seen: unknown[] = [],
+  kit: KitResults = {},
+  extra: Record<string, { source: string; exports: unknown }> = {},
+) {
+  return modulesBundler({
+    "2": {
+      source: "postComponents( /api/search/components",
+      exports: {
+        $W: {
+          postComponents: async (args: unknown) => {
+            seen.push(args);
+            return { data: { meta } };
+          },
+        },
+      },
     },
-  };
-  const req: any = (id: string) =>
-    id === "2"
-      ? {
-          $W: {
-            postComponents: async (args: unknown) => {
-              seen.push(args);
-              return { data: { meta } };
+    "5": {
+      source: "getCommunityLibraryAssets /api/search/community_libraries/library_assets",
+      exports: {
+        Kt: {
+          getCommunityLibraryAssets: async (args: unknown): Promise<any> => {
+            seen.push(args);
+            return {
+              data: {
+                meta: { results: { components: [], state_groups: [], variables: [], ...kit } },
+              },
+            };
+          },
+        },
+      },
+    },
+    ...extra,
+  });
+}
+
+/**
+ * list_libraries' sources (libraries.ts): Simple Design System enabled in the
+ * file through the team's default kits, Material 3 turned off for this file.
+ */
+function libraryListModules() {
+  const view = (name: string) => ({ _name: name });
+  const lg = Object.assign(
+    async (v: any): Promise<any> =>
+      v._name === "LibraryFileSubscriptions"
+        ? {
+            file: {
+              libraryFileSubscriptionOverrides: [{ libraryKey: "lk-m3", isSubscribed: false }],
+            },
+          }
+        : {
+            file: {
+              libraryTeamSubscriptions: [
+                {
+                  communityLibrary: {
+                    name: "Simple Design System",
+                    hubFile: { libraryKey: "lk-sds" },
+                  },
+                },
+                {
+                  communityLibrary: {
+                    name: "Material 3 Design Kit",
+                    hubFile: { libraryKey: "lk-m3" },
+                  },
+                },
+              ],
             },
           },
-        }
-      : {};
-  req.m = factories;
+    { toString: () => "function(e,t,n){return subscribe(e,t,{settleTimeoutMs:1})}" },
+  );
   return {
-    rspackChunk_figma_web_bundler: { push: (chunk: any[]) => chunk[2](req) },
+    "11": {
+      source: "/api/design_systems/libraries_by_library_keys",
+      exports: { Z: { getLibrariesV2: async (): Promise<any> => ({ data: { meta: [] } }) } },
+    },
+    "12": {
+      source: "globalReduxStore",
+      exports: {
+        globalReduxStore: {
+          getState: () => ({ openFile: { key: "file-key", name: "App", teamId: "1" } }),
+        },
+      },
+    },
+    "13": {
+      source: '"LibraryFileSubscriptions" "SubscribedLibrariesForFile"',
+      exports: { a: view("LibraryFileSubscriptions"), b: view("SubscribedLibrariesForFile") },
+    },
+    "14": { source: "settleTimeoutMs", exports: { Ek: lg } },
   };
 }
+
+/** UI-kit search answers shaped like Figma's, trimmed to the fields used. */
+const KIT_HITS: KitResults = {
+  state_groups: [
+    { name: "Button", key: "m3-button", library_key: "lk-m3", description: "M3 button" },
+    {
+      name: "Button",
+      key: "sds-button",
+      library_key: "lk-sds",
+      containing_frame: { pageName: "Buttons" },
+    },
+  ],
+  components: [
+    { name: "X", component_key: "sds-x", library_key: "lk-sds" },
+    {
+      name: "Variant=Primary",
+      component_key: "sds-variant",
+      state_group_id: "77",
+      library_key: "lk-sds",
+    },
+  ],
+  variables: [
+    {
+      name: "Background/Default/Default",
+      key: "sds-bg",
+      variable_type: "COLOR",
+      library_key: "lk-sds",
+    },
+    { name: "Background/Surface", key: "m3-bg", variable_type: "COLOR", library_key: "lk-m3" },
+  ],
+};
 
 const LIBRARY_HITS = [
   {
@@ -254,7 +369,10 @@ describe("search_design_system queries", () => {
       null,
       fakeBundler(LIBRARY_HITS, seen),
     );
-    expect(seen).toEqual([{ query: "button", openFileKey: "file-key", fv: 0 }]);
+    expect(seen).toEqual([
+      { query: "button", openFileKey: "file-key", fv: 0 },
+      { query: "button" },
+    ]);
     const hits = out.results[0].results;
     expect(hits.map((c: any) => [c.source, c.name, c.key])).toEqual([
       ["local", "Button", "btn-key"],
@@ -334,6 +452,71 @@ describe("search_design_system queries", () => {
       "lib-set-key",
       "COMPONENT_SET",
       "lib-variant-key",
+    ]);
+  });
+
+  it("finds UI kit components and variables, named from the library list, enabled libraries first", async () => {
+    const out = await search(
+      [
+        { entity: "component", query: "button" },
+        { entity: "variable", query: "background" },
+      ],
+      null,
+      fakeBundler(LIBRARY_HITS, [], KIT_HITS, libraryListModules()),
+    );
+    const components = out.results[0].results.map((c: any) => [c.source, c.library ?? null, c.key]);
+    expect(components).toEqual([
+      ["local", null, "btn-key"],
+      ["library (used in this file)", null, "lib-set-key"],
+      // Simple Design System is on in this file, so its hits lead the library ones.
+      ["library", "Simple Design System", "sds-button"],
+      ["library", "Simple Design System", "sds-x"],
+      ["library", "mdx-ds", "ds-button"],
+      ["library", "Blade", "ds-icon"],
+      ["library", "Material 3 Design Kit", "m3-button"],
+    ]);
+    expect(out.results[0].results[2].page).toBe("Buttons");
+    expect(out.results[1].results).toEqual([
+      {
+        source: "library",
+        library: "Simple Design System",
+        key: "sds-bg",
+        name: "Background/Default/Default",
+        type: "COLOR",
+      },
+      {
+        source: "library",
+        library: "Material 3 Design Kit",
+        key: "m3-bg",
+        name: "Background/Surface",
+        type: "COLOR",
+      },
+    ]);
+    expect(out.notes).toBeUndefined();
+  });
+
+  it("takes a library name in includeLibraryKeys for UI kits too, which carry only a key", async () => {
+    const out = await search(
+      [
+        { entity: "component", query: "button" },
+        { entity: "variable", query: "background" },
+      ],
+      ["Simple Design System"],
+      fakeBundler(LIBRARY_HITS, [], KIT_HITS, libraryListModules()),
+    );
+    expect(out.results[0].results.map((c: any) => c.key)).toEqual(["sds-button", "sds-x"]);
+    expect(out.results[1].results.map((v: any) => v.key)).toEqual(["sds-bg"]);
+  });
+
+  it("still searches the kits, unnamed, when the library list cannot be read", async () => {
+    const out = await search(
+      [{ entity: "variable", query: "background" }],
+      null,
+      fakeBundler([], [], KIT_HITS),
+    );
+    expect(out.results[0].results.map((v: any) => [v.library, v.key])).toEqual([
+      ["UI kit", "sds-bg"],
+      ["UI kit", "m3-bg"],
     ]);
   });
 

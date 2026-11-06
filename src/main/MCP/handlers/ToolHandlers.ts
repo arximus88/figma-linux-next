@@ -32,6 +32,7 @@ import {
   checkUseFigmaSyntax,
   USE_FIGMA_CODE_SCRIPT,
   USE_FIGMA_MAX_CODE_CHARS,
+  useFigmaContent,
 } from "../scripts/useFigmaCode";
 import {
   DOWNLOAD_ASSETS_SCRIPT,
@@ -362,7 +363,13 @@ export class ToolHandlers {
     return toolError("Screenshot export returned no data");
   }
 
-  /** Build an MCP response with the image inline + optional disk save. */
+  /**
+   * Build an MCP response: the image inline, or — when `savePath` was written —
+   * only where it went. An agent that asks for a file reads that file; sending
+   * the same PNG inline as well made it pay for the image twice (the
+   * 2026-11-06 benchmark runs did exactly that). Figma's remote server likewise
+   * hands large screenshots over by URL instead of inline.
+   */
   private async buildScreenshotResponse(
     base64: string,
     nodeId: string,
@@ -371,7 +378,7 @@ export class ToolHandlers {
     extraMeta?: Record<string, unknown>,
   ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
-    const content: ContentItem[] = [{ type: "image", data: base64, mimeType: "image/png" }];
+    const content: ContentItem[] = [];
 
     const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
 
@@ -396,6 +403,11 @@ export class ToolHandlers {
       }
     }
 
+    if (meta.savedTo) {
+      meta.note = "Saved, not sent inline: open savedTo to look at it.";
+    } else {
+      content.push({ type: "image", data: base64, mimeType: "image/png" });
+    }
     content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
     return { content };
   }
@@ -755,7 +767,7 @@ export class ToolHandlers {
     const text = out.truncated
       ? `${out.result}\n\n[truncated: the result was ${out.length} characters; return less, e.g. ids instead of whole objects]`
       : (out.result ?? "null");
-    return toolResult(text);
+    return useFigmaContent(text, out);
   }
 
   // ── Tool: create_new_file (write) ────────────────────────────────────────
