@@ -18,6 +18,7 @@ bun.lockb
 /docs/*
 !/docs/README.md
 !/docs/notes/
+!/docs/images/
 
 # Flatpak local build output (flatpak-builder --user --install build-dir flatpak/...)
 build-dir

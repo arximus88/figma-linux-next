@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-06
+
+The MCP server grows up: it takes the same tool calls as Figma's remote MCP, its answers fit an
+agent's context (10k characters where raw JSON took 95k), it reaches every library you can use,
+and, behind its own switch, it lets your assistant work with Figma's own AI. Trackpad momentum
+arrives as an experiment.
+
 ### Added
 
 - **Figma MCP speaks the remote server's language.** The built-in server now takes the same
