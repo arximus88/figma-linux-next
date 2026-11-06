@@ -8,7 +8,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { formatAgentExchange } from "Main/MCP/handlers/ToolHandlers";
-import { FIGMA_AGENT_PROMPT_SCRIPT } from "Main/MCP/scripts/figmaAgent";
+import { FIGMA_AGENT_PROMPT_SCRIPT, FIGMA_AGENT_READ_SCRIPT } from "Main/MCP/scripts/figmaAgent";
 import { FIGMA_AI_GENERATE_IMAGE_SCRIPT } from "Main/MCP/scripts/figmaAi";
 import { LIST_LIBRARIES_SCRIPT } from "Main/MCP/scripts/libraries";
 
@@ -40,6 +40,7 @@ const msg = (role: string, parts: [string, unknown][], clientId?: string) => ({
 describe("figma_agent_prompt", () => {
   function agentPage(outcome: unknown, opts: { never?: boolean } = {}) {
     const sent: any[] = [];
+    const titles: string[] = [];
     const sendNew = (data: any) => {
       sent.push(["new", data]);
       data.onThreadResolved("thread-9");
@@ -94,7 +95,10 @@ describe("figma_agent_prompt", () => {
           exports: {
             NH: {
               getThreadMessages: async () => ({ data: { meta: { messages } } }),
-              updateThreadTitle: async () => ({}),
+              updateThreadTitle: async (a: any) => {
+                titles.push(a.title);
+                return {};
+              },
             },
           },
         },
@@ -112,7 +116,7 @@ describe("figma_agent_prompt", () => {
         },
       }),
     };
-    return { window, sent };
+    return { window, sent, titles };
   }
 
   it("sends through the panel's own function and reads back answer, tools, changes and credits", async () => {
@@ -176,6 +180,31 @@ describe("figma_agent_prompt", () => {
       window,
     );
     matches(out, { threadId: "thread-9", outcome: "still running" });
+  });
+
+  it("names a new thread when it is created, not only when the prompt ends", async () => {
+    // Design prompts outlive the wait; the title must not depend on finishing.
+    const { window, titles } = agentPage(null, { never: true });
+    await run(
+      FIGMA_AGENT_PROMPT_SCRIPT({
+        prompt: "Long",
+        threadId: null,
+        selectedNodeIds: [],
+        title: "Hamster app",
+        timeoutMs: 20,
+      }),
+      window,
+    );
+    expect(titles).toEqual(["Hamster app"]);
+  });
+
+  it("reads a finished exchange back with the credits it cost", async () => {
+    // The call may have returned early; figma_agent_read is where the price shows up.
+    const { window } = agentPage({ exchangeOutcome: "completed" });
+    const out = await run(FIGMA_AGENT_READ_SCRIPT("thread-9", 3), window);
+    expect(out.total).toBe(1);
+    matches(out.exchanges[0], { state: "success", answer: "Created Card (5:1).", credits: 6 });
+    expect(out.exchanges[0].clientId).toBeUndefined();
   });
 
   it("names the missing piece when Figma moved its processor", async () => {
