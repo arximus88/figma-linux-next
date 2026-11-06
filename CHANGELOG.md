@@ -18,10 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Long Figma agent prompts no longer lose their result.** MCP clients give up on a call after
-  about a minute, while a design prompt runs for several: Claude Code dropped the call, and with
+  about 30 seconds, while a design prompt runs for several: Claude Code dropped the call, and with
   it the answer, the cost and the thread's title. `figma_agent_prompt` now returns the thread id
-  after 40 seconds while the agent keeps working, names the thread as soon as it exists, and
+  after 20 seconds while the agent keeps working, names the thread as soon as it exists, and
   `figma_agent_read` shows what each exchange cost.
+
+- **Code layers from Figma's agent read back as one exchange.** The agent hands a code layer to
+  Figma Make and answers at once; when Make finishes, Figma wakes the agent with a hidden prompt
+  of its own. `figma_agent_read` showed that as a second prompt nobody wrote and called the first
+  one done while the layer was still building. The hidden turn now folds into the prompt that
+  started it, the exchange says "code layer still building" until Make reports back, and it names
+  the Make thread, whose reading lists the files each patch changed.
 
 ## [0.24.0] - 2026-11-06
 

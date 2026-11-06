@@ -65,21 +65,41 @@ const AGENT_PREAMBLE = `
       return (m.parts || []).filter(function (p) { return String(p.partType).indexOf(prefix) === 0; }).map(function (p) { return parse(p.contentJson) || {}; });
     }
     function short(s, n) { s = String(s == null ? '' : s).replace(/\\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }
-    // One exchange: the user message with this client id and what followed it
-    // up to the next user message.
+    // Figma posts its own user turns into a thread: when a code layer the
+    // agent started finishes, a hidden "Code layer lifecycle events" prompt
+    // wakes the agent to check it. Those belong to the exchange that started
+    // the work, not to a new prompt.
+    function isHiddenTurn(m) {
+      return m.role === 'user' && (m.parts || []).some(function (p) { return String(p.partType) === 'code-chat-hidden'; });
+    }
+    function isPrompt(m) { return m.role === 'user' && !isHiddenTurn(m); }
+    function exchangeStarts(messages) {
+      const starts = [];
+      messages.forEach(function (m, i) { if (isPrompt(m)) starts.push(i); });
+      return starts;
+    }
+    // One exchange: the prompt with this client id and what followed it, Figma's
+    // hidden follow-up turns included, up to the next prompt.
     function exchange(messages, clientId) {
       let start = -1;
-      for (let i = 0; i < messages.length; i++) if (messages[i].role === 'user' && messages[i].clientId === clientId) start = i;
+      for (let i = 0; i < messages.length; i++) if (isPrompt(messages[i]) && messages[i].clientId === clientId) start = i;
       if (start === -1) return null;
       let end = messages.length;
-      for (let i = start + 1; i < messages.length; i++) if (messages[i].role === 'user') { end = i; break; }
+      for (let i = start + 1; i < messages.length; i++) if (isPrompt(messages[i])) { end = i; break; }
       return summarize(messages.slice(start, end));
     }
     function summarize(msgs) {
-      const out = { prompt: '', answer: '', toolCalls: [], changed: { created: [], modified: [], deleted: [] }, state: null };
+      const out = { prompt: '', answer: '', toolCalls: [], changed: { created: [], modified: [], deleted: [] }, state: null, clientIds: [], codeLayerThreads: [] };
       const calls = {};
       for (const m of msgs) {
-        if (m.role === 'user') { out.prompt = partsOf(m, 'text').map(function (t) { return t.text; }).join('\\n'); out.clientId = m.clientId; }
+        if (m.role === 'user') {
+          if (m.clientId) out.clientIds.push(m.clientId);
+          const text = partsOf(m, 'text').map(function (t) { return t.text; }).join('\\n');
+          if (!isHiddenTurn(m)) out.prompt = text;
+          // The code layer's own agent (Figma Make) works in a thread of its own.
+          const ids = text.match(/"makeThreadId":"([^"]+)"/g) || [];
+          for (const x of ids) { const id = x.replace(/.*"([^"]+)"$/, '$1'); if (out.codeLayerThreads.indexOf(id) === -1) out.codeLayerThreads.push(id); }
+        }
         if (m.role === 'assistant') {
           // Figma links nodes in its answers with its own tag; keep the name and id.
           const t = partsOf(m, 'text').map(function (t) { return t.text; }).join('')
@@ -88,6 +108,14 @@ const AGENT_PREAMBLE = `
           for (const c of partsOf(m, 'tool-call-json')) {
             const args = parse(c.argsJson) || {};
             const entry = { tool: String(c.toolName || '').replace(/^mcp__plugin_figma_internal__/, ''), label: args.taskLabel || undefined, code: args.code ? short(args.code, 400) : undefined, ok: null };
+            // Figma Make edits its project with patches and shell commands.
+            if (typeof args.patchText === 'string') {
+              const files = (args.patchText.match(/^[*]{3} (Add|Update|Delete) File: .+$/gm) || []).map(function (l) { return l.replace(/^[*]{3} ([A-Za-z]+) File: /, '$1 '); });
+              entry.label = files.join(', ') || undefined;
+              entry.code = short(args.patchText, 400);
+            } else if (typeof args.command === 'string' && !entry.code) {
+              entry.code = short(args.command, 200);
+            }
             calls[c.toolCallId] = entry;
             out.toolCalls.push(entry);
           }
@@ -103,12 +131,26 @@ const AGENT_PREAMBLE = `
         for (const l of partsOf(m, 'assistant-prompt-lifecycle')) out.state = l.state || out.state;
       }
       for (const c of out.toolCalls) { if (c.label === undefined) delete c.label; if (c.code === undefined) delete c.code; }
+      // start_code_layer hands the work to Figma Make and returns at once; the
+      // layer is done when Figma wakes the agent and it calls wait_code_layer.
+      const started = out.toolCalls.filter(function (c) { return /start_code_layer$/.test(c.tool); }).length;
+      const waited = out.toolCalls.filter(function (c) { return /wait_code_layer$/.test(c.tool); }).length;
+      if (started > waited) out.pending = 'code layer still building';
+      if (!out.codeLayerThreads.length) delete out.codeLayerThreads;
       return out;
     }
     // Usage is logged a few seconds after an exchange ends, so a fresh prompt
     // retries; reading a thread retries once, for a prompt that just ended.
-    async function creditsFor(api, fileKey, clientId, tries) {
-      if (!api || !clientId) return null;
+    async function creditsFor(api, fileKey, clientIds, tries) {
+      if (!api || !clientIds || !clientIds.length) return null;
+      let total = 0, seen = false;
+      for (const id of clientIds) {
+        const c = await creditsOne(api, fileKey, id, tries);
+        if (typeof c === 'number') { total += c; seen = true; }
+      }
+      return seen ? total : null;
+    }
+    async function creditsOne(api, fileKey, clientId, tries) {
       for (let i = 0; i < (tries || 5); i++) {
         if (i) await new Promise(function (r) { setTimeout(r, 2000); });
         try {
@@ -181,9 +223,10 @@ export const FIGMA_AGENT_PROMPT_SCRIPT = (args: AgentPromptArgs) => `
       if (ex && ex.state && ex.state !== 'started' && (ex.answer || outcome !== 'completed')) break;
       await new Promise(function (r) { setTimeout(r, 1500); });
     }
-    const credits = await creditsFor(apis.credits, fileKey, clientId);
+    const credits = await creditsFor(apis.credits, fileKey, [clientId]);
     const out = { threadId: threadId, outcome: outcome, ms: ms, credits: credits };
-    if (ex) { out.answer = ex.answer; out.toolCalls = ex.toolCalls; out.changed = ex.changed; }
+    if (ex) { out.answer = ex.answer; out.toolCalls = ex.toolCalls; out.changed = ex.changed; if (ex.pending) out.pending = ex.pending; if (ex.codeLayerThreads) out.codeLayerThreads = ex.codeLayerThreads; }
+    if (out.pending) out.note = 'The agent handed the work to a code layer, which keeps building after this answer. Call figma_agent_read with this threadId later: the exchange is done when it no longer says "code layer still building".';
     if (outcome === 'precondition_failed') out.note = "Figma refused to start the exchange (precondition_failed): the agent may be off for this file or plan, or Figma changed how prompts are sent.";
     return out;
   } catch (e) {
@@ -219,14 +262,13 @@ export const FIGMA_AGENT_READ_SCRIPT = (threadId: string, last: number) => `
     const apis = agentApis();
     const res = await apis.threads.getThreadMessages({ ownerId: fileKeyOf(), ownerType: 'file', threadId: ${JSON.stringify(threadId)}, pageSize: 200 });
     const messages = (res && res.data && res.data.meta && res.data.meta.messages) || [];
-    const starts = [];
-    messages.forEach(function (m, i) { if (m.role === 'user') starts.push(i); });
+    const starts = exchangeStarts(messages);
     const exchanges = starts.map(function (s, k) { return summarize(messages.slice(s, k + 1 < starts.length ? starts[k + 1] : messages.length)); });
     const shown = exchanges.slice(-${Math.max(1, Math.floor(last))});
     const fileKey = fileKeyOf();
     for (const ex of shown) {
-      if (ex.state && ex.state !== 'started') ex.credits = await creditsFor(apis.credits, fileKey, ex.clientId, 2);
-      delete ex.clientId;
+      if (ex.state && ex.state !== 'started') ex.credits = await creditsFor(apis.credits, fileKey, ex.clientIds, 2);
+      delete ex.clientIds;
     }
     return { threadId: ${JSON.stringify(threadId)}, exchanges: shown, total: exchanges.length };
   } catch (e) {

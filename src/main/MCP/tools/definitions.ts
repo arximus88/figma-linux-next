@@ -691,7 +691,10 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
       "Pass threadId to continue a conversation. Spends Figma AI credits (a few per prompt, " +
       "more for long tasks). Design work takes minutes: the call returns after timeoutSeconds " +
       "with the thread id and outcome 'still running' while the agent keeps working; then " +
-      "call figma_agent_read with that id until the outcome is done.",
+      "call figma_agent_read with that id until the outcome is done. A code layer is built " +
+      "by a second agent (Figma Make) after the answer: the exchange says 'code layer still " +
+      "building' until it is ready, and names the Make thread, whose file edits " +
+      "figma_agent_read can show.",
     inputSchema: {
       type: "object",
       properties: {
@@ -709,8 +712,8 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
         timeoutSeconds: {
           type: "number",
           description:
-            "How long to wait before returning (default 40, max 900). Most MCP clients abort a " +
-            "call after about a minute; raise this only if yours allows longer.",
+            "How long to wait before returning (default 20, max 900). MCP clients such as " +
+            "Claude Code abort a call after about 30 seconds; raise this only if yours allows longer.",
         },
       },
       required: ["prompt"],
