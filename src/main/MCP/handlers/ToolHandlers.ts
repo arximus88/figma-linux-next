@@ -1157,21 +1157,29 @@ const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image";
 /**
  * How long figma_agent_prompt waits by default. MCP clients give up on a call
  * after about a minute (Claude Code aborted a 5-minute agent run at ~60 s on
- * 2026-11-06, losing the answer and the credits it cost), so the tool returns
- * the thread id well before that and the caller reads the rest later.
+ * 2026-11-06, losing the answer and the credits it cost; a 40 s wait was still
+ * cut off), so the tool returns the thread id well before that and the caller
+ * reads the rest later.
  */
-export const AGENT_WAIT_SECONDS = 40;
+export const AGENT_WAIT_SECONDS = 20;
 
 export function formatAgentExchange(ex: any): string {
   const lines: string[] = [];
   const head = [
     ex.threadId ? `thread ${ex.threadId}` : null,
     ex.outcome ?? ex.state ?? null,
+    ex.pending ?? null,
     typeof ex.ms === "number" ? `${Math.round(ex.ms / 1000)} s` : null,
     typeof ex.credits === "number" ? `${ex.credits} credits` : null,
   ].filter(Boolean);
   if (head.length) lines.push(head.join(" · "));
   if (ex.note) lines.push(ex.note);
+  if (Array.isArray(ex.codeLayerThreads) && ex.codeLayerThreads.length) {
+    lines.push(
+      `Code layer built in Figma Make thread ${ex.codeLayerThreads.join(", ")} (figma_agent_read shows its file edits). ` +
+        "The credits above leave out the build itself, which Figma bills to Make and does not report per prompt (a Svelte screen cost about 80); compare figma_ai_credits before and after.",
+    );
+  }
   if (ex.prompt) lines.push(`Prompt: ${ex.prompt}`);
   if (ex.answer) lines.push(`Answer:\n${ex.answer}`);
   const calls = Array.isArray(ex.toolCalls) ? ex.toolCalls : [];
