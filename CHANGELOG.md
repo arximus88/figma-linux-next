@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that call a generative model are marked open-world. Clients show these next to each tool
   (Claude Code's `/mcp` list) and can use them to decide what needs your approval.
 
+### Fixed
+
+- **Long Figma agent prompts no longer lose their result.** MCP clients give up on a call after
+  about a minute, while a design prompt runs for several: Claude Code dropped the call, and with
+  it the answer, the cost and the thread's title. `figma_agent_prompt` now returns the thread id
+  after 40 seconds while the agent keeps working, names the thread as soon as it exists, and
+  `figma_agent_read` shows what each exchange cost.
+
 ## [0.24.0] - 2026-11-06
 
 The MCP server grows up: it takes the same tool calls as Figma's remote MCP, its answers fit an

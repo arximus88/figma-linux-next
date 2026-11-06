@@ -79,7 +79,7 @@ const AGENT_PREAMBLE = `
       const out = { prompt: '', answer: '', toolCalls: [], changed: { created: [], modified: [], deleted: [] }, state: null };
       const calls = {};
       for (const m of msgs) {
-        if (m.role === 'user') out.prompt = partsOf(m, 'text').map(function (t) { return t.text; }).join('\\n');
+        if (m.role === 'user') { out.prompt = partsOf(m, 'text').map(function (t) { return t.text; }).join('\\n'); out.clientId = m.clientId; }
         if (m.role === 'assistant') {
           // Figma links nodes in its answers with its own tag; keep the name and id.
           const t = partsOf(m, 'text').map(function (t) { return t.text; }).join('')
@@ -105,15 +105,17 @@ const AGENT_PREAMBLE = `
       for (const c of out.toolCalls) { if (c.label === undefined) delete c.label; if (c.code === undefined) delete c.code; }
       return out;
     }
-    async function creditsFor(api, fileKey, clientId) {
-      if (!api) return null;
-      for (let i = 0; i < 5; i++) {
+    // Usage is logged a few seconds after an exchange ends, so a fresh prompt
+    // retries; reading a thread retries once, for a prompt that just ended.
+    async function creditsFor(api, fileKey, clientId, tries) {
+      if (!api || !clientId) return null;
+      for (let i = 0; i < (tries || 5); i++) {
+        if (i) await new Promise(function (r) { setTimeout(r, 2000); });
         try {
           const r = await api.getPlanUserActionCreditUsage({ fileKey: fileKey, userActionUuid: clientId });
           const m = r && r.data && r.data.meta;
           if (m) return m.total_credit_usage != null ? m.total_credit_usage : m.total_credit_cost;
         } catch (e) {}
-        await new Promise(function (r) { setTimeout(r, 2000); });
       }
       return null;
     }
@@ -145,7 +147,13 @@ export const FIGMA_AGENT_PROMPT_SCRIPT = (args: AgentPromptArgs) => `
     let threadId = args.threadId;
     const userInput = { plainText: args.prompt, errors: [], hidden: false };
     if (args.selectedNodeIds.length) { userInput.selectedNodeIds = args.selectedNodeIds; userInput.associatedNodeIds = args.selectedNodeIds; }
-    const data = { userInput: userInput, clientLifecycleId: clientId, supportRequestId: clientId, onThreadResolved: function (t) { threadId = t; } };
+    // Name a new thread as soon as it exists: a prompt that outlives the wait
+    // would otherwise keep the title Figma gives it.
+    const setTitle = function () {
+      if (!args.title || !threadId) return Promise.resolve();
+      return Promise.resolve(apis.threads.updateThreadTitle({ ownerId: fileKey, ownerType: 'file', threadId: threadId, title: args.title })).catch(function () {});
+    };
+    const data = { userInput: userInput, clientLifecycleId: clientId, supportRequestId: clientId, onThreadResolved: function (t) { threadId = t; setTitle(); } };
     const sent = args.threadId ? sendTo(data, args.threadId) : sendNew(data);
     if (!sent || typeof sent.then !== 'function') return { error: "Figma's agent did not accept the prompt: its panel is not ready in this tab. Open the file's editor, wait for it to load and retry." };
 
@@ -157,12 +165,11 @@ export const FIGMA_AGENT_PROMPT_SCRIPT = (args: AgentPromptArgs) => `
     ]);
     const ms = Date.now() - started;
     if (timedOut) {
-      return { threadId: threadId, outcome: 'still running', ms: ms, note: 'The agent is still working. Read the result later with figma_agent_read and this threadId.' };
+      return { threadId: threadId, outcome: 'still running', ms: ms, note: 'The agent is still working in Figma; nothing is lost. Call figma_agent_read with this threadId in a minute or two: it shows the answer, the changes and the credits once the prompt ends.' };
     }
     const outcome = (result && result.exchangeOutcome) || 'unknown';
-    if (args.title && threadId) {
-      try { await apis.threads.updateThreadTitle({ ownerId: fileKey, ownerType: 'file', threadId: threadId, title: args.title }); } catch (e) {}
-    }
+    // Figma may retitle the thread when the exchange ends; put ours back.
+    await setTitle();
     // The thread is stored a moment after the exchange ends: the answer and the
     // closing lifecycle part can lag the promise by a second or two (seen live).
     let ex = null;
@@ -215,7 +222,13 @@ export const FIGMA_AGENT_READ_SCRIPT = (threadId: string, last: number) => `
     const starts = [];
     messages.forEach(function (m, i) { if (m.role === 'user') starts.push(i); });
     const exchanges = starts.map(function (s, k) { return summarize(messages.slice(s, k + 1 < starts.length ? starts[k + 1] : messages.length)); });
-    return { threadId: ${JSON.stringify(threadId)}, exchanges: exchanges.slice(-${Math.max(1, Math.floor(last))}), total: exchanges.length };
+    const shown = exchanges.slice(-${Math.max(1, Math.floor(last))});
+    const fileKey = fileKeyOf();
+    for (const ex of shown) {
+      if (ex.state && ex.state !== 'started') ex.credits = await creditsFor(apis.credits, fileKey, ex.clientId, 2);
+      delete ex.clientId;
+    }
+    return { threadId: ${JSON.stringify(threadId)}, exchanges: shown, total: exchanges.length };
   } catch (e) {
     return { error: (e && e.message) || String(e) };
   }

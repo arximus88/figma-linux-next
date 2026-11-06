@@ -689,8 +689,9 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
       "with get_design_context or get_screenshot. Returns the thread id, outcome, the agent's " +
       "answer, the tools it ran, the nodes it created/modified/deleted and the credits spent. " +
       "Pass threadId to continue a conversation. Spends Figma AI credits (a few per prompt, " +
-      "more for long tasks). Prompts that run past timeoutSeconds keep running; read them " +
-      "later with figma_agent_read.",
+      "more for long tasks). Design work takes minutes: the call returns after timeoutSeconds " +
+      "with the thread id and outcome 'still running' while the agent keeps working; then " +
+      "call figma_agent_read with that id until the outcome is done.",
     inputSchema: {
       type: "object",
       properties: {
@@ -707,7 +708,9 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
         title: { type: "string", description: "Name for the thread, shown in Figma's Agents tab." },
         timeoutSeconds: {
           type: "number",
-          description: "How long to wait for the answer (default 300, max 900).",
+          description:
+            "How long to wait before returning (default 40, max 900). Most MCP clients abort a " +
+            "call after about a minute; raise this only if yours allows longer.",
         },
       },
       required: ["prompt"],

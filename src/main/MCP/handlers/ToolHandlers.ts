@@ -825,7 +825,10 @@ export class ToolHandlers {
     const timeoutMs =
       Math.min(
         900,
-        Math.max(10, typeof args.timeoutSeconds === "number" ? args.timeoutSeconds : 300),
+        Math.max(
+          10,
+          typeof args.timeoutSeconds === "number" ? args.timeoutSeconds : AGENT_WAIT_SECONDS,
+        ),
       ) * 1000;
     const nodeIds = Array.isArray(args.nodeIds)
       ? args.nodeIds.map((n) => normalizeNodeId(n)).filter((n): n is string => !!n)
@@ -1151,6 +1154,14 @@ export class ToolHandlers {
 const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image";
 
 /** One agent exchange as compact text: outcome, answer, tool calls, changed nodes. */
+/**
+ * How long figma_agent_prompt waits by default. MCP clients give up on a call
+ * after about a minute (Claude Code aborted a 5-minute agent run at ~60 s on
+ * 2026-11-06, losing the answer and the credits it cost), so the tool returns
+ * the thread id well before that and the caller reads the rest later.
+ */
+export const AGENT_WAIT_SECONDS = 40;
+
 export function formatAgentExchange(ex: any): string {
   const lines: string[] = [];
   const head = [
