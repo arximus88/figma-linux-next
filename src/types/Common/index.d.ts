@@ -9,6 +9,19 @@ declare namespace Types {
     cdp: { active: boolean; port: number | null };
   }
 
+  /** One MCP tool as the settings page lists it. */
+  interface McpToolInfo {
+    name: string;
+    description: string;
+  }
+
+  /** The MCP tools by tier, for the settings page. */
+  interface McpToolList {
+    read: McpToolInfo[];
+    write: McpToolInfo[];
+    ai: McpToolInfo[];
+  }
+
   /** Runtime state of the FigmaAgent listener (browser hand-off), for the settings UI. */
   interface FigmaAgentStatus {
     listening: boolean;
@@ -256,6 +269,8 @@ declare namespace Types {
       serverEnabled: boolean;
       serverPort: number;
       enableWriteTools: boolean;
+      /** Figma AI tools (agent, image generation, credits); they spend AI credits. */
+      enableAiTools: boolean;
       cdpEnabled: boolean;
       remoteDebugPort: number;
     };

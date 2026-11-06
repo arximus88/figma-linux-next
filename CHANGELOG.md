@@ -39,6 +39,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     not only the ones the file already uses, with their descriptions.
   - New tools: `get_comments` (comment threads with the layer each is pinned to) and
     `get_versions` (version history with named versions). Both work in view-only files.
+  - Design-system tools: `list_libraries` (every library you can use and which are on in this
+    file), `get_library_styles` (a library's published styles with import keys),
+    `get_library_updates` (library changes the file has not accepted) and `get_code_connect`
+    (the code components published for an instance with Code Connect).
+
+- **Figma AI tools: your assistant can work with Figma's own AI (experimental).** A third tier
+  of MCP tools behind its own switch, Settings → Integrations → Figma AI tools, off by default
+  because they spend your Figma AI credits:
+  - `figma_agent_prompt` hands a task to Figma's built-in agent and waits for it: you get its
+    answer, the code it ran, the layers it created, changed or deleted, and the credits it
+    used. Claude, Cursor or any MCP client can use Figma's agent as a sub-agent and check its
+    work. `figma_agent_threads` and `figma_agent_read` list and read the conversations.
+  - `figma_ai_generate_image` makes an image from a prompt, places it in the file and saves
+    the PNG to disk. `figma_ai_edit_image` edits, expands, removes the background, upscales or
+    vectorizes an image already in the file.
+  - `figma_ai_credits` shows your remaining credits.
+
+  These use Figma's internal web APIs, not a public interface, so a Figma update can break
+  them; the tools then say which part went missing.
+
+- **Settings list every MCP tool.** Integrations → Figma MCP → Available tools shows each
+  tool by tier with the description an assistant reads.
 
 - **Trackpad momentum (experimental)**
   ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go of a two-finger swipe

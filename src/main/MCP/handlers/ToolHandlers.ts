@@ -41,6 +41,23 @@ import {
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
 import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
+import {
+  CODE_CONNECT_SCRIPT,
+  LIBRARY_STYLES_SCRIPT,
+  LIBRARY_UPDATES_SCRIPT,
+  LIST_LIBRARIES_SCRIPT,
+} from "../scripts/libraries";
+import {
+  FIGMA_AGENT_PROMPT_SCRIPT,
+  FIGMA_AGENT_READ_SCRIPT,
+  FIGMA_AGENT_THREADS_SCRIPT,
+} from "../scripts/figmaAgent";
+import {
+  type EditImageArgs,
+  FIGMA_AI_CREDITS_SCRIPT,
+  FIGMA_AI_EDIT_IMAGE_SCRIPT,
+  FIGMA_AI_GENERATE_IMAGE_SCRIPT,
+} from "../scripts/figmaAi";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -131,8 +148,8 @@ export class ToolHandlers {
    * executeJavaScript cannot be cancelled, so the script may still finish in
    * the page; the caller just stops waiting and gets an error it can act on.
    */
-  private async exec(script: string): Promise<any> {
-    const ms = this.ctx.scriptTimeoutMs ?? 60_000;
+  private async exec(script: string, timeoutMs?: number): Promise<any> {
+    const ms = timeoutMs ?? this.ctx.scriptTimeoutMs ?? 60_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(
@@ -766,6 +783,188 @@ export class ToolHandlers {
     return toolResult(safeStringify(result));
   }
 
+  // ── Libraries and Code Connect (read) ────────────────────────────────────
+
+  private async textTool(script: string) {
+    const out = await this.exec(script);
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(String(out.text));
+  }
+
+  public toolListLibraries() {
+    return this.textTool(LIST_LIBRARIES_SCRIPT);
+  }
+
+  public toolGetLibraryStyles(args: Record<string, unknown>) {
+    const library = typeof args.library === "string" ? args.library.trim() : "";
+    if (!library) return toolError("library is required: a name from list_libraries");
+    return this.textTool(
+      LIBRARY_STYLES_SCRIPT(library, typeof args.query === "string" ? args.query.trim() : ""),
+    );
+  }
+
+  public toolGetLibraryUpdates() {
+    return this.textTool(LIBRARY_UPDATES_SCRIPT);
+  }
+
+  public toolGetCodeConnect(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    if (!nodeId)
+      return toolError("nodeId is required: an instance or a frame containing instances");
+    return this.textTool(
+      CODE_CONNECT_SCRIPT(nodeId, typeof args.label === "string" && args.label ? args.label : null),
+    );
+  }
+
+  // ── Figma AI tier: agent, images, credits ────────────────────────────────
+
+  public async toolFigmaAgentPrompt(args: Record<string, unknown>) {
+    const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+    if (!prompt) return toolError("prompt is required");
+    const timeoutMs =
+      Math.min(
+        900,
+        Math.max(10, typeof args.timeoutSeconds === "number" ? args.timeoutSeconds : 300),
+      ) * 1000;
+    const nodeIds = Array.isArray(args.nodeIds)
+      ? args.nodeIds.map((n) => normalizeNodeId(n)).filter((n): n is string => !!n)
+      : [];
+    const out = await this.exec(
+      FIGMA_AGENT_PROMPT_SCRIPT({
+        prompt,
+        threadId: typeof args.threadId === "string" && args.threadId ? args.threadId : null,
+        selectedNodeIds: nodeIds,
+        title: typeof args.title === "string" && args.title ? args.title : null,
+        timeoutMs,
+      }),
+      timeoutMs + 30_000,
+    );
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(formatAgentExchange(out));
+  }
+
+  public async toolFigmaAgentThreads() {
+    const out = await this.exec(FIGMA_AGENT_THREADS_SCRIPT);
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(String(out.text));
+  }
+
+  public async toolFigmaAgentRead(args: Record<string, unknown>) {
+    const threadId = typeof args.threadId === "string" ? args.threadId.trim() : "";
+    if (!threadId) return toolError("threadId is required (figma_agent_threads lists them)");
+    const last = typeof args.last === "number" ? args.last : 3;
+    const out = await this.exec(FIGMA_AGENT_READ_SCRIPT(threadId, last));
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    const body = (out.exchanges as any[])
+      .map(
+        (ex, i) =>
+          `── exchange ${out.total - out.exchanges.length + i + 1} of ${out.total} ──\n` +
+          formatAgentExchange({ ...ex, prompt: ex.prompt }),
+      )
+      .join("\n\n");
+    return toolResult(`Thread ${threadId}\n${body}`);
+  }
+
+  public async toolFigmaAiCredits() {
+    const out = await this.exec(FIGMA_AI_CREDITS_SCRIPT);
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return toolResult(safeStringify(out, 0));
+  }
+
+  public async toolFigmaAiGenerateImage(args: Record<string, unknown>) {
+    const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+    if (!prompt) return toolError("prompt is required");
+    const dim = (v: unknown) =>
+      typeof v === "number" && v > 0 ? Math.min(4096, Math.max(64, Math.round(v))) : 1024;
+    const model = typeof args.model === "string" && args.model ? args.model : DEFAULT_IMAGE_MODEL;
+    const out = await this.exec(
+      FIGMA_AI_GENERATE_IMAGE_SCRIPT({
+        prompt,
+        negativePrompt: typeof args.negativePrompt === "string" ? args.negativePrompt : null,
+        width: dim(args.width),
+        height: dim(args.height),
+        model,
+        seed: typeof args.seed === "number" ? Math.round(args.seed) : null,
+        place: args.placeOnCanvas !== false,
+        previewMax: 512,
+      }),
+      180_000,
+    );
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return this.aiImageResponse(out, args.savePath, prompt);
+  }
+
+  public async toolFigmaAiEditImage(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    if (!nodeId) return toolError("nodeId is required: a layer with an image fill");
+    const ops = ["edit", "expand", "remove_background", "upscale", "vectorize"] as const;
+    const operation = ops.find((o) => o === args.operation);
+    if (!operation) return toolError(`operation must be one of ${ops.join(", ")}`);
+    const e = (args.expand ?? {}) as Record<string, unknown>;
+    const px = (v: unknown) => (typeof v === "number" && v > 0 ? Math.round(v) : 0);
+    const editArgs: EditImageArgs = {
+      nodeId,
+      operation,
+      prompt: typeof args.prompt === "string" && args.prompt.trim() ? args.prompt.trim() : null,
+      model: typeof args.model === "string" && args.model ? args.model : DEFAULT_IMAGE_MODEL,
+      expand:
+        operation === "expand"
+          ? { top: px(e.top), right: px(e.right), bottom: px(e.bottom), left: px(e.left) }
+          : null,
+      scale: args.scale === 4 ? 4 : 2,
+      replace: args.replace === true,
+      previewMax: 512,
+    };
+    const out = await this.exec(FIGMA_AI_EDIT_IMAGE_SCRIPT(editArgs), 180_000);
+    if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (out.error) return toolError(out.error);
+    return this.aiImageResponse(out, args.savePath, `${operation}-${nodeId}`);
+  }
+
+  /** Save what Figma AI made to disk; answer with a small preview and the facts. */
+  private async aiImageResponse(out: any, savePathArg: unknown, label: string) {
+    const isSvg = typeof out.svg === "string";
+    const slug =
+      label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "image";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const requested = typeof savePathArg === "string" && savePathArg ? savePathArg : null;
+    const absPath = this.resolveSavePath(
+      requested ?? path.join("figma-ai", `${stamp}-${slug}.${isSvg ? "svg" : "png"}`),
+    );
+    const meta: Record<string, unknown> = {
+      ms: out.ms,
+      model: out.model,
+      placed: out.placed ?? undefined,
+      creditsBefore: out.creditsBefore,
+      creditsAfter: out.creditsAfter,
+      creditsSpent:
+        typeof out.creditsBefore === "number" && typeof out.creditsAfter === "number"
+          ? out.creditsBefore - out.creditsAfter
+          : undefined,
+    };
+    try {
+      await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.promises.writeFile(absPath, isSvg ? out.svg : Buffer.from(out.base64, "base64"));
+      meta.savedTo = absPath;
+    } catch (e: any) {
+      meta.saveError = `${absPath}: ${e.message}`;
+    }
+    const content: { type: string; data?: string; mimeType?: string; text?: string }[] = [];
+    if (out.preview) content.push({ type: "image", data: out.preview, mimeType: "image/jpeg" });
+    content.push({ type: "text", text: safeStringify(meta, 0) });
+    return { content };
+  }
+
   // ── Tool: get_comments / get_versions (read) ─────────────────────────────
 
   public async toolGetComments(args: Record<string, unknown>) {
@@ -946,4 +1145,51 @@ export class ToolHandlers {
     if (result?.error) return toolError(result.error);
     return toolResult(safeStringify(result));
   }
+}
+
+/** Figma AI's default image model: the one Figma's own "Make image" picks. */
+const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image";
+
+/** One agent exchange as compact text: outcome, answer, tool calls, changed nodes. */
+export function formatAgentExchange(ex: any): string {
+  const lines: string[] = [];
+  const head = [
+    ex.threadId ? `thread ${ex.threadId}` : null,
+    ex.outcome ?? ex.state ?? null,
+    typeof ex.ms === "number" ? `${Math.round(ex.ms / 1000)} s` : null,
+    typeof ex.credits === "number" ? `${ex.credits} credits` : null,
+  ].filter(Boolean);
+  if (head.length) lines.push(head.join(" · "));
+  if (ex.note) lines.push(ex.note);
+  if (ex.prompt) lines.push(`Prompt: ${ex.prompt}`);
+  if (ex.answer) lines.push(`Answer:\n${ex.answer}`);
+  const calls = Array.isArray(ex.toolCalls) ? ex.toolCalls : [];
+  if (calls.length) {
+    lines.push(`Tool calls (${calls.length}):`);
+    for (const c of calls) {
+      const mark = c.ok === false ? "failed" : c.ok ? "ok" : "?";
+      lines.push(
+        `- ${c.tool}${c.label ? ` "${c.label}"` : ""} · ${mark}${c.code ? ` · ${c.code}` : ""}`,
+      );
+    }
+  }
+  const ch = ex.changed;
+  if (ch && (ch.created?.length || ch.modified?.length || ch.deleted?.length)) {
+    const part = (k: string, ids: string[]) =>
+      ids?.length
+        ? `${k} ${ids.length}: ${ids.slice(0, 30).join(", ")}${ids.length > 30 ? ", …" : ""}`
+        : null;
+    lines.push(
+      `Changed nodes: ${[
+        part("created", ch.created),
+        part("modified", ch.modified),
+        part("deleted", ch.deleted),
+      ]
+        .filter(Boolean)
+        .join("; ")}`,
+    );
+  } else if (ch) {
+    lines.push("Changed nodes: none");
+  }
+  return lines.join("\n");
 }

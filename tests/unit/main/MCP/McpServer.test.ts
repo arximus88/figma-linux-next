@@ -235,6 +235,29 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(res.json.result.content[0].text).toContain("ok");
   });
 
+  it("keeps the Figma AI tools hidden and refused until their own switch is on", async () => {
+    server.setWriteToolsEnabled(true);
+    const sessionId = await initialize();
+    const names = async (id: number) =>
+      (await rpc({ jsonrpc: "2.0", id, method: "tools/list" }, sessionId)).json.result.tools.map(
+        (t: { name: string }) => t.name,
+      );
+    expect(await names(30)).not.toContain("figma_agent_prompt");
+    const refused = await callTool(sessionId, "figma_ai_credits", {}, 31);
+    expect(refused.json.result.isError).toBe(true);
+    expect(refused.json.result.content[0].text).toContain("Figma AI tools are disabled");
+
+    server.setAiToolsEnabled(true);
+    const on = await names(32);
+    for (const t of ["figma_agent_prompt", "figma_ai_generate_image", "figma_ai_credits"]) {
+      expect(on).toContain(t);
+    }
+    provider.nextResult = { plan: "team::1", you: { available: 10, total: 3000 } };
+    const ok = await callTool(sessionId, "figma_ai_credits", {}, 33);
+    expect(ok.json.result.isError).toBeUndefined();
+    expect(ok.json.result.content[0].text).toContain('"available":10');
+  });
+
   // ── New tools: figma_find / figma_tree / figma_text ──────────────────────
 
   it("lists the new read tools and gates figma_text behind write", async () => {

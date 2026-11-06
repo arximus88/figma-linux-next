@@ -42,6 +42,7 @@ export const EDITABLE_MCP_KEYS = [
   "serverEnabled",
   "serverPort",
   "enableWriteTools",
+  "enableAiTools",
   "cdpEnabled",
   "remoteDebugPort",
 ] as const;
@@ -124,6 +125,7 @@ export type SettingsEffect =
   | { type: "tray"; enabled: boolean }
   | { type: "dialogs"; useZenity: boolean }
   | { type: "mcpWriteTools"; enabled: boolean }
+  | { type: "mcpAiTools"; enabled: boolean }
   | { type: "mcpServer"; enabled: boolean; port: number }
   | { type: "figmaAgent"; enabled: boolean }
   | { type: "trackpad"; pan: number; zoom: number; momentum: boolean; glide: number }
@@ -183,6 +185,9 @@ export function planSettingsUpdate(
   }
   if (a.mcp.enableWriteTools !== b.mcp.enableWriteTools) {
     effects.push({ type: "mcpWriteTools", enabled: !!b.mcp.enableWriteTools });
+  }
+  if (!!a.mcp.enableAiTools !== !!b.mcp.enableAiTools) {
+    effects.push({ type: "mcpAiTools", enabled: !!b.mcp.enableAiTools });
   }
   if (a.mcp.serverEnabled !== b.mcp.serverEnabled || a.mcp.serverPort !== b.mcp.serverPort) {
     effects.push({

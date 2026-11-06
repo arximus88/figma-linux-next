@@ -57,7 +57,17 @@ export type ToolName =
   | "download_assets"
   | "upload_assets"
   | "get_comments"
-  | "get_versions";
+  | "get_versions"
+  | "list_libraries"
+  | "get_library_styles"
+  | "get_library_updates"
+  | "get_code_connect"
+  | "figma_agent_prompt"
+  | "figma_agent_threads"
+  | "figma_agent_read"
+  | "figma_ai_credits"
+  | "figma_ai_generate_image"
+  | "figma_ai_edit_image";
 
 export interface ToolDefinition {
   name: ToolName;

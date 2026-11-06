@@ -214,6 +214,21 @@ export const SETTINGS = {
     subtitle: "Let AI create, edit and delete nodes. Reading is always available.",
     keywords: "mcp write tools edit",
   }),
+  mcpAi: setting({
+    id: "mcp-ai",
+    section: "integrations",
+    title: "Figma AI tools",
+    subtitle:
+      "Let AI assistants use Figma's own AI: prompt Figma's agent, generate and edit images, check credits. Spends your Figma AI credits.",
+    keywords: "mcp ai figma agent assistant image generation credits orchestration",
+  }),
+  mcpTools: setting({
+    id: "mcp-tools",
+    section: "integrations",
+    title: "Available tools",
+    subtitle: "Every tool the server offers, with the description an assistant reads.",
+    keywords: "mcp tools list description",
+  }),
   mcpPort: setting({
     id: "mcp-port",
     section: "integrations",

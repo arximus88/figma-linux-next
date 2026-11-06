@@ -27,6 +27,7 @@ import FontController from "./controllers/FontController";
 import ClipboardController from "./controllers/ClipboardController";
 import AuthController from "./controllers/AuthController";
 import FileController from "./controllers/FileController";
+import { mcpToolList } from "./MCP/tools/definitions";
 
 export default class App {
   private authController: AuthController;
@@ -78,6 +79,7 @@ export default class App {
 
     // MCP runtime status for the settings UI (real server/CDP state)
     ipcRegistry.handle("getMcpStatus", () => this.getMcpStatus(), "App");
+    ipcRegistry.handle("getMcpTools", () => mcpToolList(), "App");
     ipcRegistry.handle("getFigmaAgentStatus", () => this.figmaAgent.getStatus(), "App");
 
     // Seal the registry — no more IPC registrations after this point
@@ -169,6 +171,7 @@ export default class App {
     };
     this.mcpServer.setViewProvider(viewProvider);
     this.mcpServer.setWriteToolsEnabled(!!storage.settings.mcp?.enableWriteTools);
+    this.mcpServer.setAiToolsEnabled(!!storage.settings.mcp?.enableAiTools);
     // Server is opt-out (default on). Only bind when enabled.
     if (storage.settings.mcp?.serverEnabled !== false) {
       this.mcpServer.start(storage.settings.mcp?.serverPort ?? MCP_PORT);
@@ -317,6 +320,9 @@ export default class App {
     app.on("trayEnabledChanged", (enabled: boolean) => this.trayManager.apply(enabled));
     app.on("mcpWriteToolsChanged", (enabled: boolean) => {
       this.mcpServer.setWriteToolsEnabled(enabled);
+    });
+    app.on("mcpAiToolsChanged", (enabled: boolean) => {
+      this.mcpServer.setAiToolsEnabled(enabled);
     });
     app.on("mcpServerConfigChanged", ({ enabled, port }: { enabled: boolean; port: number }) => {
       // Our own http.Server — start/stop/rebind live, no app restart needed.

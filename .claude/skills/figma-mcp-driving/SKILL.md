@@ -212,6 +212,25 @@ list, batched queries, `maxDimension`, `download_assets` and an `upload_assets` 
 not run `create_new_file` (that creates a real draft). 32 PASS / 1 SKIP on 2026-11-06.
 
 FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam file is open.
+The Figma AI section runs only the free calls (`figma_ai_credits`, `figma_agent_threads`) and
+SKIPs when the AI tier is off. 36 PASS / 1 SKIP on 2026-11-06.
+
+## Figma AI tier (own switch: `mcp.enableAiTools`)
+
+Spends the user's Figma AI credits; never call the paid tools to "check they work".
+- `figma_agent_prompt {prompt, threadId?, nodeIds?, title?, timeoutSeconds?}` → Figma's agent
+  does the task in the file; answer, its tool calls with code, created/modified/deleted ids,
+  credits. Use it as a sub-agent: put everything it needs in the prompt (it cannot see the
+  repo), then verify with `get_design_context` / `get_screenshot`. ~4-6 credits per short
+  prompt (2026-11-06). Over `timeoutSeconds` it keeps running: `figma_agent_read` later.
+- `figma_ai_generate_image` (2 credits with `gpt-image-2.5-sunburst` at 1024², ~15-25 s; the
+  default model is Figma's own default, dearer), `figma_ai_edit_image` (remove_background 1
+  credit), `figma_ai_credits` (free).
+- How it works: the page's bundler (`rspackChunk_figma_web_bundler.push`) gives `require`;
+  modules are found by strings in their source (endpoint paths, "AssistantMessageProcessor not
+  active"), never by id. `scripts/figmaAgent.ts`, `scripts/figmaAi.ts`, `scripts/libraries.ts`.
+- Figma's agent can call user-added MCP connectors, but Figma's servers make those requests,
+  so a local server would need a public tunnel. Not wired up.
 
 ## Tool quick-reference
 
@@ -219,7 +238,8 @@ FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam f
 `get_design_context`, `figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
 outline), `get_variable_defs`, `search_design_system` (`queries: [{entity, query}]`),
 `get_screenshot` (`maxDimension`, `contentsOnly`), `download_assets`, `get_comments`,
-`get_versions`, `get_code_connect_map` /
+`get_versions`, `list_libraries`, `get_library_styles`, `get_library_updates`,
+`get_code_connect`, `get_code_connect_map` /
 `add_code_connect_map`, `create_design_system_rules`, `get_figjam`.
 **Figma MCP — write (gated):** `use_figma` (`code`; legacy `action`+`params` still works),
 `figma_text` (safe text edit w/ font autoload), `create_new_file` (a real file), `upload_assets`,

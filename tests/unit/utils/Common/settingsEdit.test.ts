@@ -63,6 +63,15 @@ describe("planSettingsUpdate", () => {
     );
   });
 
+  it("turning the Figma AI tools on tells the server, and nothing else", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => (s.mcp.enableAiTools = true)),
+    );
+    expect(next.mcp.enableAiTools).toBe(true);
+    expect(effects).toEqual([{ type: "mcpAiTools", enabled: true }]);
+  });
+
   it("a new valid server port restarts the MCP server on it", () => {
     const { next, effects } = planSettingsUpdate(
       base(),

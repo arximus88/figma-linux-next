@@ -227,7 +227,10 @@ new App(new WindowManager(), new Session(), new FontManager());
   `get_comments` / `get_versions` (figma.com endpoints the page can read). `get_design_context`
   answers in markup with CSS and variable/style/component legends (`scripts/designContext.ts`);
   component search uses Figma's internal asset search, found in the page's bundler by method
-  name. The page's
+  name. Third tier behind `mcp.enableAiTools` (default off, spends AI credits): Figma's agent
+  (`figma_agent_prompt/threads/read`), image generation/editing, credits
+  (`scripts/figmaAgent.ts`, `scripts/figmaAi.ts`). Settings lists every tool with its
+  description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
 - Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`

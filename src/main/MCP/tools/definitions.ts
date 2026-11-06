@@ -377,6 +377,53 @@ const BASE_TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "list_libraries",
+    description:
+      "Every library you can use (team, organization and community), with which ones are " +
+      "enabled in this file, their component/style/variable counts, team and file key. Library " +
+      "names work wherever a library is asked for.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_library_styles",
+    description:
+      "The published styles of a library (colour, text, effect, grid), with keys for " +
+      "importStyleByKeyAsync and descriptions. search_design_system covers this file's styles only; " +
+      "use this for a library's.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        library: { type: "string", description: "Library name (from list_libraries) or file key." },
+        query: { type: "string", description: "Only styles whose name contains this." },
+      },
+      required: ["library"],
+    },
+  },
+  {
+    name: "get_library_updates",
+    description:
+      "Library changes this file has not accepted yet: components, component sets, styles and " +
+      "variable collections with newer published versions (pages loaded so far).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_code_connect",
+    description:
+      "Code Connect snippets for an instance, or for the instances inside a frame: the code " +
+      "component, its import and props as the design system team published them, so you reuse " +
+      "the real component instead of writing new markup. Empty when the library has no " +
+      "published mappings (they are published with the figma CLI; Pro plans allow one library " +
+      "and framework pair).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string" },
+        label: { type: "string", description: "Framework label, e.g. React (default: all)." },
+      },
+      required: ["nodeId"],
+    },
+  },
+  {
     name: "download_assets",
     description:
       "Download the assets of one node: `export` (a render of the whole node), `rawImages` (the " +
@@ -577,3 +624,146 @@ function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
 
 export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);
 export const WRITE_TOOLS: ToolDefinition[] = withFileKey(BASE_WRITE_TOOLS);
+
+/**
+ * The third tier: Figma's own AI (its agent, image generation, credits). They
+ * spend the user's Figma AI credits, so they sit behind their own switch.
+ */
+const BASE_AI_TOOLS: ToolDefinition[] = [
+  {
+    name: "figma_agent_prompt",
+    description:
+      "Give Figma's own AI agent (the editor's Agents tab) a task in the file and wait for it to " +
+      "finish. It reads and edits the file itself with Figma's internal tools and design " +
+      "knowledge. Use it as a sub-agent: hand it a self-contained task (include any code, " +
+      "copy or specs it needs in the prompt; it cannot see your files), then check its work " +
+      "with get_design_context or get_screenshot. Returns the thread id, outcome, the agent's " +
+      "answer, the tools it ran, the nodes it created/modified/deleted and the credits spent. " +
+      "Pass threadId to continue a conversation. Spends Figma AI credits (a few per prompt, " +
+      "more for long tasks). Prompts that run past timeoutSeconds keep running; read them " +
+      "later with figma_agent_read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "The task, in plain language." },
+        threadId: {
+          type: "string",
+          description: "Continue this thread instead of starting a new one.",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Layers to attach to the prompt, as if selected.",
+        },
+        title: { type: "string", description: "Name for the thread, shown in Figma's Agents tab." },
+        timeoutSeconds: {
+          type: "number",
+          description: "How long to wait for the answer (default 300, max 900).",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "figma_agent_threads",
+    description:
+      "List the Figma agent's conversation threads in the file: id, last update, title and how " +
+      "the last prompt ended. Free.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "figma_agent_read",
+    description:
+      "Read a Figma agent thread: for each exchange the prompt, the answer, the tools the agent " +
+      "ran (with their code) and the nodes it changed. Free.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        threadId: { type: "string" },
+        last: { type: "number", description: "How many of the latest exchanges (default 3)." },
+      },
+      required: ["threadId"],
+    },
+  },
+  {
+    name: "figma_ai_credits",
+    description:
+      "Your Figma AI credit balance on the plan of the open file: available, monthly total, " +
+      "reset date, and the plan's shared pool if any. Free.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "figma_ai_generate_image",
+    description:
+      "Generate an image with Figma AI from a text prompt. Saves the PNG to disk (savedTo), " +
+      "places it on the canvas as a rectangle with an image fill unless placeOnCanvas is false, " +
+      "and returns a small preview, the node id, and the credits before/after. width/height " +
+      "set the aspect ratio; the output is about 1024 px on the short side. Models: " +
+      "gemini-3.1-flash-lite-image (default, Figma's own default), gemini-3.1-flash-image, " +
+      "gpt-image-2.5-sunburst (cheapest). Spends Figma AI credits; takes about 15 s.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string" },
+        negativePrompt: { type: "string", description: "What to avoid." },
+        width: { type: "number", description: "Aspect width (default 1024)." },
+        height: { type: "number", description: "Aspect height (default 1024)." },
+        model: { type: "string" },
+        seed: { type: "number" },
+        placeOnCanvas: { type: "boolean", description: "Default true." },
+        savePath: {
+          type: "string",
+          description: "Where to write the PNG; relative paths resolve against the export folder.",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "figma_ai_edit_image",
+    description:
+      "Change an image in the file with Figma AI. nodeId is a layer with an image fill (vectorize " +
+      "takes any layer). Operations: edit (needs prompt, e.g. 'make it night'), expand (outpaint " +
+      "by expand {top,right,bottom,left} px; the image must have no transparency), " +
+      "remove_background, upscale (2x or 4x via scale, source 16-2048 px), vectorize (to SVG, " +
+      "placed as vector layers). The result goes next to the source, or replaces its fill " +
+      "with replace: true, and is saved to disk. Returns a preview, the node id and credits " +
+      "before/after. Spends Figma AI credits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string" },
+        operation: {
+          type: "string",
+          enum: ["edit", "expand", "remove_background", "upscale", "vectorize"],
+        },
+        prompt: { type: "string", description: "For edit." },
+        expand: {
+          type: "object",
+          properties: {
+            top: { type: "number" },
+            right: { type: "number" },
+            bottom: { type: "number" },
+            left: { type: "number" },
+          },
+        },
+        scale: { type: "number", enum: [2, 4], description: "For upscale (default 2)." },
+        model: { type: "string", description: "For edit; same models as figma_ai_generate_image." },
+        replace: {
+          type: "boolean",
+          description: "Replace the source's image fill (default false).",
+        },
+        savePath: { type: "string" },
+      },
+      required: ["nodeId", "operation"],
+    },
+  },
+];
+export const AI_TOOLS: ToolDefinition[] = withFileKey(BASE_AI_TOOLS);
+
+/** Every tool by tier, name and description only: what the settings page lists. */
+export function mcpToolList(): Types.McpToolList {
+  const brief = (tools: ToolDefinition[]) =>
+    tools.map(({ name, description }) => ({ name, description }));
+  return { read: brief(TOOLS), write: brief(WRITE_TOOLS), ai: brief(AI_TOOLS) };
+}

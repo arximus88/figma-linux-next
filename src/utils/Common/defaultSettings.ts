@@ -61,6 +61,7 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     serverEnabled: true,
     serverPort: 3845,
     enableWriteTools: false,
+    enableAiTools: false,
     cdpEnabled: false,
     remoteDebugPort: 9222,
   },

@@ -257,6 +257,31 @@ async function main() {
     comments.text.split("\n")[0].slice(0, 50),
   );
 
+  const libs = await call("list_libraries");
+  record("list_libraries", /^Libraries you can use/.test(libs.text) ? "PASS" : "FAIL", libs.text.split("\n")[0].slice(0, 50));
+  const updates = await call("get_library_updates");
+  record(
+    "get_library_updates",
+    !updates.isError && /library update|No pending library updates/.test(updates.text) ? "PASS" : "FAIL",
+    updates.text.split("\n")[0].slice(0, 50),
+  );
+
+  // ── Figma AI tier: only the free calls; prompts and images spend credits ──
+  console.log("\n■ figma ai (free calls only)");
+  if (!toolNames.includes("figma_ai_credits")) {
+    record("figma_ai_credits", "SKIP", "Figma AI tools are off in Settings");
+    record("figma_agent_threads", "SKIP", "Figma AI tools are off in Settings");
+  } else {
+    const credits = parseJson((await call("figma_ai_credits")).text);
+    record("figma_ai_credits", typeof credits?.you?.available === "number" ? "PASS" : "FAIL", credits?.you ? `${credits.you.available} available` : "");
+    const threads = await call("figma_agent_threads");
+    record(
+      "figma_agent_threads",
+      !threads.isError && /agent thread|No agent threads/.test(threads.text) ? "PASS" : "FAIL",
+      threads.text.split("\n")[0].slice(0, 50),
+    );
+  }
+
   const pages = await call("get_metadata");
   record("get_metadata:pages", /<document[^>]*>[\s\S]*<page id=/.test(pages.text) ? "PASS" : "FAIL");
 

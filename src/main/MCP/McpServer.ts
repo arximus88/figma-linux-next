@@ -40,7 +40,7 @@ import type {
   Logger,
   ToolName,
 } from "./types";
-import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { AI_TOOLS, TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
 import {
   collectBody,
@@ -67,6 +67,7 @@ export class McpServer {
   private handlers: ToolHandlers | null = null;
   private _isRunning = false;
   private _writeToolsEnabled = false;
+  private _aiToolsEnabled = false;
   private _boundPort = MCP_PORT;
 
   constructor(log?: Logger) {
@@ -129,8 +130,32 @@ export class McpServer {
     if (this._writeToolsEnabled === enabled) return;
     this._writeToolsEnabled = enabled;
     this.log.info(`MCP write tools ${enabled ? "enabled" : "disabled"}`);
+    this.notifyToolsChanged();
+  }
 
-    // Send tools/list_changed notification to all active SSE sessions
+  /**
+   * Enable or disable the Figma AI tools (the third tier: Figma's own agent,
+   * image generation, credits). They spend the user's Figma AI credits, so
+   * they have their own switch, separate from editing.
+   */
+  public setAiToolsEnabled(enabled: boolean): void {
+    if (this._aiToolsEnabled === enabled) return;
+    this._aiToolsEnabled = enabled;
+    this.log.info(`MCP Figma AI tools ${enabled ? "enabled" : "disabled"}`);
+    this.notifyToolsChanged();
+  }
+
+  /** The tools a client sees right now, by tier. */
+  public listTools() {
+    return [
+      ...TOOLS,
+      ...(this._writeToolsEnabled ? WRITE_TOOLS : []),
+      ...(this._aiToolsEnabled ? AI_TOOLS : []),
+    ];
+  }
+
+  /** Send tools/list_changed to every open SSE session. */
+  private notifyToolsChanged(): void {
     const notification = JSON.stringify({
       jsonrpc: "2.0",
       method: "notifications/tools/list_changed",
@@ -525,8 +550,7 @@ export class McpServer {
         };
 
       case "tools/list": {
-        const allTools = this._writeToolsEnabled ? [...TOOLS, ...WRITE_TOOLS] : TOOLS;
-        return { jsonrpc: "2.0", id, result: { tools: allTools } };
+        return { jsonrpc: "2.0", id, result: { tools: this.listTools() } };
       }
 
       case "tools/call": {
@@ -551,7 +575,9 @@ export class McpServer {
   // ── Tool Dispatch ────────────────────────────────────────────────────────
 
   private static readonly WRITE_TOOLS_DISABLED =
-    "Write tools are disabled. Enable them in Settings → General → MCP Server.";
+    "Write tools are disabled. Enable them in Settings → Integrations → Figma MCP → Allow editing tools.";
+  private static readonly AI_TOOLS_DISABLED =
+    "Figma AI tools are disabled. Enable them in Settings → Integrations → Figma MCP → Figma AI tools. They use your Figma AI credits.";
 
   /**
    * Tool dispatch table. Keyed by ToolName so tsc enforces a 1:1 mapping with
@@ -562,7 +588,7 @@ export class McpServer {
    */
   private static readonly DISPATCH: Record<
     ToolName,
-    { write?: true; run: (h: ToolHandlers, args: Record<string, unknown>) => unknown }
+    { write?: true; ai?: true; run: (h: ToolHandlers, args: Record<string, unknown>) => unknown }
   > = {
     get_design_context: { run: (h, a) => h.toolGetDesignContext(a) },
     get_metadata: { run: (h, a) => h.toolGetMetadata(a) },
@@ -585,6 +611,16 @@ export class McpServer {
     upload_assets: { write: true, run: (h, a) => h.toolUploadAssets(a) },
     get_comments: { run: (h, a) => h.toolGetComments(a) },
     get_versions: { run: (h, a) => h.toolGetVersions(a) },
+    list_libraries: { run: (h) => h.toolListLibraries() },
+    get_library_styles: { run: (h, a) => h.toolGetLibraryStyles(a) },
+    get_library_updates: { run: (h) => h.toolGetLibraryUpdates() },
+    get_code_connect: { run: (h, a) => h.toolGetCodeConnect(a) },
+    figma_agent_prompt: { ai: true, run: (h, a) => h.toolFigmaAgentPrompt(a) },
+    figma_agent_threads: { ai: true, run: (h) => h.toolFigmaAgentThreads() },
+    figma_agent_read: { ai: true, run: (h, a) => h.toolFigmaAgentRead(a) },
+    figma_ai_credits: { ai: true, run: (h) => h.toolFigmaAiCredits() },
+    figma_ai_generate_image: { ai: true, run: (h, a) => h.toolFigmaAiGenerateImage(a) },
+    figma_ai_edit_image: { ai: true, run: (h, a) => h.toolFigmaAiEditImage(a) },
   };
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -598,6 +634,9 @@ export class McpServer {
     }
     if (entry.write && !this._writeToolsEnabled) {
       return toolError(McpServer.WRITE_TOOLS_DISABLED);
+    }
+    if (entry.ai && !this._aiToolsEnabled) {
+      return toolError(McpServer.AI_TOOLS_DISABLED);
     }
 
     try {

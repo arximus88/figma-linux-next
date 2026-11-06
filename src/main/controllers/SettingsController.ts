@@ -94,6 +94,9 @@ export default class SettingsController {
       case "mcpWriteTools":
         app.emit("mcpWriteToolsChanged", effect.enabled);
         break;
+      case "mcpAiTools":
+        app.emit("mcpAiToolsChanged", effect.enabled);
+        break;
       case "mcpServer":
         app.emit("mcpServerConfigChanged", { enabled: effect.enabled, port: effect.port });
         break;
