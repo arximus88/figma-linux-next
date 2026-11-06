@@ -40,9 +40,18 @@ import type {
   Logger,
   ToolName,
 } from "./types";
-import { TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { AI_TOOLS, TOOLS, WRITE_TOOLS } from "./tools/definitions";
 import { SessionManager } from "./transport/SessionManager";
-import { collectBody, cors, isValidHost, replyError } from "./utils/http";
+import {
+  collectBody,
+  collectBytes,
+  cors,
+  isAllowedOrigin,
+  isValidHost,
+  replyError,
+} from "./utils/http";
+import { UPLOAD_MAX_BYTES, type UploadTicket } from "./utils/uploads";
+import { readFileKeyArg } from "./utils/fileKey";
 import { toolError } from "./utils/toolResponse";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
@@ -52,11 +61,13 @@ export class McpServer {
   private sessions: SessionManager;
   private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
+  private uploads = new Map<string, UploadTicket>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private handlers: ToolHandlers | null = null;
   private _isRunning = false;
   private _writeToolsEnabled = false;
+  private _aiToolsEnabled = false;
   private _boundPort = MCP_PORT;
 
   constructor(log?: Logger) {
@@ -76,8 +87,15 @@ export class McpServer {
   /** Set the provider that gives us access to the Figma webContents. */
   public setViewProvider(provider: FigmaViewProvider): void {
     this.viewProvider = provider;
-    this.handlers = new ToolHandlers({
+    this.handlers = this.makeHandlers(provider);
+    this.log.info("View provider attached");
+  }
+
+  private makeHandlers(provider: FigmaViewProvider, fileKey?: string): ToolHandlers {
+    return new ToolHandlers({
       viewProvider: provider,
+      uploads: this.uploads,
+      fileKey,
       log: this.log,
       codeConnectMap: this.codeConnectMap,
       assetStore: this.assetStore,
@@ -87,7 +105,24 @@ export class McpServer {
       // a different place from one call to the next.
       getSaveBaseDir: () => storage.settings.app.exportDir || app.getPath("pictures"),
     });
-    this.log.info("View provider attached");
+  }
+
+  /**
+   * Handlers bound to the tab that shows `fileKey` instead of the active tab.
+   * Built per call: the provider resolves the tab at execution time, so a
+   * file opened or closed between calls is seen as it is now.
+   */
+  private handlersFor(fileKey: string): ToolHandlers {
+    const base = this.viewProvider!;
+    return this.makeHandlers(
+      {
+        executeInBrowserView: (script) => base.executeInBrowserView(script, fileKey),
+        getActiveTabView: () => base.getActiveTabView(fileKey),
+        getActiveTabUrl: () => base.getActiveTabUrl(fileKey),
+        openNewFileTab: base.openNewFileTab?.bind(base),
+      },
+      fileKey,
+    );
   }
 
   /** Enable or disable write tools and notify connected clients. */
@@ -95,8 +130,32 @@ export class McpServer {
     if (this._writeToolsEnabled === enabled) return;
     this._writeToolsEnabled = enabled;
     this.log.info(`MCP write tools ${enabled ? "enabled" : "disabled"}`);
+    this.notifyToolsChanged();
+  }
 
-    // Send tools/list_changed notification to all active SSE sessions
+  /**
+   * Enable or disable the Figma AI tools (the third tier: Figma's own agent,
+   * image generation, credits). They spend the user's Figma AI credits, so
+   * they have their own switch, separate from editing.
+   */
+  public setAiToolsEnabled(enabled: boolean): void {
+    if (this._aiToolsEnabled === enabled) return;
+    this._aiToolsEnabled = enabled;
+    this.log.info(`MCP Figma AI tools ${enabled ? "enabled" : "disabled"}`);
+    this.notifyToolsChanged();
+  }
+
+  /** The tools a client sees right now, by tier. */
+  public listTools() {
+    return [
+      ...TOOLS,
+      ...(this._writeToolsEnabled ? WRITE_TOOLS : []),
+      ...(this._aiToolsEnabled ? AI_TOOLS : []),
+    ];
+  }
+
+  /** Send tools/list_changed to every open SSE session. */
+  private notifyToolsChanged(): void {
     const notification = JSON.stringify({
       jsonrpc: "2.0",
       method: "notifications/tools/list_changed",
@@ -208,6 +267,20 @@ export class McpServer {
       return;
     }
 
+    // Origin validation: the MCP spec requires it, and without it any web page
+    // could call these tools through the user's browser.
+    const origin = req.headers.origin;
+    if (!isAllowedOrigin(origin)) {
+      this.log.error("Access denied — Origin not allowed:", origin);
+      res.writeHead(403);
+      res.end("Access denied — Origin not allowed");
+      return;
+    }
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+
     // Standard security headers
     res.setHeader("Content-Security-Policy", "default-src 'none'");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -222,6 +295,12 @@ export class McpServer {
     // Asset serving — GET /assets/:id
     if (req.method === "GET" && req.url?.startsWith("/assets/")) {
       this.handleAssetRequest(req, res);
+      return;
+    }
+
+    // upload_assets — POST /upload/:token
+    if (req.url?.startsWith("/upload/")) {
+      await this.handleUpload(req, res);
       return;
     }
 
@@ -471,8 +550,7 @@ export class McpServer {
         };
 
       case "tools/list": {
-        const allTools = this._writeToolsEnabled ? [...TOOLS, ...WRITE_TOOLS] : TOOLS;
-        return { jsonrpc: "2.0", id, result: { tools: allTools } };
+        return { jsonrpc: "2.0", id, result: { tools: this.listTools() } };
       }
 
       case "tools/call": {
@@ -497,7 +575,9 @@ export class McpServer {
   // ── Tool Dispatch ────────────────────────────────────────────────────────
 
   private static readonly WRITE_TOOLS_DISABLED =
-    "Write tools are disabled. Enable them in Settings → General → MCP Server.";
+    "Write tools are disabled. Enable them in Settings → Integrations → Figma MCP → Allow editing tools.";
+  private static readonly AI_TOOLS_DISABLED =
+    "Figma AI tools are disabled. Enable them in Settings → Integrations → Figma MCP → Figma AI tools. They use your Figma AI credits.";
 
   /**
    * Tool dispatch table. Keyed by ToolName so tsc enforces a 1:1 mapping with
@@ -508,7 +588,7 @@ export class McpServer {
    */
   private static readonly DISPATCH: Record<
     ToolName,
-    { write?: true; run: (h: ToolHandlers, args: Record<string, unknown>) => unknown }
+    { write?: true; ai?: true; run: (h: ToolHandlers, args: Record<string, unknown>) => unknown }
   > = {
     get_design_context: { run: (h, a) => h.toolGetDesignContext(a) },
     get_metadata: { run: (h, a) => h.toolGetMetadata(a) },
@@ -526,6 +606,21 @@ export class McpServer {
     use_figma: { write: true, run: (h, a) => h.toolUseFigma(a) },
     create_new_file: { write: true, run: (h, a) => h.toolCreateNewFile(a) },
     figma_text: { write: true, run: (h, a) => h.toolFigmaText(a) },
+    whoami: { run: (h) => h.toolWhoami() },
+    download_assets: { run: (h, a) => h.toolDownloadAssets(a) },
+    upload_assets: { write: true, run: (h, a) => h.toolUploadAssets(a) },
+    get_comments: { run: (h, a) => h.toolGetComments(a) },
+    get_versions: { run: (h, a) => h.toolGetVersions(a) },
+    list_libraries: { run: (h) => h.toolListLibraries() },
+    get_library_styles: { run: (h, a) => h.toolGetLibraryStyles(a) },
+    get_library_updates: { run: (h) => h.toolGetLibraryUpdates() },
+    get_code_connect: { run: (h, a) => h.toolGetCodeConnect(a) },
+    figma_agent_prompt: { ai: true, run: (h, a) => h.toolFigmaAgentPrompt(a) },
+    figma_agent_threads: { ai: true, run: (h) => h.toolFigmaAgentThreads() },
+    figma_agent_read: { ai: true, run: (h, a) => h.toolFigmaAgentRead(a) },
+    figma_ai_credits: { ai: true, run: (h) => h.toolFigmaAiCredits() },
+    figma_ai_generate_image: { ai: true, run: (h, a) => h.toolFigmaAiGenerateImage(a) },
+    figma_ai_edit_image: { ai: true, run: (h, a) => h.toolFigmaAiEditImage(a) },
   };
 
   private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -540,12 +635,59 @@ export class McpServer {
     if (entry.write && !this._writeToolsEnabled) {
       return toolError(McpServer.WRITE_TOOLS_DISABLED);
     }
+    if (entry.ai && !this._aiToolsEnabled) {
+      return toolError(McpServer.AI_TOOLS_DISABLED);
+    }
 
     try {
-      return await entry.run(this.handlers, args);
+      const fileKey = readFileKeyArg(args.fileKey);
+      return await entry.run(fileKey ? this.handlersFor(fileKey) : this.handlers, args);
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
       return toolError(err?.message ?? String(err));
+    }
+  }
+
+  // ── Asset Upload ─────────────────────────────────────────────────────────
+
+  /**
+   * Receive the bytes for one upload_assets URL and place them in the file the
+   * URL was issued for. Single use; expired or unknown tokens get 404, and the
+   * write-tools switch is checked again here, not only when the URL was issued.
+   */
+  private async handleUpload(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const reply = (status: number, body: unknown) => {
+      res.writeHead(status, { "Content-Type": "application/json", ...cors() });
+      res.end(JSON.stringify(body));
+    };
+    if (req.method !== "POST") return reply(405, { error: "POST the asset bytes" });
+
+    const now = Date.now();
+    for (const [token, ticket] of this.uploads)
+      if (ticket.expiresAt < now) this.uploads.delete(token);
+
+    const token = req.url!.slice("/upload/".length);
+    const ticket = this.uploads.get(token);
+    if (!ticket)
+      return reply(404, { error: "Unknown or expired upload URL; call upload_assets again" });
+    this.uploads.delete(token);
+    if (!this._writeToolsEnabled) return reply(403, { error: McpServer.WRITE_TOOLS_DISABLED });
+    if (!this.viewProvider) return reply(503, { error: "No Figma window open" });
+
+    let body: Buffer;
+    try {
+      body = await collectBytes(req, UPLOAD_MAX_BYTES);
+    } catch (err: any) {
+      return reply(413, { error: err?.message ?? String(err) });
+    }
+
+    try {
+      const handlers = ticket.fileKey ? this.handlersFor(ticket.fileKey) : this.handlers!;
+      const result = await handlers.placeUpload(ticket, req.headers["content-type"], body);
+      reply(result?.error ? 422 : 200, result);
+    } catch (err: any) {
+      this.log.error("upload failed:", err?.message ?? err);
+      reply(500, { error: err?.message ?? String(err) });
     }
   }
 

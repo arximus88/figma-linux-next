@@ -11,17 +11,19 @@ import type { ToolDefinition } from "../types";
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
 
-export const TOOLS: ToolDefinition[] = [
+const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_design_context",
     description:
-      "Get the design context for a layer or your selection in Figma. Returns the full " +
-      "scene-graph subtree as JSON including node tree structure, layout properties, " +
-      "typography, fills, strokes, effects, auto-layout, and component metadata. " +
-      "Supports Figma Design and Figma Make files. When nodeId is omitted, uses the currently selected nodes. " +
-      "⚠ WARNING: responses can be very large (10k–100k+ tokens) depending on node complexity and depth. " +
-      "Always use get_metadata first to identify a specific nodeId, then call with depth ≤ 3. " +
-      "Avoid calling on page-level or large container nodes without a targeted nodeId.",
+      "Get the design context for a layer or your selection in Figma: one element per visible " +
+      "layer with the CSS it needs (flex layout, sizes, colours, borders, radii, shadows, fonts), " +
+      "bound variables as var(--name, value), text style names, component and variant names, " +
+      "then legends defining the variables, text styles and components used (with their " +
+      "descriptions). A reference to adapt to the target project, not code to paste. Repeated " +
+      "instances of a component are written out once; icons collapse to <svg/> (download_assets " +
+      "returns the files). When nodeId is omitted, uses the currently selected nodes. Pass a " +
+      "frame, not a page: get_metadata lists a page's frames. " +
+      "Supports Figma Design and Figma Make files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -31,7 +33,9 @@ export const TOOLS: ToolDefinition[] = [
         },
         depth: {
           type: "number",
-          description: "Maximum depth to traverse (default: 10).",
+          description:
+            "Levels of layers to write out (default: 10). Deeper containers are cut off with a " +
+            "note to call again on their id.",
         },
       },
     },
@@ -39,17 +43,19 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "get_metadata",
     description:
-      "Returns a sparse XML scene-graph outline of a node or the current page — layer IDs, " +
-      "types, names, positions, and sizes only. No fills, strokes, or styling. Use this to " +
-      "navigate large designs and discover node IDs before calling get_design_context on " +
-      "specific nodes. When nodeId is omitted, uses the current selection or the full page. " +
-      "Supports Figma Design files.",
+      "Sparse XML outline of the document — layer IDs, types, names, positions and sizes only " +
+      "(no fills, strokes or styling). Without nodeId it lists the document's pages (id + name, " +
+      "the current one marked), like Figma's remote get_metadata; pass a page id (e.g. '0:1') to " +
+      "outline that page, or a node id to outline that node. When something is selected, the " +
+      "response starts with a 'Currently selected nodes:' block. Use the ids with " +
+      "get_design_context or use_figma. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
         nodeId: {
           type: "string",
-          description: "Node ID in '1:2' format. Omit to use current selection or full page.",
+          description:
+            "Page or node ID ('1:2' or '1-2'). Omit to list the pages. Do not guess an id.",
         },
         depth: {
           type: "number",
@@ -85,9 +91,23 @@ export const TOOLS: ToolDefinition[] = [
           type: "string",
           description: "Node ID in '1:2' format. Omit to capture current selection.",
         },
+        maxDimension: {
+          type: "integer",
+          minimum: 1,
+          maximum: 65536,
+          description:
+            "Cap on the longer edge of the PNG in pixels (default 1024; small nodes render at up to 2x). " +
+            "Raise it to inspect detail, lower it for thumbnails. The response gives width/height and " +
+            "original_width/original_height.",
+        },
+        contentsOnly: {
+          type: "boolean",
+          description:
+            "true renders the node in isolation, without overlapping layers that sit above it on the canvas. Default false: what the user sees.",
+        },
         scale: {
           type: "number",
-          description: "Export scale (default: 2, range: 0.5–4).",
+          description: "Fixed export scale (0.01–4). Overrides maxDimension; prefer maxDimension.",
         },
         savePath: {
           type: "string",
@@ -100,13 +120,11 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "get_variable_defs",
     description:
-      "Returns the variables and styles used in your Figma selection or the entire file. " +
-      "When a node is selected or nodeId is provided, returns only variables/styles bound " +
-      "to those nodes. When nothing is selected and no nodeId is given, returns ALL local " +
-      "variable collections and ALL local styles from the file. For each variable: name, " +
-      "resolved type, collection name, and values by mode (e.g. Light/Dark). For each " +
-      "style: name, type (PAINT/TEXT/EFFECT/GRID), and description. " +
-      "Supports Figma Design files.",
+      "Returns the variables and styles a layer (nodeId) or your selection uses, one per line: " +
+      "the value the layer renders with (its mode, aliases followed to a colour or number), the " +
+      "token an alias points at, the CSS variable from the variable's code syntax, and text " +
+      "style definitions. With nothing selected and no nodeId: every local variable with its " +
+      "value in each mode, and the local text styles. Supports Figma Design files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,20 +244,42 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "search_design_system",
     description:
-      "Searches local variables, styles, and components in the current Figma file " +
-      "by text query. Returns matching variables (with values by mode), styles " +
-      "(paint/text/effect/grid), and components. Use this to find existing design " +
-      "system elements before creating new ones. Results capped at 50 per category. " +
-      "Supports Figma Design files.",
+      "Search design-system assets, Figma remote-MCP style. Pass `queries` as an array of objects, " +
+      'never strings: [{"entity":"component","query":"button"},{"entity":"variable","query":"surface"}]. ' +
+      "`entity` is exactly component, variable or style. Results come back in a `results` array in " +
+      "the same order, each with the ids/keys needed next (component key for " +
+      "importComponentByKeyAsync / importComponentSetByKeyAsync, variable id/key for binding). " +
+      "Components: this file's own (every page), then Figma's ranked asset search over every " +
+      "team and community library you can reach, used in this file or not, with descriptions. " +
+      "Variables: this file and its enabled libraries. Styles: this file only (Figma has " +
+      "library style search turned off). Combine the searches " +
+      "you need in one call. The legacy `query` string still searches everything locally.",
     inputSchema: {
       type: "object",
       properties: {
+        queries: {
+          type: "array",
+          maxItems: 20,
+          items: {
+            type: "object",
+            properties: {
+              entity: { type: "string", enum: ["component", "variable", "style"] },
+              query: { type: "string" },
+            },
+            required: ["entity", "query"],
+          },
+        },
+        includeLibraryKeys: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only return library variables and components of these libraries (library name, or a key from earlier results).",
+        },
         query: {
           type: "string",
-          description: "Text to search for in variable, style, and component names.",
+          description: "Legacy: one text query over local variables, styles and components.",
         },
       },
-      required: ["query"],
     },
   },
   {
@@ -299,36 +339,149 @@ export const TOOLS: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: "whoami",
+    description:
+      "Who is signed in and what the current file belongs to: user id and name, and for the " +
+      "tab's file its key, name, editor type, team/org ids, whether you can edit it, and the " +
+      "plan key. Useful before create_new_file and to explain a view-only file.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_comments",
+    description:
+      "The comment threads on the file, read from figma.com with your session: each thread's id, " +
+      "the layer it is pinned to (id and name), author, date and text, with its replies. " +
+      "Resolved threads are left out unless includeResolved is true. Works in view-only files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        includeResolved: {
+          type: "boolean",
+          description: "Also list resolved threads (default false).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_versions",
+    description:
+      "The file's version history, newest first: version id, date, author, and the label and " +
+      "description of named versions (the rest are autosaves). Works in view-only files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "How many versions to list (default 20, max 100)." },
+        namedOnly: { type: "boolean", description: "Only versions someone named or described." },
+      },
+    },
+  },
+  {
+    name: "list_libraries",
+    description:
+      "Every library you can use (team, organization and community), with which ones are " +
+      "enabled in this file, their component/style/variable counts, team and file key. Library " +
+      "names work wherever a library is asked for.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_library_styles",
+    description:
+      "The published styles of a library (colour, text, effect, grid), with keys for " +
+      "importStyleByKeyAsync and descriptions. search_design_system covers this file's styles only; " +
+      "use this for a library's.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        library: { type: "string", description: "Library name (from list_libraries) or file key." },
+        query: { type: "string", description: "Only styles whose name contains this." },
+      },
+      required: ["library"],
+    },
+  },
+  {
+    name: "get_library_updates",
+    description:
+      "Library changes this file has not accepted yet: components, component sets, styles and " +
+      "variable collections with newer published versions (pages loaded so far).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_code_connect",
+    description:
+      "Code Connect snippets for an instance, or for the instances inside a frame: the code " +
+      "component, its import and props as the design system team published them, so you reuse " +
+      "the real component instead of writing new markup. Empty when the library has no " +
+      "published mappings (they are published with the figma CLI; Pro plans allow one library " +
+      "and framework pair).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string" },
+        label: { type: "string", description: "Framework label, e.g. React (default: all)." },
+      },
+      required: ["nodeId"],
+    },
+  },
+  {
+    name: "download_assets",
+    description:
+      "Download the assets of one node: `export` (a render of the whole node), `rawImages` (the " +
+      "original images used as fills anywhere in its subtree, with their real format, max 20) and " +
+      "`svgAssets` (SVGs of its vector parts such as icons and logos, max 20). Each comes as a " +
+      "local URL on this server to fetch with curl; URLs expire after 10 minutes. Export " +
+      "precedence: defaultFormat/defaultScale when given, else the node's own export settings, " +
+      "else PNG at 1x. Use rawImages with upload_assets to move images between files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string", description: "Node ID ('1:2' or '1-2')." },
+        defaultFormat: { type: "string", enum: ["png", "jpg", "svg", "pdf"] },
+        defaultScale: { type: "number", minimum: 0.01, maximum: 4 },
+      },
+      required: ["nodeId"],
+    },
+  },
 ];
 
 // ── Write Tool Definitions (gated by settings) ──────────────────────────────
 
-export const WRITE_TOOLS: ToolDefinition[] = [
+const BASE_WRITE_TOOLS: ToolDefinition[] = [
   {
     name: "use_figma",
     description:
-      "General-purpose tool for creating, editing, or deleting objects in a Figma file. " +
-      "Accepts an action and params object. Supported actions: create_frame, create_text, " +
-      "create_rectangle, update_node, delete_node, set_variable, reparent_node. " +
-      "All create actions accept an optional parentNodeId to place the node inside a frame. " +
-      "create_text accepts fills to set text color at creation time. " +
-      "Use get_metadata or figma_find first to discover node IDs before updating or deleting. " +
-      "ORDERING: when building inside a parent, the API applies steps as create → resize → " +
-      "set layoutMode/sizing → appendChild → THEN fills/strokes; appendChild resets fills to " +
-      "the parent default, so set colors after parenting (this tool already orders correctly, " +
-      "but split your own multi-step builds the same way). " +
-      "TWO-STAGE for complex layouts: first create the structure (frames, children, auto-layout) " +
-      "with hardcoded colors, then do a second pass to bind variables / set fills / set text once " +
-      "nodes are parented — don't bind variables before a node has a parent. " +
-      "For editing the text of an existing TEXT node, prefer the figma_text tool (it auto-loads fonts). " +
+      "Create, edit, inspect or delete anything in a Figma file by running JavaScript against " +
+      "the Figma Plugin API — the same contract as Figma's remote use_figma tool, so its " +
+      "figma-use skill applies. `code` is the BODY of an async function: `figma` is in scope, " +
+      "use top-level `await` and `return` (the returned value, JSON-serialized, is the only " +
+      "output; console.log is not returned; nodes come back as {id, name, type}). Do not wrap " +
+      "it in an IIFE and do not call figma.closePlugin(). Atomic: if the script throws, the " +
+      "changes it made are undone and the error says so. On success the whole script is one " +
+      "undo step for the user. Return the ids of every node you create or change. Examples: " +
+      "`const c = await figma.importComponentByKeyAsync(key); const i = c.createInstance(); " +
+      "return { createdNodeIds: [i.id] };` — load fonts with `await figma.loadFontAsync(...)` " +
+      "before editing text; switch pages with `await figma.setCurrentPageAsync(page)`. " +
+      "Runs in the tab showing `fileKey`, or the active tab when omitted. " +
+      "Legacy form: `action` + `params` (create_frame, create_text, create_rectangle, " +
+      "update_node, delete_node, set_variable, reparent_node) still works. " +
       "⚠ This is a WRITE tool that modifies the file.",
     inputSchema: {
       type: "object",
       properties: {
+        code: {
+          type: "string",
+          maxLength: 50000,
+          description:
+            "JavaScript to execute, the body of an async function with `figma` (Plugin API) in scope. Use `return` for output.",
+        },
+        description: {
+          type: "string",
+          maxLength: 2000,
+          description: "A concise description of what the code aims to do (logged).",
+        },
         action: {
           type: "string",
-          description:
-            "Action to perform: create_frame, create_text, create_rectangle, update_node, delete_node, set_variable, reparent_node.",
+          description: "Legacy: one fixed action instead of `code`.",
           enum: [
             "create_frame",
             "create_text",
@@ -342,36 +495,73 @@ export const WRITE_TOOLS: ToolDefinition[] = [
         params: {
           type: "object",
           description:
-            "Parameters for the action. " +
-            "For create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId; " +
-            "auto-layout: layoutMode (HORIZONTAL|VERTICAL), paddingTop/Bottom/Left/Right, itemSpacing, primaryAxisAlignItems (MIN|CENTER|MAX|SPACE_BETWEEN), counterAxisAlignItems (MIN|CENTER|MAX), primaryAxisSizingMode (FIXED|AUTO), counterAxisSizingMode (FIXED|AUTO). " +
-            "For create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
-            "For create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
-            "For update_node: nodeId (required), plus any: name, x, y, width, height, fills, strokes, strokeWeight, strokeAlign, cornerRadius, characters, opacity, visible, layoutMode, padding*, itemSpacing, primaryAxisAlignItems, counterAxisAlignItems, primaryAxisSizingMode, counterAxisSizingMode. " +
-            "For delete_node: nodeId (required). " +
-            "For reparent_node: nodeId (required), parentNodeId (required). " +
-            "For set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
+            "Legacy: parameters for `action`. " +
+            "create_frame: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId, layoutMode, padding*, itemSpacing, *AxisAlignItems, *AxisSizingMode. " +
+            "create_rectangle: name, width, height, x, y, fills, strokes, strokeWeight, strokeAlign, cornerRadius, parentNodeId. " +
+            "create_text: name, characters, fontFamily, fontStyle, fontSize, fills, x, y, parentNodeId. " +
+            "update_node: nodeId plus any of the above, characters, opacity, visible. " +
+            "delete_node: nodeId. reparent_node: nodeId, parentNodeId. " +
+            "set_variable: name, collectionName, resolvedType (COLOR/FLOAT/STRING/BOOLEAN), value.",
         },
       },
-      required: ["action", "params"],
     },
   },
   {
     name: "create_new_file",
     description:
-      "Creates a new page in the current Figma file and navigates to it. " +
-      "Note: the Figma Plugin API within the renderer cannot create separate files — " +
-      "this tool creates a new page as the closest equivalent. " +
-      "⚠ This is a WRITE tool that modifies the file.",
+      "Create a new Figma file and open it in a tab, like Figma's remote create_new_file. It is " +
+      "created the way the app's New file button does it, in your drafts, and named `fileName`. " +
+      "Returns the new fileKey and URL; pass the fileKey to use_figma and the other tools. " +
+      "(This tool used to add a page to the current file; for that, use use_figma with " +
+      "`figma.createPage()`.) ⚠ WRITE tool.",
     inputSchema: {
       type: "object",
       properties: {
-        name: {
+        fileName: { type: "string", description: "Name for the new file." },
+        editorType: {
           type: "string",
-          description: "Name for the new page.",
+          enum: ["design", "figjam", "slides"],
+          description: "Default design.",
         },
+        planKey: {
+          type: "string",
+          description: "Accepted for compatibility; the file goes to your drafts.",
+        },
+        projectId: { type: "string", description: "Accepted for compatibility; not applied." },
       },
-      required: ["name"],
+      required: ["fileName"],
+    },
+  },
+  {
+    name: "upload_assets",
+    description:
+      "Upload images or SVGs into a Figma file. Call with `count` to get that many single-use " +
+      "upload URLs on this server, then POST the raw bytes to each with the right Content-Type " +
+      "(image/png, image/jpeg, image/gif, image/webp, image/svg+xml; max 10 MB). With `nodeIds` " +
+      "(one per URL, same order) a raster image becomes the fill of that existing node " +
+      "(`scaleMode` FILL/FIT/TILE); otherwise a rectangle of the image's size is placed on " +
+      "`currentPageId` (or the current page) right of the existing content. SVGs become editable " +
+      "vector nodes. Each POST answers with the node it created or filled. URLs expire in 10 " +
+      "minutes. ⚠ WRITE tool.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        count: {
+          type: "integer",
+          minimum: 1,
+          maximum: 60,
+          description: "Number of upload URLs (default 1).",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 60,
+          description: "Existing nodes to fill, one per upload URL. Length must equal count.",
+        },
+        nodeId: { type: "string", description: "Deprecated: one target node; use nodeIds." },
+        scaleMode: { type: "string", enum: ["FILL", "FIT", "TILE"], description: "Default FILL." },
+        currentPageId: { type: "string", description: "Page to place new image frames on." },
+      },
     },
   },
   {
@@ -397,3 +587,183 @@ export const WRITE_TOOLS: ToolDefinition[] = [
     },
   },
 ];
+
+// ── fileKey on every tool ─────────────────────────────────────────────────────
+
+/**
+ * Figma's remote MCP addresses files by `fileKey`. Here it is optional: given,
+ * the tool runs in the open tab showing that file (an error if none does);
+ * omitted, it runs in the active tab as before. A pasted figma.com URL works too.
+ */
+const FILE_KEY_PROPERTY = {
+  type: "string",
+  description:
+    "Key of the Figma file to act on (the id in figma.com/design/<fileKey>/…; a full file URL also works). " +
+    "The file must be open in a tab of the app. Omit to use the active tab.",
+};
+
+/** Tools that never touch a file: code-connect bookkeeping lives in the server. */
+const NO_FILE_TOOLS = new Set(["get_code_connect_map", "add_code_connect_map"]);
+
+function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
+  return tools.map((tool) =>
+    NO_FILE_TOOLS.has(tool.name)
+      ? tool
+      : {
+          ...tool,
+          inputSchema: {
+            ...tool.inputSchema,
+            properties: {
+              ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
+              fileKey: FILE_KEY_PROPERTY,
+            },
+          },
+        },
+  );
+}
+
+export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);
+export const WRITE_TOOLS: ToolDefinition[] = withFileKey(BASE_WRITE_TOOLS);
+
+/**
+ * The third tier: Figma's own AI (its agent, image generation, credits). They
+ * spend the user's Figma AI credits, so they sit behind their own switch.
+ */
+const BASE_AI_TOOLS: ToolDefinition[] = [
+  {
+    name: "figma_agent_prompt",
+    description:
+      "Give Figma's own AI agent (the editor's Agents tab) a task in the file and wait for it to " +
+      "finish. It reads and edits the file itself with Figma's internal tools and design " +
+      "knowledge. Use it as a sub-agent: hand it a self-contained task (include any code, " +
+      "copy or specs it needs in the prompt; it cannot see your files), then check its work " +
+      "with get_design_context or get_screenshot. Returns the thread id, outcome, the agent's " +
+      "answer, the tools it ran, the nodes it created/modified/deleted and the credits spent. " +
+      "Pass threadId to continue a conversation. Spends Figma AI credits (a few per prompt, " +
+      "more for long tasks). Prompts that run past timeoutSeconds keep running; read them " +
+      "later with figma_agent_read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "The task, in plain language." },
+        threadId: {
+          type: "string",
+          description: "Continue this thread instead of starting a new one.",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Layers to attach to the prompt, as if selected.",
+        },
+        title: { type: "string", description: "Name for the thread, shown in Figma's Agents tab." },
+        timeoutSeconds: {
+          type: "number",
+          description: "How long to wait for the answer (default 300, max 900).",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "figma_agent_threads",
+    description:
+      "List the Figma agent's conversation threads in the file: id, last update, title and how " +
+      "the last prompt ended. Free.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "figma_agent_read",
+    description:
+      "Read a Figma agent thread: for each exchange the prompt, the answer, the tools the agent " +
+      "ran (with their code) and the nodes it changed. Free.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        threadId: { type: "string" },
+        last: { type: "number", description: "How many of the latest exchanges (default 3)." },
+      },
+      required: ["threadId"],
+    },
+  },
+  {
+    name: "figma_ai_credits",
+    description:
+      "Your Figma AI credit balance on the plan of the open file: available, monthly total, " +
+      "reset date, and the plan's shared pool if any. Free.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "figma_ai_generate_image",
+    description:
+      "Generate an image with Figma AI from a text prompt. Saves the PNG to disk (savedTo), " +
+      "places it on the canvas as a rectangle with an image fill unless placeOnCanvas is false, " +
+      "and returns a small preview, the node id, and the credits before/after. width/height " +
+      "set the aspect ratio; the output is about 1024 px on the short side. Models: " +
+      "gemini-3.1-flash-lite-image (default, Figma's own default), gemini-3.1-flash-image, " +
+      "gpt-image-2.5-sunburst (cheapest). Spends Figma AI credits; takes about 15 s.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string" },
+        negativePrompt: { type: "string", description: "What to avoid." },
+        width: { type: "number", description: "Aspect width (default 1024)." },
+        height: { type: "number", description: "Aspect height (default 1024)." },
+        model: { type: "string" },
+        seed: { type: "number" },
+        placeOnCanvas: { type: "boolean", description: "Default true." },
+        savePath: {
+          type: "string",
+          description: "Where to write the PNG; relative paths resolve against the export folder.",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "figma_ai_edit_image",
+    description:
+      "Change an image in the file with Figma AI. nodeId is a layer with an image fill (vectorize " +
+      "takes any layer). Operations: edit (needs prompt, e.g. 'make it night'), expand (outpaint " +
+      "by expand {top,right,bottom,left} px; the image must have no transparency), " +
+      "remove_background, upscale (2x or 4x via scale, source 16-2048 px), vectorize (to SVG, " +
+      "placed as vector layers). The result goes next to the source, or replaces its fill " +
+      "with replace: true, and is saved to disk. Returns a preview, the node id and credits " +
+      "before/after. Spends Figma AI credits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: { type: "string" },
+        operation: {
+          type: "string",
+          enum: ["edit", "expand", "remove_background", "upscale", "vectorize"],
+        },
+        prompt: { type: "string", description: "For edit." },
+        expand: {
+          type: "object",
+          properties: {
+            top: { type: "number" },
+            right: { type: "number" },
+            bottom: { type: "number" },
+            left: { type: "number" },
+          },
+        },
+        scale: { type: "number", enum: [2, 4], description: "For upscale (default 2)." },
+        model: { type: "string", description: "For edit; same models as figma_ai_generate_image." },
+        replace: {
+          type: "boolean",
+          description: "Replace the source's image fill (default false).",
+        },
+        savePath: { type: "string" },
+      },
+      required: ["nodeId", "operation"],
+    },
+  },
+];
+export const AI_TOOLS: ToolDefinition[] = withFileKey(BASE_AI_TOOLS);
+
+/** Every tool by tier, name and description only: what the settings page lists. */
+export function mcpToolList(): Types.McpToolList {
+  const brief = (tools: ToolDefinition[]) =>
+    tools.map(({ name, description }) => ({ name, description }));
+  return { read: brief(TOOLS), write: brief(WRITE_TOOLS), ai: brief(AI_TOOLS) };
+}

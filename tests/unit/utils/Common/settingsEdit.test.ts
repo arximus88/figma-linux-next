@@ -63,6 +63,15 @@ describe("planSettingsUpdate", () => {
     );
   });
 
+  it("turning the Figma AI tools on tells the server, and nothing else", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => (s.mcp.enableAiTools = true)),
+    );
+    expect(next.mcp.enableAiTools).toBe(true);
+    expect(effects).toEqual([{ type: "mcpAiTools", enabled: true }]);
+  });
+
   it("a new valid server port restarts the MCP server on it", () => {
     const { next, effects } = planSettingsUpdate(
       base(),
@@ -177,7 +186,44 @@ describe("trackpad speeds", () => {
       }),
     );
     expect(next.app.trackpadZoomSpeed).toBe(2.5);
-    expect(effects).toContainEqual({ type: "trackpad", pan: 1, zoom: 2.5 });
+    expect(effects).toContainEqual({
+      type: "trackpad",
+      pan: 1,
+      zoom: 2.5,
+      momentum: false,
+      glide: 0.85,
+    });
+  });
+
+  it("turning momentum on reaches the open tabs without a restart", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => {
+        s.app.trackpadMomentum = true;
+        s.app.trackpadMomentumGlide = 0.9;
+      }),
+    );
+    expect([next.app.trackpadMomentum, next.app.trackpadMomentumGlide]).toEqual([true, 0.9]);
+    expect(effects).toContainEqual({
+      type: "trackpad",
+      pan: 1,
+      zoom: 1,
+      momentum: true,
+      glide: 0.9,
+    });
+  });
+
+  it("a glide that would never stop (1) or barely move keeps the current value", () => {
+    for (const glide of [1, 0.2, Number.NaN]) {
+      const { next, effects } = planSettingsUpdate(
+        base(),
+        edit((s) => {
+          s.app.trackpadMomentumGlide = glide;
+        }),
+      );
+      expect(next.app.trackpadMomentumGlide).toBe(0.85);
+      expect(effects.some((e) => e.type === "trackpad")).toBe(false);
+    }
   });
 
   it("an out-of-range speed keeps the current value and pushes nothing", () => {

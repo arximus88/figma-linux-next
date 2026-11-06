@@ -23,7 +23,9 @@ const silentLogger = {
 /** A mock FigmaViewProvider whose next executeInBrowserView result is settable. */
 class MockProvider implements FigmaViewProvider {
   public nextResult: unknown = null;
-  executeInBrowserView(_script: string): Promise<any> {
+  public calls: { script: string; fileKey?: string }[] = [];
+  executeInBrowserView(script: string, fileKey?: string): Promise<any> {
+    this.calls.push({ script, fileKey });
     return Promise.resolve(this.nextResult);
   }
   getActiveTabView(): null {
@@ -143,7 +145,7 @@ describe("McpServer (Streamable HTTP transport)", () => {
 
   it("calls a tool returning a JSON string (get_design_context)", async () => {
     const sessionId = await initialize();
-    provider.nextResult = JSON.stringify({ id: "1:2", name: "Frame", type: "FRAME" });
+    provider.nextResult = JSON.stringify({ text: '<frame id="1:2" name="Frame"/>\n' });
     const res = await rpc(
       {
         jsonrpc: "2.0",
@@ -233,6 +235,29 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(res.json.result.content[0].text).toContain("ok");
   });
 
+  it("keeps the Figma AI tools hidden and refused until their own switch is on", async () => {
+    server.setWriteToolsEnabled(true);
+    const sessionId = await initialize();
+    const names = async (id: number) =>
+      (await rpc({ jsonrpc: "2.0", id, method: "tools/list" }, sessionId)).json.result.tools.map(
+        (t: { name: string }) => t.name,
+      );
+    expect(await names(30)).not.toContain("figma_agent_prompt");
+    const refused = await callTool(sessionId, "figma_ai_credits", {}, 31);
+    expect(refused.json.result.isError).toBe(true);
+    expect(refused.json.result.content[0].text).toContain("Figma AI tools are disabled");
+
+    server.setAiToolsEnabled(true);
+    const on = await names(32);
+    for (const t of ["figma_agent_prompt", "figma_ai_generate_image", "figma_ai_credits"]) {
+      expect(on).toContain(t);
+    }
+    provider.nextResult = { plan: "team::1", you: { available: 10, total: 3000 } };
+    const ok = await callTool(sessionId, "figma_ai_credits", {}, 33);
+    expect(ok.json.result.isError).toBeUndefined();
+    expect(ok.json.result.content[0].text).toContain('"available":10');
+  });
+
   // ── New tools: figma_find / figma_tree / figma_text ──────────────────────
 
   it("lists the new read tools and gates figma_text behind write", async () => {
@@ -320,6 +345,323 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(status.listening).toBe(true);
     expect(typeof status.port).toBe("number");
     expect(base).toContain(`:${status.port}/`);
+  });
+
+  describe("use_figma code and fileKey", () => {
+    const call = (sessionId: string, name: string, args: Record<string, unknown>) =>
+      rpc(
+        { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } },
+        sessionId,
+      );
+    const text = (res: any) => res.json.result.content[0].text as string;
+
+    it("runs code in the page and returns what it returned", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      provider.nextResult = { result: JSON.stringify({ createdNodeIds: ["1:5"] }), changes: 1 };
+
+      const res = await call(sessionId, "use_figma", {
+        code: "const i = (await figma.getNodeByIdAsync('1:2')).createInstance(); return { createdNodeIds: [i.id] };",
+        description: "instance of Button",
+      });
+      expect(res.json.result.isError).toBeUndefined();
+      expect(JSON.parse(text(res))).toEqual({ createdNodeIds: ["1:5"] });
+      expect(provider.calls).toHaveLength(1);
+      expect(provider.calls[0].script).toContain("createInstance()");
+      expect(provider.calls[0].fileKey).toBeUndefined();
+    });
+
+    it("reports a rolled-back failure as an error that says the file is unchanged", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      provider.nextResult = {
+        error: "Cannot read 'x' of null",
+        rolledBack: true,
+        changesBeforeError: 3,
+      };
+      const res = await call(sessionId, "use_figma", { code: "return 1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("Cannot read 'x' of null");
+      expect(text(res)).toContain("were undone; the file is as it was");
+    });
+
+    it("refuses code that does not parse without touching the page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await call(sessionId, "use_figma", { code: "return (1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("SyntaxError");
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("keeps code behind the write-tools switch", async () => {
+      const sessionId = await initialize();
+      const res = await call(sessionId, "use_figma", { code: "return 1;" });
+      expect(res.json.result.isError).toBe(true);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("routes a read tool to the tab of the named file, from a key or a URL", async () => {
+      const sessionId = await initialize();
+      provider.nextResult = { fileName: "Other file" };
+      await call(sessionId, "get_file_info", { fileKey: "AbC123xyz456" });
+      await call(sessionId, "get_file_info", {
+        fileKey: "https://www.figma.com/design/AbC123xyz456/Other?node-id=1-2",
+      });
+      expect(provider.calls.map((c) => c.fileKey)).toEqual(["AbC123xyz456", "AbC123xyz456"]);
+    });
+
+    it("refuses a malformed fileKey instead of using the active tab", async () => {
+      const sessionId = await initialize();
+      const res = await call(sessionId, "get_file_info", { fileKey: "../../x" });
+      expect(res.json.result.isError).toBe(true);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("surfaces 'file not open' from the provider as a tool error", async () => {
+      const sessionId = await initialize();
+      provider.executeInBrowserView = (_s: string, fileKey?: string) => {
+        throw new Error(`File ${fileKey} is not open in figma-linux-next.`);
+      };
+      const res = await call(sessionId, "get_file_info", { fileKey: "AbC123xyz456" });
+      expect(res.json.result.isError).toBe(true);
+      expect(text(res)).toContain("AbC123xyz456 is not open");
+    });
+
+    it("advertises fileKey on file tools and code on use_figma", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/list" }, sessionId);
+      const byName = new Map<string, any>(res.json.result.tools.map((t: any) => [t.name, t]));
+      for (const name of ["get_metadata", "get_screenshot", "use_figma", "figma_text"]) {
+        expect(byName.get(name).inputSchema.properties.fileKey).toBeDefined();
+      }
+      expect(byName.get("get_code_connect_map").inputSchema.properties.fileKey).toBeUndefined();
+      expect(byName.get("use_figma").inputSchema.properties.code.type).toBe("string");
+    });
+  });
+
+  describe("assets, whoami and new files", () => {
+    const call = (sessionId: string, name: string, args: Record<string, unknown>) =>
+      rpc(
+        { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } },
+        sessionId,
+      );
+    const json = (res: any) => JSON.parse(res.json.result.content[0].text);
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+    it("hands out upload URLs that place the bytes in the file they were issued for, once", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const res = await call(sessionId, "upload_assets", {
+        count: 2,
+        nodeIds: ["1-2", "1:3"],
+        fileKey: "AbC123xyz456",
+      });
+      const { uploads } = json(res);
+      expect(uploads.map((u: any) => u.targetNodeId)).toEqual(["1:2", "1:3"]);
+      expect(provider.calls).toHaveLength(0);
+
+      provider.nextResult = { nodeId: "1:2", targetNodeId: "1:2", imageHash: "h" };
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: PNG,
+      });
+      expect(post.status).toBe(200);
+      expect((await post.json()).targetNodeId).toBe("1:2");
+      expect(provider.calls).toHaveLength(1);
+      expect(provider.calls[0].fileKey).toBe("AbC123xyz456");
+      expect(provider.calls[0].script).toContain(Buffer.from(PNG).toString("base64"));
+      expect(provider.calls[0].script).toContain('"1:2"');
+
+      const again = await fetch(uploads[0].url, { method: "POST", body: PNG });
+      expect(again.status).toBe(404);
+    });
+
+    it("refuses an upload that is not an image without touching the page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: "#!/bin/sh",
+      });
+      expect(post.status).toBe(422);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("checks the write switch again when the bytes arrive", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      server.setWriteToolsEnabled(false);
+      const post = await fetch(uploads[0].url, { method: "POST", body: PNG });
+      expect(post.status).toBe(403);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("refuses an upload POSTed by a web page", async () => {
+      server.setWriteToolsEnabled(true);
+      const sessionId = await initialize();
+      const { uploads } = json(await call(sessionId, "upload_assets", {}));
+      const post = await fetch(uploads[0].url, {
+        method: "POST",
+        headers: { Origin: "https://evil.example" },
+        body: PNG,
+      });
+      expect(post.status).toBe(403);
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("serves downloaded assets at the URLs it returns, with their types", async () => {
+      const sessionId = await initialize();
+      provider.nextResult = {
+        nodeId: "1:2",
+        nodeName: "Card",
+        export: { format: "png", scale: 1, base64: Buffer.from(PNG).toString("base64") },
+        rawImages: [
+          {
+            imageHash: "h1",
+            format: "jpeg",
+            width: 4,
+            height: 4,
+            base64: Buffer.from([0xff, 0xd8]).toString("base64"),
+          },
+        ],
+        svgAssets: [{ nodeId: "1:5", name: "icon", width: 24, height: 24, svg: "<svg/>" }],
+      };
+      const out = json(await call(sessionId, "download_assets", { nodeId: "1-2" }));
+      expect(provider.calls[0].script).toContain('"1:2"');
+
+      const exp = await fetch(out.export.url);
+      expect(exp.headers.get("content-type")).toBe("image/png");
+      expect(new Uint8Array(await exp.arrayBuffer())).toEqual(PNG);
+      const raw = await fetch(out.rawImages[0].url);
+      expect(raw.headers.get("content-type")).toBe("image/jpeg");
+      const svg = await fetch(out.svgAssets[0].url);
+      expect(await svg.text()).toBe("<svg/>");
+      expect(out.svgAssets[0].nodeId).toBe("1:5");
+    });
+
+    it("creates a real file, waits for its key and names it", async () => {
+      server.setWriteToolsEnabled(true);
+      const opened: string[] = [];
+      (provider as any).openNewFileTab = async (url: string) => {
+        opened.push(url);
+        return "https://www.figma.com/design/NewKey1234567890abcdef/Untitled?node-id=0-1";
+      };
+      server.setViewProvider(provider);
+      const sessionId = await initialize();
+      provider.nextResult = { ok: true };
+      const out = json(
+        await call(sessionId, "create_new_file", { fileName: "Agent draft", editorType: "figjam" }),
+      );
+      expect(opened).toEqual(["https://www.figma.com/board/new"]);
+      expect(out).toEqual({
+        fileKey: "NewKey1234567890abcdef",
+        url: "https://www.figma.com/design/NewKey1234567890abcdef/Untitled",
+        editorType: "figjam",
+        fileName: "Agent draft",
+      });
+      expect(provider.calls[0].fileKey).toBe("NewKey1234567890abcdef");
+      expect(provider.calls[0].script).toContain('"Agent draft"');
+    });
+  });
+
+  describe("Origin guard", () => {
+    const initBody = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "page", version: "1" },
+      },
+    };
+
+    it("refuses a web page's request: no session, no tool run", async () => {
+      let executed = false;
+      provider.executeInBrowserView = async () => {
+        executed = true;
+        return { fileName: "Secret design" };
+      };
+      const sessionId = await initialize();
+      server.setWriteToolsEnabled(true);
+
+      for (const origin of ["https://evil.example", "null", "http://localhost.evil.example"]) {
+        const init = await fetch(base, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: origin },
+          body: JSON.stringify(initBody),
+        });
+        expect(init.status).toBe(403);
+        expect(init.headers.get("mcp-session-id")).toBeNull();
+
+        // Even with a session id leaked or guessed, the call is refused.
+        const call = await fetch(base, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: origin,
+            "Mcp-Session-Id": sessionId,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: { name: "get_file_info", arguments: {} },
+          }),
+        });
+        expect(call.status).toBe(403);
+      }
+      expect(executed).toBe(false);
+    });
+
+    it("refuses the CORS preflight from a web page", async () => {
+      const res = await fetch(base, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://evil.example",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      });
+      expect(res.status).toBe(403);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
+
+    it("refuses the legacy SSE endpoint and assets from a web page", async () => {
+      const port = new URL(base).port;
+      for (const path of ["/sse", "/assets/x.png"]) {
+        const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+          headers: { Origin: "https://evil.example" },
+        });
+        expect(res.status).toBe(403);
+      }
+    });
+
+    it("serves a local browser tool and echoes its origin, never a wildcard", async () => {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost:6274" },
+        body: JSON.stringify(initBody),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:6274");
+    });
+
+    it("serves clients that send no Origin without CORS headers for anyone", async () => {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(initBody),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
   });
 
   it("opens a GET SSE stream on /mcp with session id", async () => {

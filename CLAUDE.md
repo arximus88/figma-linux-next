@@ -220,6 +220,20 @@ new App(new WindowManager(), new Session(), new FontManager());
 - MCP protocol (JSON-RPC 2.0 over Streamable HTTP) on port **3845**
 - Exposes Figma design context to AI assistants via `webContents.executeJavaScript()`
 - Started in `App.ready()`
+- Tool surface mirrors Figma's remote MCP: `use_figma` runs Plugin API `code` (atomic via an undo
+  marker, `scripts/useFigmaCode.ts`), every file tool takes `fileKey` (routes to that file's tab,
+  `utils/fileKey.ts` + `WindowManager.findFileTab`), plus `whoami`, `download_assets`,
+  `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file),
+  `get_comments` / `get_versions` (figma.com endpoints the page can read). `get_design_context`
+  answers in markup with CSS and variable/style/component legends (`scripts/designContext.ts`);
+  component search uses Figma's internal asset search, found in the page's bundler by method
+  name. Third tier behind `mcp.enableAiTools` (default off, spends AI credits): Figma's agent
+  (`figma_agent_prompt/threads/read`), image generation/editing, credits
+  (`scripts/figmaAgent.ts`, `scripts/figmaAi.ts`). Settings lists every tool with its
+  description via the `getMcpTools` invoke. The page's
+  `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
+  empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`
 
 **FigmaAgent** (`src/main/FigmaAgent.ts`):
 - The local helper figma.com looks for from a *browser*. The page never uses `figma://` for
@@ -372,7 +386,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 
 **Logger** (`src/main/Logger/AppLogger.ts`):
 - Multi-sink architecture: console + file
-- File logs: `~/.config/figma-linux-next/logs/app.log`
+- File logs: `~/.config/figma-linux-next/logs/figma-linux-next.log` (Flatpak: `~/.var/app/app.borys.FigmaLinuxNext/config/figma-linux-next/logs/`), file level `debug`
 - Configurable log level in settings
 
 ## Critical Files Reference

@@ -52,7 +52,22 @@ export type ToolName =
   | "figma_tree"
   | "use_figma"
   | "create_new_file"
-  | "figma_text";
+  | "figma_text"
+  | "whoami"
+  | "download_assets"
+  | "upload_assets"
+  | "get_comments"
+  | "get_versions"
+  | "list_libraries"
+  | "get_library_styles"
+  | "get_library_updates"
+  | "get_code_connect"
+  | "figma_agent_prompt"
+  | "figma_agent_threads"
+  | "figma_agent_read"
+  | "figma_ai_credits"
+  | "figma_ai_generate_image"
+  | "figma_ai_edit_image";
 
 export interface ToolDefinition {
   name: ToolName;
@@ -74,12 +89,22 @@ export interface CodeConnectEntry {
 /** Minimal interface for querying the Figma BrowserView.
  *  Matches figma-linux-next Window class public surface. */
 export interface FigmaViewProvider {
-  /** Execute arbitrary JS in the active Figma tab's webContents. */
-  executeInBrowserView(script: string): Promise<any>;
-  /** Get the active tab's WebContentsView (for capturePage). */
-  getActiveTabView(): WebContentsView | null;
-  /** Get the URL of the currently focused tab. */
-  getActiveTabUrl(): string | null;
+  /**
+   * Execute arbitrary JS in a Figma tab's webContents: the tab showing
+   * `fileKey` when given, otherwise the active tab. Rejects when `fileKey`
+   * is given and no open tab shows that file.
+   */
+  executeInBrowserView(script: string, fileKey?: string): Promise<any>;
+  /** The tab's WebContentsView (for capturePage), same targeting as above. */
+  getActiveTabView(fileKey?: string): WebContentsView | null;
+  /** The tab's URL, same targeting as above. */
+  getActiveTabUrl(fileKey?: string): string | null;
+  /**
+   * Open `url` (a Figma "new file" URL) in a new tab in front of the last
+   * focused window and resolve with the tab's URL once Figma has given the
+   * file its key. Optional: providers without windows (tests) omit it.
+   */
+  openNewFileTab?(url: string): Promise<string>;
 }
 
 export interface Logger {

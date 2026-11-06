@@ -8,6 +8,7 @@ import {
 } from "electron";
 
 import Window from "./Window";
+import Tab from "./Tab";
 import MenuManager from "./MenuManager";
 import { storage } from "Main/Storage";
 import { refreshSystemTheme, getResolvedFigmaTheme, isFigmaThemePreference } from "Main/Theme";
@@ -15,6 +16,7 @@ import { CHROME_GPU, HOMEPAGE, NEW_FILE_TAB_TITLE } from "Const";
 import { WINDOW_DEFAULT_OPTIONS } from "Const/window";
 import { normalizeUrl, isAppAuthRedeem } from "Utils/Common";
 import { isPreviewAnchor } from "Utils/Main/tabPreview";
+import type { TrackpadTuning } from "Utils/Common/trackpad";
 import { isMenuAnchor } from "Utils/Main/menuPosition";
 import { ipcRegistry } from "Main/controllers/registry";
 import { logger } from "Main/Logger";
@@ -68,6 +70,34 @@ export default class WindowManager {
     return this.windows.get(this.lastFocusedwindowId);
   }
 
+  /**
+   * The open tab showing the Figma file `fileKey`, for MCP tools that name a
+   * file instead of acting on the active tab. Searches the last focused window
+   * first, so a file open twice resolves to the one the user just worked in.
+   * `discarded` marks a tab that is in the strip but not loaded (lazy restore):
+   * it has no page to run a script in until the user selects it.
+   */
+  public findFileTab(
+    fileKey: string,
+    matches: (url: string, fileKey: string) => boolean,
+  ): { tab: Tab } | { discarded: true; title?: string } | undefined {
+    const last = this.windows.get(this.lastFocusedwindowId);
+    const ordered = last
+      ? [last, ...[...this.windows.values()].filter((w) => w !== last)]
+      : [...this.windows.values()];
+    let discarded: { discarded: true; title?: string } | undefined;
+    for (const window of ordered) {
+      for (const tab of window.tabs.values()) {
+        if (tab instanceof Tab) {
+          if (!tab.view.webContents.isDestroyed() && matches(tab.getUrl(), fileKey)) return { tab };
+        } else if ("discarded" in tab && matches(tab.url, fileKey)) {
+          discarded ??= { discarded: true, title: tab.title };
+        }
+      }
+    }
+    return discarded;
+  }
+
   /** Close the Settings tab of the window `webContentsId` belongs to (panel or Settings). */
   public closeSettingsViewFor(webContentsId?: number) {
     const window =
@@ -114,8 +144,8 @@ export default class WindowManager {
     }
   }
 
-  /** New trackpad speeds for every loaded figma.com page (tabs, the warm tab). Shells pick them up on load. */
-  public broadcastTrackpadSpeeds(speeds: { pan: number; zoom: number }) {
+  /** New trackpad tuning for every loaded figma.com page (tabs, the warm tab). Shells pick it up on load. */
+  public broadcastTrackpadSpeeds(speeds: TrackpadTuning) {
     for (const wc of webContents.getAllWebContents()) {
       if (!wc.isDestroyed() && wc.getURL().startsWith("https://www.figma.com/")) {
         wc.send("trackpadSpeedsChanged", speeds);

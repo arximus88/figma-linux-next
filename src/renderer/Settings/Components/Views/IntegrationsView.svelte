@@ -5,6 +5,7 @@
   import { saveState } from "../../autosave.svelte";
   import { SETTINGS } from "../../schema";
   import SettingsIcon from "../SettingsIcon.svelte";
+  import McpToolList from "../McpToolList.svelte";
 
   // ── Live status of both services ─────────────────────────────────────────
   // Re-read after every save: the server starts, stops and rebinds live, and a
@@ -112,6 +113,12 @@
         disabled={$settings.mcp.serverEnabled === false}
       />
     </SettingRow>
+    <SettingRow setting={SETTINGS.mcpAi} badges={[{ text: "Experimental" }, { text: "Uses AI credits", kind: "warning" }]}>
+      <Toggle
+        bind:checked={$settings.mcp.enableAiTools}
+        disabled={$settings.mcp.serverEnabled === false}
+      />
+    </SettingRow>
     <SettingRow setting={SETTINGS.mcpPort}>
       <input
         class="s-input port"
@@ -127,10 +134,16 @@
     <details class="service-details">
       <summary><SettingsIcon name="chevron" size={14} />Connection details</summary>
       <p class="s-hint">
-        Read tools are always on: scene graph, metadata, variables and styles, screenshots, Code
-        Connect, design-system rules, Mermaid to FigJam. Editing tools add create, edit and delete.
+        Read tools are always on: scene graph, metadata, variables and styles, screenshots,
+        comments, versions, Code Connect, design-system rules, Mermaid to FigJam. Editing tools add
+        create, edit and delete. Figma AI tools drive Figma's own AI and spend your credits.
       </p>
       <McpSnippet title=".mcp.json — figma-linux-next" code={figmaSnippet} />
+    </details>
+    <details class="service-details" id={`setting-${SETTINGS.mcpTools.id}`}>
+      <summary><SettingsIcon name="chevron" size={14} />{SETTINGS.mcpTools.title}</summary>
+      <p class="s-hint">{SETTINGS.mcpTools.subtitle}</p>
+      <McpToolList writeOn={$settings.mcp.enableWriteTools} aiOn={$settings.mcp.enableAiTools === true} />
     </details>
   </div>
 

@@ -1,6 +1,5 @@
 import {
   app,
-  shell,
   WebContentsView,
   type WebContentsViewConstructorOptions,
   type Rectangle,
@@ -10,6 +9,7 @@ import {
   type HandlerDetails,
 } from "electron";
 
+import { openInBrowser } from "Main/openInBrowser";
 import { LOGIN_PAGE, RECENT_FILES } from "Const";
 import {
   preloadMainScriptPathDev,
@@ -130,7 +130,7 @@ export default class MainTab {
     }
 
     if (isFigmaDocLink(url)) {
-      shell.openExternal(url);
+      void openInBrowser(url, "MainTab");
       event.preventDefault();
       return;
     }
@@ -161,7 +161,7 @@ export default class MainTab {
     }
 
     if (isExternallyOpenableUrl(url)) {
-      shell.openExternal(url);
+      void openInBrowser(url, "MainTab");
     }
   }
 
@@ -185,7 +185,7 @@ export default class MainTab {
     if (isFigmaRunUrl(url)) {
       app.emit("openUrlInNewTab", url);
     } else if (isExternallyOpenableUrl(url)) {
-      shell.openExternal(url);
+      void openInBrowser(url, "MainTab");
     } else {
       logger.warn(`[MainTab] window.open blocked, unsupported scheme: ${url}`);
     }

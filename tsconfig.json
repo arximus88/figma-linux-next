@@ -5,6 +5,10 @@
     "allowArbitraryExtensions": true,
     "noImplicitAny": true,
     "allowJs": false,
+    // vite.config.mts and the changelog modules it pulls in import each other with
+    // real .mts extensions, so Vite's native config loader (plain Node) can load them.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",

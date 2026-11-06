@@ -9,6 +9,19 @@ declare namespace Types {
     cdp: { active: boolean; port: number | null };
   }
 
+  /** One MCP tool as the settings page lists it. */
+  interface McpToolInfo {
+    name: string;
+    description: string;
+  }
+
+  /** The MCP tools by tier, for the settings page. */
+  interface McpToolList {
+    read: McpToolInfo[];
+    write: McpToolInfo[];
+    ai: McpToolInfo[];
+  }
+
   /** Runtime state of the FigmaAgent listener (browser hand-off), for the settings UI. */
   interface FigmaAgentStatus {
     listening: boolean;
@@ -233,6 +246,10 @@ declare namespace Types {
       trackpadPanSpeed: number;
       /** Pinch-to-zoom speed on the canvas, 0.25–4; 1 leaves Figma's own speed. */
       trackpadZoomSpeed: number;
+      /** Pan and pinch keep going after the fingers lift (off by default). */
+      trackpadMomentum: boolean;
+      /** Share of momentum speed kept per frame, 0.5–0.95; higher glides longer. */
+      trackpadMomentumGlide: number;
       windowsState: {
         [key: string]: WindowState;
       };
@@ -252,6 +269,8 @@ declare namespace Types {
       serverEnabled: boolean;
       serverPort: number;
       enableWriteTools: boolean;
+      /** Figma AI tools (agent, image generation, credits); they spend AI credits. */
+      enableAiTools: boolean;
       cdpEnabled: boolean;
       remoteDebugPort: number;
     };

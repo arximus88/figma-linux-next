@@ -1,6 +1,6 @@
 {
   "name": "figma-linux-next",
-  "version": "0.23.1",
+  "version": "0.24.0",
   "description": "Unofficial Electron-based browser wrapper for the Figma web app on Linux. Not affiliated with or endorsed by Figma, Inc.",
   "main": "dist/main/main.js",
   "repository": "https://github.com/arximus88/figma-linux-next.git",
@@ -42,7 +42,7 @@
     "electron"
   ],
   "devDependencies": {
-    "@biomejs/biome": "^2.6.4",
+    "@biomejs/biome": "^2.6.5",
     "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
@@ -55,11 +55,11 @@
     "lint-staged": "^17.6.0",
     "nodemon": "^3.1.14",
     "svelte": "^5.57.1",
-    "svelte-check": "^4.7.7",
+    "svelte-check": "^4.7.8",
     "svelte-preprocess": "^6.0.5",
     "typescript": "^6.0.3",
     "vite": "^8.3.2",
-    "vite-plugin-electron": "^1.1.2"
+    "vite-plugin-electron": "^1.2.0"
   },
   "overrides": {
     "hosted-git-info": "^7"

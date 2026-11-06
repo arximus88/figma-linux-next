@@ -19,7 +19,7 @@ Not affiliated with or endorsed by Figma, Inc.
 ## Features
 
 - **Local system fonts** — full `fontconfig` (`fc-list`) enumeration plus `fontkit` for variable-font axes and named instances, matching the official desktop app.
-- **Built-in MCP server for AI assistants** — live [Model Context Protocol](https://modelcontextprotocol.io) server (`127.0.0.1:3845`) so tools like Claude Code can inspect and edit your open design without installing a plugin. See [AI integration (MCP)](#ai-integration-mcp).
+- **Built-in MCP server for AI assistants** — live [Model Context Protocol](https://modelcontextprotocol.io) server (`127.0.0.1:3845`) that speaks the same tool calls as Figma's remote MCP, so Claude Code, Cursor and other clients can read and edit your open design without a plugin. See [AI integration (MCP)](#ai-integration-mcp).
 - **Local plugin development** — import a plugin from its `manifest.json` and iterate locally with hot-reload.
 - **Figma links open in the app** — answers Figma's browser probe so **Open in desktop app** and **Open links in desktop app** work on Linux just like on macOS and Windows. See [Opening links from your browser](#opening-links-from-your-browser).
 - **Shader, Halftone & Noise effects** — supports Figma's WebGPU canvas effects (Experimental, opt-in in Settings). NVIDIA-only systems with driver 535.183.01 or newer keep native Wayland; elsewhere the app runs under X11/XWayland while it is enabled.
@@ -102,12 +102,17 @@ The flake ships prebuilt release binaries (`x86_64` and `aarch64`) updated by CI
 
 ## AI integration (MCP)
 
-`figma-linux-next` ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server so assistants like Claude Code can work with your **live** design — no plugin to install, no cloud round-trip. Everything binds to `127.0.0.1` and is configured in **Settings → General → MCP integrations**.
+`figma-linux-next` ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server so assistants like Claude Code can work with your **live** design — no plugin to install, no cloud round-trip. Everything binds to `127.0.0.1` and is configured in **Settings → Integrations**.
 
-- **Data plane — Figma MCP** (HTTP, default `127.0.0.1:3845`, on by default). Reads file info, scene-graph metadata, design context, variables & styles, Code Connect maps, and node screenshots; helper tools `figma_find` / `figma_tree` locate and outline nodes cheaply, and it can emit design-system rules for your codebase. With **write tools** enabled (opt-in) it also creates and edits frames, text, rectangles and variables, and turns Mermaid into FigJam diagrams.
-- **Control plane — Chrome DevTools (CDP)** (opt-in, needs a restart). Exposes the app window over `--remote-debugging-port` so a CDP client (e.g. [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) can drive the UI — switch tabs, click, type, screenshot the real window. Paired with the data plane, an assistant can navigate to a file and then read or edit it.
+- **Context that fits your agent.** `get_design_context` answers in markup with CSS: tokens by name (`var(--color-text, #14191f)`), text styles and component docs defined once, repeated instances written out once. A 54-layer screen takes 10k characters where raw JSON took 95k.
+- **Speaks Figma's remote MCP.** `use_figma` runs Plugin API code as one undo step, every file tool takes a `fileKey` or a pasted link and runs in that file's tab, plus `get_metadata`, `get_screenshot`, `get_variable_defs`, `search_design_system`, `download_assets` / `upload_assets`, `get_comments` and `get_versions`.
+- **Your whole design system in reach.** Search every team and community library you can use, list libraries and their published styles, see library updates the file has not accepted, read Code Connect snippets.
+- **Figma's AI, from your own assistant** (experimental, off by default, spends your AI credits). Claude or Cursor can hand a task to Figma's built-in agent and check what it changed, generate and edit images (saved to disk and placed in the file), and check your credit balance.
+- **Control plane — Chrome DevTools (CDP)** (opt-in, needs a restart). Exposes the app window over `--remote-debugging-port` so a CDP client (e.g. [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) can drive the UI — switch tabs, click, type, screenshot the real window.
 
-Read access is on out of the box; anything that mutates your files or exposes window control is off by default and opt-in.
+Reading is on out of the box. Write tools, Figma AI tools and window control are separate opt-in switches. Settings lists every tool with the description your assistant reads:
+
+<img src="docs/images/settings-mcp-tools.png" alt="Settings → Integrations: the Figma AI tools switch and the list of available MCP tools" width="800">
 
 > **Edit permissions required:** The data plane uses Figma's Plugin API (`window.figma`), which Figma exposes only when you can **edit** the file (not with a View/Dev seat, "can view" links, Sites files, or when org plugins are disabled). When a tool can't read a file, it reports which limitation applies. For view-only files, use [Figma's remote MCP server](https://help.figma.com/hc/en-us/articles/32132100833559).
 

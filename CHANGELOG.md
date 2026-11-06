@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-06
+
+The MCP server grows up: it takes the same tool calls as Figma's remote MCP, its answers fit an
+agent's context (10k characters where raw JSON took 95k), it reaches every library you can use,
+and, behind its own switch, it lets your assistant work with Figma's own AI. Trackpad momentum
+arrives as an experiment.
+
+### Added
+
+- **Figma MCP speaks the remote server's language.** The built-in server now takes the same
+  tool calls as Figma's remote MCP, so prompts and skills written for it work here:
+  - `use_figma` runs Plugin API `code` (an async function body with `figma` in scope). A script
+    that throws is undone; one that succeeds is a single undo step. The old `action`/`params`
+    form still works.
+  - Every file tool takes `fileKey` (a key or a pasted figma.com link) and runs in the tab
+    showing that file, instead of whichever tab is in front
+    ([#67](https://github.com/arximus88/figma-linux-next/issues/67)).
+  - `get_metadata` lists pages when no node is given, `get_screenshot` takes `maxDimension` and
+    `contentsOnly`, and `search_design_system` takes batched `queries` and searches every page
+    and the file's enabled libraries.
+  - New tools: `whoami`, `download_assets` (node export, original fill images, SVGs of vector
+    parts) and `upload_assets` (single-use local URLs; an image becomes a fill or a new
+    rectangle, an SVG becomes vectors).
+  - `create_new_file` creates a real file instead of a page.
+
+- **Leaner, more useful MCP answers.** Measured on a 54-layer phone screen against Figma's
+  remote server:
+  - `get_design_context` returns markup with CSS instead of raw JSON: variables by name
+    (`var(--color-text, #14191f)`), text style names defined once, component names and
+    descriptions, a repeated component written out once, icons as one `<svg/>`. 95k characters
+    became 10k (Figma's own: 19k).
+  - `get_variable_defs` gives the value each token renders with, follows aliases to the colour,
+    and names the token behind it, instead of raw `VariableID` references.
+  - `get_metadata` stops at component instances and no longer repeats a text layer's text when
+    it is also its name.
+  - `search_design_system` finds components in every team and community library you can reach,
+    not only the ones the file already uses, with their descriptions.
+  - New tools: `get_comments` (comment threads with the layer each is pinned to) and
+    `get_versions` (version history with named versions). Both work in view-only files.
+  - Design-system tools: `list_libraries` (every library you can use and which are on in this
+    file), `get_library_styles` (a library's published styles with import keys),
+    `get_library_updates` (library changes the file has not accepted) and `get_code_connect`
+    (the code components published for an instance with Code Connect).
+
+- **Figma AI tools: your assistant can work with Figma's own AI (experimental).** A third tier
+  of MCP tools behind its own switch, Settings → Integrations → Figma AI tools, off by default
+  because they spend your Figma AI credits:
+  - `figma_agent_prompt` hands a task to Figma's built-in agent and waits for it: you get its
+    answer, the code it ran, the layers it created, changed or deleted, and the credits it
+    used. Claude, Cursor or any MCP client can use Figma's agent as a sub-agent and check its
+    work. `figma_agent_threads` and `figma_agent_read` list and read the conversations.
+  - `figma_ai_generate_image` makes an image from a prompt, places it in the file and saves
+    the PNG to disk. `figma_ai_edit_image` edits, expands, removes the background, upscales or
+    vectorizes an image already in the file.
+  - `figma_ai_credits` shows your remaining credits.
+
+  These use Figma's internal web APIs, not a public interface, so a Figma update can break
+  them; the tools then say which part went missing.
+
+- **Settings list every MCP tool.** Integrations → Figma MCP → Available tools shows each
+  tool by tier with the description an assistant reads.
+
+- **Trackpad momentum (experimental)**
+  ([#47](https://github.com/arximus88/figma-linux-next/issues/47)). Let go of a two-finger swipe
+  or a pinch mid-motion and the canvas keeps moving, slowing down as on macOS. Off by default:
+  Settings → General → Trackpad momentum, with a Momentum glide slider for how far it carries on.
+  A mouse wheel never glides, and a click, a key or a new gesture stops the canvas where it is.
+  Not yet tried on many touchpads, so feedback in #47 is welcome. Idea from
+  [figmix](https://gitlab.com/Valo27/figmix).
+
+### Fixed
+
+- **Web pages can no longer reach the MCP server.** It answered any site with
+  `Access-Control-Allow-Origin: *`, so a page open in your browser could read your open designs
+  (and edit them with write tools on). Requests from other origins now get 403; command-line and
+  desktop clients and the MCP Inspector on localhost are unaffected.
+
+- **Failed browser hand-offs are logged**
+  ([#41](https://github.com/arximus88/figma-linux-next/issues/41)). When a link or a plugin's
+  "Log in" could not open in the browser, nothing happened and the log said nothing. Each
+  hand-off and the reason it failed are now written to the log.
+
 ## [0.23.1] - 2026-11-04
 
 Locally installed fonts work on NixOS and in the Flatpak, frame names with `/` export into

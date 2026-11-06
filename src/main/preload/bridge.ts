@@ -94,6 +94,7 @@ const INVOKE_CHANNELS = [
   "updateFigmaUiScale",
   "updatePanelScale",
   "getMcpStatus",
+  "getMcpTools",
   "getFigmaAgentStatus",
 ] as const;
 

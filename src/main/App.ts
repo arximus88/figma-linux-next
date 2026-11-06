@@ -17,6 +17,7 @@ import { McpServer } from "./MCP";
 import { FigmaAgentServer } from "./FigmaAgent";
 import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
+import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -26,6 +27,7 @@ import FontController from "./controllers/FontController";
 import ClipboardController from "./controllers/ClipboardController";
 import AuthController from "./controllers/AuthController";
 import FileController from "./controllers/FileController";
+import { mcpToolList } from "./MCP/tools/definitions";
 
 export default class App {
   private authController: AuthController;
@@ -77,6 +79,7 @@ export default class App {
 
     // MCP runtime status for the settings UI (real server/CDP state)
     ipcRegistry.handle("getMcpStatus", () => this.getMcpStatus(), "App");
+    ipcRegistry.handle("getMcpTools", () => mcpToolList(), "App");
     ipcRegistry.handle("getFigmaAgentStatus", () => this.figmaAgent.getStatus(), "App");
 
     // Seal the registry — no more IPC registrations after this point
@@ -92,22 +95,73 @@ export default class App {
     this.session.handleAppReady();
     this.trayManager.apply(storage.settings.app.trayEnabled);
 
-    // Wire up the FigmaViewProvider — dynamically resolves the last focused window
+    // Wire up the FigmaViewProvider. Without a fileKey it follows the last
+    // focused window's active tab; with one it finds the tab showing that file.
+    const fileTab = (fileKey: string): Tab => {
+      const found = this.windowManager.findFileTab(fileKey, urlMatchesFileKey);
+      if (!found) {
+        throw new Error(
+          `File ${fileKey} is not open in figma-linux-next. Open it in the app, or omit fileKey to use the active tab.`,
+        );
+      }
+      if ("discarded" in found) {
+        throw new Error(
+          `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but is not loaded yet (lazy session restore). Select its tab in the app once, then retry.`,
+        );
+      }
+      return found.tab;
+    };
+    const activeTab = (): Tab | null => {
+      const win = this.windowManager.getLastFocusedWindow();
+      if (!win) return null;
+      const tabId = win.getLatestFocusedTabId();
+      if (!tabId) return null;
+      const tab = win.tabs.get(tabId);
+      return tab instanceof Tab ? tab : null;
+    };
     const viewProvider: FigmaViewProvider = {
-      executeInBrowserView: (script: string) => {
+      executeInBrowserView: (script: string, fileKey?: string) => {
+        if (fileKey) return fileTab(fileKey).view.webContents.executeJavaScript(script);
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) throw new Error("No Figma window open");
         return win.executeInBrowserView(script);
       },
-      getActiveTabView: () => {
+      getActiveTabView: (fileKey?: string) =>
+        (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,
+      // A new file has no key until Figma's editor has saved it once; the tab
+      // starts on /<editor>/new and is replaced with /<editor>/<key>/... .
+      openNewFileTab: async (url: string) => {
         const win = this.windowManager.getLastFocusedWindow();
-        if (!win) return null;
-        const tabId = win.getLatestFocusedTabId();
-        if (!tabId) return null;
-        const tab = win.tabs.get(tabId);
-        return tab instanceof Tab ? tab.view : null;
+        if (!win) throw new Error("No Figma window open");
+        const tab = win.openTabInFront(url);
+        if (!tab) throw new Error(`Could not open ${url}`);
+        const wc = tab.view.webContents;
+        // Figma saves a new file, and only then gives it a key, once its editor
+        // has loaded; on a slow test machine that took minutes.
+        const deadline = Date.now() + 180_000;
+        const pageKeyScript =
+          "(function(){var k=window.figma&&window.figma.fileKey;return k?location.origin+'/design/'+k+'/':location.href;})()";
+        while (Date.now() < deadline) {
+          if (wc.isDestroyed()) throw new Error("The new file's tab was closed");
+          // The view's URL can lag behind the page's (history.replaceState), and
+          // the Plugin API knows the key as soon as the editor has it.
+          let current = tab.getUrl();
+          if (!fileKeysOfUrl(current).length && !wc.isLoading()) {
+            current = String(await wc.executeJavaScript(pageKeyScript).catch(() => current));
+          }
+          if (fileKeysOfUrl(current).length) {
+            logger.info(`[MCP] create_new_file: ${current.split("?")[0]}`);
+            return current;
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        logger.warn(`[MCP] create_new_file: no file key after 180 s, tab at ${tab.getUrl()}`);
+        throw new Error(
+          "Figma has not finished creating the file after 3 minutes. It is open in the active tab: wait for it to load, then call get_file_info without fileKey.",
+        );
       },
-      getActiveTabUrl: () => {
+      getActiveTabUrl: (fileKey?: string) => {
+        if (fileKey) return fileTab(fileKey).getUrl();
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) return null;
         const tabId = win.getLatestFocusedTabId();
@@ -117,6 +171,7 @@ export default class App {
     };
     this.mcpServer.setViewProvider(viewProvider);
     this.mcpServer.setWriteToolsEnabled(!!storage.settings.mcp?.enableWriteTools);
+    this.mcpServer.setAiToolsEnabled(!!storage.settings.mcp?.enableAiTools);
     // Server is opt-out (default on). Only bind when enabled.
     if (storage.settings.mcp?.serverEnabled !== false) {
       this.mcpServer.start(storage.settings.mcp?.serverPort ?? MCP_PORT);
@@ -265,6 +320,9 @@ export default class App {
     app.on("trayEnabledChanged", (enabled: boolean) => this.trayManager.apply(enabled));
     app.on("mcpWriteToolsChanged", (enabled: boolean) => {
       this.mcpServer.setWriteToolsEnabled(enabled);
+    });
+    app.on("mcpAiToolsChanged", (enabled: boolean) => {
+      this.mcpServer.setAiToolsEnabled(enabled);
     });
     app.on("mcpServerConfigChanged", ({ enabled, port }: { enabled: boolean; port: number }) => {
       // Our own http.Server — start/stop/rebind live, no app restart needed.

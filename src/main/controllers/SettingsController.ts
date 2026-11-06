@@ -94,6 +94,9 @@ export default class SettingsController {
       case "mcpWriteTools":
         app.emit("mcpWriteToolsChanged", effect.enabled);
         break;
+      case "mcpAiTools":
+        app.emit("mcpAiToolsChanged", effect.enabled);
+        break;
       case "mcpServer":
         app.emit("mcpServerConfigChanged", { enabled: effect.enabled, port: effect.port });
         break;
@@ -101,7 +104,12 @@ export default class SettingsController {
         app.emit("figmaAgentChanged", effect.enabled);
         break;
       case "trackpad":
-        this.windowManager.broadcastTrackpadSpeeds({ pan: effect.pan, zoom: effect.zoom });
+        this.windowManager.broadcastTrackpadSpeeds({
+          pan: effect.pan,
+          zoom: effect.zoom,
+          momentum: effect.momentum,
+          glide: effect.glide,
+        });
         break;
       case "frameStyle":
         this.windowManager.setFrameStyleAllWindows(resolveFrameStyle(storage.settings.app));

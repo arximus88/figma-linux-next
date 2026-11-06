@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   parseChangelog,
   renderInline,
-} from "../../../../src/renderer/Changelog/parseChangelog.mjs";
+} from "../../../../src/renderer/Changelog/parseChangelog.mts";
 
 const SAMPLE = `# Changelog
 

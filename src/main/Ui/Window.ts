@@ -663,6 +663,13 @@ export default class Window {
 
     return true;
   }
+  /** Open `url` in a new tab shown in front, and return the tab (MCP create_new_file). */
+  public openTabInFront(url: string): Tab | null {
+    const tab = this.addTab(url);
+    if (!tab) return null;
+    this.setTabFocus(tab.id);
+    return tab;
+  }
   public openMainMenuCloseHandler() {
     setTimeout(() => {
       this.window.webContents.send("isMainMenuOpen", false);
