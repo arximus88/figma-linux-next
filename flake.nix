@@ -21,10 +21,10 @@
       # the previous release — that window is the build itself, not a release
       # cycle: CI writes the new pair to dev as soon as the binaries exist.
       release = {
-        version = "0.23.1";
+        version = "0.24.0";
         hashes = {
-          x86_64-linux  = "sha256-Umb8BStSmMo0LE+gbCMPmwPxyf2AwyADBsJqjuDbzxk=";
-          aarch64-linux = "sha256-WcugvnwZd7TNI83YBuCiTzK+lRhzV21cTUHIfCVzZnw=";
+          x86_64-linux  = "sha256-3UQZT9wQKxdWyqq2CPTsMQmyIwWmdmYDZiQHfLcTzN4=";
+          aarch64-linux = "sha256-7mnYp976G4B6PsMMPD5x6hwVysm9ezO1yEBUWbZ4ls8=";
         };
       };
 
