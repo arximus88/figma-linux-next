@@ -13,7 +13,7 @@
  * tools accept a name.
  */
 
-const LIB_PREAMBLE = `
+export const LIB_PREAMBLE = `
     let req = null;
     window.rspackChunk_figma_web_bundler.push([[Math.random()], {}, function (r) { req = r; }]);
     if (!req || !req.m) throw new Error("Figma's page bundler is not reachable; Figma may have changed how it loads code.");
@@ -59,10 +59,18 @@ const LIB_PREAMBLE = `
     }
     const plain = function (s) { return String(s || '').replace(/<[^>]+>/g, '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim(); };
     // Every library the user can reach, and which of them this file has on.
+    // Cached for a minute: the list costs three requests, and search_design_system
+    // asks for it on every call.
     async function libraryList() {
       const c = libs();
       const st = c.store.getState();
       const file = st.openFile;
+      if (cache.list && cache.listFor === file.key && Date.now() - cache.listAt < 60000) return cache.list;
+      const fresh = await loadLibraryList(c, file);
+      cache.list = fresh; cache.listFor = file.key; cache.listAt = Date.now();
+      return fresh;
+    }
+    async function loadLibraryList(c, file) {
       const all = (await c.ds.getLibrariesV2({})).data.meta || [];
       const subs = await c.lg(view('LibraryFileSubscriptions'), { fileKey: file.key });
       const overrides = (subs && subs.file && subs.file.libraryFileSubscriptionOverrides) || [];

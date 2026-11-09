@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { app, BrowserWindow, type IpcMainEvent, type Rectangle, type Menu } from "electron";
+import {
+  app,
+  BrowserWindow,
+  type IpcMainEvent,
+  type Rectangle,
+  type Menu,
+  type WebContents,
+} from "electron";
 import { storage } from "Main/Storage";
 import { getResolvedFigmaTheme } from "Main/Theme";
 import SettingsView from "./SettingsView";
@@ -1261,9 +1268,16 @@ export default class Window {
 
   /** Execute arbitrary JS from within the active Figma WebContentsView context. */
   public executeInBrowserView(script: string): Promise<unknown> {
+    const wc = this.getActiveWebContents();
+    if (!wc) return Promise.resolve(undefined);
+    return wc.executeJavaScript(script);
+  }
+
+  /** The active tab's webContents, or null when it is a lazily restored tab with no view yet. */
+  public getActiveWebContents(): WebContents | null {
     const tab = this.tabManager.getById(this.tabManager.lastFocusedTab);
-    if (!tab || "discarded" in tab) return Promise.resolve(undefined);
-    return tab.view.webContents.executeJavaScript(script);
+    if (!tab || "discarded" in tab) return null;
+    return tab.view.webContents;
   }
 
   /** Execute a fetch from within the active Figma WebContentsView context.

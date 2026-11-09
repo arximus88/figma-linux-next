@@ -641,7 +641,12 @@ export class McpServer {
 
     try {
       const fileKey = readFileKeyArg(args.fileKey);
-      return await entry.run(fileKey ? this.handlersFor(fileKey) : this.handlers, args);
+      const handlers = fileKey ? this.handlersFor(fileKey) : this.handlers;
+      if (entry.ai) {
+        const notReady = await handlers.editorNotReady();
+        if (notReady) return toolError(notReady);
+      }
+      return await entry.run(handlers, args);
     } catch (err: any) {
       this.log.error(`Tool error (${name}):`, err?.message ?? err);
       return toolError(err?.message ?? String(err));

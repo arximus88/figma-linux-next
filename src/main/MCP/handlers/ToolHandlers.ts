@@ -32,6 +32,7 @@ import {
   checkUseFigmaSyntax,
   USE_FIGMA_CODE_SCRIPT,
   USE_FIGMA_MAX_CODE_CHARS,
+  useFigmaContent,
 } from "../scripts/useFigmaCode";
 import {
   DOWNLOAD_ASSETS_SCRIPT,
@@ -168,6 +169,29 @@ export class ToolHandlers {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * Whether the tab's Figma editor has finished opening the file, asked with a
+   * 3 s limit. Until it has, the page is busy loading and every request it
+   * makes to figma.com waits behind that: measured on 2026-11-06, a thread
+   * list took 12-20 s per call (and the page sometimes did not answer at all)
+   * until window.figma appeared, then 0.3 s. Tools that talk to Figma's AI
+   * back end check this first so a call fails at once with advice instead of
+   * running into the client's ~30 s limit.
+   */
+  public async editorNotReady(): Promise<string | null> {
+    let ready: unknown = null;
+    try {
+      ready = await this.exec("!!(window.figma && window.figma.root)", 3_000);
+    } catch {
+      ready = false;
+    }
+    if (ready) return null;
+    return (
+      "Figma is still opening this file: its editor has not finished loading, and until it has, " +
+      "every request to Figma takes 10-20 s. Retry in a minute (a large file can take longer)."
+    );
   }
 
   /**
@@ -339,7 +363,13 @@ export class ToolHandlers {
     return toolError("Screenshot export returned no data");
   }
 
-  /** Build an MCP response with the image inline + optional disk save. */
+  /**
+   * Build an MCP response: the image inline, or — when `savePath` was written —
+   * only where it went. An agent that asks for a file reads that file; sending
+   * the same PNG inline as well made it pay for the image twice (the
+   * 2026-11-06 benchmark runs did exactly that). Figma's remote server likewise
+   * hands large screenshots over by URL instead of inline.
+   */
   private async buildScreenshotResponse(
     base64: string,
     nodeId: string,
@@ -348,7 +378,7 @@ export class ToolHandlers {
     extraMeta?: Record<string, unknown>,
   ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
-    const content: ContentItem[] = [{ type: "image", data: base64, mimeType: "image/png" }];
+    const content: ContentItem[] = [];
 
     const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
 
@@ -373,6 +403,11 @@ export class ToolHandlers {
       }
     }
 
+    if (meta.savedTo) {
+      meta.note = "Saved, not sent inline: open savedTo to look at it.";
+    } else {
+      content.push({ type: "image", data: base64, mimeType: "image/png" });
+    }
     content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
     return { content };
   }
@@ -732,7 +767,7 @@ export class ToolHandlers {
     const text = out.truncated
       ? `${out.result}\n\n[truncated: the result was ${out.length} characters; return less, e.g. ids instead of whole objects]`
       : (out.result ?? "null");
-    return toolResult(text);
+    return useFigmaContent(text, out);
   }
 
   // ── Tool: create_new_file (write) ────────────────────────────────────────
@@ -825,7 +860,10 @@ export class ToolHandlers {
     const timeoutMs =
       Math.min(
         900,
-        Math.max(10, typeof args.timeoutSeconds === "number" ? args.timeoutSeconds : 300),
+        Math.max(
+          10,
+          typeof args.timeoutSeconds === "number" ? args.timeoutSeconds : AGENT_WAIT_SECONDS,
+        ),
       ) * 1000;
     const nodeIds = Array.isArray(args.nodeIds)
       ? args.nodeIds.map((n) => normalizeNodeId(n)).filter((n): n is string => !!n)
@@ -1151,16 +1189,32 @@ export class ToolHandlers {
 const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image";
 
 /** One agent exchange as compact text: outcome, answer, tool calls, changed nodes. */
+/**
+ * How long figma_agent_prompt waits by default. MCP clients give up on a call
+ * after about a minute (Claude Code aborted a 5-minute agent run at ~60 s on
+ * 2026-11-06, losing the answer and the credits it cost; a 40 s wait was still
+ * cut off), so the tool returns the thread id well before that and the caller
+ * reads the rest later.
+ */
+export const AGENT_WAIT_SECONDS = 20;
+
 export function formatAgentExchange(ex: any): string {
   const lines: string[] = [];
   const head = [
     ex.threadId ? `thread ${ex.threadId}` : null,
     ex.outcome ?? ex.state ?? null,
+    ex.pending ?? null,
     typeof ex.ms === "number" ? `${Math.round(ex.ms / 1000)} s` : null,
     typeof ex.credits === "number" ? `${ex.credits} credits` : null,
   ].filter(Boolean);
   if (head.length) lines.push(head.join(" · "));
   if (ex.note) lines.push(ex.note);
+  if (Array.isArray(ex.codeLayerThreads) && ex.codeLayerThreads.length) {
+    lines.push(
+      `Code layer built in Figma Make thread ${ex.codeLayerThreads.join(", ")} (figma_agent_read shows its file edits). ` +
+        "The credits above leave out the build itself, which Figma bills to Make and does not report per prompt (a Svelte screen cost about 80); compare figma_ai_credits before and after.",
+    );
+  }
   if (ex.prompt) lines.push(`Prompt: ${ex.prompt}`);
   if (ex.answer) lines.push(`Answer:\n${ex.answer}`);
   const calls = Array.isArray(ex.toolCalls) ? ex.toolCalls : [];

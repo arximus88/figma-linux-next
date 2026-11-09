@@ -18,6 +18,7 @@ import { FigmaAgentServer } from "./FigmaAgent";
 import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
 import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
+import { BackgroundWaker } from "./MCP/utils/backgroundWaker";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -119,12 +120,20 @@ export default class App {
       const tab = win.tabs.get(tabId);
       return tab instanceof Tab ? tab : null;
     };
+    // A tab that is not in front gets no animation frames, and Figma's exports
+    // and library imports wait for one: keep the tab awake while tools run in it.
+    const waker = new BackgroundWaker();
     const viewProvider: FigmaViewProvider = {
       executeInBrowserView: (script: string, fileKey?: string) => {
-        if (fileKey) return fileTab(fileKey).view.webContents.executeJavaScript(script);
+        if (fileKey) {
+          const wc = fileTab(fileKey).view.webContents;
+          return waker.during(wc, () => wc.executeJavaScript(script));
+        }
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) throw new Error("No Figma window open");
-        return win.executeInBrowserView(script);
+        const wc = win.getActiveWebContents();
+        if (!wc) return Promise.resolve(undefined);
+        return waker.during(wc, () => wc.executeJavaScript(script));
       },
       getActiveTabView: (fileKey?: string) =>
         (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,

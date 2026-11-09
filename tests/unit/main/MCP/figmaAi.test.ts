@@ -8,7 +8,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { formatAgentExchange } from "Main/MCP/handlers/ToolHandlers";
-import { FIGMA_AGENT_PROMPT_SCRIPT } from "Main/MCP/scripts/figmaAgent";
+import { FIGMA_AGENT_PROMPT_SCRIPT, FIGMA_AGENT_READ_SCRIPT } from "Main/MCP/scripts/figmaAgent";
 import { FIGMA_AI_GENERATE_IMAGE_SCRIPT } from "Main/MCP/scripts/figmaAi";
 import { LIST_LIBRARIES_SCRIPT } from "Main/MCP/scripts/libraries";
 
@@ -40,6 +40,7 @@ const msg = (role: string, parts: [string, unknown][], clientId?: string) => ({
 describe("figma_agent_prompt", () => {
   function agentPage(outcome: unknown, opts: { never?: boolean } = {}) {
     const sent: any[] = [];
+    const titles: string[] = [];
     const sendNew = (data: any) => {
       sent.push(["new", data]);
       data.onThreadResolved("thread-9");
@@ -94,7 +95,10 @@ describe("figma_agent_prompt", () => {
           exports: {
             NH: {
               getThreadMessages: async () => ({ data: { meta: { messages } } }),
-              updateThreadTitle: async () => ({}),
+              updateThreadTitle: async (a: any) => {
+                titles.push(a.title);
+                return {};
+              },
             },
           },
         },
@@ -112,7 +116,7 @@ describe("figma_agent_prompt", () => {
         },
       }),
     };
-    return { window, sent };
+    return { window, sent, titles };
   }
 
   it("sends through the panel's own function and reads back answer, tools, changes and credits", async () => {
@@ -178,6 +182,31 @@ describe("figma_agent_prompt", () => {
     matches(out, { threadId: "thread-9", outcome: "still running" });
   });
 
+  it("names a new thread when it is created, not only when the prompt ends", async () => {
+    // Design prompts outlive the wait; the title must not depend on finishing.
+    const { window, titles } = agentPage(null, { never: true });
+    await run(
+      FIGMA_AGENT_PROMPT_SCRIPT({
+        prompt: "Long",
+        threadId: null,
+        selectedNodeIds: [],
+        title: "Hamster app",
+        timeoutMs: 20,
+      }),
+      window,
+    );
+    expect(titles).toEqual(["Hamster app"]);
+  });
+
+  it("reads a finished exchange back with the credits it cost", async () => {
+    // The call may have returned early; figma_agent_read is where the price shows up.
+    const { window } = agentPage({ exchangeOutcome: "completed" });
+    const out = await run(FIGMA_AGENT_READ_SCRIPT("thread-9", 3), window);
+    expect(out.total).toBe(1);
+    matches(out.exchanges[0], { state: "success", answer: "Created Card (5:1).", credits: 6 });
+    expect(out.exchanges[0].clientId).toBeUndefined();
+  });
+
   it("names the missing piece when Figma moved its processor", async () => {
     const out = await run(
       FIGMA_AGENT_PROMPT_SCRIPT({
@@ -213,6 +242,101 @@ describe("figma_agent_prompt", () => {
     ).toBe(
       'thread t · completed · 12 s · 6 credits\nAnswer:\nDone.\nTool calls (1):\n- evaluate_script "Make" · ok\nChanged nodes: created 1: 5:1',
     );
+  });
+});
+
+describe("figma_agent_read with a code layer", () => {
+  // Shapes read from a live thread on 2026-11-06: the agent starts a code layer,
+  // Figma Make builds it, then Figma posts a hidden user turn that wakes the
+  // agent to collect it.
+  const call = (toolName: string, args: unknown, id: string) =>
+    [
+      "tool-call-json-DO-NOT-USE-IN-PROD",
+      { toolCallId: id, toolName, argsJson: JSON.stringify(args) },
+    ] as [string, unknown];
+  const ok = (id: string) =>
+    ["tool-result-json-DO-NOT-USE-IN-PROD", { toolCallId: id, resultJson: "{}" }] as [
+      string,
+      unknown,
+    ];
+  const hiddenTurn = msg(
+    "user",
+    [
+      [
+        "text",
+        {
+          text: 'Code layer lifecycle events occurred for one operation: {"events":[{"eventType":"completed","runId":"r1","makeThreadId":"make-7"}]}',
+        },
+      ],
+      ["code-chat-hidden", {}],
+    ],
+    "wake-1",
+  );
+  const start = [
+    msg("user", [["text", { text: "Build the home screen as a code layer" }]], "client-1"),
+    msg("assistant", [call("mcp__plugin_figma_code_layer__start_code_layer", {}, "c1")]),
+    msg("tool", [ok("c1")]),
+    msg("assistant", [["text", { text: "The code layer is generating." }]]),
+    msg("assistant", [["assistant-prompt-lifecycle", { state: "success" }]]),
+  ];
+  const finish = [
+    hiddenTurn,
+    msg("assistant", [call("mcp__plugin_figma_code_layer__wait_code_layer", {}, "c2")]),
+    msg("tool", [ok("c2")]),
+    msg("assistant", [["text", { text: "Created Hamster Home." }]]),
+    msg("assistant", [["assistant-prompt-lifecycle", { state: "success" }]]),
+  ];
+  const page = (messages: unknown[]) => ({
+    figma: { fileKey: "FILE" },
+    rspackChunk_figma_web_bundler: bundler({
+      "2": {
+        source: "getThreadMessages(e){}",
+        exports: { NH: { getThreadMessages: async () => ({ data: { meta: { messages } } }) } },
+      },
+      "3": {
+        source: "getPlanUserActionCreditUsage(e){}",
+        exports: {
+          A: {
+            getPlanUserActionCreditUsage: async (a: any) => ({
+              data: { meta: { total_credit_usage: a.userActionUuid === "client-1" ? 20 : 100 } },
+            }),
+          },
+        },
+      },
+    }),
+  });
+
+  it("says the code layer is still building until Figma reports it done", async () => {
+    const out = await run(FIGMA_AGENT_READ_SCRIPT("t", 3), page(start));
+    expect(out.exchanges[0].pending).toBe("code layer still building");
+  });
+
+  it("folds Figma's hidden follow-up into the prompt that started it", async () => {
+    const out = await run(FIGMA_AGENT_READ_SCRIPT("t", 3), page([...start, ...finish]));
+    expect(out.total).toBe(1);
+    const ex = out.exchanges[0];
+    expect(ex.prompt).toBe("Build the home screen as a code layer");
+    expect(ex.pending).toBeUndefined();
+    expect(ex.answer).toBe("The code layer is generating.\n\nCreated Hamster Home.");
+    expect(ex.codeLayerThreads).toEqual(["make-7"]);
+    // Both turns spent credits; the hidden one is most of the code layer.
+    expect(ex.credits).toBe(120);
+  });
+
+  it("lists the files a Figma Make patch touched", async () => {
+    const patch =
+      "*** Begin Patch\n*** Add File: src/App.svelte\n+<h1>Hi</h1>\n*** Delete File: src/App.tsx\n*** End Patch";
+    const out = await run(
+      FIGMA_AGENT_READ_SCRIPT("t", 3),
+      page([
+        msg("user", [["text", { text: "make it" }]], "client-1"),
+        msg("assistant", [call("apply_patch", { patchText: patch }, "p1")]),
+      ]),
+    );
+    matches(out.exchanges[0].toolCalls[0], {
+      tool: "apply_patch",
+      label: "Add src/App.svelte, Delete src/App.tsx",
+    });
   });
 });
 

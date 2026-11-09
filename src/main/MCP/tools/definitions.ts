@@ -6,7 +6,7 @@
  * verbatim from McpServer.ts (Phase 3 of decomposition); no behavior change.
  */
 
-import type { ToolDefinition } from "../types";
+import type { ToolAnnotations, ToolDefinition, ToolName } from "../types";
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
@@ -78,11 +78,9 @@ const BASE_TOOLS: ToolDefinition[] = [
   {
     name: "get_screenshot",
     description:
-      "Capture a screenshot of the currently selected node or the visible canvas. " +
-      "Returns a local URL (http://127.0.0.1:<mcpPort>/assets/<id>.png, on the MCP server's " +
-      "configured port) that can be fetched " +
-      "to get the PNG image data. Helps preserve layout fidelity in generated code. " +
-      "Recommended to keep on — only skip if concerned about token limits. " +
+      "Capture a PNG of a node (nodeId), else of the selection, else of the visible window. " +
+      "The image comes back inline, or — with savePath — is written to disk and only its path " +
+      "is returned. Helps preserve layout fidelity in generated code. " +
       "Supports Figma Design and FigJam files.",
     inputSchema: {
       type: "object",
@@ -112,7 +110,7 @@ const BASE_TOOLS: ToolDefinition[] = [
         savePath: {
           type: "string",
           description:
-            "Optional path to save the PNG on disk (absolute or relative to cwd). E.g. 'assets/frame.png' or '/tmp/design.png'. If omitted, image is returned inline only.",
+            "Write the PNG here instead of returning it inline (the response gives savedTo; open that file to see it). Absolute, or relative to the app's export directory (the response says which). If the write fails the image comes back inline.",
         },
       },
     },
@@ -249,10 +247,11 @@ const BASE_TOOLS: ToolDefinition[] = [
       "`entity` is exactly component, variable or style. Results come back in a `results` array in " +
       "the same order, each with the ids/keys needed next (component key for " +
       "importComponentByKeyAsync / importComponentSetByKeyAsync, variable id/key for binding). " +
-      "Components: this file's own (every page), then Figma's ranked asset search over every " +
-      "team and community library you can reach, used in this file or not, with descriptions. " +
-      "Variables: this file and its enabled libraries. Styles: this file only (Figma has " +
-      "library style search turned off). Combine the searches " +
+      "Components: this file's own (every page) and the library ones it uses, then Figma's ranked " +
+      "asset search over team libraries and UI kits (Simple Design System, iOS, Material…), " +
+      "libraries enabled in this file first, with descriptions. Variables: this file, its enabled " +
+      "team libraries and UI kits (import library ones with figma.variables.importVariableByKeyAsync). " +
+      "Styles: this file only; use get_library_styles for a library's. Combine the searches " +
       "you need in one call. The legacy `query` string still searches everything locally.",
     inputSchema: {
       type: "object",
@@ -273,7 +272,7 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Only return library variables and components of these libraries (library name, or a key from earlier results).",
+            "Only return library variables and components of these libraries: a name as list_libraries shows it, or a library key.",
         },
         query: {
           type: "string",
@@ -605,21 +604,70 @@ const FILE_KEY_PROPERTY = {
 /** Tools that never touch a file: code-connect bookkeeping lives in the server. */
 const NO_FILE_TOOLS = new Set(["get_code_connect_map", "add_code_connect_map"]);
 
+// What each tool does to the user's file, as MCP annotations. A Record over
+// every ToolName, so a new tool does not compile until it says. Mirrors how
+// Figma's remote server labels the same tools: reads are read-only, tools that
+// only add (a node, a file, a diagram) carry no hint beyond destructive=false,
+// tools that can change or delete existing layers are destructive, and the
+// ones that send prompts to a generative model are open-world.
+const READ: ToolAnnotations = { readOnlyHint: true };
+const ADDS: ToolAnnotations = { readOnlyHint: false, destructiveHint: false };
+const CHANGES: ToolAnnotations = { readOnlyHint: false, destructiveHint: true };
+
+export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
+  get_design_context: READ,
+  get_metadata: READ,
+  get_file_info: READ,
+  get_screenshot: READ,
+  get_variable_defs: READ,
+  get_code_connect_map: READ,
+  // Kept in the server's memory for the session; the file is not touched.
+  add_code_connect_map: ADDS,
+  create_design_system_rules: READ,
+  get_figjam: READ,
+  generate_diagram: ADDS,
+  search_design_system: READ,
+  figma_find: READ,
+  figma_tree: READ,
+  whoami: READ,
+  get_comments: READ,
+  get_versions: READ,
+  list_libraries: READ,
+  get_library_styles: READ,
+  get_library_updates: READ,
+  get_code_connect: READ,
+  download_assets: READ,
+  use_figma: CHANGES,
+  create_new_file: ADDS,
+  upload_assets: ADDS,
+  figma_text: CHANGES,
+  // Figma's agent runs its own code in the file: it can edit or delete layers.
+  figma_agent_prompt: { ...CHANGES, openWorldHint: true },
+  figma_agent_threads: READ,
+  figma_agent_read: READ,
+  figma_ai_credits: READ,
+  figma_ai_generate_image: { ...ADDS, openWorldHint: true },
+  // replace: true swaps the source layer's image fill.
+  figma_ai_edit_image: { ...CHANGES, openWorldHint: true },
+};
+
 function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
-  return tools.map((tool) =>
-    NO_FILE_TOOLS.has(tool.name)
-      ? tool
-      : {
-          ...tool,
-          inputSchema: {
-            ...tool.inputSchema,
-            properties: {
-              ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
-              fileKey: FILE_KEY_PROPERTY,
+  return tools
+    .map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS[t.name] }))
+    .map((tool) =>
+      NO_FILE_TOOLS.has(tool.name)
+        ? tool
+        : {
+            ...tool,
+            inputSchema: {
+              ...tool.inputSchema,
+              properties: {
+                ...(tool.inputSchema.properties as Record<string, unknown> | undefined),
+                fileKey: FILE_KEY_PROPERTY,
+              },
             },
           },
-        },
-  );
+    );
 }
 
 export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);
@@ -640,8 +688,12 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
       "with get_design_context or get_screenshot. Returns the thread id, outcome, the agent's " +
       "answer, the tools it ran, the nodes it created/modified/deleted and the credits spent. " +
       "Pass threadId to continue a conversation. Spends Figma AI credits (a few per prompt, " +
-      "more for long tasks). Prompts that run past timeoutSeconds keep running; read them " +
-      "later with figma_agent_read.",
+      "more for long tasks). Design work takes minutes: the call returns after timeoutSeconds " +
+      "with the thread id and outcome 'still running' while the agent keeps working; then " +
+      "call figma_agent_read with that id until the outcome is done. A code layer is built " +
+      "by a second agent (Figma Make) after the answer: the exchange says 'code layer still " +
+      "building' until it is ready, and names the Make thread, whose file edits " +
+      "figma_agent_read can show.",
     inputSchema: {
       type: "object",
       properties: {
@@ -658,7 +710,9 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
         title: { type: "string", description: "Name for the thread, shown in Figma's Agents tab." },
         timeoutSeconds: {
           type: "number",
-          description: "How long to wait for the answer (default 300, max 900).",
+          description:
+            "How long to wait before returning (default 20, max 900). MCP clients such as " +
+            "Claude Code abort a call after about 30 seconds; raise this only if yours allows longer.",
         },
       },
       required: ["prompt"],

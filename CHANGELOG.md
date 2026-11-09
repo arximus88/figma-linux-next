@@ -5,7 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.24.1] - 2026-11-09
+
+A short update to the MCP server, measured against Figma's own: agents now run Figma's
+`figma-use` code as written, files in a background tab stop timing out, and the Figma agent
+reports long jobs instead of losing them.
+
+### Added
+
+- **MCP tools say what they do to your file.** Every tool now carries the standard MCP
+  annotations, like Figma's remote server: reading tools are marked read-only, `use_figma`,
+  `figma_text`, the Figma agent and image editing are marked destructive, and the Figma AI tools
+  that call a generative model are marked open-world. Clients show these next to each tool
+  (Claude Code's `/mcp` list) and can use them to decide what needs your approval.
+
+- **`use_figma` runs the code Figma teaches agents.** Figma's `figma-use` skill writes code with
+  helpers its remote server provides: `figma.createAutoLayout`, `figma.io.write`,
+  `node.set` / `query` / `screenshot` / `tree` / `placeholder`, `page.findPlacement`. Here they
+  failed with "is not a function" and cost the agent a retry each run. They now work the same way,
+  and images from `screenshot()` come back to the agent as images.
+
+- **`search_design_system` finds UI kits.** Simple Design System, iOS and Material components
+  now show up next to your team libraries, and `includeLibraryKeys` takes a library name as well
+  as a key.
+
+### Fixed
+
+- **Files in a background tab no longer time out.** A tab behind another one gets no animation
+  frames, and Figma waits for one before exporting an image, importing a library component or
+  listing libraries, so those calls hung for a minute and failed. MCP work now keeps the tab
+  awake while it runs.
+
+- **Long Figma agent prompts no longer lose their result.** MCP clients give up on a call after
+  about 30 seconds, while a design prompt runs for several: Claude Code dropped the call, and with
+  it the answer, the cost and the thread's title. `figma_agent_prompt` now returns the thread id
+  after 20 seconds while the agent keeps working, names the thread as soon as it exists, and
+  `figma_agent_read` shows what each exchange cost.
+
+- **Code layers from Figma's agent read back as one exchange.** The agent hands a code layer to
+  Figma Make and answers at once; when Make finishes, Figma wakes the agent with a hidden prompt
+  of its own. `figma_agent_read` showed that as a second prompt nobody wrote and called the first
+  one done while the layer was still building. The hidden turn now folds into the prompt that
+  started it, the exchange says "code layer still building" until Make reports back, and it names
+  the Make thread, whose reading lists the files each patch changed.
+
+- **Figma AI tools no longer hang while a file is opening.** Until Figma's editor has loaded a
+  file, every request the page makes to Figma waits behind the load, 10-20 s each, and loading
+  took from 10 seconds to over two minutes in testing. A call made in that window ran into the
+  client's limit with no explanation. The AI tools now check the editor first (3 s at most) and
+  say the file is still opening.
 
 ## [0.24.0] - 2026-11-06
 

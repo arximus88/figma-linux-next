@@ -24,8 +24,11 @@ const silentLogger = {
 class MockProvider implements FigmaViewProvider {
   public nextResult: unknown = null;
   public calls: { script: string; fileKey?: string }[] = [];
+  /** Answer per script instead of nextResult (e.g. a page that never answers). */
+  public respond: ((script: string) => Promise<any>) | null = null;
   executeInBrowserView(script: string, fileKey?: string): Promise<any> {
     this.calls.push({ script, fileKey });
+    if (this.respond) return this.respond(script);
     return Promise.resolve(this.nextResult);
   }
   getActiveTabView(): null {
@@ -125,6 +128,26 @@ describe("McpServer (Streamable HTTP transport)", () => {
     const res = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/list" }, sessionId);
     const names = res.json.result.tools.map((t: { name: string }) => t.name);
     expect(names).toContain("use_figma");
+  });
+
+  it("labels every tool with what it does to the file, as Figma's server does", async () => {
+    server.setWriteToolsEnabled(true);
+    server.setAiToolsEnabled(true);
+    const sessionId = await initialize();
+    const res = await rpc({ jsonrpc: "2.0", id: 5, method: "tools/list" }, sessionId);
+    const tools: { name: string; annotations?: Record<string, boolean> }[] = res.json.result.tools;
+    const of = (name: string) => tools.find((t) => t.name === name)?.annotations;
+    // Clients show these (Claude Code: read-only / destructive / open-world).
+    expect(tools.filter((t) => !t.annotations).map((t) => t.name)).toEqual([]);
+    expect(of("get_design_context")).toEqual({ readOnlyHint: true });
+    expect(of("use_figma")).toEqual({ readOnlyHint: false, destructiveHint: true });
+    expect(of("create_new_file")).toEqual({ readOnlyHint: false, destructiveHint: false });
+    expect(of("figma_agent_prompt")).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+    expect(of("figma_ai_credits")).toEqual({ readOnlyHint: true });
   });
 
   it("calls a tool returning a direct object (get_file_info)", async () => {
@@ -256,6 +279,31 @@ describe("McpServer (Streamable HTTP transport)", () => {
     const ok = await callTool(sessionId, "figma_ai_credits", {}, 33);
     expect(ok.json.result.isError).toBeUndefined();
     expect(ok.json.result.content[0].text).toContain('"available":10');
+  });
+
+  it("answers at once while Figma is still opening the file, instead of hanging", async () => {
+    // Measured live: until the editor loads, each request to Figma takes 10-20 s
+    // and the page may not answer at all, past an MCP client's ~30 s limit.
+    server.setAiToolsEnabled(true);
+    const sessionId = await initialize();
+    const ready = (script: string) => script.includes("window.figma && window.figma.root");
+
+    provider.respond = async (script) => (ready(script) ? false : { text: "threads" });
+    const loading = await callTool(sessionId, "figma_agent_threads", {}, 40);
+    expect(loading.json.result.isError).toBe(true);
+    expect(loading.json.result.content[0].text).toContain("still opening this file");
+
+    // A page too busy to answer at all gets the same advice after 3 s.
+    provider.respond = (script) =>
+      ready(script) ? new Promise(() => {}) : Promise.resolve({ text: "threads" });
+    const started = Date.now();
+    const busy = await callTool(sessionId, "figma_agent_threads", {}, 41);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(busy.json.result.content[0].text).toContain("still opening this file");
+
+    provider.respond = async (script) => (ready(script) ? true : { text: "2 agent thread(s)" });
+    const open = await callTool(sessionId, "figma_agent_threads", {}, 42);
+    expect(open.json.result.content[0].text).toBe("2 agent thread(s)");
   });
 
   // ── New tools: figma_find / figma_tree / figma_text ──────────────────────
