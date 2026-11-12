@@ -174,6 +174,10 @@ export const PLUGIN_API_UNAVAILABLE_PREFIX = "Figma Plugin API not available —
  */
 export const EDITOR_STATE_SCRIPT = `(function () {
   if (window.figma) return { ready: true, blocked: false };
+  // While the document is still loading the diagnosis is not final: a file
+  // page has no INITIAL_OPTIONS yet and reads as "not a file" (seen live on a
+  // tab that had just been loaded in the background).
+  if (document.readyState !== "complete") return { ready: false, blocked: false };
   return { ready: false, blocked: (function () {${PLUGIN_API_DIAGNOSIS}})().blocked };
 })()`;
 

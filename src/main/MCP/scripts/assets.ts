@@ -138,6 +138,42 @@ ${TO_BASE64}
   }
 })()`;
 
+/** Most vector groups / images one get_design_context call turns into asset URLs. */
+export const DESIGN_ASSETS_MAX = { svgs: 40, images: 20 };
+
+/**
+ * The files the React output of get_design_context points at: SVGs of the
+ * vector groups it collapsed (by layer id) and the original images behind
+ * image fills (by hash). One round trip for all of them; a layer or image
+ * that fails is left out and the code keeps a placeholder for it.
+ */
+export const DESIGN_ASSETS_SCRIPT = (svgIds: string[], imageHashes: string[]) => `
+(async function () {
+  try {
+    const figma = window.figma;
+    if (!figma) return { error: ${PLUGIN_API_UNAVAILABLE} };
+${TO_BASE64}
+    const out = { svgs: {}, images: {} };
+    for (const id of ${JSON.stringify(svgIds.slice(0, DESIGN_ASSETS_MAX.svgs))}) {
+      try {
+        const node = await getNode(id);
+        if (node && typeof node.exportAsync === 'function') out.svgs[id] = await node.exportAsync({ format: 'SVG_STRING' });
+      } catch (e) {}
+    }
+    for (const hash of ${JSON.stringify(imageHashes.slice(0, DESIGN_ASSETS_MAX.images))}) {
+      try {
+        const img = figma.getImageByHash(hash);
+        if (!img) continue;
+        const bytes = await img.getBytesAsync();
+        out.images[hash] = { format: sniff(bytes), base64: toBase64(bytes) };
+      } catch (e) {}
+    }
+    return out;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+})()`;
+
 export interface UploadTarget {
   targetNodeId: string | null;
   scaleMode: "FILL" | "FIT" | "TILE";

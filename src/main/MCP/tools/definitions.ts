@@ -23,6 +23,10 @@ const BASE_TOOLS: ToolDefinition[] = [
       "instances of a component are written out once; icons collapse to <svg/> (download_assets " +
       "returns the files). When nodeId is omitted, uses the currently selected nodes. Pass a " +
       "frame, not a page: get_metadata lists a page's frames. " +
+      "With clientFrameworks naming React (or format: 'react') the answer is a React component " +
+      "styled with Tailwind instead, like Figma's remote get_design_context: asset URLs as " +
+      "constants, data-node-id on every element, every instance written out, a screenshot " +
+      "appended. " +
       "Supports Figma Design and Figma Make files.",
     inputSchema: {
       type: "object",
@@ -36,6 +40,44 @@ const BASE_TOOLS: ToolDefinition[] = [
           description:
             "Levels of layers to write out (default: 10). Deeper containers are cut off with a " +
             "note to call again on their id.",
+        },
+        format: {
+          type: "string",
+          enum: ["markup", "react"],
+          description:
+            "'markup' (default): compact markup with CSS, about half the size. 'react': a React " +
+            "component with Tailwind classes. Overrides clientFrameworks.",
+        },
+        clientFrameworks: {
+          type: "string",
+          description:
+            "Comma-separated frameworks of the project you are coding in (Figma's remote parameter), " +
+            "e.g. 'react' or 'react,next.js'. React, Next.js, Remix or Gatsby select the React + " +
+            "Tailwind output; anything else keeps the markup.",
+        },
+        clientLanguages: {
+          type: "string",
+          description:
+            "Comma-separated languages of the project (Figma's remote parameter). Accepted so the " +
+            "same call works on both servers; the output does not depend on it.",
+        },
+        excludeScreenshot: {
+          type: "boolean",
+          description:
+            "The React output ends with a screenshot of the node; true leaves it out. The markup " +
+            "output has none unless this is false.",
+        },
+        disableCodeConnect: {
+          type: "boolean",
+          description:
+            "React output only: true writes mapped layers out as elements instead of the code " +
+            "components registered with add_code_connect_map.",
+        },
+        forceCode: {
+          type: "boolean",
+          description:
+            "Figma's remote parameter, accepted for compatibility: this server always returns the " +
+            "code, with a warning on top when it is large.",
         },
       },
     },

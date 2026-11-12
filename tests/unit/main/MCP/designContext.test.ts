@@ -226,6 +226,105 @@ describe("get_design_context", () => {
     expect(text).toContain('children="4 more: call again on this id"');
   });
 
+  // The React output cannot turn "same as 5:1" or an anonymous image into
+  // code, so its form of the script writes both out (issue #89).
+  describe("for code (the React output)", () => {
+    const forCode = async (figma: any) =>
+      JSON.parse(
+        await new Function(
+          "window",
+          `return (${DESIGN_CONTEXT_SCRIPT("1:1", 10, { forCode: true })});`,
+        )({ figma }),
+      );
+
+    it("writes every instance out in full", async () => {
+      const { markup } = await forCode(scene().figma);
+      expect(markup).not.toContain("same-as");
+      expect(markup).toContain(">Home</text>");
+      expect(markup).toContain(">Visits</text>");
+    });
+
+    it("names an image fill by its hash, and only in this form", async () => {
+      const withImage = () => {
+        const { figma } = scene();
+        const root = figma.getNodeByIdAsync;
+        figma.getNodeByIdAsync = async (id: string) => {
+          const node = await root(id);
+          if (id === "1:1") {
+            node.fills = [{ type: "IMAGE", visible: true, scaleMode: "FIT", imageHash: "abc123" }];
+          }
+          return node;
+        };
+        return figma;
+      };
+      expect((await forCode(withImage())).markup).toContain("background:image(fit abc123)");
+      const plain = await run(withImage(), "1:1");
+      expect(plain.text).toContain("background:image(fit)");
+      expect(plain.text).not.toContain("abc123");
+    });
+
+    it("returns the markup, the text styles as CSS and a legend without markup notes", async () => {
+      const out = await forCode(scene().figma);
+      expect(out.markup.startsWith('<frame id="1:1"')).toBe(true);
+      expect(out.targetIds).toEqual(["1:1"]);
+      expect(out.textStyleCss["Heading/XL"]).toBe(
+        "font-family:'Inter';font-weight:700;font-size:22px;line-height:29px;letter-spacing:-0.01em",
+      );
+      expect(out.legendForCode).toContain("- color/bg: --ds-color-bg = #f5f7fa");
+      expect(out.legendForCode).toContain("1 hidden layer(s) left out.");
+      expect(out.legendForCode).not.toContain("<svg/>");
+      // The default form still carries its full legend in `text`.
+      expect(out.text).toContain("shown as <svg/>");
+    });
+  });
+
+  // Every linear gradient used to be written without a direction, which CSS
+  // reads as top to bottom; Figma's default runs left to right.
+  it("gives a linear gradient its direction", async () => {
+    const gradient = (gradientTransform: number[][]) => ({
+      type: "GRADIENT_LINEAR",
+      visible: true,
+      gradientTransform,
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+        { position: 1, color: { r: 0, g: 0, b: 1, a: 1 } },
+      ],
+    });
+    const withFill = async (transform: number[][], size = { width: 100, height: 100 }) => {
+      const { figma } = scene();
+      const get = figma.getNodeByIdAsync;
+      figma.getNodeByIdAsync = async (id: string) => {
+        const node = await get(id);
+        if (id === "1:1") Object.assign(node, size, { fills: [gradient(transform)] });
+        return node;
+      };
+      const { text } = await run(figma, "1:1");
+      return /background:([^;"]+)/.exec(text)![1];
+    };
+    const identity = [
+      [1, 0, 0],
+      [0, 1, 0],
+    ];
+    expect(await withFill(identity)).toBe("linear-gradient(90deg, #ff0000 0%, #0000ff 100%)");
+    // Top to bottom is the CSS default: no angle written.
+    expect(
+      await withFill([
+        [0, 1, 0],
+        [-1, 0, 1],
+      ]),
+    ).toBe("linear-gradient(#ff0000 0%, #0000ff 100%)");
+    // A diagonal across a wide layer leans toward the short side.
+    expect(
+      await withFill(
+        [
+          [1, 1, 0],
+          [-1, 1, 0],
+        ],
+        { width: 300, height: 100 },
+      ),
+    ).toBe("linear-gradient(162deg, #ff0000 0%, #0000ff 100%)");
+  });
+
   it("asks for a frame when given a page", async () => {
     const { error } = await run(scene().figma, "0:1");
     expect(error).toContain("needs a layer, not a page");

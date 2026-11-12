@@ -105,6 +105,22 @@ describe("a tab whose editor is still loading", () => {
     expect(textOf(response)).toContain('name="Card"');
   });
 
+  // figma_tree, figma_find and use_figma run through execWithLogs, which wraps
+  // the script's answer; the first live run of this fix missed them.
+  test("tools with a print() channel wait as well", async () => {
+    const { handlers, calls } = harness({
+      states: [{ ready: true, blocked: false }],
+      missing: { __logs: [], __result: { error: LOADING } },
+      ready: { __logs: [], __result: { tree: "FRAME Card #1:2", nodeId: "1:2" } },
+    });
+
+    const response: any = await handlers.toolFigmaTree({ nodeId: "1:2" });
+
+    expect(response.isError).toBeUndefined();
+    expect(textOf(response)).toContain("FRAME Card");
+    expect(calls.scripts).toBe(2);
+  });
+
   test("a file that will never have the API fails at once with its reason", async () => {
     const reason = `${PLUGIN_API_UNAVAILABLE_PREFIX}you can only view this file`;
     const { handlers, calls } = harness({

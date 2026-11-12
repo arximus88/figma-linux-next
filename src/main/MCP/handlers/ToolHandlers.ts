@@ -35,6 +35,8 @@ import {
   useFigmaContent,
 } from "../scripts/useFigmaCode";
 import {
+  DESIGN_ASSETS_MAX,
+  DESIGN_ASSETS_SCRIPT,
   DOWNLOAD_ASSETS_SCRIPT,
   type DownloadOptions,
   RENAME_FILE_SCRIPT,
@@ -73,8 +75,10 @@ import {
   type UploadTicket,
 } from "../utils/uploads";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
+import { isElement, type MarkupNode, parseMarkup } from "../utils/markup";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
+import { buildReactCode, VECTOR_TAGS } from "../utils/reactCode";
 import { safeStringify } from "../utils/serialize";
 import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
 
@@ -124,7 +128,8 @@ const EDITOR_WAIT_BACKOFF_MS = 2 * 60_000;
 
 /**
  * Whether a script's answer is "this tab has no Plugin API". Scripts answer
- * either as an object or as a JSON string (see DESIGN_CONTEXT_SCRIPT).
+ * as an object, as a JSON string (see DESIGN_CONTEXT_SCRIPT), or inside the
+ * `{__logs, __result}` envelope of execWithLogs.
  */
 export function pluginApiMissing(result: unknown): boolean {
   let value: any = result;
@@ -136,7 +141,7 @@ export function pluginApiMissing(result: unknown): boolean {
       return false;
     }
   }
-  const error = value?.error;
+  const error = value?.error ?? value?.__result?.error;
   return typeof error === "string" && error.startsWith(PLUGIN_API_UNAVAILABLE_PREFIX);
 }
 
@@ -151,6 +156,45 @@ const NEW_FILE_PATHS: Record<string, string> = {
 
 /** How long download_assets / screenshot URLs stay fetchable. */
 const ASSET_TTL_MS = 10 * 60 * 1000;
+
+const ASSET_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  pdf: "application/pdf",
+};
+
+/** clientFrameworks values that mean "answer with React". */
+const REACT_FRAMEWORKS = new Set([
+  "react",
+  "reactjs",
+  "next",
+  "nextjs",
+  "next.js",
+  "remix",
+  "gatsby",
+]);
+
+/**
+ * Which form get_design_context answers in. An explicit `format` wins; else
+ * `clientFrameworks` (Figma's remote parameter: a comma-separated string, an
+ * array is accepted too) naming React or a React framework selects the React +
+ * Tailwind output. Everything else keeps the compact markup.
+ */
+export function designContextFormat(args: Record<string, unknown>): "markup" | "react" {
+  if (args.format === "react" || args.format === "markup") return args.format;
+  const frameworks = Array.isArray(args.clientFrameworks)
+    ? args.clientFrameworks
+    : typeof args.clientFrameworks === "string"
+      ? args.clientFrameworks.split(",")
+      : [];
+  return frameworks.some((f) => REACT_FRAMEWORKS.has(String(f).trim().toLowerCase()))
+    ? "react"
+    : "markup";
+}
 
 /**
  * Validate search_design_system `queries` the way Figma's remote tool expects
@@ -351,8 +395,9 @@ export class ToolHandlers {
   public async toolGetDesignContext(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const depth = typeof args.depth === "number" ? args.depth : 10;
+    const format = designContextFormat(args);
 
-    const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
+    const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth, { forCode: format === "react" });
     const raw = await this.exec(script);
 
     // Script returns a JSON string to avoid V8 structured-clone failures over IPC
@@ -369,16 +414,101 @@ export class ToolHandlers {
       return toolError(result.error);
     }
 
-    const text = String(result?.text ?? "");
+    let text =
+      format === "react"
+        ? await this.reactDesignContext(result, args.disableCodeConnect === true)
+        : String(result?.text ?? "");
     const approxTokens = Math.round(text.length / 3.5);
     if (approxTokens > 20_000) {
-      return toolResult(
+      text =
         `⚠ Large response (~${(approxTokens / 1000).toFixed(1)}k tokens). ` +
-          "Call get_metadata on this node and ask for its parts, or pass a smaller depth.\n\n" +
-          text,
+        "Call get_metadata on this node and ask for its parts, or pass a smaller depth.\n\n" +
+        text;
+    }
+
+    // Figma's remote tool appends a screenshot of the node unless told not to.
+    // The React form follows it; the markup form stays text-only unless asked.
+    const wantScreenshot =
+      format === "react" ? args.excludeScreenshot !== true : args.excludeScreenshot === false;
+    const target = nodeId ?? (Array.isArray(result?.targetIds) ? result.targetIds[0] : null);
+    if (!wantScreenshot || !target) return toolResult(text);
+
+    const content: { type: string; text?: string; data?: string; mimeType?: string }[] = [
+      { type: "text", text },
+    ];
+    try {
+      const shot = await this.exec(
+        SCREENSHOT_SCRIPT(target, { scale: null, maxDimension: 1024, contentsOnly: false }),
+      );
+      if (shot?.base64) content.push({ type: "image", data: shot.base64, mimeType: "image/png" });
+    } catch (err: any) {
+      // The code is the answer; a screenshot that timed out must not lose it.
+      this.ctx.log.warn("get_design_context: screenshot skipped:", err?.message ?? err);
+    }
+    return { content };
+  }
+
+  /**
+   * The React + Tailwind form of a design-context result: parse the markup,
+   * fetch the SVGs and images it refers to, and write the component.
+   */
+  private async reactDesignContext(result: any, disableCodeConnect: boolean): Promise<string> {
+    const nodes = parseMarkup(String(result?.markup ?? ""));
+    const svgIds: string[] = [];
+    const hashes = new Set<string>();
+    const walk = (list: MarkupNode[]) => {
+      for (const node of list) {
+        if (!isElement(node)) continue;
+        if (VECTOR_TAGS.has(node.tag) && node.attrs.id) svgIds.push(node.attrs.id);
+        for (const m of (node.attrs.style ?? "").matchAll(/image\([a-z]+ ([0-9a-f]+)\)/g)) {
+          hashes.add(m[1]);
+        }
+        walk(node.children);
+      }
+    };
+    walk(nodes);
+
+    const svgUrls: Record<string, string> = {};
+    const imageUrls: Record<string, string> = {};
+    if (svgIds.length || hashes.size) {
+      try {
+        const assets = await this.exec(DESIGN_ASSETS_SCRIPT(svgIds, [...hashes]));
+        for (const [id, svg] of Object.entries(assets?.svgs ?? {})) {
+          svgUrls[id] = this.storeAsset(Buffer.from(String(svg), "utf8"), "svg");
+        }
+        for (const [hash, image] of Object.entries<any>(assets?.images ?? {})) {
+          imageUrls[hash] = this.storeAsset(Buffer.from(image.base64, "base64"), image.format);
+        }
+      } catch (err: any) {
+        this.ctx.log.warn("get_design_context: assets skipped:", err?.message ?? err);
+      }
+    }
+
+    const { code, missingAssets } = buildReactCode({
+      nodes,
+      textStyleCss: result?.textStyleCss ?? {},
+      svgUrls,
+      imageUrls,
+      codeConnect: disableCodeConnect ? undefined : this.ctx.codeConnectMap,
+    });
+
+    const notes = [
+      "React + Tailwind generated from the Figma layers: a reference to adapt to this project's " +
+        "components, tokens and conventions, not code to paste. Sizes are Figma's pixels; " +
+        "data-node-id is the layer's id.",
+    ];
+    if (Object.keys(svgUrls).length || Object.keys(imageUrls).length) {
+      notes.push(
+        `Asset URLs are served by this app on this machine and expire in ${ASSET_TTL_MS / 60_000} minutes: download the ones you keep.`,
       );
     }
-    return toolResult(text);
+    if (missingAssets) {
+      notes.push(
+        `${missingAssets} vector group(s) or image fill(s) have no URL (over the cap of ${DESIGN_ASSETS_MAX.svgs} SVGs / ${DESIGN_ASSETS_MAX.images} images, or the export failed): download_assets on the layer returns them.`,
+      );
+    }
+    const legend = String(result?.legendForCode ?? "").trim();
+    return `${code}\n${notes.join("\n")}\n${legend ? `\n${legend}\n` : ""}`;
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────
@@ -1155,21 +1285,7 @@ export class ToolHandlers {
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
 
-    const MIME: Record<string, string> = {
-      png: "image/png",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      gif: "image/gif",
-      webp: "image/webp",
-      svg: "image/svg+xml",
-      pdf: "application/pdf",
-    };
-    const store = (data: Buffer, ext: string) => {
-      const id = `${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext === "original" ? "bin" : ext}`;
-      this.ctx.assetStore.set(id, { data, contentType: MIME[ext] ?? "application/octet-stream" });
-      setTimeout(() => this.ctx.assetStore.delete(id), ASSET_TTL_MS);
-      return `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${id}`;
-    };
+    const store = (data: Buffer, ext: string) => this.storeAsset(data, ext);
 
     const response = {
       nodeId: out.nodeId,
@@ -1199,6 +1315,17 @@ export class ToolHandlers {
       howToDownload: "curl -o <file> <url>; the URLs are local to this machine and expire.",
     };
     return toolResult(safeStringify(response));
+  }
+
+  /** Keep bytes for ASSET_TTL_MS and return the local URL that serves them. */
+  private storeAsset(data: Buffer, ext: string): string {
+    const id = `${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext === "original" ? "bin" : ext}`;
+    this.ctx.assetStore.set(id, {
+      data,
+      contentType: ASSET_MIME[ext] ?? "application/octet-stream",
+    });
+    setTimeout(() => this.ctx.assetStore.delete(id), ASSET_TTL_MS);
+    return `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${id}`;
   }
 
   // ── Tool: upload_assets (write) ──────────────────────────────────────────
