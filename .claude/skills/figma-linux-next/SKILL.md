@@ -7,190 +7,175 @@ description: |
 
 # figma-linux-next Developer Reference
 
+A quick map. `CLAUDE.md` in the repo root is the full reference (gotchas, release flow, MCP
+details) and wins wherever the two disagree.
+
 ## Process Architecture
 
-Two Electron processes communicate via IPC:
-
 ```
-Main Process (src/main/)          Renderer Process (src/renderer/)
-─────────────────────────         ────────────────────────────────
-App.ts          ←──IPC──→         Panel/   (Svelte toolbar + tabs UI)
-WindowManager                     Settings/ (Svelte settings modal)
-TabManager                        DesktopAPI/ (Figma web app bridge)
-ExtensionManager
-Storage (singleton)
+Main process (src/main/)                 Renderer pages (src/renderer/)
+────────────────────────                 ───────────────────────────────
+index.ts → applyChromiumSwitches()       Panel/        toolbar + tab strip
+App.ts (lifecycle, controller wiring)    Settings/     settings page, shown as a tab
+controllers/  ←── window.figmaApi ──→    Changelog/    What's New overlay
+preload/bridge.ts (allowlists)           Preview/      tab hover card
+Ui/WindowManager → Window → TabManager   GroupPrompt/  tab-group popover
+Storage (singleton, main only)           DesktopAPI/   preload for Figma's own pages
+MCP/, FigmaAgent, ExtensionManager
 ```
 
-Build: **Vite + vite-plugin-electron** → `dist/main/main.js` + `dist/renderer/`.
+Build: **Vite + vite-plugin-electron** → `dist/main/main.js`, pages as `dist/*.html` +
+`dist/assets/`, preload scripts in `dist/renderer/` (`bridge.js`, `loadContent.js`,
+`loadMainContent.js`).
 
----
+## Windows and tabs
 
-## Main Process: Window & Tab Model
+**WindowManager** (`src/main/Ui/WindowManager.ts`): `Map<windowId, Window>`, last-focused window,
+`figma://` URLs, closed-tab history, `findFileTab(fileKey)` for MCP.
 
-**WindowManager** (`src/main/Ui/WindowManager.ts`): owns a `Map<windowId, Window>`, tracks last-focused window, handles `figma://` protocol URLs and "reopen closed tab" history.
+**Window** (`src/main/Ui/Window.ts`): one `BrowserWindow` + `TabManager` + `SettingsView` +
+`WarmTabManager` + lazily created hover card. Child views are attached **once**
+(`attachHidden()`) and switched with `view.setVisible()` through `swapTo()`. Never
+`removeChildView` a view you intend to show again — on Wayland it stays blank.
 
-**TabManager** (`src/main/Ui/TabManager.ts`): per-window, owns three tab kinds — each is a `WebContentsView` (BrowserView successor) positioned below the panel:
+**TabManager** (`src/main/Ui/TabManager.ts`) holds, per window:
 
 | Type | Notes |
 |---|---|
 | `MainTab` | Always present — the home/files page |
-| `Tab` | Regular Figma file/design tab |
-| `CommunityTab` | Community browser (Extensions, Apps, etc.) |
+| `Tab` | A Figma file tab (`WebContentsView`) |
+| `CommunityTab` | Community browser |
+| `DiscardedTab` | Shell without a view for a saved tab not loaded yet (`app.lazyRestoreTabs`); `reviveTab()` makes it a `Tab` |
 
-Only one tab is visible at a time. `setTabFocus()` swaps visibility.
+Settings is a tab in the strip but **not** a `TabManager` tab (`src/main/Ui/SettingsTab.ts`).
 
-### TabManager.getById() footgun
-`getById(id)` returns `mainTab` as fallback when the ID is not found — it never returns `undefined`. **Always guard** with `tabManager.getAll().has(id)` before calling `getById` for a dynamic ID, or you'll silently operate on `mainTab`.
+- `getById(id)` returns `undefined` for an unknown numeric id (`"mainTab"` / `"communityTab"`
+  still resolve) and may return a `DiscardedTab`. Guard dynamic ids with
+  `tabManager.getAll().has(id)` and check `"discarded" in tab` before touching `tab.view`.
+- Double-close is intentional: clicking Home sends `setFocusToMainTab` **and**
+  `closeTab(newFileTabId)`; the `has(id)` guard in `Window.closeTab()` absorbs the second one.
+- `openFile()` and `createFile()` must both call `closeNewFileTab()`.
 
-### Warm tab / double-close (intentional)
-Clicking Home Tab sends both `setFocusToMainTab` IPC and `closeTab(newFileTabId)`. `setFocusToMainTab()` also calls `closeNewFileTab()` internally. The second call is safe because `closeTab()` guards with `tabManager.getAll().has(id)`.
+## window.open routing (Tab, MainTab, CommunityTab)
 
----
+`setWindowOpenHandler` only sees `window.open()` from the main frame; cross-origin iframes go to
+`did-create-window`. Every tab class registers both, with the same rule:
 
-## CommunityTab: window.open routing
-
-`setWindowOpenHandler` only intercepts `window.open()` from the **main frame**. Cross-origin iframes (which Figma uses for the Apps/Extensions section) bypass it — they go directly to `did-create-window`.
-
-Pattern for both handlers:
 ```typescript
-// setWindowOpenHandler — main frame popups
 private windowOpenHandler(details: HandlerDetails) {
-  const url = details.url;
-  if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
-    app.emit("openUrlFromCommunity", url);
-  } else {
-    shell.openExternal(url);
-  }
-  return { action: "deny" };
+  if (isFigmaRunUrl(details.url)) app.emit("openUrlFromCommunity", details.url);
+  else void openInBrowser(details.url, "CommunityTab"); // Main/openInBrowser, not shell.openExternal
+  return { action: "deny" as const };
 }
-
-// did-create-window — cross-origin iframe popups (safety net)
 private onNewWindow(window: BrowserWindow, details: DidCreateWindowDetails) {
   window.close(); // always close the raw window
-  const url = details.url;
-  if (isPrototypeUrl(url) || isValidProjectLink(url) || isValidFigjamLink(url)) {
-    app.emit("openUrlFromCommunity", url);
-  } else {
-    shell.openExternal(url);
-  }
+  // …same routing as above
 }
 ```
 
-`Tab` and `MainTab` follow the same dual-handler pattern.
+## IPC
 
----
+- Main: `ipcRegistry.on(channel, handler, source)` / `ipcRegistry.handle(...)` in a controller under
+  `src/main/controllers/`. Never `ipcMain` directly — the registry is sealed in the `App`
+  constructor and throws on late or duplicate registration.
+- Renderer pages (Panel, Settings, …): `window.figmaApi.send / invoke / on / once`. Direct
+  `ipcRenderer` is not available to them (`contextIsolation: true` + the bridge preload).
+- A new channel needs three edits: the allowlist in `src/main/preload/bridge.ts`
+  (`SEND_CHANNELS` / `RECEIVE_CHANNELS` / `INVOKE_CHANNELS`), the registry call, the call site.
+  An unlisted channel silently no-ops.
+- Listener registrations: `src/renderer/Panel/ipc.svelte.ts`, `src/renderer/Settings/ipc.ts`.
 
 ## DesktopAPI: Figma web app bridge
 
-`src/renderer/DesktopAPI/webBinding.ts` establishes a **MessageChannel** between Figma's web app and the desktop layer. Figma sends fire-and-forget messages to `window.__figmaDesktop`.
+Figma's own pages run in views with `contextIsolation: false` (`Tab`, `MainTab`,
+`CommunityTab`) and a preload from `src/renderer/DesktopAPI/`. `webBinding.ts` sets up a
+**MessageChannel** with Figma's web app; Figma sends fire-and-forget messages to
+`window.__figmaDesktop`, looked up by `msg.name` in the `publicAPI` object. Unknown ones log
+`[desktop] Unhandled message <name>`. This preload does use `ipcRenderer` directly.
 
-Routing: `msg.name` is looked up in the `publicAPI` object. Unknown messages log `[desktop] Unhandled message <name>`.
+To silence a message without implementing it, add a stub to `publicAPI`:
 
-**To silence an unhandled message without implementing it**, add a no-op stub:
 ```typescript
-// in publicAPI object:
 someNewMessage(args: any) {
   if (import.meta.env.DEV) console.debug("[stub] someNewMessage", args);
 },
 ```
 
-This is NOT IPC — messages come through the MessageChannel, not `ipcRenderer`. For things that need main-process handling, the stub calls `sendMsgToMain("channelName", args)`.
+## Storage and settings
 
----
+`src/main/Storage.ts` — main-process singleton, persists to
+`~/.config/figma-linux-next/settings.json` (`app.getPath("userData")`), deep-merged over
+`DEFAULT_SETTINGS`. Renderers read with `window.figmaApi.invoke("getSettings")`; IPC lives in
+`SettingsController`, not in Storage. Top-level keys: `clientId`, `userId`, `authedUserIDs`,
+`app`, `ui`, `mcp`.
 
-## IPC Conventions
+Adding a setting:
+1. Default value in `src/utils/Common/defaultSettings.ts` (`BASE_DEFAULT_SETTINGS`). The files
+   of the same name under `Utils/Render` and `Utils/Main` are not the place.
+2. Type in `src/types/`.
+3. If the user can edit it: entry in `src/renderer/Settings/schema.ts`, a row in the section
+   view, a key in `src/utils/Common/settingsEdit.ts`, and its side effect in `planSettingsUpdate`.
 
-| Pattern | Use when |
-|---|---|
-| `ipcMain.handle()` + `ipcRenderer.invoke()` | Request/response (async, needs return value) |
-| `ipcMain.on()` + `ipcRenderer.send()` | Fire-and-forget event |
+## Path aliases (tsconfig)
 
-Renderer-side listeners live in `ipc.ts` files alongside each Svelte app (e.g., `src/renderer/Panel/ipc.ts`).
+`Main/*` → `src/main/*`, `Utils/*` → `src/utils/*`, `Common/*` → `src/renderer/Common/*`,
+`Icons`, `Containers`, `DesktopAPI`, `Types/*` → `src/types/*`, `Const` → `src/constants`,
+`Enums`, `Storage`. Use them instead of relative paths.
 
-Controllers in `src/main/controllers/` register handlers via `ipcRegistry` (thin wrapper around `ipcMain`) — prefer this over direct `ipcMain.on/handle` in new code.
+## Two package.json files
 
----
+`package.json` is the dev manifest; `src/package.json` is copied to `dist/` and installed with
+`bun install --production`. A **runtime** dependency bump goes into both. Dev-only tools (vite,
+biome, playwright) live only in the root one.
 
-## Storage
+## Extensions
 
-**`src/main/Storage.ts`** — singleton, persists to `~/.config/figma-linux/settings.json`.
+Local Figma plugins imported from their `manifest.json` (Figma's "Import plugin from
+manifest…"). Paths are stored in `settings.app.savedExtensions`; `ExtensionManager` watches their
+files with Chokidar and hot-reloads. There is no folder the app scans.
 
-- Deep-merges saved settings with `defaultSettings` on load
-- Works in both main and renderer processes
-- Renderer reads via `ipcRenderer.invoke('getSettings')` → async, registered as `ipcRegistry.handle('getSettings', ...)`
-- Top-level keys: `clientId`, `userId`, `app`, `ui`
+## Styling and theme
 
-When adding a setting:
-1. `src/utils/Render/defaultSettings.ts` — add with default value
-2. `src/types/` — update the TypeScript interface
+Tokens are CSS custom properties in `src/renderer/theme.css`. Window frames are theme-aware: the
+`--frame-*` palette is scoped by `#panel[data-frame]` × `html[data-theme]`; Figma's theme choice
+is resolved in `src/main/Theme.ts` and pushed to panels as `figmaThemeChanged`. Never hardcode a
+colour in `src/renderer/Panel/frames/`.
 
----
+## Chromium flags
 
-## Path Aliases (tsconfig)
+Applied by `applyChromiumSwitches()` (`src/main/applyChromiumSwitches.ts`), called from
+`src/main/index.ts` before `App` is constructed — they must be set before `app.ready`. Custom
+switches: `settings.app.commandSwitches`.
 
-```typescript
-import { logger }       from "Main/Logger";        // src/main/*
-import { storage }      from "Main/Storage";
-import { isDev }        from "Utils/Common";        // src/utils/*
-import { TabManager }   from "Main/Ui/TabManager";
-// Also: Types/*, Common/*, Components/*, Store/*, Const
-```
-
-Use aliases instead of relative paths in all new code.
-
----
-
-## Two package.json files — keep in sync
-
-| File | Purpose |
-|---|---|
-| `package.json` | Dev manifest (dev deps + runtime deps) |
-| `src/package.json` | **Production manifest** — copied to `dist/`, then `bun install --production` runs inside |
-
-When bumping a **runtime** dependency version in `package.json`, update `src/package.json` too. Dev-only deps (vite, eslint, etc.) only go in the root `package.json`.
-
----
-
-## Extension System
-
-Extensions hot-reload from `~/.config/figma-linux/Extensions/` via Chokidar. Each extension needs a `manifest.json`. Registered in `settings.savedExtensions`. No restart required during development.
-
----
-
-## Styling
-
-Panel and Settings UI use static CSS custom properties defined in `src/renderer/theme.css`, imported by both renderers. These are hardcoded design tokens — there is no dynamic theme system. Native Figma dark/light mode is controlled via `settings.app.figmaTheme` and passed to Figma's web app.
-
----
-
-## GPU / Wayland / Chromium flags
-
-All Chromium command-line switches applied in `App.applySwitches()` (`src/main/App.ts`). Custom switches live in `settings.app.commandSwitches`. `contextIsolation: false` is required in all `WebContentsView` instances for Figma web app compatibility.
-
----
-
-## Key Commands
+## Key commands
 
 ```bash
-bun run dev    # build main + hot-reload renderer
-bun run lp     # lint + prettier (run before committing)
-bun run check  # Svelte type checking
-# For builds/packaging/releases → use the figma-linux-next-build skill
+bun run dev        # build main + hot-reload renderer
+bun run lp         # Biome lint + format, in place
+bun run lint       # Biome check, no writes (CI)
+bun run check      # svelte-check
+bun run test:unit  # bun test tests/unit/
+bun run build && bun run test:e2e   # Playwright under xvfb, needs a build
+# builds / packaging / releases → the figma-linux-next-build skill
 ```
 
----
-
-## Critical Files Quick Reference
+## Critical files
 
 | File | What it does |
 |---|---|
-| `src/main/App.ts` | Lifecycle orchestration, IPC handlers, Chromium switches |
+| `src/main/index.ts` | Entry: storage, dialogs, Chromium switches, `new App(...)` |
+| `src/main/App.ts` | Lifecycle, controller wiring, MCP server and FigmaAgent start |
+| `src/main/controllers/` | IPC controllers + `registry.ts` |
+| `src/main/preload/bridge.ts` | `window.figmaApi` and the channel allowlists |
 | `src/main/Ui/WindowManager.ts` | Window lifecycle, protocol URL handling |
-| `src/main/Ui/TabManager.ts` | Tab CRUD, visibility, getById() footgun |
+| `src/main/Ui/Window.ts` | One window: views, tab switching, Settings tab |
+| `src/main/Ui/TabManager.ts` | Tab CRUD, discarded shells |
 | `src/main/Ui/CommunityTab.ts` | Community browser, window.open routing |
-| `src/main/Storage.ts` | Settings persistence + sync IPC bridge |
-| `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop message bridge, publicAPI stubs |
-| `src/renderer/Panel/ipc.ts` | Panel IPC listener registrations |
-| `src/utils/Render/defaultSettings.ts` | All setting defaults + structure |
-| `src/utils/Common/` | Shared URL predicates (`isFigmaUrl`, `isPrototypeUrl`, etc.) |
-| `config/builder.json` | electron-builder targets (deb, rpm, pacman, AppImage) |
+| `src/main/Storage.ts` | Settings persistence |
+| `src/main/MCP/` | MCP server, tool definitions, in-page scripts |
+| `src/renderer/DesktopAPI/webBinding.ts` | Figma web ↔ desktop message bridge, `publicAPI` stubs |
+| `src/renderer/Panel/ipc.svelte.ts` | Panel IPC listener registrations |
+| `src/renderer/Settings/schema.ts` | Every settings row: section, title, help, keywords |
+| `src/utils/Common/defaultSettings.ts` | `BASE_DEFAULT_SETTINGS` — all setting defaults |
+| `src/utils/Common/url.ts` | Shared URL predicates (`isFigmaRunUrl`, …) |
+| `config/builder.json` | electron-builder targets (deb, rpm, pacman, AppImage, zip) |

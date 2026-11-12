@@ -18,13 +18,14 @@ bun run local:install  # Install to /opt/figma-linux-next for manual testing
 bun run cln            # Clean dist/
 
 # Release prep (run on staging, NOT on dev)
-perl scripts/bump_version.pl 0.13.4   # bump version + commit + tag on staging
-# NOTE: bump_version.pl reads current version from latest git tag (not package.json)
-# After running, verify package.json and src/package.json have correct version
-# If they don't match, fix manually:
-#   sed -i 's/"version": "OLD"/"version": "NEW"/' package.json src/package.json
-#   git add package.json src/package.json && git commit --amend --no-edit
-#   git tag -d vNEW && git tag -a vNEW -m "Publish vNEW release"
+perl scripts/bump_version.pl X.Y.Z    # bump version + commit + tag on staging
+# NOTE: bump_version.pl takes the previous version from the latest git tag (not package.json)
+# and seds it into package.json and src/package.json, then runs
+# `scripts/sync_flatpak_release.py --version X.Y.Z` (Flatpak manifest tag, flatpak/package.json,
+# metainfo <release>). It aborts before committing if the Flatpak step fails, and commits only
+# those five files. Afterwards check:
+#   rg -n '"version"' package.json src/package.json flatpak/package.json
+#   python3 scripts/sync_flatpak_release.py --check
 
 perl scripts/generate_release_notes.pl --latest        # markdown preview
 perl scripts/generate_release_notes.pl --latest --html # Flathub HTML format
@@ -37,7 +38,7 @@ perl scripts/generate_release_notes.pl --latest --html # Flathub HTML format
 ```
 bun run build
   1. bun run cln                          → rm -rf dist/
-  2. vite build                           → dist/main/main.js + dist/renderer/
+  2. vite build                           → dist/main/main.js, dist/*.html + dist/assets/, dist/renderer/ (preloads)
   3. cp src/package.json dist/package.json
   4. bun install --production (in dist/)  → dist/node_modules/
 
@@ -74,7 +75,7 @@ App ID: `app.borys.FigmaLinuxNext` — registers `.fig` file association and `fi
 | `package.json` | Dev manifest — all deps + devDeps |
 | `src/package.json` | **Production manifest** — runtime deps only, copied to `dist/` |
 
-When bumping a runtime dep version: update **both**. Dev-only deps (vite, eslint, playwright…) go in root only.
+When bumping a runtime dep version: update **both**. Dev-only deps (vite, biome, playwright…) go in root only.
 
 ---
 
@@ -94,6 +95,10 @@ staging  ←── all features, fixes, and daily work
 ---
 
 ## Release Flow (step by step)
+
+> **A release runs only on the owner's explicit, separate order.** Finishing a batch of work is
+> not a reason to bump, push `staging`, open the PR or push a tag. Before any of it: `bun run
+> build && bun run test:e2e` and a check in the live app.
 
 > **Rule:** tag push triggers the release. The tag must be pushed **after** staging is merged into dev — so release only goes out when dev is already updated.
 
@@ -129,16 +134,18 @@ gh pr create --base dev --head staging \
 ```
 
 ### 6. Wait for CI, merge PR
-CI runs unit tests on the PR. Once green — merge.
+CI runs type check, lint, unit tests, a production build, the e2e suite and the Flatpak metadata check on the PR. Once green — merge.
 
 ### 7. Push the tag — this triggers the release
 ```bash
 git push origin vX.Y.Z
 ```
 ⚠️ **Only now** does `release.yml` trigger. At this point dev is already updated.
-- Builds all 9 packages (deb×2, rpm×2, AppImage×2, zip×2, pacman×1)
+- Builds 9 packages (deb×2, rpm×2, AppImage×2, zip×2, pacman×1) plus an x64 `.flatpak` bundle (best effort)
 - Creates GitHub Release with release notes from CHANGELOG.md
-- Pushes updated PKGBUILD to AUR
+- Pushes updated PKGBUILDs to AUR (`figma-linux-next`, `figma-linux-next-bin`)
+- Publishes the signed Flatpak repo to GitHub Pages
+- Commits the pinned `flake.nix` and the pinned Flatpak manifest to `dev`, then `staging`
 
 ---
 
@@ -155,6 +162,8 @@ git push origin vX.Y.Z
 - [ ] GitHub Release visible at `github.com/arximus88/figma-linux-next/releases`
 - [ ] AUR updated: `https://aur.archlinux.org/packages/figma-linux-next`
 - [ ] `flake.nix` on `dev` pins vX.Y.Z (CI commit `chore(nix): pin flake to vX.Y.Z`)
+- [ ] Flatpak manifest on `dev` pins the tag's commit (CI commit `chore(flatpak): pin manifest to vX.Y.Z`)
+- [ ] Flatpak repo on GitHub Pages serves vX.Y.Z (`flatpak-repo` job green)
 
 ---
 
@@ -162,8 +171,8 @@ git push origin vX.Y.Z
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `release.yml` | Tag `v*.*.*` pushed | Build all 9 packages, GitHub Release, AUR push |
-| `ci.yml` | Push/PR to `dev`/`staging` | Type check, lint, unit tests |
+| `release.yml` | Tag `v*.*.*` pushed | Build 9 packages + `.flatpak`, GitHub Release, AUR push, Flatpak repo, flake + Flatpak pins |
+| `ci.yml` | Push/PR to `dev`/`staging` | Changelog data, type check, lint, unit tests, build, e2e (xvfb), Flatpak metadata check |
 | `remove_artefacts.yml` | Manual | Clean up old CI artifacts |
 
 Only these three exist. `push_aur_dev_git.yml` was deleted in `3c3a762`; the
@@ -181,12 +190,20 @@ build-arm64 (ubuntu-24.04-arm)
   bunx electron-builder → deb, rpm, AppImage, zip (arm64)
 
 build-pacman (archlinux container)
-  pacman: bun nodejs base-devel fakeroot libxcrypt-compat
+  pacman: bun nodejs npm base-devel fakeroot libxcrypt-compat
   bunx electron-builder → .pacman (x64 only)
+
+build-flatpak (flathub-infra container freedesktop-25.08, x64 only, continue-on-error)
+  flatpak-builder on flatpak/app.borys.FigmaLinuxNext.yml → .flatpak bundle
+  builds the manifest's `tag:` — sync_flatpak_release.py keeps it current
 
 release (needs all build-* jobs)
   merge artifacts → SHA256SUMS → softprops/action-gh-release@v2
   release notes extracted from CHANGELOG.md
+
+flatpak-repo (needs release; skipped when no bundle was built)
+  pull previous repo state from Pages → import bundle → sign (FLATPAK_GPG_KEY) → prune
+  write .flatpakrepo / .flatpakref / index.html → actions/deploy-pages
 
 aur (needs release, archlinux container)
   SSH key from ID_RSA secret → git clone aur.archlinux.org/figma-linux-next
@@ -201,12 +218,16 @@ flake (needs release, RELEASE_PAT)
   checkout dev → sha256 of both release zips → SRI
   scripts/update_flake_release.py VERSION SHA_X64 SHA_ARM64 flake.nix
   commit + push → dev, then the same on staging
+
+flatpak-pin (needs release AND flake — both push to dev)
+  scripts/sync_flatpak_release.py --commit <tag sha>
+  commit + push → dev, then staging
 ```
 
-**`aur`, `aur-bin` and `flake` skip pre-release tags.** All three carry
+**`aur`, `aur-bin`, `flake`, `flatpak-repo` and `flatpak-pin` skip pre-release tags.** All five carry
 `if: !contains(ref_name, '-rc') && !contains(..., '-alpha') && !contains(..., '-beta')`.
-Tagging `v0.16.0-rc1` publishes a GitHub Release and nothing else — AUR keeps serving
-the last stable and `flake.nix` keeps its previous pin. That is intended; a pre-release
+Tagging `v0.16.0-rc1` publishes a GitHub Release and nothing else — AUR and the Flatpak repo
+keep serving the last stable and `flake.nix` keeps its previous pin. That is intended; a pre-release
 must not become what `nix build` or `pacman -S` hands a user.
 
 **flake.nix is CI-owned.** Version and hashes live in one `release = { … }` block and are
@@ -270,7 +291,8 @@ whatever the AUR repo already contains, so those only ever change by a manual pu
 | `ID_RSA` (base64) | SSH key for AUR push | CI-dedicated key (`~/.ssh/id_ed25519_aur_ci`), registered on AUR only |
 | `USER_NAME` | Git committer name for AUR + flake commits | e.g. `Borys Kharchenko` |
 | `EMAIL` | Git committer email for AUR + flake commits | |
-| `RELEASE_PAT` | Pushing the pinned `flake.nix` to protected `dev` | Fine-grained, `Contents: write`, this repo only. Created 2026-08-05, **expires 2027-08-05**. Regenerate with `gh secret set RELEASE_PAT`. |
+| `FLATPAK_GPG_KEY` | Signing the Flatpak repo on GitHub Pages | Armored private key; public half is `flatpak/figma-linux-next-repo.gpg`. Losing it forces every install to re-add the remote. |
+| `RELEASE_PAT` | Pushing the pinned `flake.nix` and Flatpak manifest to protected `dev` | Fine-grained, `Contents: write`, this repo only. Created 2026-08-05, **expires 2027-08-05**. Regenerate with `gh secret set RELEASE_PAT`. |
 
 **SSH key setup:** CI uses a dedicated key separate from personal key.
 - Personal key: `~/.ssh/id_ed25519` (GitHub + AUR personal access)
@@ -311,6 +333,7 @@ build/installers/
 ├── figma-linux-next_<ver>_linux_arm64.AppImage
 ├── figma-linux-next_<ver>_linux_x64.zip
 ├── figma-linux-next_<ver>_linux_arm64.zip
+├── figma-linux-next_<ver>_linux_x64.flatpak   (CI only, from build-flatpak)
 └── SHA256SUMS
 ```
 
@@ -321,14 +344,15 @@ build/installers/
 | File | Purpose |
 |---|---|
 | `config/builder.json` | electron-builder targets, app metadata, file associations |
-| `vite.config.ts` | Vite build config (main + renderer bundles) |
+| `vite.config.mts` | Vite build config (main + renderer bundles) |
 | `package.json` / `src/package.json` | Dev / production manifests |
 | AUR `PKGBUILD` (both repos) | Package definition; lives only on AUR, clone fresh to edit |
 | `scripts/bump_version.pl` | Version bump + tag automation (run on staging) |
 | `scripts/generate_release_notes.pl` | Changelog from git log (preview only) |
 | `scripts/update_pkgbuild_sha256.py` | Updates first sha256sums entry in PKGBUILD |
+| `scripts/sync_flatpak_release.py` | Single writer of the Flatpak release metadata (`--version`, `--commit`, `--check`) |
 | `scripts/update_flake_release.py` | Rewrites the `release` block in flake.nix (version + both SRI hashes in one pass) |
 | `flake.nix` | Nix package; `release` block is CI-owned — never edit the version by hand |
 | `.github/workflows/` | All CI/CD automation |
 | `resources/AppRun` | AppImage entry point |
-| `resources/icons/` | Multi-size icons (16–512px) |
+| `resources/icons/` | Multi-size icons (24–512px), `scalable.svg`, tray icons |
