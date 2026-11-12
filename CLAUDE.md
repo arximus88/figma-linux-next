@@ -480,7 +480,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "45.1.0"` (Chromium 156, Node 24), bumped 2026-10-29 from 44.5.1 (via 44.10.0). OAuth first login re-verified on 45.1.0 (2026-10-30, clean profile, bundled binary): `__Host-figma.authn` lands. 44.10.0 was never shipped or login-tested on its own.
+`package.json` lists an exact version, currently `"electron": "45.3.1"` (Chromium 156.0.8078.96, Node 24), bumped 2026-11-13 from 45.1.0. **OAuth first login is not yet re-verified on 45.3.1** — do it before a release (45.3.0 rolled Chromium .48 → .96, 45.3.1 dropped trust in eMudhra's revoked intermediates; the release notes mention nothing about cookies or auth). Last verified: 45.1.0 (2026-10-30, clean profile, bundled binary), `__Host-figma.authn` lands. 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own.
 
 45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 
