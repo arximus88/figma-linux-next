@@ -67,7 +67,6 @@ export async function launchApp(opts?: LaunchOptions): Promise<AppHandle> {
       ...parentEnv,
       XDG_SESSION_TYPE: "x11",
       NODE_ENV: "test",
-      FIGMA_LOGLEVEL: "error",
     },
   });
 

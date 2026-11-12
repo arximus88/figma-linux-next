@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import { net, type ClientRequestConstructorOptions } from "electron";
 
 export const request = (options: ClientRequestConstructorOptions): Promise<Request.Responce> =>
@@ -18,31 +17,3 @@ export const request = (options: ClientRequestConstructorOptions): Promise<Reque
       .on("error", (error: Error) => reject(error))
       .end();
   });
-
-export async function downloadFile(url: string, savePath: string): Promise<void> {
-  return new Promise((res, rej) => {
-    net
-      .request(url)
-      .on("response", (response) => {
-        const buffers: Uint8Array[] = [];
-
-        const onData = (chunk: Buffer) => {
-          buffers.push(chunk);
-        };
-        const onEnd = async () => {
-          const buffer = Buffer.concat(buffers);
-
-          await fs.promises.writeFile(savePath, buffer).catch((error) => {
-            rej(error);
-          });
-
-          res();
-        };
-
-        response.on("error", rej);
-        response.on("data", onData);
-        response.on("end", onEnd);
-      })
-      .end();
-  });
-}
