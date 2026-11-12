@@ -47,3 +47,6 @@ proposed closing both #63 and #64 in favor of #77.
 At capture time, all three PRs were still open. #77's CI passed, including build,
 type checking, lint, unit tests, and Electron E2E under xvfb. The replacement
 was not yet merged. This note does not mark issue #40's freezing report as resolved.
+
+Update: #77 was merged (`1c1b885`) and lazy restore shipped in 0.23.0 as the opt-in
+`app.lazyRestoreTabs` (Settings → Tabs & windows). #63 and #64 were closed in its favor.
