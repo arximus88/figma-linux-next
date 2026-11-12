@@ -19,6 +19,7 @@ import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
 import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
 import { BackgroundWaker } from "./MCP/utils/backgroundWaker";
+import { withFrames } from "./MCP/utils/framePump";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -134,13 +135,13 @@ export default class App {
       executeInBrowserView: (script: string, fileKey?: string) => {
         if (fileKey) {
           const wc = fileTab(fileKey).view.webContents;
-          return waker.during(wc, () => wc.executeJavaScript(script));
+          return waker.during(wc, () => withFrames(wc, () => wc.executeJavaScript(script)));
         }
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) throw new Error("No Figma window open");
         const wc = win.getActiveWebContents();
         if (!wc) return Promise.resolve(undefined);
-        return waker.during(wc, () => wc.executeJavaScript(script));
+        return waker.during(wc, () => withFrames(wc, () => wc.executeJavaScript(script)));
       },
       getActiveTabView: (fileKey?: string) =>
         (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,

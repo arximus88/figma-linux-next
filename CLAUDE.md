@@ -270,10 +270,16 @@ new App(new WindowManager(), new Session(), new FontManager());
   loading makes `ToolHandlers.exec` wait up to 20 s for `window.figma` and run the script again
   (measured 2026-11-13 under headless mutter: never-shown tab ready in ~2 s, lazily restored one
   screenshotted in 5.5 s, minimized window fine). A file with no Plugin API for good (plugins off
-  in the org) pays the wait once, then fails at once for 2 min. What does **not** work: a locked
-  or switched-off screen — GNOME gives no window any frames then, even the tab in front, and
-  exports stall; the 60 s timeout names that reason (`FRAMES_PROBE_SCRIPT`). A file with no tab
-  at all is still an error.
+  in the org) pays the wait once, then fails at once for 2 min. A file with no tab at all is
+  still an error.
+- With the screen locked or off GNOME gives no window any frames, even the tab in front, so
+  rAF-waiting calls stalled whatever the throttling setting. `withFrames`
+  (`utils/framePump.ts`) wraps every MCP script: one still running after 300 ms gets a 1x1
+  `capturePage({stayHidden: true})` every 250 ms, which makes the compositor produce a frame.
+  Measured 2026-11-13 on the locked session: never-shown background tab, `get_screenshot`
+  timed out without it and took 0.7 s with it. `stayHidden: false` left the page drawing after
+  the pump stopped; keep it true. If a script still times out, the error says whether the page
+  gets frames (`FRAMES_PROBE_SCRIPT`).
 - Testing MCP against a real compositor without the user's screen: `mutter --headless --wayland
   --no-x11 --wayland-display fln-wl --virtual-monitor 2200x1300@60`, then launch the app with
   `WAYLAND_DISPLAY=fln-wl` and an isolated `XDG_CONFIG_HOME`. Unlike xvfb it behaves like the

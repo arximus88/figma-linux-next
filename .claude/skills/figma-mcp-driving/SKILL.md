@@ -152,10 +152,10 @@ a plugin in that file. "No Figma window open" means no window at all.
   got it although none of these apply was seen only in test setups (several instances on one profile
   copy) and was not reproduced on clean installs.
 - **Scripts are bounded at 60 s.** A Figma call that never settles returns "Figma did not answer
-  within 60 s" instead of hanging the client. The known cause: exports and library imports wait for
-  an animation frame, and with the screen locked or off the desktop gives the window none (seen
-  2026-11-13 on GNOME, even for the tab in front). The error then says "no animation frames";
-  retrying cannot help until the screen is on. A minimized window is fine.
+  within 60 s" instead of hanging the client. Exports and library imports wait for an animation
+  frame; the server keeps frames coming while a script runs (background tab, minimized window,
+  locked screen all work, checked 2026-11-13). If a call still times out, the error says whether
+  the page was getting frames.
 - **Recents / Home has no Plugin API.** Figma installs it only with a file open, so tools fail there
   with "not a Figma file". Switch to a design tab.
 - **CDP needs a restart.** Toggling CDP or its port does nothing until the app relaunches. The Figma MCP

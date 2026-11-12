@@ -271,8 +271,9 @@ export class ToolHandlers {
    * Why a script got no answer. Figma's exports and library imports wait for
    * an animation frame, and the desktop stops giving a window frames while
    * the screen is locked or off (measured 2026-11-13 on GNOME 51: with the
-   * session locked even the tab in front got none, and get_screenshot ran
-   * into this timeout). Saying so beats "retry", which cannot help.
+   * session locked even the tab in front got none). utils/framePump.ts keeps
+   * frames coming in that state; if they are missing all the same, saying so
+   * beats "retry", which cannot help.
    */
   private async timeoutReason(ms: number): Promise<string> {
     const waited = `Figma did not answer within ${Math.round(ms / 1000)} s. `;
@@ -289,7 +290,7 @@ export class ToolHandlers {
       return (
         waited +
         "The page is getting no animation frames, which Figma's exports and library calls wait for: " +
-        "the desktop is not drawing the app's window (screen locked or turned off). Retry once the screen is on."
+        "the desktop is not drawing the app's window (screen locked or turned off?). Retry once the screen is on."
       );
     }
     return `${waited}The tab may still be loading or busy; retry in a moment.`;
