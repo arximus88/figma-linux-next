@@ -369,6 +369,19 @@ const publicAPI: any = {
   updateViewport(args: any) {
     if (import.meta.env.DEV) console.debug("[stub] updateViewport", args);
   },
+  // Sent on every file load and theme change (1201 warnings in one profile's
+  // log): the macOS "increase contrast" preference, which has no counterpart here.
+  setEnhancedContrast(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setEnhancedContrast", args);
+  },
+  // Branch-merge progress, shown by the official app in its tab; not drawn here.
+  setMergingStatus(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] setMergingStatus", args);
+  },
+  // Trackpad haptic feedback on macOS.
+  triggerHaptic(args: any) {
+    if (import.meta.env.DEV) console.debug("[stub] triggerHaptic", args);
+  },
   setTabColor(args: any) {
     sendMsgToMain("setTabColor", args);
   },
