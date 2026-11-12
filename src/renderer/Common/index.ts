@@ -2,22 +2,9 @@
 export { default as Button } from "./Buttons/Button.svelte";
 export { default as ButtonWindow } from "./Buttons/ButtonWindow.svelte";
 export { default as ButtonTool } from "./Buttons/ButtonTool.svelte";
-export { default as PrimaryButton } from "./Buttons/PrimaryButton.svelte";
-export { default as SecondaryButton } from "./Buttons/SecondaryButton.svelte";
-export { default as TertiaryButton } from "./Buttons/TertiaryButton.svelte";
 
 // Containers
 export { default as Spiner } from "./Containers/Spiner.svelte";
-export { default as Grid } from "./Containers/Grid.svelte";
-export { default as Flex } from "./Containers/Flex.svelte";
-export { default as FlexItem } from "./Containers/FlexItem.svelte";
-export { default as DropDown } from "./Containers/DropDown.svelte";
-export { default as ZoomView } from "./Containers/ZoomView.svelte";
-export { default as Rotate } from "./Containers/Rotate.svelte";
-
-// Header
-export { default as Header } from "./Header/Header.svelte";
-export { default as HeaderModal } from "./Header/HeaderModal.svelte";
 
 // Icons
 export { default as ArrowLeft } from "./Icons/ArrowLeft.svelte";
@@ -57,30 +44,9 @@ export { default as RadioNormal } from "./Icons/RadioNormal.svelte";
 export { default as RadioChecked } from "./Icons/RadioChecked.svelte";
 
 // Inputs
-export { default as InputColor } from "./Input/Color.svelte";
-export { default as InputNumeric } from "./Input/Numeric.svelte";
-export { default as InputRange } from "./Input/Range.svelte";
-export { default as InputText } from "./Input/Text.svelte";
-export { default as CheckBox } from "./Input/CheckBox.svelte";
 export { default as ListBox } from "./Input/List.svelte";
 
-// TabView
-export { default as TabView } from "./TabView/TabView.svelte";
-export { default as TabViewHeaderItem } from "./TabView/TabViewHeaderItem.svelte";
-
-// Text
-export { default as Text } from "./Text/Text.svelte";
-export { default as HeaderText } from "./Text/HeaderText.svelte";
-export { default as Label } from "./Text/Label.svelte";
-
 // Settings (Adwaita boxed-list)
-export { default as Section } from "./Settings/Section.svelte";
-export { default as Card } from "./Settings/Card.svelte";
 export { default as SettingRow } from "./Settings/SettingRow.svelte";
 export { default as Toggle } from "./Settings/Toggle.svelte";
 export { default as McpSnippet } from "./Settings/McpSnippet.svelte";
-
-// Other
-export { default as Line } from "./Other/Line.svelte";
-export { default as Popup } from "./Other/Popup.svelte";
-export { default as GlobalStyles } from "./GlobalStyles.svelte";
