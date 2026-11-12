@@ -150,7 +150,7 @@ const PLUGIN_API_DIAGNOSIS = `
           return { blocked: true, reason: "the file belongs to no team or organization, and Figma exposes its Plugin API only in team and org files. Move it into a team." };
         }
         if (document.visibilityState !== "visible") {
-          return { blocked: false, reason: "the tab is in the background and Figma has not finished loading its editor. Switch to the tab in the app and retry." };
+          return { blocked: false, reason: "the tab is in the background and Figma has not finished loading its editor. Retry in a few seconds, or switch to the tab in the app." };
         }
       } catch (e) {}
       return { blocked: false, reason: "Figma exposes it only once the editor has finished loading and plugins are allowed for this file and account. Wait for the canvas to load; if it persists, check that running a plugin (Plugins menu) works in this file — an organization can turn plugins off." };
@@ -163,3 +163,26 @@ const PLUGIN_API_DIAGNOSIS = `
  * contradict the view-only case.
  */
 export const PLUGIN_API_UNAVAILABLE = `("Figma Plugin API not available — " + (function () {${PLUGIN_API_DIAGNOSIS}})().reason)`;
+
+/** Prefix of every "no Plugin API" error; ToolHandlers recognises a script that gave up on it. */
+export const PLUGIN_API_UNAVAILABLE_PREFIX = "Figma Plugin API not available — ";
+
+/**
+ * Renderer-side probe: `{ ready, blocked }`. `ready` once `window.figma` is
+ * there; `blocked` when it never will be (view-only file, not a file page…),
+ * so a caller knows whether waiting can help.
+ */
+export const EDITOR_STATE_SCRIPT = `(function () {
+  if (window.figma) return { ready: true, blocked: false };
+  return { ready: false, blocked: (function () {${PLUGIN_API_DIAGNOSIS}})().blocked };
+})()`;
+
+/**
+ * Renderer-side probe: does the page get animation frames? Figma's exports and
+ * library imports wait for one. Resolves true on the first frame, false after
+ * 1.5 s without any.
+ */
+export const FRAMES_PROBE_SCRIPT = `new Promise(function (resolve) {
+  var timer = setTimeout(function () { resolve(false); }, 1500);
+  requestAnimationFrame(function () { clearTimeout(timer); resolve(true); });
+})`;

@@ -62,6 +62,7 @@ export class McpServer {
   private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
   private uploads = new Map<string, UploadTicket>();
+  private editorWaitFailures = new Map<string, number>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private handlers: ToolHandlers | null = null;
@@ -95,6 +96,7 @@ export class McpServer {
     return new ToolHandlers({
       viewProvider: provider,
       uploads: this.uploads,
+      editorWaitFailures: this.editorWaitFailures,
       fileKey,
       log: this.log,
       codeConnectMap: this.codeConnectMap,

@@ -59,6 +59,11 @@ import {
   FIGMA_AI_EDIT_IMAGE_SCRIPT,
   FIGMA_AI_GENERATE_IMAGE_SCRIPT,
 } from "../scripts/figmaAi";
+import {
+  EDITOR_STATE_SCRIPT,
+  FRAMES_PROBE_SCRIPT,
+  PLUGIN_API_UNAVAILABLE_PREFIX,
+} from "../scripts/helpers";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -99,6 +104,40 @@ export interface ToolContext {
   uploads?: Map<string, UploadTicket>;
   /** The file these handlers are bound to (fileKey argument), if any. */
   fileKey?: string;
+  /** How long a tool waits for Figma's editor in a tab that is still loading. Tests shorten it. */
+  editorWaitMs?: number;
+  /**
+   * When a wait for the editor last ran out, per file ("" = the active tab),
+   * shared across calls. A file whose Plugin API never comes (plugins turned
+   * off by the organization) must not cost every call the full wait.
+   */
+  editorWaitFailures?: Map<string, number>;
+}
+
+/**
+ * How long a tool waits for the editor of a tab that is still loading before
+ * it reports the reason. Well under the ~30 s some MCP clients allow a call.
+ */
+const EDITOR_WAIT_MS = 20_000;
+/** After a wait ran out, how long the next calls for that file fail at once. */
+const EDITOR_WAIT_BACKOFF_MS = 2 * 60_000;
+
+/**
+ * Whether a script's answer is "this tab has no Plugin API". Scripts answer
+ * either as an object or as a JSON string (see DESIGN_CONTEXT_SCRIPT).
+ */
+export function pluginApiMissing(result: unknown): boolean {
+  let value: any = result;
+  if (typeof value === "string") {
+    if (!value.includes(PLUGIN_API_UNAVAILABLE_PREFIX)) return false;
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return false;
+    }
+  }
+  const error = value?.error;
+  return typeof error === "string" && error.startsWith(PLUGIN_API_UNAVAILABLE_PREFIX);
 }
 
 const DESIGN_SYSTEM_ENTITIES = new Set(["component", "variable", "style"]);
@@ -150,25 +189,95 @@ export class ToolHandlers {
    * the page; the caller just stops waiting and gets an error it can act on.
    */
   private async exec(script: string, timeoutMs?: number): Promise<any> {
+    const first = await this.execOnce(script, timeoutMs);
+    // A script that found no Plugin API returned before doing anything, so it
+    // is safe to run again once the editor is there. A tab loaded in the
+    // background (session restore, or a lazily restored tab an MCP call just
+    // woke) gets its editor a few seconds after the first call keeps it awake:
+    // measured 2026-11-13, ~2 s on a never-shown tab. Issue #90: the first
+    // call used to fail with "switch to the tab", which interrupts the user.
+    if (!pluginApiMissing(first)) return first;
+    if (!(await this.waitForEditor())) return first;
+    return this.execOnce(script, timeoutMs);
+  }
+
+  /** One bounded run of a script in the tab; rejects when Figma does not answer in time. */
+  private async execOnce(script: string, timeoutMs?: number): Promise<any> {
     const ms = timeoutMs ?? this.ctx.scriptTimeoutMs ?? 60_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Figma did not answer within ${Math.round(ms / 1000)} s. ` +
-                "The tab may still be loading or busy; retry, or switch to the tab in the app first.",
-            ),
-          ),
-        ms,
-      );
+      timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error("timeout"));
+      }, ms);
     });
     try {
       return await Promise.race([this.ctx.viewProvider.executeInBrowserView(script), timeout]);
+    } catch (err) {
+      if (!timedOut) throw err;
+      throw new Error(await this.timeoutReason(ms));
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * Why a script got no answer. Figma's exports and library imports wait for
+   * an animation frame, and the desktop stops giving a window frames while
+   * the screen is locked or off (measured 2026-11-13 on GNOME 51: with the
+   * session locked even the tab in front got none, and get_screenshot ran
+   * into this timeout). Saying so beats "retry", which cannot help.
+   */
+  private async timeoutReason(ms: number): Promise<string> {
+    const waited = `Figma did not answer within ${Math.round(ms / 1000)} s. `;
+    let frames: unknown = true;
+    try {
+      frames = await Promise.race([
+        this.ctx.viewProvider.executeInBrowserView(FRAMES_PROBE_SCRIPT),
+        new Promise((resolve) => setTimeout(() => resolve(true), Math.min(3_000, ms))),
+      ]);
+    } catch {
+      frames = true;
+    }
+    if (frames === false) {
+      return (
+        waited +
+        "The page is getting no animation frames, which Figma's exports and library calls wait for: " +
+        "the desktop is not drawing the app's window (screen locked or turned off). Retry once the screen is on."
+      );
+    }
+    return `${waited}The tab may still be loading or busy; retry in a moment.`;
+  }
+
+  /**
+   * Wait for Figma's editor to install its Plugin API in the tab. False when
+   * it will not come (view-only file, not a file page…) or did not within the
+   * limit; the caller then reports the script's own diagnosis.
+   */
+  private async waitForEditor(): Promise<boolean> {
+    const limit = this.ctx.editorWaitMs ?? EDITOR_WAIT_MS;
+    const failures = this.ctx.editorWaitFailures;
+    const key = this.ctx.fileKey ?? "";
+    const failedAt = failures?.get(key);
+    if (failedAt !== undefined && Date.now() - failedAt < EDITOR_WAIT_BACKOFF_MS) return false;
+    const deadline = Date.now() + limit;
+    while (Date.now() < deadline) {
+      let state: { ready?: boolean; blocked?: boolean } | undefined;
+      try {
+        state = await this.execOnce(EDITOR_STATE_SCRIPT, 3_000);
+      } catch {
+        // The page is mid-navigation or busy: ask again.
+      }
+      if (state?.ready) {
+        failures?.delete(key);
+        return true;
+      }
+      if (state?.blocked) return false;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(500, limit)));
+    }
+    failures?.set(key, Date.now());
+    return false;
   }
 
   /**
@@ -430,6 +539,15 @@ export class ToolHandlers {
   private async capturePageFallback(savePath: string | null, degraded: string) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
+    // A tab that is not in front has nothing on screen to capture
+    // (capturePage rejects with UnknownVizError), and raising it would
+    // interrupt the user. Say what does work instead.
+    if (!view.getVisible()) {
+      return toolError(
+        `${degraded} The tab is in the background, so there is no window to capture either. ` +
+          "Pass a nodeId: a node export works in a background tab.",
+      );
+    }
 
     const image = await view.webContents.capturePage();
     const buffer = image.toPNG();

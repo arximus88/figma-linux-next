@@ -598,7 +598,8 @@ const FILE_KEY_PROPERTY = {
   type: "string",
   description:
     "Key of the Figma file to act on (the id in figma.com/design/<fileKey>/…; a full file URL also works). " +
-    "The file must be open in a tab of the app. Omit to use the active tab.",
+    "The file must be open in a tab of the app; the tab may be in the background or not loaded yet " +
+    "(it is loaded where it is and never brought to the front). Omit to use the active tab.",
 };
 
 /** Tools that never touch a file: code-connect bookkeeping lives in the server. */

@@ -253,6 +253,19 @@ new App(new WindowManager(), new Session(), new FontManager());
   timeout. `executeInBrowserView` wraps every MCP script in `BackgroundWaker.during()`
   (`utils/backgroundWaker.ts`): `setBackgroundThrottling(false)` for the call, back to `true`
   after 60 s idle, untouched if it was already off. Not caused by the node being on another page.
+- Tools never bring a tab or the window to the front (issue #90). A lazily restored tab named by
+  `fileKey` is loaded where it is (`Window.loadTabInBackground`); a tab whose editor is still
+  loading makes `ToolHandlers.exec` wait up to 20 s for `window.figma` and run the script again
+  (measured 2026-11-13 under headless mutter: never-shown tab ready in ~2 s, lazily restored one
+  screenshotted in 5.5 s, minimized window fine). A file with no Plugin API for good (plugins off
+  in the org) pays the wait once, then fails at once for 2 min. What does **not** work: a locked
+  or switched-off screen — GNOME gives no window any frames then, even the tab in front, and
+  exports stall; the 60 s timeout names that reason (`FRAMES_PROBE_SCRIPT`). A file with no tab
+  at all is still an error.
+- Testing MCP against a real compositor without the user's screen: `mutter --headless --wayland
+  --no-x11 --wayland-display fln-wl --virtual-monitor 2200x1300@60`, then launch the app with
+  `WAYLAND_DISPLAY=fln-wl` and an isolated `XDG_CONFIG_HOME`. Unlike xvfb it behaves like the
+  user's GNOME (hidden views really are hidden) and frames always arrive.
 - `search_design_system` covers UI kits (Simple Design System, iOS, Material) through the Assets
   panel's kit search (`/api/search/community_libraries/library_assets`); `figma.teamLibrary` and
   the team component search never return them. `includeLibraryKeys` takes a library name or key.

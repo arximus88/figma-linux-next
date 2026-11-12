@@ -8,7 +8,7 @@
  *
  * Preconditions:
  *   1. The app is running with a *Design* file open (blank is fine).
- *   2. Settings → MCP integrations → "Enable write tools" is ON.
+ *   2. Settings → Integrations → Figma MCP → "Allow editing tools" is ON.
  *   3. The Figma MCP server is enabled (default) — reachable on the port below.
  *
  * Run:

@@ -47,12 +47,12 @@ pixels, console/network, and tab focus when a tool must run in the *active* tab.
 
 Both must be enabled, and they enable differently — this trips people up:
 
-- **Figma MCP** — on by default. Master toggle: Settings → *MCP integrations* → **Enable Figma MCP**.
+- **Figma MCP** — on by default. Master toggle: Settings → *Integrations* → **Figma MCP**.
   Applies live (start/stop the local server on save). Confirm it's reachable:
   `curl -s -X POST http://127.0.0.1:3845/mcp -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"c","version":"1"}}}'`
   (a 200 with `serverInfo` means it's up). The port is **configurable** (settings `mcp.serverPort`); read
   it from the *Server port* field, don't assume 3845.
-- **chrome-figma** — needs Settings → *MCP integrations* → **Enable Chrome DevTools (CDP)** *and an app
+- **chrome-figma** — needs Settings → *Integrations* → **Chrome DevTools** (port: *Debugging port*) *and an app
   restart* (`--remote-debugging-port` is a launch flag). Until then port 9222 is closed and every
   `mcp__chrome-figma__*` call fails. A client showing "connected" only means the npx stdio process
   started — **not** that the port is open. Verify with `curl -s http://127.0.0.1:9222/json/version`.
@@ -62,9 +62,11 @@ Data-plane-only tasks (pure read/write of the current file) need only the Figma 
 
 ## The reliable handoff
 
-Prefer `fileKey` (above): it removes the handoff entirely. One caveat: Figma installs
-`window.figma` in a tab only after that tab has been in front once, so a file opened in the
-background may answer "tab is in the background…" until it is shown — then focus it once (below).
+Prefer `fileKey` (above): it removes the handoff entirely. The tab does not have to be in front
+or even loaded: a lazily restored tab is loaded in the background, and a tool waits up to 20 s for
+Figma's editor to come up there (a few seconds in practice), so nothing is raised or switched on
+the user's screen. If a call still answers "has not finished loading its editor", retry it; do
+not focus the tab unless the user wants it in front.
 
 Without `fileKey`, the Figma MCP follows the app's **active (focused) tab** — the field `TabManager.lastFocusedTab`, which
 is changed **only** by the app's own tab-focus paths. `chrome-figma select_page` / `bringToFront` /
@@ -74,8 +76,10 @@ to a background file → `get_file_info` still returned the old active tab). To 
 drive the app's real focus path, then confirm:
 
 1. **Act** (control): change the app's *active tab* — the reliable ways are:
-   - **Click the panel tab.** In the panel page (the `dist/index.html` CDP target), each tab is a
-     `.g-tab-wrapper` with a `data-tab-id` attribute; clicking it sends the `setTabFocus` IPC.
+   - **Click the panel tab.** In the panel page (the `dist/index.html` CDP target; under
+     `bun run dev` it is `<vite dev server>/index.html`), each tab is a `#panel [data-tab-id]`
+     element (class `g-` / `k-` / `w-tab-wrapper` by frame style); clicking it sends the
+     `setTabFocus` IPC.
    - **Send the IPC directly** from the panel: `window.figmaApi.send('setTabFocus', <data-tab-id>)`
      (proven: switched the active tab and woke the Plugin API in ~1s).
    - **Open a URL** via the app's open-file flow (`figma://…` / `figma.com/…`) — this creates a **new,
@@ -92,14 +96,14 @@ tab never retargets the MCP at all, so it will happily read whatever tab is genu
 ## Recipes
 
 **Navigate-then-inspect** — open/focus a specific file, then read it.
-Switch the app's active tab (click the panel `.g-tab-wrapper`, or `window.figmaApi.send('setTabFocus',
+Switch the app's active tab (click the panel's `[data-tab-id]` element, or `window.figmaApi.send('setTabFocus',
 <data-tab-id>)`) → Figma MCP `get_file_info` to confirm → `get_metadata` / `get_design_context` /
 `figma_find`. Do **not** rely on `select_page`/`bringToFront` to switch what the MCP reads — they don't.
 
 **Batch-across-tabs** — do the same read on every open file.
 `whoami` / `get_file_info` with each file's `fileKey` (take the keys from the tab URLs:
 `chrome-figma list_pages`, or ask the user) → run the read with that `fileKey` → collect. No tab
-switching needed, unless a file answers "in the background" (focus it once, then retry).
+switching needed: background and lazily restored tabs are loaded where they are.
 
 **Build with code** — anything the Plugin API can do, in one call.
 `use_figma` with `code` (body of an async function, `figma` in scope, top-level `await`,
@@ -143,18 +147,22 @@ a plugin in that file. "No Figma window open" means no window at all.
   getter that stays `undefined` forever when `editing_file.can_edit === false` — Dev seats and files
   shared as "can view", **Dev Mode included**. Otherwise it appears after the file loads, in a team or
   org file, when plugins are allowed (`canRunExtensions`; Dev Mode: full Dev Mode access and
-  `can_export`). Background tabs get it a second or so after they are switched to. A tab that never
+  `can_export`). A background tab gets it a second or two after an MCP call wakes it (no switch
+  needed; the tool waits for it). A tab that never
   got it although none of these apply was seen only in test setups (several instances on one profile
   copy) and was not reproduced on clean installs.
-- **Scripts are bounded at 60 s.** A Figma call that never settles (a raster `exportAsync` stalled once
-  on the host, SVG fine, not reproduced since) returns "Figma did not answer within 60 s" instead of
-  hanging the client.
+- **Scripts are bounded at 60 s.** A Figma call that never settles returns "Figma did not answer
+  within 60 s" instead of hanging the client. The known cause: exports and library imports wait for
+  an animation frame, and with the screen locked or off the desktop gives the window none (seen
+  2026-11-13 on GNOME, even for the tab in front). The error then says "no animation frames";
+  retrying cannot help until the screen is on. A minimized window is fine.
 - **Recents / Home has no Plugin API.** Figma installs it only with a file open, so tools fail there
   with "not a Figma file". Switch to a design tab.
 - **CDP needs a restart.** Toggling CDP or its port does nothing until the app relaunches. The Figma MCP
   server port, by contrast, rebinds live on save.
-- **Write tools are gated.** `use_figma`, `figma_text`, `create_new_file`, `upload_assets` only appear
-  when Settings → *Enable write tools* is on; otherwise `tools/list` hides them and calls return
+- **Write tools are gated.** `use_figma`, `figma_text`, `create_new_file`, `upload_assets`,
+  `generate_diagram` only appear when Settings → *Integrations* → Figma MCP → *Allow editing tools*
+  is on; otherwise `tools/list` hides them and calls return
   "disabled". An upload URL re-checks the switch when the bytes arrive.
 - **Only local clients.** Requests with an `Origin` header that is not localhost/127.0.0.1 get 403:
   a web page cannot reach the server through the browser. CLI/desktop clients send no Origin and
@@ -179,9 +187,11 @@ a plugin in that file. "No Figma window open" means no window at all.
 - **Library reach.** Components: `search_design_system` calls Figma's own asset search
   (`POST /api/search/components`, the internal module found by its `postComponents` method) —
   every team and community library, used or not. If a Figma deploy moves that module the
-  search says so in `notes` and falls back to the file plus its instances. Variables: this file
-  and enabled libraries. Styles: local only; Figma answers library style search with "not
-  enabled in production" (2026-11-06).
+  search says so in `notes` and falls back to the file plus its instances. UI kits (Simple Design
+  System, iOS, Material) come from the Assets panel's kit search. Variables: this file, enabled
+  team libraries and UI kits. Styles: local only in `search_design_system` (Figma answers library
+  style search with "not enabled in production", 2026-11-06); `get_library_styles` lists a
+  library's published styles.
 - **`get_design_context` is markup with CSS**, not JSON: variables as `var(--name, value)`,
   `text-style="…"` with one definition in the legend, components named, a repeated instance
   written out once (`same-as`, `texts` for what differs), icons as `<svg/>`. About 10k
@@ -209,11 +219,11 @@ bun scripts/mcp-smoke.ts 3845 --file <fileKey>    # a specific open file — use
 
 It also checks the remote-parity surface: `use_figma` code, rollback and syntax errors, the page
 list, batched queries, `maxDimension`, `download_assets` and an `upload_assets` round trip. It does
-not run `create_new_file` (that creates a real draft). 32 PASS / 1 SKIP on 2026-11-06.
+not run `create_new_file` (that creates a real draft).
 
 FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam file is open.
 The Figma AI section runs only the free calls (`figma_ai_credits`, `figma_agent_threads`) and
-SKIPs when the AI tier is off. 36 PASS / 1 SKIP on 2026-11-06.
+SKIPs when the AI tier is off. On 2026-11-06, Design file, AI tier on: 36 PASS / 1 SKIP.
 
 ## Figma AI tier (own switch: `mcp.enableAiTools`)
 
@@ -237,14 +247,15 @@ Spends the user's Figma AI credits; never call the paid tools to "check they wor
 **Figma MCP (data) — read:** `whoami`, `get_file_info`, `get_metadata` (no nodeId → pages),
 `get_design_context`, `figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
 outline), `get_variable_defs`, `search_design_system` (`queries: [{entity, query}]`),
-`get_screenshot` (`maxDimension`, `contentsOnly`), `download_assets`, `get_comments`,
+`get_screenshot` (`nodeId`, `maxDimension`, `scale`, `contentsOnly`, `savePath`), `download_assets`, `get_comments`,
 `get_versions`, `list_libraries`, `get_library_styles`, `get_library_updates`,
 `get_code_connect`, `get_code_connect_map` /
 `add_code_connect_map`, `create_design_system_rules`, `get_figjam`.
 **Figma MCP — write (gated):** `use_figma` (`code`; legacy `action`+`params` still works),
 `figma_text` (safe text edit w/ font autoload), `create_new_file` (a real file), `upload_assets`,
 `generate_diagram` (FigJam).
-All file tools take an optional `fileKey`.
+All file tools take an optional `fileKey` (not `get_code_connect_map` / `add_code_connect_map`,
+which never touch a file).
 
 **chrome-figma (control):** `list_pages` / `select_page` / `new_page` / `navigate_page`, `click` / `fill`
 / `type_text` / `hover` / `press_key`, `take_screenshot` / `take_snapshot`, `evaluate_script`,

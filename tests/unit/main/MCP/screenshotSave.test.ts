@@ -50,6 +50,7 @@ function makeHandlers({ execResult, capturePage }: HarnessOptions) {
       },
       getActiveTabView: () =>
         ({
+          getVisible: () => true,
           webContents: {
             capturePage: async () => {
               calls.capturePage++;
@@ -63,6 +64,8 @@ function makeHandlers({ execResult, capturePage }: HarnessOptions) {
     assetStore: new Map(),
     getPort: () => 3845,
     getSaveBaseDir: () => saveBaseDir,
+    // Waiting for a loading editor is covered in backgroundTab.test.ts.
+    editorWaitMs: 0,
   };
 
   return { handlers: new ToolHandlers(ctx), calls };

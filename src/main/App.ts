@@ -106,9 +106,16 @@ export default class App {
         );
       }
       if ("discarded" in found) {
-        throw new Error(
-          `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but is not loaded yet (lazy session restore). Select its tab in the app once, then retry.`,
-        );
+        // Lazy session restore left the tab as a shell. Load it where it is,
+        // in the background: the tool then waits for Figma's editor.
+        const loaded = found.load();
+        if (!loaded) {
+          throw new Error(
+            `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but it could not be loaded. Select its tab in the app once, then retry.`,
+          );
+        }
+        logger.info(`[MCP] loading the lazily restored tab of ${fileKey} in the background`);
+        return loaded;
       }
       return found.tab;
     };
