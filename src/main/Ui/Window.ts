@@ -1178,10 +1178,9 @@ export default class Window {
     this.tabManager.reloadTab(tabId);
   }
   public closeTab(tabId: number) {
-    // Guard: reject IDs that are not in the active tab list.
-    // TabManager.getById() falls back to mainTab for unknown IDs, which would
-    // cause mainTab to be removed from contentView on double-close (e.g. when
-    // renderer sends closeTab after setFocusToMainTab already closed it internally).
+    // Guard: reject IDs that are not in the active tab list. The renderer sends
+    // closeTab after setFocusToMainTab has already closed the tab internally
+    // (intentional double-close), so a stale ID is routine here.
     if (!this.tabManager.getAll().has(tabId)) {
       return;
     }

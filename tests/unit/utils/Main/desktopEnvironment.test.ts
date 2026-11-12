@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { detectFrameStyle, resolveFrameStyle } from "./desktopEnvironment";
+import { detectFrameStyle, resolveFrameStyle } from "Utils/Main/desktopEnvironment";
 
 describe("detectFrameStyle", () => {
   const cases: Array<[string, NodeJS.ProcessEnv, Types.FrameStyle]> = [
