@@ -83,6 +83,42 @@ const BASE_TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "get_motion_context",
+    description:
+      "Get the animation on a layer or your selection, like Figma's remote get_motion_context: " +
+      "its keyframes per animated property (times in seconds, values, easings as CSS timing " +
+      "functions, and the CSS property each one corresponds to), the animation styles applied " +
+      "to it (Figma presets such as Position, Scale, Opacity, TextStagger, or the file's custom " +
+      "styles) with their settings, and the timeline duration of its top-level frame. JSON, to " +
+      "implement the motion in code. By default only the layer itself; recursive: true includes " +
+      "every animated descendant. get_screenshot shows the resting state only. " +
+      "Supports Figma Design files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection.",
+        },
+        recursive: {
+          type: "boolean",
+          description:
+            "Include every descendant that has keyframes or an animation style (default false).",
+        },
+        clientFrameworks: {
+          type: "string",
+          description:
+            "Figma's remote parameter, accepted so the same call works on both servers; the answer does not depend on it.",
+        },
+        clientLanguages: {
+          type: "string",
+          description:
+            "Figma's remote parameter, accepted so the same call works on both servers; the answer does not depend on it.",
+        },
+      },
+    },
+  },
+  {
     name: "get_metadata",
     description:
       "Sparse XML outline of the document — layer IDs, types, names, positions and sizes only " +
@@ -662,6 +698,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   get_metadata: READ,
   get_file_info: READ,
   get_screenshot: READ,
+  get_motion_context: READ,
   get_variable_defs: READ,
   get_code_connect_map: READ,
   // Kept in the server's memory for the session; the file is not touched.

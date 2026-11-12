@@ -44,6 +44,7 @@ import {
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
 import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
+import { MOTION_CONTEXT_SCRIPT } from "../scripts/motion";
 import {
   CODE_CONNECT_SCRIPT,
   LIBRARY_STYLES_SCRIPT,
@@ -509,6 +510,17 @@ export class ToolHandlers {
     }
     const legend = String(result?.legendForCode ?? "").trim();
     return `${code}\n${notes.join("\n")}\n${legend ? `\n${legend}\n` : ""}`;
+  }
+
+  // ── Tool: get_motion_context ─────────────────────────────────────────────
+
+  public async toolGetMotionContext(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    const result = await this.exec(MOTION_CONTEXT_SCRIPT(nodeId, args.recursive === true));
+    if (!result) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (result.error) return toolError(result.error);
+    // Compact: a recursive read of an animated screen is mostly braces otherwise.
+    return toolResult(JSON.stringify(result));
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────

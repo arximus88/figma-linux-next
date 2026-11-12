@@ -192,7 +192,13 @@ a plugin in that file. "No Figma window open" means no window at all.
   team libraries and UI kits. Styles: local only in `search_design_system` (Figma answers library
   style search with "not enabled in production", 2026-11-06); `get_library_styles` lists a
   library's published styles.
-- **`get_design_context` is markup with CSS**, not JSON: variables as `var(--name, value)`,
+- **`get_design_context` can answer in React + Tailwind**: pass `clientFrameworks: "react"` (or
+  `format: "react"`) for a component like Figma's remote tool, with asset URLs (valid 10 min) and
+  a screenshot appended (`excludeScreenshot: true` leaves it out). About twice the size of the
+  markup; use the markup when you only need to understand the layout.
+- **`get_motion_context`** returns keyframes, animation styles and the timeline duration of a
+  layer as JSON; `recursive: true` for a whole frame. Presets come back as settings, not keyframes.
+- **`get_design_context` is markup with CSS** by default, not JSON: variables as `var(--name, value)`,
   `text-style="…"` with one definition in the legend, components named, a repeated instance
   written out once (`same-as`, `texts` for what differs), icons as `<svg/>`. About 10k
   characters for a 54-layer phone screen (Figma's remote: 19k; our old JSON: 95k).
@@ -223,7 +229,8 @@ not run `create_new_file` (that creates a real draft).
 
 FigJam-only tools (`get_figjam`, `generate_diagram`) show SKIP unless a FigJam file is open.
 The Figma AI section runs only the free calls (`figma_ai_credits`, `figma_agent_threads`) and
-SKIPs when the AI tier is off. On 2026-11-06, Design file, AI tier on: 36 PASS / 1 SKIP.
+SKIPs when the AI tier is off. On 2026-11-13, Design file in a background tab, AI tier off:
+36 PASS / 3 SKIP.
 
 ## Figma AI tier (own switch: `mcp.enableAiTools`)
 
@@ -245,7 +252,8 @@ Spends the user's Figma AI credits; never call the paid tools to "check they wor
 ## Tool quick-reference
 
 **Figma MCP (data) — read:** `whoami`, `get_file_info`, `get_metadata` (no nodeId → pages),
-`get_design_context`, `figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
+`get_design_context` (`format` / `clientFrameworks`), `get_motion_context` (`recursive`),
+`figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
 outline), `get_variable_defs`, `search_design_system` (`queries: [{entity, query}]`),
 `get_screenshot` (`nodeId`, `maxDimension`, `scale`, `contentsOnly`, `savePath`), `download_assets`, `get_comments`,
 `get_versions`, `list_libraries`, `get_library_styles`, `get_library_updates`,

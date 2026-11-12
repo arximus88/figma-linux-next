@@ -240,6 +240,18 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- `get_design_context` has two forms. Default: markup with CSS. With `clientFrameworks` naming
+  React / Next.js / Remix / Gatsby, or `format: "react"`: a React + Tailwind component like Figma's
+  remote tool (asset URLs as constants, `data-node-id`, a screenshot appended unless
+  `excludeScreenshot`). The React form is built in Node from the same markup
+  (`utils/markup.ts` → `utils/tailwind.ts` → `utils/reactCode.ts`); the page script only gains a
+  `forCode` option (every instance written out, image fills named by hash). To check a change to
+  it, render the output in a browser next to `get_screenshot` of the node — that is how the missing
+  gradient direction and the misplaced line-height were found (2026-11-13).
+- `get_motion_context` (`scripts/motion.ts`) reads `node.manualKeyframeTracks`,
+  `node.animationStyles` and `node.timelines`. Presets do not expose the keyframes they generate,
+  only their props. `applyManualKeyframeTrack` takes `{type: "PROPERTY", name: "OPACITY"}` as the
+  field, not a string.
 - `use_figma` also has the helpers Figma's `figma-use` skill teaches and its remote runtime
   provides (`figma.createAutoLayout`, `figma.io.write`, `node.set/query/matches/screenshot/tree/
   placeholder`, `page.findPlacement`): `scripts/figmaHelpers.ts`. Page `figma` is frozen, so code

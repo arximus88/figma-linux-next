@@ -596,6 +596,7 @@ export class McpServer {
     get_metadata: { run: (h, a) => h.toolGetMetadata(a) },
     get_file_info: { run: (h) => h.toolGetFileInfo() },
     get_screenshot: { run: (h, a) => h.toolGetScreenshot(a) },
+    get_motion_context: { run: (h, a) => h.toolGetMotionContext(a) },
     get_variable_defs: { run: (h, a) => h.toolGetVariableDefs(a) },
     get_code_connect_map: { run: (h) => h.toolGetCodeConnectMap() },
     add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },

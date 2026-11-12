@@ -193,6 +193,32 @@ async function main() {
   const dc = await call("get_design_context", { nodeId: frameId, depth: 5 });
   record("get_design_context", /Hello MCP \(edited\)/.test(dc.text) ? "PASS" : "FAIL");
 
+  // The React form (Figma's remote parameters): a component, with the node's screenshot appended.
+  const react = await call("get_design_context", { nodeId: frameId, clientFrameworks: "react" });
+  record(
+    "get_design_context:react",
+    /export default function \w+\(\)/.test(react.text) && /data-node-id=/.test(react.text) && react.hasImage
+      ? "PASS"
+      : "FAIL",
+    react.hasImage ? "" : "no screenshot",
+  );
+
+  // Keyframes written with the Plugin API must come back through get_motion_context.
+  await call("use_figma", {
+    code: `const frame = await figma.getNodeByIdAsync(${JSON.stringify(frameId)}); const n = frame.children[0];
+n.applyManualKeyframeTrack({ type: "PROPERTY", name: "OPACITY" }, { keyframes: [
+  { timelinePosition: 0, value: { type: "FLOAT", value: 0 } },
+  { timelinePosition: 0.5, value: { type: "FLOAT", value: 1 }, easing: { type: "EASE_OUT" } } ] });
+return n.id;`,
+  });
+  const motion = parseJson((await call("get_motion_context", { nodeId: frameId, recursive: true })).text);
+  const opacity = motion?.nodes?.[0]?.keyframes?.OPACITY?.keyframes;
+  record(
+    "get_motion_context",
+    opacity?.[1]?.time === 0.5 && /cubic-bezier/.test(opacity?.[1]?.easing ?? "") ? "PASS" : "FAIL",
+    motion?.nodes ? `${motion.nodes.length} animated layer(s)` : "no answer",
+  );
+
   // Selection-sensitive: with a node selected it runs in selection mode, so assert
   // the tool returns a valid shape rather than requiring our file-wide variable.
   const vars = await call("get_variable_defs");
