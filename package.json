@@ -36,7 +36,7 @@
   "dependencies": {
     "chokidar": "^6.0.0",
     "electron-log": "^5.4.4",
-    "fontkit": "^2.0.4"
+    "fontkit": "^3.0.0"
   },
   "trustedDependencies": [
     "electron"
