@@ -599,7 +599,7 @@ export class McpServer {
     add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },
     create_design_system_rules: { run: (h, a) => h.toolCreateDesignSystemRules(a) },
     get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
-    generate_diagram: { run: (h, a) => h.toolGenerateDiagram(a) },
+    generate_diagram: { write: true, run: (h, a) => h.toolGenerateDiagram(a) },
     search_design_system: { run: (h, a) => h.toolSearchDesignSystem(a) },
     figma_find: { run: (h, a) => h.toolFigmaFind(a) },
     figma_tree: { run: (h, a) => h.toolFigmaTree(a) },

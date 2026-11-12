@@ -219,27 +219,6 @@ const BASE_TOOLS: ToolDefinition[] = [
     },
   },
   {
-    name: "generate_diagram",
-    description:
-      "Generates a FigJam diagram from Mermaid syntax. Accepts Mermaid diagram definitions " +
-      "and converts them into interactive FigJam shapes and connectors that can be edited " +
-      "and shared. Supported diagram types: Flowchart, Gantt chart, State diagram, " +
-      "Sequence diagram. You do not have to provide Mermaid syntax yourself — describe " +
-      "the desired diagram in natural language and the agent will generate the appropriate " +
-      "Mermaid syntax. Requires an open FigJam file. No file context required to start.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        mermaid: {
-          type: "string",
-          description:
-            "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
-        },
-      },
-      required: ["mermaid"],
-    },
-  },
-  {
     name: "search_design_system",
     description:
       "Search design-system assets, Figma remote-MCP style. Pass `queries` as an array of objects, " +
@@ -446,6 +425,27 @@ const BASE_TOOLS: ToolDefinition[] = [
 // ── Write Tool Definitions (gated by settings) ──────────────────────────────
 
 const BASE_WRITE_TOOLS: ToolDefinition[] = [
+  {
+    name: "generate_diagram",
+    description:
+      "Generates a FigJam diagram from Mermaid syntax. Accepts Mermaid diagram definitions " +
+      "and converts them into interactive FigJam shapes and connectors that can be edited " +
+      "and shared. Supported diagram types: Flowchart, Gantt chart, State diagram, " +
+      "Sequence diagram. You do not have to provide Mermaid syntax yourself — describe " +
+      "the desired diagram in natural language and the agent will generate the appropriate " +
+      "Mermaid syntax. Requires an open FigJam file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mermaid: {
+          type: "string",
+          description:
+            "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
+        },
+      },
+      required: ["mermaid"],
+    },
+  },
   {
     name: "use_figma",
     description:
