@@ -500,11 +500,15 @@ Not called anywhere at the moment; if it comes back: `app.getApplicationInfoForP
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
 
-### fontkit 3 is ESM-only, loaded with require()
-`fontkit` is external to the main bundle, which is CommonJS, so `dist/main/main.js` does
-`require("fontkit")` on a package that ships only ES modules (3.0.0, 2026-11). That relies on
-Node's require(esm) (Node ≥ 22.12): fine on the bundled Electron 45 (Node 24, checked), and a
-startup crash on a system Electron older than that for the AUR `figma-linux-next` package.
+### fontkit 3 is ESM-only — loaded with import(), never a top-level import
+`fontkit` is external to the main bundle, which is CommonJS, and 3.0.0 (2026-11) ships only ES
+modules. A top-level `import` compiles to `require("fontkit")` on the first line of
+`dist/main/main.js`: that needs Node's require(esm) (Node ≥ 22.12, Electron ≥ 35) and on anything
+older the whole app dies before it has a window — possible only for the AUR `figma-linux-next`
+package, which runs on system Electron. So `src/main/Fonts/index.ts` loads it with `import()` on
+first use (the bundle keeps a native `import()`, check with `rg -o 'import\(.fontkit.\)'
+dist/main/main.js`). If it still fails, the app runs: fc-list fonts work, variable axes and fonts
+outside fontconfig are missing, and the log has one `fontkit did not load` line.
 2.0.4 threw on some variable fonts (SF Pro, New York, Cantarell: "reading 'en'"), which the
 font scan swallowed, so those lost their axes; 3.0.0 reads them. To compare two versions, dump
 `fontkit.open()` results for `fc-list : file variable` files with each and diff.
