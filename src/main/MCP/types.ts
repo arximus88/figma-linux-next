@@ -41,6 +41,7 @@ export type ToolName =
   | "get_metadata"
   | "get_file_info"
   | "get_screenshot"
+  | "get_motion_context"
   | "get_variable_defs"
   | "get_code_connect_map"
   | "add_code_connect_map"

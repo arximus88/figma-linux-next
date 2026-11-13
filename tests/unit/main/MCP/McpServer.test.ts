@@ -235,7 +235,16 @@ describe("McpServer (Streamable HTTP transport)", () => {
     expect(payload.mappings["10:20"].codeConnectName).toBe("Button");
   });
 
+  it("refuses generate_diagram while editing tools are off: it adds nodes to the file", async () => {
+    const sessionId = await initialize();
+    const res = await callTool(sessionId, "generate_diagram", { mermaid: "graph TD\n A-->B" }, 12);
+    expect(res.json.result.isError).toBe(true);
+    expect(res.json.result.content[0].text).toContain("disabled");
+    expect(provider.calls.length).toBe(0);
+  });
+
   it("generates a diagram from mermaid (parseMermaid + exec)", async () => {
+    server.setWriteToolsEnabled(true);
     const sessionId = await initialize();
     provider.nextResult = { nodesCreated: 2, connectorsCreated: 1 };
     const res = await callTool(sessionId, "generate_diagram", { mermaid: "graph TD\n A-->B" }, 12);

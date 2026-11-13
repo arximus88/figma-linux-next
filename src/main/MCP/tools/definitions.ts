@@ -23,6 +23,10 @@ const BASE_TOOLS: ToolDefinition[] = [
       "instances of a component are written out once; icons collapse to <svg/> (download_assets " +
       "returns the files). When nodeId is omitted, uses the currently selected nodes. Pass a " +
       "frame, not a page: get_metadata lists a page's frames. " +
+      "With clientFrameworks naming React (or format: 'react') the answer is a React component " +
+      "styled with Tailwind instead, like Figma's remote get_design_context: asset URLs as " +
+      "constants, data-node-id on every element, every instance written out, a screenshot " +
+      "appended. " +
       "Supports Figma Design and Figma Make files.",
     inputSchema: {
       type: "object",
@@ -36,6 +40,80 @@ const BASE_TOOLS: ToolDefinition[] = [
           description:
             "Levels of layers to write out (default: 10). Deeper containers are cut off with a " +
             "note to call again on their id.",
+        },
+        format: {
+          type: "string",
+          enum: ["markup", "react"],
+          description:
+            "'markup' (default): compact markup with CSS, about half the size. 'react': a React " +
+            "component with Tailwind classes. Overrides clientFrameworks.",
+        },
+        clientFrameworks: {
+          type: "string",
+          description:
+            "Comma-separated frameworks of the project you are coding in (Figma's remote parameter), " +
+            "e.g. 'react' or 'react,next.js'. React, Next.js, Remix or Gatsby select the React + " +
+            "Tailwind output; anything else keeps the markup.",
+        },
+        clientLanguages: {
+          type: "string",
+          description:
+            "Comma-separated languages of the project (Figma's remote parameter). Accepted so the " +
+            "same call works on both servers; the output does not depend on it.",
+        },
+        excludeScreenshot: {
+          type: "boolean",
+          description:
+            "The React output ends with a screenshot of the node; true leaves it out. The markup " +
+            "output has none unless this is false.",
+        },
+        disableCodeConnect: {
+          type: "boolean",
+          description:
+            "React output only: true writes mapped layers out as elements instead of the code " +
+            "components registered with add_code_connect_map.",
+        },
+        forceCode: {
+          type: "boolean",
+          description:
+            "Figma's remote parameter, accepted for compatibility: this server always returns the " +
+            "code, with a warning on top when it is large.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_motion_context",
+    description:
+      "Get the animation on a layer or your selection, like Figma's remote get_motion_context: " +
+      "its keyframes per animated property (times in seconds, values, easings as CSS timing " +
+      "functions, and the CSS property each one corresponds to), the animation styles applied " +
+      "to it (Figma presets such as Position, Scale, Opacity, TextStagger, or the file's custom " +
+      "styles) with their settings, and the timeline duration of its top-level frame. JSON, to " +
+      "implement the motion in code. By default only the layer itself; recursive: true includes " +
+      "every animated descendant. get_screenshot shows the resting state only. " +
+      "Supports Figma Design files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeId: {
+          type: "string",
+          description: "Node ID in '1:2' format. Omit to use current selection.",
+        },
+        recursive: {
+          type: "boolean",
+          description:
+            "Include every descendant that has keyframes or an animation style (default false).",
+        },
+        clientFrameworks: {
+          type: "string",
+          description:
+            "Figma's remote parameter, accepted so the same call works on both servers; the answer does not depend on it.",
+        },
+        clientLanguages: {
+          type: "string",
+          description:
+            "Figma's remote parameter, accepted so the same call works on both servers; the answer does not depend on it.",
         },
       },
     },
@@ -216,27 +294,6 @@ const BASE_TOOLS: ToolDefinition[] = [
           description: "Node ID in '1:2' format. Omit to use current selection or entire page.",
         },
       },
-    },
-  },
-  {
-    name: "generate_diagram",
-    description:
-      "Generates a FigJam diagram from Mermaid syntax. Accepts Mermaid diagram definitions " +
-      "and converts them into interactive FigJam shapes and connectors that can be edited " +
-      "and shared. Supported diagram types: Flowchart, Gantt chart, State diagram, " +
-      "Sequence diagram. You do not have to provide Mermaid syntax yourself — describe " +
-      "the desired diagram in natural language and the agent will generate the appropriate " +
-      "Mermaid syntax. Requires an open FigJam file. No file context required to start.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        mermaid: {
-          type: "string",
-          description:
-            "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
-        },
-      },
-      required: ["mermaid"],
     },
   },
   {
@@ -447,6 +504,27 @@ const BASE_TOOLS: ToolDefinition[] = [
 
 const BASE_WRITE_TOOLS: ToolDefinition[] = [
   {
+    name: "generate_diagram",
+    description:
+      "Generates a FigJam diagram from Mermaid syntax. Accepts Mermaid diagram definitions " +
+      "and converts them into interactive FigJam shapes and connectors that can be edited " +
+      "and shared. Supported diagram types: Flowchart, Gantt chart, State diagram, " +
+      "Sequence diagram. You do not have to provide Mermaid syntax yourself — describe " +
+      "the desired diagram in natural language and the agent will generate the appropriate " +
+      "Mermaid syntax. Requires an open FigJam file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mermaid: {
+          type: "string",
+          description:
+            "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
+        },
+      },
+      required: ["mermaid"],
+    },
+  },
+  {
     name: "use_figma",
     description:
       "Create, edit, inspect or delete anything in a Figma file by running JavaScript against " +
@@ -598,7 +676,8 @@ const FILE_KEY_PROPERTY = {
   type: "string",
   description:
     "Key of the Figma file to act on (the id in figma.com/design/<fileKey>/…; a full file URL also works). " +
-    "The file must be open in a tab of the app. Omit to use the active tab.",
+    "The file must be open in a tab of the app; the tab may be in the background or not loaded yet " +
+    "(it is loaded where it is and never brought to the front). Omit to use the active tab.",
 };
 
 /** Tools that never touch a file: code-connect bookkeeping lives in the server. */
@@ -619,6 +698,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   get_metadata: READ,
   get_file_info: READ,
   get_screenshot: READ,
+  get_motion_context: READ,
   get_variable_defs: READ,
   get_code_connect_map: READ,
   // Kept in the server's memory for the session; the file is not touched.

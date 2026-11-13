@@ -18,12 +18,26 @@
 
 import { PLUGIN_API_UNAVAILABLE } from "./helpers";
 
-export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
+export interface DesignContextOptions {
+  /**
+   * Write every instance out in full and name image fills by hash
+   * (`image(fill hash)`): what the React output needs, where a `same-as`
+   * reference or an anonymous image cannot be turned into code.
+   */
+  forCode?: boolean;
+}
+
+export const DESIGN_CONTEXT_SCRIPT = (
+  nodeId: string | null,
+  depth: number,
+  opts: DesignContextOptions = {},
+) => `
 (async function() {
   try {
     const figma = window.figma;
     if (!figma) return JSON.stringify({ error: ${PLUGIN_API_UNAVAILABLE} });
     const MAX_DEPTH = ${Math.max(0, Math.floor(depth))};
+    const FOR_CODE = ${opts.forCode ? "true" : "false"};
 
     const getNode = function (id) {
       return typeof figma.getNodeByIdAsync === 'function' ? figma.getNodeByIdAsync(id) : figma.getNodeById(id);
@@ -91,22 +105,43 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       return varRef(bound(node, prop), px(value));
     }
 
-    async function paintCss(p) {
+    // CSS angle of a linear gradient. Figma's gradientTransform maps the layer's
+    // unit square to gradient space, whose x runs along the gradient; its
+    // gradient in layer pixels is (a / width, b / height). CSS measures from
+    // "to top", clockwise. Without it every gradient read as top-to-bottom.
+    function gradientAngle(p, node) {
+      const t = p.gradientTransform;
+      if (!t || !t[0]) return null;
+      const w = node && isNum(node.width) && node.width > 0 ? node.width : 1;
+      const h = node && isNum(node.height) && node.height > 0 ? node.height : 1;
+      const dx = t[0][0] / w, dy = t[0][1] / h;
+      if (!isNum(dx) || !isNum(dy) || (dx === 0 && dy === 0)) return null;
+      let deg = Math.round(Math.atan2(dx, -dy) * 180 / Math.PI);
+      if (deg < 0) deg += 360;
+      return deg;
+    }
+
+    async function paintCss(p, node) {
       if (!p || p.visible === false) return null;
       const op = p.opacity === undefined ? 1 : p.opacity;
       if (p.type === 'SOLID') return varRef(p.boundVariables && p.boundVariables.color, hex(p.color, op));
       if (String(p.type).indexOf('GRADIENT') === 0) {
         const stops = (p.gradientStops || []).map(function (s) { return hex(s.color, op) + ' ' + Math.round(s.position * 100) + '%'; }).join(', ');
         const kind = p.type === 'GRADIENT_RADIAL' ? 'radial-gradient' : p.type === 'GRADIENT_ANGULAR' ? 'conic-gradient' : 'linear-gradient';
-        return kind + '(' + stops + ')';
+        const angle = p.type === 'GRADIENT_LINEAR' ? gradientAngle(p, node) : null;
+        // 180deg is what CSS assumes when no direction is given.
+        return kind + '(' + (angle !== null && angle !== 180 ? angle + 'deg, ' : '') + stops + ')';
       }
-      if (p.type === 'IMAGE') { images++; return 'image(' + String(p.scaleMode || 'FILL').toLowerCase() + ')'; }
+      if (p.type === 'IMAGE') {
+        images++;
+        return 'image(' + String(p.scaleMode || 'FILL').toLowerCase() + (FOR_CODE && p.imageHash ? ' ' + p.imageHash : '') + ')';
+      }
       return String(p.type).toLowerCase();
     }
-    async function paintsCss(paints) {
+    async function paintsCss(paints, node) {
       if (!Array.isArray(paints)) return null;
       const out = [];
-      for (const p of paints) { const c = await paintCss(p); if (c) out.push(c); }
+      for (const p of paints) { const c = await paintCss(p, node); if (c) out.push(c); }
       // Figma lists paints bottom to top; CSS lists layers top first.
       return out.length ? out.reverse().join(', ') : null;
     }
@@ -136,6 +171,27 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       if (f.textDecoration && f.textDecoration !== 'NONE') parts.push(String(f.textDecoration).toLowerCase());
       return parts.join(', ');
     }
+    // A text style's font as CSS declarations (for output that has no legend to point at).
+    function fontDecls(f) {
+      const out = [];
+      if (f.fontName && typeof f.fontName === 'object') {
+        out.push("font-family:'" + f.fontName.family + "'");
+        const w = weightOf(f.fontName.style);
+        if (w !== 400) out.push('font-weight:' + w);
+        if (/italic|oblique/i.test(f.fontName.style)) out.push('font-style:italic');
+      }
+      if (isNum(f.fontSize)) out.push('font-size:' + px(f.fontSize));
+      const lh = lineHeightCss(f.lineHeight);
+      if (lh) out.push('line-height:' + lh);
+      const ls = letterSpacingCss(f.letterSpacing);
+      if (ls) out.push('letter-spacing:' + ls);
+      if (f.textCase === 'UPPER') out.push('text-transform:uppercase');
+      else if (f.textCase === 'LOWER') out.push('text-transform:lowercase');
+      else if (f.textCase === 'TITLE') out.push('text-transform:capitalize');
+      if (f.textDecoration === 'UNDERLINE') out.push('text-decoration:underline');
+      else if (f.textDecoration === 'STRIKETHROUGH') out.push('text-decoration:line-through');
+      return out.join(';');
+    }
     async function textStyleName(id) {
       if (typeof id !== 'string' || !id) return null;
       if (textStyles[id]) return textStyles[id].name;
@@ -148,7 +204,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
           if (v) bindings.push(prop + '=' + v.name);
         }
       } catch (e) {}
-      textStyles[id] = { name: st.name, def: fontDef(st), bindings: bindings, description: st.description || '' };
+      textStyles[id] = { name: st.name, def: fontDef(st), css: fontDecls(st), bindings: bindings, description: st.description || '' };
       textStyleOrder.push(id);
       return st.name;
     }
@@ -289,7 +345,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       // ── box ──
       if (node.clipsContent && node.children && node.children.length) st.push('overflow:hidden');
       if (!isText) {
-        const fill = await paintsCss(node.fills);
+        const fill = await paintsCss(node.fills, node);
         if (fill) st.push((VECTORISH[node.type] && node.type !== 'RECTANGLE' ? 'fill:' : 'background:') + fill);
         const fs = await styleName(node.fillStyleId, 'fill');
         if (fs) attrs.push('fill-style="' + esc(fs) + '"');
@@ -301,7 +357,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
       } else if (isNum(node.cornerRadius) && node.cornerRadius > 0) {
         st.push('border-radius:' + (await num(node, 'cornerRadius', node.cornerRadius)));
       }
-      const stroke = await paintsCss(node.strokes);
+      const stroke = await paintsCss(node.strokes, node);
       if (stroke) {
         const w = isNum(node.strokeWeight) ? node.strokeWeight : isNum(node.strokeTopWeight) ? node.strokeTopWeight : 1;
         const dashed = Array.isArray(node.dashPattern) && node.dashPattern.length ? 'dashed' : 'solid';
@@ -344,14 +400,14 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
           for (const seg of segments) {
             const ss = [];
             const named = await fontCss(node, seg, ss);
-            const color = await paintsCss(seg.fills);
+            const color = await paintsCss(seg.fills, node);
             if (color) ss.push('color:' + color);
             body += '<span' + (named ? ' text-style="' + esc(named) + '"' : '') + (ss.length ? ' style="' + esc(ss.join(';')) + '"' : '') + '>' + escText(seg.characters) + '</span>';
           }
         } else {
           const named = await fontCss(node, null, st);
           if (named) attrs.push('text-style="' + esc(named) + '"');
-          const color = await paintsCss(node.fills);
+          const color = await paintsCss(node.fills, node);
           if (color) st.push('color:' + color);
           body = escText(node.characters);
         }
@@ -388,7 +444,7 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
           // that differs from the first.
           const seen = instanceTexts[main.id];
           const mine = texts(node, []);
-          if (seen) {
+          if (seen && !FOR_CODE) {
             const diff = mine.filter(function (t, i) { return t !== seen.texts[i]; });
             attrs.push('same-as="' + esc(seen.id) + '"');
             if (diff.length) attrs.push('texts="' + esc(diff.join(' | ')) + '"');
@@ -430,8 +486,10 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
 
     let page = targets[0];
     while (page && page.type !== 'PAGE') page = page.parent;
-    let out = '<!-- file "' + esc(figma.root.name) + '"' + (page ? ', page "' + esc(page.name) + '" (' + page.id + ')' : '') + ' -->\\n';
-    for (const t of targets) out += await element(t, null, 0);
+    const header = '<!-- file "' + esc(figma.root.name) + '"' + (page ? ', page "' + esc(page.name) + '" (' + page.id + ')' : '') + ' -->\\n';
+    let markup = '';
+    for (const t of targets) markup += await element(t, null, 0);
+    let out = header + markup;
 
     const legend = [];
     if (varOrder.length) {
@@ -463,13 +521,24 @@ export const DESIGN_CONTEXT_SCRIPT = (nodeId: string | null, depth: number) => `
         legend.push('- ' + c.name + (c.remote ? ' (library' + (c.key ? ', key ' + c.key : '') + ')' : '') + (c.description ? ': ' + plain(c.description).slice(0, 400) : ''));
       }
     }
+    // The React output inlines text styles and links the files itself.
+    const legendForCode = legend.join('\\n').replace('Text styles (elements with text-style="…" use these):', 'Text styles (already written out as classes above):');
     const notes = [];
     if (icons) notes.push(icons + ' vector group(s) shown as <svg/>; download_assets on the node returns them as SVG files.');
     if (images) notes.push(images + ' image fill(s) shown as image(); download_assets on the node returns the original images.');
     if (hidden) notes.push(hidden + ' hidden layer(s) left out.');
     if (notes.length) legend.push('Notes:', ...notes.map(function (n) { return '- ' + n; }));
     if (legend.length) out += '\\n' + legend.join('\\n') + '\\n';
-    return JSON.stringify({ text: out, nodeCount: nodeCount });
+    const styleCss = {};
+    for (const id of textStyleOrder) styleCss[textStyles[id].name] = textStyles[id].css;
+    return JSON.stringify({
+      text: out,
+      nodeCount: nodeCount,
+      markup: markup,
+      legendForCode: legendForCode + (hidden ? (legendForCode ? '\\n' : '') + 'Notes:\\n- ' + hidden + ' hidden layer(s) left out.' : ''),
+      textStyleCss: styleCss,
+      targetIds: targets.map(function (t) { return t.id; }),
+    });
   } catch (e) {
     return JSON.stringify({ error: e.message || String(e) });
   }

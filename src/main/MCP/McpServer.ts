@@ -62,6 +62,7 @@ export class McpServer {
   private codeConnectMap = new Map<string, CodeConnectEntry>();
   private assetStore = new Map<string, AssetEntry>();
   private uploads = new Map<string, UploadTicket>();
+  private editorWaitFailures = new Map<string, number>();
   private log: Logger;
   private viewProvider: FigmaViewProvider | null = null;
   private handlers: ToolHandlers | null = null;
@@ -95,6 +96,7 @@ export class McpServer {
     return new ToolHandlers({
       viewProvider: provider,
       uploads: this.uploads,
+      editorWaitFailures: this.editorWaitFailures,
       fileKey,
       log: this.log,
       codeConnectMap: this.codeConnectMap,
@@ -594,12 +596,13 @@ export class McpServer {
     get_metadata: { run: (h, a) => h.toolGetMetadata(a) },
     get_file_info: { run: (h) => h.toolGetFileInfo() },
     get_screenshot: { run: (h, a) => h.toolGetScreenshot(a) },
+    get_motion_context: { run: (h, a) => h.toolGetMotionContext(a) },
     get_variable_defs: { run: (h, a) => h.toolGetVariableDefs(a) },
     get_code_connect_map: { run: (h) => h.toolGetCodeConnectMap() },
     add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },
     create_design_system_rules: { run: (h, a) => h.toolCreateDesignSystemRules(a) },
     get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
-    generate_diagram: { run: (h, a) => h.toolGenerateDiagram(a) },
+    generate_diagram: { write: true, run: (h, a) => h.toolGenerateDiagram(a) },
     search_design_system: { run: (h, a) => h.toolSearchDesignSystem(a) },
     figma_find: { run: (h, a) => h.toolFigmaFind(a) },
     figma_tree: { run: (h, a) => h.toolFigmaTree(a) },

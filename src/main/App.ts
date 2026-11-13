@@ -19,6 +19,7 @@ import type { FigmaViewProvider } from "./MCP";
 import { MCP_PORT } from "./MCP/config";
 import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
 import { BackgroundWaker } from "./MCP/utils/backgroundWaker";
+import { withFrames } from "./MCP/utils/framePump";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -106,9 +107,16 @@ export default class App {
         );
       }
       if ("discarded" in found) {
-        throw new Error(
-          `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but is not loaded yet (lazy session restore). Select its tab in the app once, then retry.`,
-        );
+        // Lazy session restore left the tab as a shell. Load it where it is,
+        // in the background: the tool then waits for Figma's editor.
+        const loaded = found.load();
+        if (!loaded) {
+          throw new Error(
+            `File ${fileKey}${found.title ? ` ("${found.title}")` : ""} has a tab but it could not be loaded. Select its tab in the app once, then retry.`,
+          );
+        }
+        logger.info(`[MCP] loading the lazily restored tab of ${fileKey} in the background`);
+        return loaded;
       }
       return found.tab;
     };
@@ -127,13 +135,13 @@ export default class App {
       executeInBrowserView: (script: string, fileKey?: string) => {
         if (fileKey) {
           const wc = fileTab(fileKey).view.webContents;
-          return waker.during(wc, () => wc.executeJavaScript(script));
+          return waker.during(wc, () => withFrames(wc, () => wc.executeJavaScript(script)));
         }
         const win = this.windowManager.getLastFocusedWindow();
         if (!win) throw new Error("No Figma window open");
         const wc = win.getActiveWebContents();
         if (!wc) return Promise.resolve(undefined);
-        return waker.during(wc, () => wc.executeJavaScript(script));
+        return waker.during(wc, () => withFrames(wc, () => wc.executeJavaScript(script)));
       },
       getActiveTabView: (fileKey?: string) =>
         (fileKey ? fileTab(fileKey) : activeTab())?.view ?? null,

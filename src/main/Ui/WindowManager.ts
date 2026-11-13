@@ -75,23 +75,29 @@ export default class WindowManager {
    * file instead of acting on the active tab. Searches the last focused window
    * first, so a file open twice resolves to the one the user just worked in.
    * `discarded` marks a tab that is in the strip but not loaded (lazy restore):
-   * it has no page to run a script in until the user selects it.
+   * it has no page to run a script in until `load()` gives it one, which
+   * neither shows the tab nor changes which one is in front.
    */
   public findFileTab(
     fileKey: string,
     matches: (url: string, fileKey: string) => boolean,
-  ): { tab: Tab } | { discarded: true; title?: string } | undefined {
+  ): { tab: Tab } | { discarded: true; title?: string; load: () => Tab | undefined } | undefined {
     const last = this.windows.get(this.lastFocusedwindowId);
     const ordered = last
       ? [last, ...[...this.windows.values()].filter((w) => w !== last)]
       : [...this.windows.values()];
-    let discarded: { discarded: true; title?: string } | undefined;
+    let discarded: { discarded: true; title?: string; load: () => Tab | undefined } | undefined;
     for (const window of ordered) {
       for (const tab of window.tabs.values()) {
         if (tab instanceof Tab) {
           if (!tab.view.webContents.isDestroyed() && matches(tab.getUrl(), fileKey)) return { tab };
         } else if ("discarded" in tab && matches(tab.url, fileKey)) {
-          discarded ??= { discarded: true, title: tab.title };
+          const id = tab.id;
+          discarded ??= {
+            discarded: true,
+            title: tab.title,
+            load: () => window.loadTabInBackground(id),
+          };
         }
       }
     }

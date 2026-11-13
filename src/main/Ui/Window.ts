@@ -1178,10 +1178,9 @@ export default class Window {
     this.tabManager.reloadTab(tabId);
   }
   public closeTab(tabId: number) {
-    // Guard: reject IDs that are not in the active tab list.
-    // TabManager.getById() falls back to mainTab for unknown IDs, which would
-    // cause mainTab to be removed from contentView on double-close (e.g. when
-    // renderer sends closeTab after setFocusToMainTab already closed it internally).
+    // Guard: reject IDs that are not in the active tab list. The renderer sends
+    // closeTab after setFocusToMainTab has already closed the tab internally
+    // (intentional double-close), so a stale ID is routine here.
     if (!this.tabManager.getAll().has(tabId)) {
       return;
     }
@@ -1342,21 +1341,36 @@ export default class Window {
     // produces "https://www.figma.comnull/" → empty screen.
     this.tabManager.mainTab.view.webContents.send("figma:complete-auth", gSecret, path);
   }
+  /** Give a lazily restored tab its page back: build the view, attach it hidden, start loading. */
+  private reviveDiscarded(discarded: DiscardedTab): Tab {
+    const revived = this.tabManager.reviveTab(discarded);
+    revived.view.setBackgroundColor(this.figmaThemeBgColor);
+    this.attachHidden(revived.view);
+    this.window.webContents.send("setTabDiscarded", revived.id, false);
+    // Reuse the existing loading-skeleton machinery — a revive is,
+    // functionally, "open this tab's URL again from scratch."
+    this.window.webContents.send("setLoading", revived.id, true);
+    this.armLoadingWatchdog(revived);
+    return revived;
+  }
+
+  /**
+   * Load a lazily restored tab without showing it or changing which tab is in
+   * front: an MCP tool was asked for that file (issue #90). The strip stops
+   * drawing it as unloaded; everything else stays as the user left it.
+   */
+  public loadTabInBackground(tabId: number): Tab | undefined {
+    const tab = this.tabManager.getById(tabId);
+    if (!tab) return undefined;
+    if (tab instanceof Tab) return tab;
+    return "discarded" in tab ? this.reviveDiscarded(tab) : undefined;
+  }
+
   public setTabFocus(tabId: number) {
     let tab = this.tabManager.getById(tabId);
     if (!tab) return;
 
-    if ("discarded" in tab) {
-      const revived = this.tabManager.reviveTab(tab);
-      revived.view.setBackgroundColor(this.figmaThemeBgColor);
-      this.attachHidden(revived.view);
-      this.window.webContents.send("setTabDiscarded", revived.id, false);
-      // Reuse the existing loading-skeleton machinery — a revive is,
-      // functionally, "open this tab's URL again from scratch."
-      this.window.webContents.send("setLoading", revived.id, true);
-      this.armLoadingWatchdog(revived);
-      tab = revived;
-    }
+    if ("discarded" in tab) tab = this.reviveDiscarded(tab);
 
     const bounds = this.calcBoundsForTabView();
 

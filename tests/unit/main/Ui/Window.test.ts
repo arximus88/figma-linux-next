@@ -1221,6 +1221,30 @@ describe("lazy restore boundaries and duplicate tabs", () => {
     expect(next.tabs.get(next.getLatestFocusedTabId())?.title).toBe("page2");
     expect(next.getState().recentTabIndices).toEqual([1, 2, 0]);
   });
+  // Issue #90: an MCP call that names a lazily restored file loads its tab
+  // where it is. The user's tab stays in front and the strip order is kept.
+  test("loadTabInBackground loads an unloaded tab without bringing it to the front", () => {
+    storage.settings.app.lazyRestoreEagerCount = 1;
+    const w = restore({ lastActiveTabPath: "/design/c" }, tabs);
+    const inFront = w.getLatestFocusedTabId();
+    const shell = [...w.tabs.values()].find((tab) => tab.title === "a")!;
+    expect(shell instanceof Tab).toBe(false);
+
+    const loaded = w.loadTabInBackground(shell.id);
+
+    expect(loaded instanceof Tab).toBe(true);
+    expect(loaded!.id).toBe(shell.id);
+    expect(w.tabs.get(shell.id)).toBe(loaded!);
+    expect(w.getLatestFocusedTabId()).toBe(inFront);
+    expect([...w.tabs.values()].map((tab) => tab.title)).toEqual(["a", "b", "c"]);
+    // Hidden, not shown: only swapTo may show a view.
+    expect((loaded!.view.setVisible as any).mock.calls.every((c: any[]) => c[0] === false)).toBe(
+      true,
+    );
+    // Asking again returns the same live tab instead of loading it twice.
+    expect(w.loadTabInBackground(shell.id)).toBe(loaded!);
+    expect(w.loadTabInBackground(987654)).toBeUndefined();
+  });
   test("unloaded tabs keep their title, group and saved order", () => {
     storage.settings.app.lazyRestoreEagerCount = 1;
     const grouped = [

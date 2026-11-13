@@ -35,6 +35,8 @@ import {
   useFigmaContent,
 } from "../scripts/useFigmaCode";
 import {
+  DESIGN_ASSETS_MAX,
+  DESIGN_ASSETS_SCRIPT,
   DOWNLOAD_ASSETS_SCRIPT,
   type DownloadOptions,
   RENAME_FILE_SCRIPT,
@@ -42,6 +44,7 @@ import {
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
 import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
+import { MOTION_CONTEXT_SCRIPT } from "../scripts/motion";
 import {
   CODE_CONNECT_SCRIPT,
   LIBRARY_STYLES_SCRIPT,
@@ -59,6 +62,11 @@ import {
   FIGMA_AI_EDIT_IMAGE_SCRIPT,
   FIGMA_AI_GENERATE_IMAGE_SCRIPT,
 } from "../scripts/figmaAi";
+import {
+  EDITOR_STATE_SCRIPT,
+  FRAMES_PROBE_SCRIPT,
+  PLUGIN_API_UNAVAILABLE_PREFIX,
+} from "../scripts/helpers";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -68,8 +76,10 @@ import {
   type UploadTicket,
 } from "../utils/uploads";
 import type { AssetEntry, CodeConnectEntry, FigmaViewProvider, Logger } from "../types";
+import { isElement, type MarkupNode, parseMarkup } from "../utils/markup";
 import { parseMermaid } from "../utils/mermaid";
 import { normalizeNodeId } from "../utils/nodeId";
+import { buildReactCode, VECTOR_TAGS } from "../utils/reactCode";
 import { safeStringify } from "../utils/serialize";
 import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
 
@@ -99,6 +109,41 @@ export interface ToolContext {
   uploads?: Map<string, UploadTicket>;
   /** The file these handlers are bound to (fileKey argument), if any. */
   fileKey?: string;
+  /** How long a tool waits for Figma's editor in a tab that is still loading. Tests shorten it. */
+  editorWaitMs?: number;
+  /**
+   * When a wait for the editor last ran out, per file ("" = the active tab),
+   * shared across calls. A file whose Plugin API never comes (plugins turned
+   * off by the organization) must not cost every call the full wait.
+   */
+  editorWaitFailures?: Map<string, number>;
+}
+
+/**
+ * How long a tool waits for the editor of a tab that is still loading before
+ * it reports the reason. Well under the ~30 s some MCP clients allow a call.
+ */
+const EDITOR_WAIT_MS = 20_000;
+/** After a wait ran out, how long the next calls for that file fail at once. */
+const EDITOR_WAIT_BACKOFF_MS = 2 * 60_000;
+
+/**
+ * Whether a script's answer is "this tab has no Plugin API". Scripts answer
+ * as an object, as a JSON string (see DESIGN_CONTEXT_SCRIPT), or inside the
+ * `{__logs, __result}` envelope of execWithLogs.
+ */
+export function pluginApiMissing(result: unknown): boolean {
+  let value: any = result;
+  if (typeof value === "string") {
+    if (!value.includes(PLUGIN_API_UNAVAILABLE_PREFIX)) return false;
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return false;
+    }
+  }
+  const error = value?.error ?? value?.__result?.error;
+  return typeof error === "string" && error.startsWith(PLUGIN_API_UNAVAILABLE_PREFIX);
 }
 
 const DESIGN_SYSTEM_ENTITIES = new Set(["component", "variable", "style"]);
@@ -112,6 +157,45 @@ const NEW_FILE_PATHS: Record<string, string> = {
 
 /** How long download_assets / screenshot URLs stay fetchable. */
 const ASSET_TTL_MS = 10 * 60 * 1000;
+
+const ASSET_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  pdf: "application/pdf",
+};
+
+/** clientFrameworks values that mean "answer with React". */
+const REACT_FRAMEWORKS = new Set([
+  "react",
+  "reactjs",
+  "next",
+  "nextjs",
+  "next.js",
+  "remix",
+  "gatsby",
+]);
+
+/**
+ * Which form get_design_context answers in. An explicit `format` wins; else
+ * `clientFrameworks` (Figma's remote parameter: a comma-separated string, an
+ * array is accepted too) naming React or a React framework selects the React +
+ * Tailwind output. Everything else keeps the compact markup.
+ */
+export function designContextFormat(args: Record<string, unknown>): "markup" | "react" {
+  if (args.format === "react" || args.format === "markup") return args.format;
+  const frameworks = Array.isArray(args.clientFrameworks)
+    ? args.clientFrameworks
+    : typeof args.clientFrameworks === "string"
+      ? args.clientFrameworks.split(",")
+      : [];
+  return frameworks.some((f) => REACT_FRAMEWORKS.has(String(f).trim().toLowerCase()))
+    ? "react"
+    : "markup";
+}
 
 /**
  * Validate search_design_system `queries` the way Figma's remote tool expects
@@ -150,25 +234,96 @@ export class ToolHandlers {
    * the page; the caller just stops waiting and gets an error it can act on.
    */
   private async exec(script: string, timeoutMs?: number): Promise<any> {
+    const first = await this.execOnce(script, timeoutMs);
+    // A script that found no Plugin API returned before doing anything, so it
+    // is safe to run again once the editor is there. A tab loaded in the
+    // background (session restore, or a lazily restored tab an MCP call just
+    // woke) gets its editor a few seconds after the first call keeps it awake:
+    // measured 2026-11-13, ~2 s on a never-shown tab. Issue #90: the first
+    // call used to fail with "switch to the tab", which interrupts the user.
+    if (!pluginApiMissing(first)) return first;
+    if (!(await this.waitForEditor())) return first;
+    return this.execOnce(script, timeoutMs);
+  }
+
+  /** One bounded run of a script in the tab; rejects when Figma does not answer in time. */
+  private async execOnce(script: string, timeoutMs?: number): Promise<any> {
     const ms = timeoutMs ?? this.ctx.scriptTimeoutMs ?? 60_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Figma did not answer within ${Math.round(ms / 1000)} s. ` +
-                "The tab may still be loading or busy; retry, or switch to the tab in the app first.",
-            ),
-          ),
-        ms,
-      );
+      timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error("timeout"));
+      }, ms);
     });
     try {
       return await Promise.race([this.ctx.viewProvider.executeInBrowserView(script), timeout]);
+    } catch (err) {
+      if (!timedOut) throw err;
+      throw new Error(await this.timeoutReason(ms));
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * Why a script got no answer. Figma's exports and library imports wait for
+   * an animation frame, and the desktop stops giving a window frames while
+   * the screen is locked or off (measured 2026-11-13 on GNOME 51: with the
+   * session locked even the tab in front got none). utils/framePump.ts keeps
+   * frames coming in that state; if they are missing all the same, saying so
+   * beats "retry", which cannot help.
+   */
+  private async timeoutReason(ms: number): Promise<string> {
+    const waited = `Figma did not answer within ${Math.round(ms / 1000)} s. `;
+    let frames: unknown = true;
+    try {
+      frames = await Promise.race([
+        this.ctx.viewProvider.executeInBrowserView(FRAMES_PROBE_SCRIPT),
+        new Promise((resolve) => setTimeout(() => resolve(true), Math.min(3_000, ms))),
+      ]);
+    } catch {
+      frames = true;
+    }
+    if (frames === false) {
+      return (
+        waited +
+        "The page is getting no animation frames, which Figma's exports and library calls wait for: " +
+        "the desktop is not drawing the app's window (screen locked or turned off?). Retry once the screen is on."
+      );
+    }
+    return `${waited}The tab may still be loading or busy; retry in a moment.`;
+  }
+
+  /**
+   * Wait for Figma's editor to install its Plugin API in the tab. False when
+   * it will not come (view-only file, not a file page…) or did not within the
+   * limit; the caller then reports the script's own diagnosis.
+   */
+  private async waitForEditor(): Promise<boolean> {
+    const limit = this.ctx.editorWaitMs ?? EDITOR_WAIT_MS;
+    const failures = this.ctx.editorWaitFailures;
+    const key = this.ctx.fileKey ?? "";
+    const failedAt = failures?.get(key);
+    if (failedAt !== undefined && Date.now() - failedAt < EDITOR_WAIT_BACKOFF_MS) return false;
+    const deadline = Date.now() + limit;
+    while (Date.now() < deadline) {
+      let state: { ready?: boolean; blocked?: boolean } | undefined;
+      try {
+        state = await this.execOnce(EDITOR_STATE_SCRIPT, 3_000);
+      } catch {
+        // The page is mid-navigation or busy: ask again.
+      }
+      if (state?.ready) {
+        failures?.delete(key);
+        return true;
+      }
+      if (state?.blocked) return false;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(500, limit)));
+    }
+    failures?.set(key, Date.now());
+    return false;
   }
 
   /**
@@ -242,8 +397,9 @@ export class ToolHandlers {
   public async toolGetDesignContext(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const depth = typeof args.depth === "number" ? args.depth : 10;
+    const format = designContextFormat(args);
 
-    const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth);
+    const script = DESIGN_CONTEXT_SCRIPT(nodeId, depth, { forCode: format === "react" });
     const raw = await this.exec(script);
 
     // Script returns a JSON string to avoid V8 structured-clone failures over IPC
@@ -260,16 +416,112 @@ export class ToolHandlers {
       return toolError(result.error);
     }
 
-    const text = String(result?.text ?? "");
+    let text =
+      format === "react"
+        ? await this.reactDesignContext(result, args.disableCodeConnect === true)
+        : String(result?.text ?? "");
     const approxTokens = Math.round(text.length / 3.5);
     if (approxTokens > 20_000) {
-      return toolResult(
+      text =
         `⚠ Large response (~${(approxTokens / 1000).toFixed(1)}k tokens). ` +
-          "Call get_metadata on this node and ask for its parts, or pass a smaller depth.\n\n" +
-          text,
+        "Call get_metadata on this node and ask for its parts, or pass a smaller depth.\n\n" +
+        text;
+    }
+
+    // Figma's remote tool appends a screenshot of the node unless told not to.
+    // The React form follows it; the markup form stays text-only unless asked.
+    const wantScreenshot =
+      format === "react" ? args.excludeScreenshot !== true : args.excludeScreenshot === false;
+    const target = nodeId ?? (Array.isArray(result?.targetIds) ? result.targetIds[0] : null);
+    if (!wantScreenshot || !target) return toolResult(text);
+
+    const content: { type: string; text?: string; data?: string; mimeType?: string }[] = [
+      { type: "text", text },
+    ];
+    try {
+      const shot = await this.exec(
+        SCREENSHOT_SCRIPT(target, { scale: null, maxDimension: 1024, contentsOnly: false }),
+      );
+      if (shot?.base64) content.push({ type: "image", data: shot.base64, mimeType: "image/png" });
+    } catch (err: any) {
+      // The code is the answer; a screenshot that timed out must not lose it.
+      this.ctx.log.warn("get_design_context: screenshot skipped:", err?.message ?? err);
+    }
+    return { content };
+  }
+
+  /**
+   * The React + Tailwind form of a design-context result: parse the markup,
+   * fetch the SVGs and images it refers to, and write the component.
+   */
+  private async reactDesignContext(result: any, disableCodeConnect: boolean): Promise<string> {
+    const nodes = parseMarkup(String(result?.markup ?? ""));
+    const svgIds: string[] = [];
+    const hashes = new Set<string>();
+    const walk = (list: MarkupNode[]) => {
+      for (const node of list) {
+        if (!isElement(node)) continue;
+        if (VECTOR_TAGS.has(node.tag) && node.attrs.id) svgIds.push(node.attrs.id);
+        for (const m of (node.attrs.style ?? "").matchAll(/image\([a-z]+ ([0-9a-f]+)\)/g)) {
+          hashes.add(m[1]);
+        }
+        walk(node.children);
+      }
+    };
+    walk(nodes);
+
+    const svgUrls: Record<string, string> = {};
+    const imageUrls: Record<string, string> = {};
+    if (svgIds.length || hashes.size) {
+      try {
+        const assets = await this.exec(DESIGN_ASSETS_SCRIPT(svgIds, [...hashes]));
+        for (const [id, svg] of Object.entries(assets?.svgs ?? {})) {
+          svgUrls[id] = this.storeAsset(Buffer.from(String(svg), "utf8"), "svg");
+        }
+        for (const [hash, image] of Object.entries<any>(assets?.images ?? {})) {
+          imageUrls[hash] = this.storeAsset(Buffer.from(image.base64, "base64"), image.format);
+        }
+      } catch (err: any) {
+        this.ctx.log.warn("get_design_context: assets skipped:", err?.message ?? err);
+      }
+    }
+
+    const { code, missingAssets } = buildReactCode({
+      nodes,
+      textStyleCss: result?.textStyleCss ?? {},
+      svgUrls,
+      imageUrls,
+      codeConnect: disableCodeConnect ? undefined : this.ctx.codeConnectMap,
+    });
+
+    const notes = [
+      "React + Tailwind generated from the Figma layers: a reference to adapt to this project's " +
+        "components, tokens and conventions, not code to paste. Sizes are Figma's pixels; " +
+        "data-node-id is the layer's id.",
+    ];
+    if (Object.keys(svgUrls).length || Object.keys(imageUrls).length) {
+      notes.push(
+        `Asset URLs are served by this app on this machine and expire in ${ASSET_TTL_MS / 60_000} minutes: download the ones you keep.`,
       );
     }
-    return toolResult(text);
+    if (missingAssets) {
+      notes.push(
+        `${missingAssets} vector group(s) or image fill(s) have no URL (over the cap of ${DESIGN_ASSETS_MAX.svgs} SVGs / ${DESIGN_ASSETS_MAX.images} images, or the export failed): download_assets on the layer returns them.`,
+      );
+    }
+    const legend = String(result?.legendForCode ?? "").trim();
+    return `${code}\n${notes.join("\n")}\n${legend ? `\n${legend}\n` : ""}`;
+  }
+
+  // ── Tool: get_motion_context ─────────────────────────────────────────────
+
+  public async toolGetMotionContext(args: Record<string, unknown>) {
+    const nodeId = normalizeNodeId(args.nodeId);
+    const result = await this.exec(MOTION_CONTEXT_SCRIPT(nodeId, args.recursive === true));
+    if (!result) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (result.error) return toolError(result.error);
+    // Compact: a recursive read of an animated screen is mostly braces otherwise.
+    return toolResult(JSON.stringify(result));
   }
 
   // ── Tool: get_metadata ───────────────────────────────────────────────────
@@ -430,6 +682,15 @@ export class ToolHandlers {
   private async capturePageFallback(savePath: string | null, degraded: string) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
+    // A tab that is not in front has nothing on screen to capture
+    // (capturePage rejects with UnknownVizError), and raising it would
+    // interrupt the user. Say what does work instead.
+    if (!view.getVisible()) {
+      return toolError(
+        `${degraded} The tab is in the background, so there is no window to capture either. ` +
+          "Pass a nodeId: a node export works in a background tab.",
+      );
+    }
 
     const image = await view.webContents.capturePage();
     const buffer = image.toPNG();
@@ -1037,21 +1298,7 @@ export class ToolHandlers {
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
 
-    const MIME: Record<string, string> = {
-      png: "image/png",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      gif: "image/gif",
-      webp: "image/webp",
-      svg: "image/svg+xml",
-      pdf: "application/pdf",
-    };
-    const store = (data: Buffer, ext: string) => {
-      const id = `${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext === "original" ? "bin" : ext}`;
-      this.ctx.assetStore.set(id, { data, contentType: MIME[ext] ?? "application/octet-stream" });
-      setTimeout(() => this.ctx.assetStore.delete(id), ASSET_TTL_MS);
-      return `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${id}`;
-    };
+    const store = (data: Buffer, ext: string) => this.storeAsset(data, ext);
 
     const response = {
       nodeId: out.nodeId,
@@ -1081,6 +1328,17 @@ export class ToolHandlers {
       howToDownload: "curl -o <file> <url>; the URLs are local to this machine and expire.",
     };
     return toolResult(safeStringify(response));
+  }
+
+  /** Keep bytes for ASSET_TTL_MS and return the local URL that serves them. */
+  private storeAsset(data: Buffer, ext: string): string {
+    const id = `${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext === "original" ? "bin" : ext}`;
+    this.ctx.assetStore.set(id, {
+      data,
+      contentType: ASSET_MIME[ext] ?? "application/octet-stream",
+    });
+    setTimeout(() => this.ctx.assetStore.delete(id), ASSET_TTL_MS);
+    return `http://${MCP_HOST}:${this.ctx.getPort()}/assets/${id}`;
   }
 
   // ── Tool: upload_assets (write) ──────────────────────────────────────────

@@ -20,7 +20,7 @@ bun run dev
 # Build for production
 bun run build
 
-# Run built production version
+# Build, then run the production version (`bun run run` launches the existing build)
 bun run start
 
 # Run in watch mode (restarts on file changes)
@@ -34,7 +34,8 @@ The project uses **Vite** with `vite-plugin-electron`:
 
 Build outputs to `dist/`:
 - `dist/main/main.js` - Main process entry point
-- `dist/renderer/` - UI bundles (Panel + Settings)
+- `dist/*.html` + `dist/assets/` - UI pages (panel, settings, changelog, preview, groupPrompt)
+- `dist/renderer/` - preload scripts (`bridge.js`, `loadContent.js`, `loadMainContent.js`)
 
 ### Packaging
 
@@ -42,7 +43,7 @@ Build outputs to `dist/`:
 # Package for all configured formats (deb, rpm, pacman, AppImage, zip)
 bun run package
 
-# Build and create installers (includes AppImageTool dependency)
+# Clean, build, make resources/AppRun executable, run electron-builder for all targets
 bun run pack
 
 # Install locally to /opt/figma-linux-next for testing
@@ -101,11 +102,11 @@ bun run test:unit
 bun run test:e2e
 ```
 
-Unit tests are in `tests/unit/` (mirroring `src/`; a few pure helpers keep a `*.test.ts` beside
-the source). E2E tests are in `tests/e2e/`; `bun run test:e2e` builds nothing — run `bun run build`
+Unit tests are in `tests/unit/` (mirroring `src/`) — `test:unit` and CI run only that folder, so a
+`*.test.ts` beside its source is never executed. E2E tests are in `tests/e2e/`; `bun run test:e2e` builds nothing — run `bun run build`
 first, the suite launches `dist/main/main.js` under `xvfb-run`.
 
-Writing e2e tests (`tests/e2e/helpers/app.ts` has the shared pieces):
+Writing e2e tests (`tests/e2e/helpers/app.ts` and `launch.ts` have the shared pieces):
 - Assert what the user would see — the strip (`stripTabs`), the view on screen (`shownView`),
   values in main's store — and drive the real control (button, switch, menu event). A test that
   only checks "the app didn't crash" or emits an IPC nobody listens to passes forever; four such
@@ -134,9 +135,10 @@ The application is a classic Electron app with two processes:
 - MCP server for AI assistant integration (McpServer)
 - The local helper figma.com probes from a browser so file links open here (FigmaAgent)
 
-**Renderer Process** (`src/renderer/`) - Browser frontend with two Svelte apps:
+**Renderer Process** (`src/renderer/`) - Browser frontend with five Svelte pages:
 - **Panel** (`src/renderer/Panel/`) - Top toolbar UI with tabs
 - **Settings** (`src/renderer/Settings/`) - Settings page, shown as a tab
+- **Changelog** (What's New overlay), **Preview** (tab hover card), **GroupPrompt** (tab-group popover) - small single-purpose views
 
 Communication between processes goes through a typed **preload bridge** (`src/main/preload/bridge.ts`) that exposes `window.figmaApi` — direct `ipcRenderer` usage in renderers is not allowed.
 
@@ -152,10 +154,12 @@ new App(new WindowManager(), new Session(), new FontManager());
 
 **App class** (`src/main/App.ts`):
 - Acquires single-instance lock
-- Applies Chromium command-line switches (GPU acceleration, Wayland, VAAPI)
 - Instantiates all IPC controllers and seals the registry
 - Registers `figma://` protocol handler and starts the MCP server
 - Manages lifecycle events (ready, second-instance, window-all-closed)
+- Chromium command-line switches are **not** applied here: `applyChromiumSwitches()`
+  (`src/main/applyChromiumSwitches.ts`) runs from `src/main/index.ts` before `App` is constructed —
+  they must be set synchronously, before `app.ready`
 
 **IpcRegistry** (`src/main/controllers/registry.ts`):
 - Central registry for all IPC handlers — replaces direct `ipcMain` calls
@@ -166,9 +170,10 @@ new App(new WindowManager(), new Session(), new FontManager());
 **Controllers** (`src/main/controllers/`):
 - `SettingsController` — settings get/set, frame style, scaling, export dir
 - `FontController` — font enumeration and file serving
-- `ClipboardController` — clipboard writes (images, SVG, PDF)
+- `ClipboardController` — clipboard read and write (`getClipboardData` / `setClipboardData`)
 - `AuthController` — login, logout, app auth flow
 - `FileController` — file creation and export
+- `ChangelogController` — What's New overlay open/close, `openExternal`
 
 **WindowManager** (`src/main/Ui/WindowManager.ts`):
 - Maintains Map of all Window instances (keyed by window ID)
@@ -192,19 +197,21 @@ new App(new WindowManager(), new Session(), new FontManager());
   session. The panel learns of it via `settingsTabOpened`/`settingsTabClosed` and draws it with
   `Panel/frames/SettingsStripTab.svelte`; `currentTab` is `"settingsTab"` while it is shown
   (a panel-only `PanelTabId`, not part of `Types.TabIdType`).
-- Maintains a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
+- Owns a `WarmTabManager` (`src/main/Ui/WarmTabManager.ts`) that keeps a **warm tab**: a pre-loaded new-file `Tab` kept in the background for instant opening (TTL: 5 minutes), attached hidden from creation so promoting it is a plain `setVisible(true)`. Pre-warming happens after a file tab is opened.
 
 **TabManager** (`src/main/Ui/TabManager.ts`):
 - Per-window tab management
-- Three tab types: `MainTab` (always present), regular `Tab`s, `CommunityTab`
+- Three live tab types: `MainTab` (always present), regular `Tab`s, `CommunityTab`, plus
+  `DiscardedTab` — a shell with no `WebContentsView` for a saved tab that is not loaded yet
+  (`app.lazyRestoreTabs`); `reviveTab()` turns it into a `Tab` when it is first needed
 - Each tab is a `WebContentsView` positioned below the panel
 - Only one tab visible at a time
 
 **ExtensionManager** (`src/main/ExtensionManager.ts`):
-- Scans `~/.config/figma-linux-next/Extensions/` directory
-- File watching with Chokidar for hot-reloading during development
+- Loads the local plugins listed in `app.savedExtensions` (added through Figma's "Import plugin
+  from manifest…", which opens a file dialog). There is no scanned Extensions directory.
+- Watches each registered plugin's files with Chokidar for hot-reloading during development
 - Observer pattern for manifest and code file changes
-- Extensions loaded from `savedExtensions` in settings
 
 **Storage** (`src/main/Storage.ts`):
 - Singleton (`storage`) for settings persistence to `~/.config/figma-linux-next/settings.json`
@@ -233,6 +240,18 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- `get_design_context` has two forms. Default: markup with CSS. With `clientFrameworks` naming
+  React / Next.js / Remix / Gatsby, or `format: "react"`: a React + Tailwind component like Figma's
+  remote tool (asset URLs as constants, `data-node-id`, a screenshot appended unless
+  `excludeScreenshot`). The React form is built in Node from the same markup
+  (`utils/markup.ts` → `utils/tailwind.ts` → `utils/reactCode.ts`); the page script only gains a
+  `forCode` option (every instance written out, image fills named by hash). To check a change to
+  it, render the output in a browser next to `get_screenshot` of the node — that is how the missing
+  gradient direction and the misplaced line-height were found (2026-11-13).
+- `get_motion_context` (`scripts/motion.ts`) reads `node.manualKeyframeTracks`,
+  `node.animationStyles` and `node.timelines`. Presets do not expose the keyframes they generate,
+  only their props. `applyManualKeyframeTrack` takes `{type: "PROPERTY", name: "OPACITY"}` as the
+  field, not a string.
 - `use_figma` also has the helpers Figma's `figma-use` skill teaches and its remote runtime
   provides (`figma.createAutoLayout`, `figma.io.write`, `node.set/query/matches/screenshot/tree/
   placeholder`, `page.findPlacement`): `scripts/figmaHelpers.ts`. Page `figma` is frozen, so code
@@ -246,6 +265,25 @@ new App(new WindowManager(), new Session(), new FontManager());
   timeout. `executeInBrowserView` wraps every MCP script in `BackgroundWaker.during()`
   (`utils/backgroundWaker.ts`): `setBackgroundThrottling(false)` for the call, back to `true`
   after 60 s idle, untouched if it was already off. Not caused by the node being on another page.
+- Tools never bring a tab or the window to the front (issue #90). A lazily restored tab named by
+  `fileKey` is loaded where it is (`Window.loadTabInBackground`); a tab whose editor is still
+  loading makes `ToolHandlers.exec` wait up to 20 s for `window.figma` and run the script again
+  (measured 2026-11-13 under headless mutter: never-shown tab ready in ~2 s, lazily restored one
+  screenshotted in 5.5 s, minimized window fine). A file with no Plugin API for good (plugins off
+  in the org) pays the wait once, then fails at once for 2 min. A file with no tab at all is
+  still an error.
+- With the screen locked or off GNOME gives no window any frames, even the tab in front, so
+  rAF-waiting calls stalled whatever the throttling setting. `withFrames`
+  (`utils/framePump.ts`) wraps every MCP script: one still running after 300 ms gets a 1x1
+  `capturePage({stayHidden: true})` every 250 ms, which makes the compositor produce a frame.
+  Measured 2026-11-13 on the locked session: never-shown background tab, `get_screenshot`
+  timed out without it and took 0.7 s with it. `stayHidden: false` left the page drawing after
+  the pump stopped; keep it true. If a script still times out, the error says whether the page
+  gets frames (`FRAMES_PROBE_SCRIPT`).
+- Testing MCP against a real compositor without the user's screen: `mutter --headless --wayland
+  --no-x11 --wayland-display fln-wl --virtual-monitor 2200x1300@60`, then launch the app with
+  `WAYLAND_DISPLAY=fln-wl` and an isolated `XDG_CONFIG_HOME`. Unlike xvfb it behaves like the
+  user's GNOME (hidden views really are hidden) and frames always arrive.
 - `search_design_system` covers UI kits (Simple Design System, iOS, Material) through the Assets
   panel's kit search (`/api/search/community_libraries/library_assets`); `figma.teamLibrary` and
   the team component search never return them. `includeLibraryKeys` takes a library name or key.
@@ -273,7 +311,7 @@ new App(new WindowManager(), new Session(), new FontManager());
 
 **Preload Bridge** (`src/main/preload/bridge.ts`):
 - Exposes `window.figmaApi` via `contextBridge` — the only IPC surface for Panel and Settings
-- Three typed methods: `send(channel, ...args)`, `invoke(channel, ...args)`, `on(channel, listener)`
+- Four typed methods: `send(channel, ...args)`, `invoke(channel, ...args)`, `on(channel, listener)` (returns an unsubscribe function), `once(channel, listener)`
 - `SEND_CHANNELS`, `RECEIVE_CHANNELS`, `INVOKE_CHANNELS` act as an allowlist — see the file for the current list
 - **Adding a new IPC channel requires updating all three of: the allowlist in bridge.ts, the ipcRegistry in the relevant controller, and the renderer call site**
 
@@ -347,25 +385,26 @@ Three files carry the name `defaultSettings.ts`, and only the first holds values
 
 ## Extension System
 
-Extensions are plugins loaded from `~/.config/figma-linux-next/Extensions/`.
+Extensions are local Figma plugins imported from their `manifest.json` (Plugins → Development →
+"Import plugin from manifest…"). Their paths are stored in `settings.json` under
+`app.savedExtensions`; there is no folder the app scans.
 
 **Structure**:
 - `manifest.json` - Extension metadata
 - UI/Code/Resource files (`.ts`, `.js`, `.css`, `.html`)
 
 **Development**:
-- Drop extension folder into Extensions directory
-- ExtensionManager watches files with Chokidar
+- Import the plugin once from its manifest
+- ExtensionManager watches its files with Chokidar
 - Hot-reloading on code changes
 - No app restart needed
-
-Extensions registered in `settings.json` under `savedExtensions`.
 
 ## Platform-Specific Features
 
 ### GPU Acceleration & Wayland
 
-The App class applies extensive Chromium flags in `applySwitches()`:
+`applyChromiumSwitches()` (`src/main/applyChromiumSwitches.ts`, called from `src/main/index.ts`
+before `App` exists) applies the Chromium flags:
 - GPU acceleration flags (critical for Figma's WebGL canvas)
 - Wayland support detection and enablement
 - Hardware video decoding (VAAPI)
@@ -376,7 +415,8 @@ Custom switches can be added in settings under `app.commandSwitches`.
 WebGPU shaders (`app.enableWebGPU`): Chromium blocks WebGPU-to-GL interop on Linux
 (`software_rendering_list.json` entry 186, crbug 442791440) except Intel Gen12+ (Chrome 145+)
 and NVIDIA ≥ 535.183.01 (Chrome 147+); AMD has no exception as of 2026-10. On a blocked GPU the
-toggle relaunches the packaged app under XWayland (`shouldRelaunchUnderX11`, `src/main/index.ts`).
+toggle relaunches the packaged app under XWayland (`shouldRelaunchUnderX11` in
+`src/main/applyChromiumSwitches.ts`, called from `src/main/index.ts`).
 `Utils/Main/nativeWebGpu.ts` reads `/proc/driver/nvidia/version` before Chromium starts and skips
 the relaunch only when all DRM GPUs are NVIDIA and the driver is allowlisted — measured 2026-10-11 on an RTX 3080 with Electron 44:
 native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not detected yet.
@@ -403,7 +443,8 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 **Logger** (`src/main/Logger/AppLogger.ts`):
 - Multi-sink architecture: console + file
 - File logs: `~/.config/figma-linux-next/logs/figma-linux-next.log` (Flatpak: `~/.var/app/app.borys.FigmaLinuxNext/config/figma-linux-next/logs/`), file level `debug`
-- Configurable log level in settings
+- Console and file levels are fixed at `debug` (`src/main/Logger/index.ts`); `app.logLevel` exists in
+  the settings but nothing reads it
 
 ## Critical Files Reference
 
@@ -411,9 +452,10 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 |------|---------|
 | `vite.config.mts` | Vite build config (main + renderer) |
 | `src/main/index.ts` | App entry point; initializes storage, dialogs, dependencies |
-| `src/main/App.ts` | Lifecycle orchestration, Chromium switches, controller wiring |
+| `src/main/App.ts` | Lifecycle orchestration, controller wiring, MCP server and FigmaAgent start |
+| `src/main/applyChromiumSwitches.ts` | Chromium command-line switches, WebGPU/XWayland relaunch decision |
 | `src/main/controllers/registry.ts` | IPC channel registry (seal-on-startup pattern) |
-| `src/main/controllers/` | IPC controllers: Settings, Auth, Font, Clipboard, File |
+| `src/main/controllers/` | IPC controllers: Settings, Auth, Font, Clipboard, File, Changelog |
 | `src/main/preload/bridge.ts` | contextBridge → `window.figmaApi`; IPC channel allowlists |
 | `src/main/Storage.ts` | Settings persistence |
 | `src/main/Ui/WindowManager.ts` | Window lifecycle & routing |
@@ -438,7 +480,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "45.1.0"` (Chromium 156, Node 24), bumped 2026-10-29 from 44.5.1 (via 44.10.0). OAuth first login re-verified on 45.1.0 (2026-10-30, clean profile, bundled binary): `__Host-figma.authn` lands. 44.10.0 was never shipped or login-tested on its own.
+`package.json` lists an exact version, currently `"electron": "45.3.1"` (Chromium 156.0.8078.96, Node 24), bumped 2026-11-13 from 45.1.0 (45.3.0 rolled Chromium .48 → .96, 45.3.1 dropped trust in eMudhra's revoked intermediates). Last verified: 45.3.1 (2026-11-13, clean profile, packaged build via `scripts/oauth-login-test.sh`), `__Host-figma.authn` lands. Before that: 45.1.0 (2026-10-30). 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own.
 
 45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 
@@ -446,17 +488,34 @@ History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on
 
 The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
 
-**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands. Two things make this test easy to get wrong:
+**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands.
+`scripts/oauth-login-test.sh` does the setup below (clean profile, `mimeapps.list`, the shadowed
+`.desktop`), runs the packaged build from `build/installers/linux-unpacked` (`--dist` for
+`node_modules` Electron), and after you quit reports whether `__Host-figma.authn` is in the profile.
+Two things make this test easy to get wrong:
 
 - **Test the bundled binary from `node_modules`.** Distro Electron packages (Arch's `electronNN`) are rebuilt from source and may not carry the same closed-source components, so a green run there says nothing about what electron-builder ships.
 - **Isolate config via `XDG_CONFIG_HOME`, and copy `~/.config/mimeapps.list` into it.** The default-browser mapping lives in that file; without it gio picks an arbitrary browser and the login opens in the wrong one.
 
 The `figma://` redirect must reach the instance under test. Registering a second `.desktop` does not work — Firefox keeps its own handler list and offers the installed entry. Shadow `/usr/share/applications/figma-linux-next.desktop` with a copy in `~/.local/share/applications` that keeps `Name`/`MimeType` and redirects `Exec`.
 
-Note `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x line (absent in 41.x and 42.0.1, present in 42.8.0+). Guard it with `typeof` before calling — the AUR `figma-linux-next` package runs against whatever system Electron is installed.
+Not called anywhere at the moment; if it comes back: `app.getApplicationInfoForProtocol()` gained Linux support during the 42.x line (absent in 41.x and 42.0.1, present in 42.8.0+). Guard it with `typeof` before calling — the AUR `figma-linux-next` package runs against whatever system Electron is installed.
 
 ### Two package.json files — keep dependencies in sync
 `package.json` is the dev manifest. `src/package.json` is a separate production manifest that gets copied to `dist/` during `bun run build`, then `bun install --production` runs inside `dist/`. **When updating a runtime dependency version in `package.json`, update `src/package.json` too**, otherwise the installed package in production builds will be the old version.
+
+### fontkit 3 is ESM-only — loaded with import(), never a top-level import
+`fontkit` is external to the main bundle, which is CommonJS, and 3.0.0 (2026-11) ships only ES
+modules. A top-level `import` compiles to `require("fontkit")` on the first line of
+`dist/main/main.js`: that needs Node's require(esm) (Node ≥ 22.12, Electron ≥ 35) and on anything
+older the whole app dies before it has a window — possible only for the AUR `figma-linux-next`
+package, which runs on system Electron. So `src/main/Fonts/index.ts` loads it with `import()` on
+first use (the bundle keeps a native `import()`, check with `rg -o 'import\(.fontkit.\)'
+dist/main/main.js`). If it still fails, the app runs: fc-list fonts work, variable axes and fonts
+outside fontconfig are missing, and the log has one `fontkit did not load` line.
+2.0.4 threw on some variable fonts (SF Pro, New York, Cantarell: "reading 'en'"), which the
+font scan swallowed, so those lost their axes; 3.0.0 reads them. To compare two versions, dump
+`fontkit.open()` results for `fc-list : file variable` files with each and diff.
 
 ### TabManager.getById() and unknown IDs
 `TabManager.getById(id)` returns `undefined` for an unknown numeric ID (it used to fall back to
@@ -492,7 +551,7 @@ a background tab on demand; `tab.thumbnail` is the only source the hover card ha
 ### Restart in `bun run dev` goes through Vite
 vite-plugin-electron spawns Electron and ends the dev server when it exits, so `app.relaunch()`
 under `bun run dev` comes back to a dead server: no panel, `chrome-error://chromewebdata/`.
-`App.relaunchApp` therefore saves state and sends `DEV_RELAUNCH_MESSAGE` (`src/constants/dev.ts`)
+`App.relaunchApp` therefore saves state and sends `DEV_RELAUNCH_MESSAGE` (`src/constants/dev.mts`)
 to Vite over the plugin's IPC channel; `onstart` in `vite.config.mts` restarts Electron with
 `startup()`, which unhooks the exit handler first. Packaged builds still `app.relaunch()`.
 
@@ -526,7 +585,9 @@ Always use `app.whenReady().then(...)` for the Electron ready handler. `app.on('
 
 ### CI/CD automation (`release.yml`)
 
-Tag push (`v*.*.*`) triggers `release.yml` which runs these jobs **in sequence**:
+Tag push (`v*.*.*`) triggers `release.yml`. The four build jobs run in parallel, `release` waits for
+all of them, then the publishing jobs (`aur`, `aur-bin`, `flake`, `flatpak-repo`) run in parallel
+and `flatpak-pin` runs after `flake`:
 
 1. **`build-x64`** — builds deb, rpm, AppImage, zip on Ubuntu (electron-builder bundles Electron)
 2. **`build-arm64`** — same formats on native ARM runner
@@ -565,7 +626,7 @@ The app version appears in four files, and the Flatpak one fails quietly: a stal
 | Mode | Called by | Does |
 |---|---|---|
 | `--version X.Y.Z` | `bump_version.pl` | rewrites `tag:`, `flatpak/package.json` version, adds a `<release>` to the metainfo, drops the previous `commit:` pin |
-| `--commit SHA` | `release.yml` `flatpak` job | pins the git source to the tag's commit |
+| `--commit SHA` | `release.yml` `flatpak-pin` job | pins the git source to the tag's commit |
 | `--check` | `ci.yml` on every push/PR | fails on any drift |
 
 The split exists because the commit sha does not exist until the tag is pushed, the same
@@ -584,7 +645,7 @@ so the script reports the drift instead of producing a lockfile it cannot vendor
 **`RELEASE_PAT`** is a fine-grained PAT (`Contents: Read and write`, this repo only, created 2026-08-05, **expires 2027-08-05**). It exists because Nix resolves `github:arximus88/figma-linux-next` from `dev`, and the default `GITHUB_TOKEN` cannot push to a protected branch — without it NixOS users would always install the previous release. When it expires the `flake` job starts failing with a 403 on push and nothing else changes; regenerate it and `gh secret set RELEASE_PAT`. The job runs last and depends on `release`, so a rejected push never blocks the release itself.
 
 Other workflows:
-- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (type check, lint, unit tests, Flatpak metadata check)
+- `ci.yml` — runs on push **and** PR to both `staging` and `dev` (changelog data generation, type check, lint, unit tests, production build, e2e under xvfb, Flatpak metadata check)
 - `remove_artefacts.yml` — cleanup
 
 ### AUR packages
@@ -623,7 +684,7 @@ When modifying the codebase:
    - URL changes propagate to main process for state saving
 
 4. **Working with extensions**:
-   - ExtensionManager scans Extensions directory
+   - ExtensionManager loads the plugins listed in `app.savedExtensions`
    - manifest.json required
    - File watching enables hot-reloading
 

@@ -1,8 +1,29 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { statSync } from "node:fs";
-import * as fontkit from "fontkit"; // types provided by Fonts namespace
 import { logger } from "Main/Logger";
+
+/**
+ * fontkit 3 ships only ES modules and the main bundle is CommonJS. A top-level
+ * import becomes `require("fontkit")`, which needs Node >= 22.12 and otherwise
+ * throws before the app has a window (a system Electron older than 35 under the
+ * AUR package). Loaded on first use instead: `import()` reads ES modules on any
+ * Node, and if it still fails only the variable-font axes and the fonts outside
+ * fontconfig are lost, with one line in the log saying why.
+ */
+let fontkitLoad: Promise<typeof import("fontkit")> | undefined;
+const fontkit = {
+  async open(filePath: string) {
+    fontkitLoad ??= import("fontkit").catch((error) => {
+      logger.error(
+        `FontManager: fontkit did not load (Electron ${process.versions.electron}, Node ${process.versions.node}); variable font axes and fonts outside fontconfig are unavailable:`,
+        error,
+      );
+      throw error;
+    });
+    return (await fontkitLoad).open(filePath);
+  },
+};
 
 // Fontconfig weight → CSS usWeightClass (piecewise linear, matches FcWeightToOpenType)
 const FC_WEIGHT_MAP: [number, number][] = [
