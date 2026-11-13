@@ -488,7 +488,11 @@ History: 43.3.0 shipped a StatusNotifierItem regression (tray icons invisible on
 
 The pin exists because of a past regression: Electron 42.3.0 (Chromium 148.0.7778.180) shipped a Chromium roll (PR #51600, 1293 commits) carrying a `request_header_integrity` change in Google's closed-source signed-integrity-headers component. Figma's server validated those headers and silently rejected `/app_auth/redeem` — the response was login HTML instead of `Set-Cookie`, so first-login and add-account both broke with no error message. The project sat on 42.0.1 until 43.3.0 was confirmed clean.
 
-**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands. Two things make this test easy to get wrong:
+**Before any bump**, build and run a first login against clean storage and verify `Set-Cookie` lands.
+`scripts/oauth-login-test.sh` does the setup below (clean profile, `mimeapps.list`, the shadowed
+`.desktop`), runs the packaged build from `build/installers/linux-unpacked` (`--dist` for
+`node_modules` Electron), and after you quit reports whether `__Host-figma.authn` is in the profile.
+Two things make this test easy to get wrong:
 
 - **Test the bundled binary from `node_modules`.** Distro Electron packages (Arch's `electronNN`) are rebuilt from source and may not carry the same closed-source components, so a green run there says nothing about what electron-builder ships.
 - **Isolate config via `XDG_CONFIG_HOME`, and copy `~/.config/mimeapps.list` into it.** The default-browser mapping lives in that file; without it gio picks an arbitrary browser and the login opens in the wrong one.
