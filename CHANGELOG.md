@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-11-13
+
+The MCP server works behind your back: tools no longer pull a tab or the window to the front,
+and they keep working with the screen locked. `get_design_context` can answer with a React +
+Tailwind component, like Figma's remote server, and a new tool reads a layer's animation.
+
+### Added
+
+- **MCP tools stay in the background** ([#90](https://github.com/arximus88/figma-linux-next/issues/90)).
+  A tool that names a file by `fileKey` used to switch to that tab and raise the window, in the
+  middle of whatever you were doing. Tools now work on the tab where it is. A tab that was
+  restored lazily and never opened is loaded in place, and a file whose editor is still starting
+  is waited for (up to 20 seconds) instead of failing with "Figma Plugin API not available".
+
+- **`get_design_context` in React + Tailwind** ([#89](https://github.com/arximus88/figma-linux-next/issues/89)).
+  Ask with `format: "react"`, or let the client say it works in React, Next.js, Remix or Gatsby
+  (`clientFrameworks`), and the answer is a component like the one Figma's remote server returns:
+  one JSX element per layer with Tailwind classes, icons and images as URLs served by the app,
+  `data-node-id` on every element, and a screenshot of the node to compare against. Skills written
+  for Figma's server, such as `figma-design-to-code`, work with it as they are. The default answer
+  is still the compact markup.
+
+- **`get_motion_context`** ([#89](https://github.com/arximus88/figma-linux-next/issues/89)).
+  Reads the animation on a layer: keyframes per property with times, values and easings as CSS
+  timing functions, the animation styles applied to it, and the timeline's duration. Enough for an
+  agent to write the motion in code.
+
+### Fixed
+
+- **Exports work with the screen locked or off.** GNOME stops drawing every window then, and
+  Figma waits for a drawn frame before it exports, so a screenshot asked for by an agent overnight
+  ran into the 60-second limit. The app now asks for a frame itself while an MCP call is waiting.
+
+- **Variable fonts that lost their axes.** SF Pro, New York, Cantarell and some other variable
+  fonts were listed without weight or width axes, because the font reader threw on them. Updated
+  to fontkit 3, which reads them.
+
+- **`generate_diagram` respects the editing switch.** It adds shapes to the open FigJam file but
+  was available with "Allow editing tools" off. It is now behind that switch, like `use_figma`.
+
+- **Less noise in the log.** Three messages Figma sends on every file load were written down as
+  unhandled, over a thousand lines in one log.
+
+### Changed
+
+- **Electron 45.3.1** (Chromium 156.0.8078.96). First login checked on a clean profile.
+
 ## [0.24.1] - 2026-11-09
 
 A short update to the MCP server, measured against Figma's own: agents now run Figma's
