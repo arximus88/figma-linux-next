@@ -48,16 +48,21 @@ export default class AuthController {
     // refreshed the profile switcher). Concatenating `${HOMEPAGE}${null}`
     // produces "https://www.figma.comnull/" which lands MainTab on a
     // chrome-error page and breaks the preload bridge for subsequent
-    // attempts. When no redirect is given, just refresh in place.
+    // attempts. When no redirect is given, the page is already up to date:
+    // only tabs that loaded signed out need loading again.
+    //
+    // Never reload the windows themselves here: BrowserWindow.reload()
+    // reloads the panel, which comes back with an empty strip while every
+    // file tab lives on in main, unseen.
     if (!data.redirectURL) {
-      this.windowManager.reloadAllWindows();
+      this.windowManager.sessionStartedOnAllWindows();
       return;
     }
 
     const url = `${Const.HOMEPAGE}${data.redirectURL}`;
 
     this.windowManager.handleUrl(url);
-    this.windowManager.reloadAllWindows();
+    this.windowManager.sessionStartedOnAllWindows();
     this.windowManager.tryHandleAppAuthRedeemUrl(data.redirectURL);
 
     const window = this.windowManager.getWindowByWebContentsId(event.sender.id);

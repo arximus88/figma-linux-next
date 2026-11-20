@@ -45,6 +45,7 @@ import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/M
 import { computeTabGroupPromptBounds } from "Utils/Main/tabGroupPrompt";
 import Tab from "./Tab";
 import type MainTab from "./MainTab";
+import type { FigmaSessionState } from "./MainTab";
 import type CommunityTab from "./CommunityTab";
 import { SettingsTab } from "./SettingsTab";
 
@@ -89,6 +90,17 @@ export default class Window {
 
   private _userId: string;
   private shown = false;
+  // Saved tabs held back until figma.com accepts the session (restoreTabsUntilSession).
+  private gatedRestore: {
+    loadIds: number[];
+    focusId?: number;
+    frontAtRestore: number | undefined;
+  } | null = null;
+  private gatedRestoreTimer: ReturnType<typeof setTimeout> | undefined;
+  // The home tab landed on the login page since the last session start.
+  private sawSignedOut = false;
+  private static readonly SESSION_VERDICT_TIMEOUT_MS =
+    Number(process.env.FIGMA_SESSION_VERDICT_TIMEOUT_MS) || 10000;
   private static readonly SHOW_FALLBACK_MS = 3000;
 
   // Loading skeleton is cleared by the Figma SPA's setLoading(false) signal.
@@ -111,6 +123,7 @@ export default class Window {
     });
     this.geometry = new WindowGeometry(this.window);
     this.tabManager = new TabManager(this.window.id);
+    this.tabManager.mainTab.onSessionStateChange = (state) => this.onMainTabSessionState(state);
     this.settingsView = new SettingsView();
     this.changelogView = new ChangelogView();
     this.modalViews = new ModalViewManager(this.window, this.changelogView);
@@ -338,6 +351,15 @@ export default class Window {
       return;
     }
 
+    // Without a session every file tab would load figma.com's signed-out page
+    // and stay blank. Until the server has accepted the session (see
+    // MainTab.sessionState), restore every saved tab as a discarded shell and
+    // load them once it has (resumeGatedRestore).
+    if (this.tabManager.mainTab.sessionState !== "signedIn") {
+      setTimeout(() => this.restoreTabsUntilSession(tabs), 100);
+      return;
+    }
+
     if (!storage.settings.app.lazyRestoreTabs) {
       setTimeout(() => {
         tabs.forEach((tab, i) => {
@@ -358,38 +380,7 @@ export default class Window {
     // up in the strip immediately, but nothing loads until clicked.
     setTimeout(() => {
       if (this.window.isDestroyed() || tabs.length === 0) return;
-      const validIndex = (index: number) =>
-        Number.isInteger(index) && index >= 0 && index < tabs.length;
-      const findIndexByPath = (path: string, taken: Set<number>) =>
-        tabs.findIndex((tab, i) => !taken.has(i) && parseURL(tab.url)?.pathname === path);
-      const configuredCount = storage.settings.app.lazyRestoreEagerCount;
-      const eagerCount = Number.isFinite(configuredCount)
-        ? Math.max(1, Math.min(10, Math.floor(configuredCount)))
-        : 3;
-      const recentIndices = new Set<number>();
-      if (this.state.recentTabIndices) {
-        for (const index of this.state.recentTabIndices) {
-          if (validIndex(index)) recentIndices.add(index);
-        }
-      } else {
-        for (const path of this.state.recentTabPaths ?? [this.state.lastActiveTabPath]) {
-          const index = findIndexByPath(path, recentIndices);
-          if (index >= 0) recentIndices.add(index);
-        }
-      }
-      let focusIndex = validIndex(this.state.lastActiveTabIndex)
-        ? this.state.lastActiveTabIndex
-        : findIndexByPath(this.state.lastActiveTabPath, new Set());
-      // A saved -1 means Home/Community was active. Older profiles have only
-      // the pathname, and keep the previous fallback to the most recent file.
-      const keepHome = this.state.lastActiveTabIndex === -1;
-      if (focusIndex < 0 && !keepHome) focusIndex = recentIndices.values().next().value ?? 0;
-      const eagerIndices = new Set<number>();
-      if (focusIndex >= 0) eagerIndices.add(focusIndex);
-      for (const index of recentIndices) {
-        if (eagerIndices.size >= eagerCount) break;
-        eagerIndices.add(index);
-      }
+      const { recentIndices, focusIndex, eagerIndices } = this.planLazyRestore(tabs);
       const restoredIds = new Map<number, number>();
       let tabToFocus: Tab | undefined;
       tabs.forEach((tab, i) => {
@@ -402,25 +393,174 @@ export default class Window {
           return;
         }
 
-        const discarded = this.tabManager.addDiscardedShell(tab);
-        discarded.pendingUserId = this._userId;
-        restoredIds.set(i, discarded.id);
-        this.window.webContents.send("didTabAdd", {
-          id: discarded.id,
-          url: discarded.url,
-          title: discarded.title,
-          groupId: discarded.groupId,
-          loading: false,
-          discarded: true,
-        });
+        restoredIds.set(i, this.addRestoredShell(tab).id);
       });
 
-      this.recentTabIds = [...recentIndices]
-        .map((index) => restoredIds.get(index))
-        .filter((id): id is number => id !== undefined)
-        .slice(0, Window.RECENT_TAB_IDS_CAP);
+      this.setRestoredRecents(recentIndices, restoredIds);
       if (tabToFocus) this.setTabFocus(tabToFocus.id);
     }, 100);
+  }
+
+  /** Which saved tabs a lazy restore loads, and which one it puts in front. */
+  private planLazyRestore(tabs: Types.SavedTab[]) {
+    const validIndex = (index: number) =>
+      Number.isInteger(index) && index >= 0 && index < tabs.length;
+    const findIndexByPath = (path: string, taken: Set<number>) =>
+      tabs.findIndex((tab, i) => !taken.has(i) && parseURL(tab.url)?.pathname === path);
+    const configuredCount = storage.settings.app.lazyRestoreEagerCount;
+    const eagerCount = Number.isFinite(configuredCount)
+      ? Math.max(1, Math.min(10, Math.floor(configuredCount)))
+      : 3;
+    const recentIndices = new Set<number>();
+    if (this.state.recentTabIndices) {
+      for (const index of this.state.recentTabIndices) {
+        if (validIndex(index)) recentIndices.add(index);
+      }
+    } else {
+      for (const path of this.state.recentTabPaths ?? [this.state.lastActiveTabPath]) {
+        const index = findIndexByPath(path, recentIndices);
+        if (index >= 0) recentIndices.add(index);
+      }
+    }
+    let focusIndex = validIndex(this.state.lastActiveTabIndex)
+      ? this.state.lastActiveTabIndex
+      : findIndexByPath(this.state.lastActiveTabPath, new Set());
+    // A saved -1 means Home/Community was active. Older profiles have only
+    // the pathname, and keep the previous fallback to the most recent file.
+    const keepHome = this.state.lastActiveTabIndex === -1;
+    if (focusIndex < 0 && !keepHome) focusIndex = recentIndices.values().next().value ?? 0;
+    const eagerIndices = new Set<number>();
+    if (focusIndex >= 0) eagerIndices.add(focusIndex);
+    for (const index of recentIndices) {
+      if (eagerIndices.size >= eagerCount) break;
+      eagerIndices.add(index);
+    }
+    return { recentIndices, focusIndex, eagerIndices };
+  }
+
+  /** Put a saved tab in the strip without loading it (see TabManager.addDiscardedShell). */
+  private addRestoredShell(saved: Types.SavedTab): DiscardedTab {
+    const discarded = this.tabManager.addDiscardedShell(saved);
+    discarded.pendingUserId = this._userId;
+    this.window.webContents.send("didTabAdd", {
+      id: discarded.id,
+      url: discarded.url,
+      title: discarded.title,
+      groupId: discarded.groupId,
+      loading: false,
+      discarded: true,
+    });
+    return discarded;
+  }
+
+  private setRestoredRecents(recentIndices: Set<number>, restoredIds: Map<number, number>) {
+    this.recentTabIds = [...recentIndices]
+      .map((index) => restoredIds.get(index))
+      .filter((id): id is number => id !== undefined)
+      .slice(0, Window.RECENT_TAB_IDS_CAP);
+  }
+
+  /**
+   * Restore with no session yet: every saved tab goes into the strip as a
+   * discarded shell. The ones a normal restore would have loaded are noted
+   * and loaded when the session arrives (resumeGatedRestore). A click on a
+   * shell still loads it at once — the user asked for it.
+   */
+  private restoreTabsUntilSession(tabs: Types.SavedTab[]) {
+    if (this.window.isDestroyed() || tabs.length === 0) return;
+    const lazy = storage.settings.app.lazyRestoreTabs;
+    const plan = lazy ? this.planLazyRestore(tabs) : null;
+    const focusIndex = plan
+      ? plan.focusIndex
+      : tabs.findIndex((tab) => parseURL(tab.url)?.pathname === this.state.lastActiveTabPath);
+    const loadIndices = plan ? [...plan.eagerIndices] : tabs.map((_, i) => i);
+
+    const restoredIds = new Map<number, number>();
+    tabs.forEach((tab, i) => {
+      restoredIds.set(i, this.addRestoredShell(tab).id);
+    });
+    if (plan) this.setRestoredRecents(plan.recentIndices, restoredIds);
+
+    this.gatedRestore = {
+      loadIds: loadIndices.map((i) => restoredIds.get(i)),
+      focusId: focusIndex >= 0 ? restoredIds.get(focusIndex) : undefined,
+      frontAtRestore: this.tabManager.lastFocusedTab,
+    };
+    logger.info(
+      `[Window ${this.id}] figma session ${this.tabManager.mainTab.sessionState}: ${tabs.length} saved tabs wait for it`,
+    );
+
+    if (this.tabManager.mainTab.sessionState === "signedIn") {
+      // The answer came in during the 100 ms delay.
+      this.resumeGatedRestore();
+    } else if (this.tabManager.mainTab.sessionState === "unknown") {
+      // No answer at all (offline, figma.com down): restore as before rather
+      // than keep the tabs unloaded forever.
+      this.gatedRestoreTimer = setTimeout(() => {
+        if (this.tabManager.mainTab.sessionState === "unknown") this.resumeGatedRestore();
+      }, Window.SESSION_VERDICT_TIMEOUT_MS);
+    }
+  }
+
+  /**
+   * Load the tabs restoreTabsUntilSession held back. `refocus` puts the last
+   * active file back in front, as a normal startup does — only if the user
+   * has not moved meanwhile. Not after a sign-in: Home stays in front, that
+   * is where the user just was.
+   */
+  private resumeGatedRestore(refocus = true) {
+    const gated = this.gatedRestore;
+    if (!gated) return;
+    this.gatedRestore = null;
+    clearTimeout(this.gatedRestoreTimer);
+    if (this.window.isDestroyed()) return;
+
+    // The tab that was in front goes first, then the rest a little apart, as
+    // the non-lazy restore does — not N canvases booting in the same tick.
+    const ids = [
+      ...(gated.focusId !== undefined ? [gated.focusId] : []),
+      ...gated.loadIds.filter((id) => id !== gated.focusId),
+    ];
+    ids.forEach((id, i) => {
+      setTimeout(() => {
+        if (this.window.isDestroyed()) return;
+        const tab = this.tabManager.getAll().get(id);
+        if (tab && "discarded" in tab) this.loadTabInBackground(id);
+      }, 300 * i);
+    });
+
+    if (
+      refocus &&
+      gated.focusId !== undefined &&
+      this.tabManager.lastFocusedTab === gated.frontAtRestore
+    ) {
+      this.setTabFocus(gated.focusId);
+    }
+  }
+
+  /**
+   * figma.com accepted a session: the home tab reached a signed-in page, or
+   * a sign-in finished (AuthController.finishAppAuth). If the home tab had
+   * been on the login page, every live file tab loaded without a session and
+   * is loaded again; otherwise only the ones sitting on a login page
+   * themselves (an add-account sign-in leaves the rest alone). Reloads run
+   * before the held-back restore, so the tabs it creates do not load twice.
+   * Safe to call repeatedly; never reloads the panel, which would empty the
+   * strip.
+   */
+  public onSessionStarted() {
+    const afterSignIn = this.sawSignedOut;
+    this.sawSignedOut = false;
+    this.tabManager.reloadForNewSession(afterSignIn);
+    this.resumeGatedRestore(!afterSignIn);
+  }
+
+  private onMainTabSessionState(state: FigmaSessionState) {
+    if (state === "signedOut") {
+      this.sawSignedOut = true;
+    } else if (state === "signedIn") {
+      this.onSessionStarted();
+    }
   }
   public calcBoundsForTabView(): Rectangle {
     return this.geometry.calcBoundsForTabView();
@@ -1170,9 +1310,6 @@ export default class Window {
   }
   public setUsingMicrophone(tabId: number, isUsingMicrophone: boolean) {
     this.window.webContents.send("setUsingMicrophone", { id: tabId, isUsingMicrophone });
-  }
-  public reload() {
-    this.window.reload();
   }
   public reloadTab(tabId: number) {
     this.tabManager.reloadTab(tabId);

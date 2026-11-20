@@ -44,6 +44,9 @@ export function initIpc() {
       editorType: data.editorType,
       loading: data.loading,
       groupId: data.groupId,
+      // A lazily restored shell must be drawn as unloaded from the start, not
+      // only once setTabDiscarded arrives.
+      discarded: data.discarded,
     });
 
     if (data.groupId) {

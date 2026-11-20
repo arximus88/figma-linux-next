@@ -182,3 +182,22 @@ export const getTabDedupKey = (url: string): string | null => {
   if (type === "export") return `export:${key}`;
   return `doc:${key}`;
 };
+
+/**
+ * What a page Figma's server sent the home tab to says about the session.
+ * The home tab always asks for /files/recents; with no valid session the
+ * server answers with its login page instead. That answer is the only
+ * reliable signal: a `__Host-figma.authn` cookie can still be on disk after
+ * the server stopped accepting it. `undefined` = says nothing (the redeem
+ * hop, an error page, another site).
+ */
+export const sessionStateFromUrl = (url: string): "signedIn" | "signedOut" | undefined => {
+  const parsed = parseURL(url);
+  if (parsed?.protocol !== "https:" || !/(^|\.)figma\.com$/.test(parsed.hostname)) {
+    return undefined;
+  }
+  const path = parsed.pathname;
+  if (/^\/(login|signup|signin)(\/|$)/.test(path)) return "signedOut";
+  if (/^\/app_auth\//.test(path)) return undefined;
+  return "signedIn";
+};

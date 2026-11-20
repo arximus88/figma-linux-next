@@ -110,6 +110,15 @@ import TabGroupPromptView from "Main/Ui/TabGroupPromptView";
 import Window from "Main/Ui/Window";
 import { NEW_FILE_TAB_TITLE } from "Const";
 
+/** The home tab landed on `url` — how figma.com tells the app whether it has a session. */
+function homeLandsOn(w: Window, url: string) {
+  (w as any).tabManager.mainTab.updateSessionState(url, true);
+}
+/** figma.com accepted the session (a normal signed-in start). */
+function signIn(w: Window) {
+  homeLandsOn(w, "https://www.figma.com/files/recents");
+}
+
 describe("Window Tab Routing", () => {
   let windowInstance: Window;
   let mockEvent: IpcMainEvent;
@@ -657,6 +666,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab").mockReturnValue({ id: 1 } as any);
 
+        signIn(restored);
+
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A", groupId: "g1" },
         ]);
@@ -707,6 +718,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab");
         const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        signIn(restored);
 
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A" },
@@ -775,6 +788,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab");
         const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        signIn(restored);
 
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A" },
@@ -1175,6 +1190,7 @@ describe("lazy restore boundaries and duplicate tabs", () => {
       return 0;
     }) as any);
     try {
+      signIn(w);
       w.restoreTabs(tabs);
       while (scheduled.length) scheduled.shift()!();
     } finally {
@@ -1313,5 +1329,87 @@ describe("lazy restore boundaries and duplicate tabs", () => {
     expect(
       [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
     ).toEqual(["b"]);
+  });
+});
+
+describe("restore before figma.com accepts the session", () => {
+  let previous: any;
+  let scheduled: (() => void)[];
+  let timer: { mockRestore(): void };
+  beforeEach(() => {
+    previous = { ...storage.settings.app };
+    storage.settings.app.lazyRestoreTabs = false;
+    scheduled = [];
+    timer = spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      scheduled.push(fn);
+      return 0;
+    }) as any);
+  });
+  afterEach(() => {
+    timer.mockRestore();
+    Object.assign(storage.settings.app, previous);
+  });
+  const run = () => {
+    while (scheduled.length) scheduled.shift()!();
+  };
+  const saved = ["a", "b", "c"].map((key) => ({
+    title: key,
+    url: `https://www.figma.com/design/${key}`,
+  }));
+  const live = (w: Window) =>
+    [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title);
+
+  test("signed out: every saved tab waits unloaded, sign-in loads them and Home stays in front", () => {
+    const w = new Window({ lastActiveTabPath: "/design/b" } as any);
+    homeLandsOn(w, "https://www.figma.com/login");
+    w.restoreTabs(saved);
+    run();
+    expect([...w.tabs.values()].map((tab) => tab.title)).toEqual(["a", "b", "c"]);
+    expect(live(w)).toEqual([]);
+
+    homeLandsOn(w, "https://www.figma.com/files/recents?fuid=1");
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.getLatestFocusedTabId()).toBe((w as any).tabManager.mainTab.id);
+  });
+
+  test("no answer yet: tabs wait, a signed-in answer loads them and brings back the last one", () => {
+    const w = new Window({ lastActiveTabPath: "/design/b" } as any);
+    w.restoreTabs(saved);
+    scheduled.shift()!(); // the 100 ms restore delay only
+    expect(live(w)).toEqual([]);
+    signIn(w);
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("b");
+  });
+
+  test("no answer at all: the timeout restores as before", () => {
+    const w = new Window({ lastActiveTabPath: "/design/c" } as any);
+    w.restoreTabs(saved);
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("c");
+  });
+
+  test("a file tab opened while signed out is loaded again once the session starts", () => {
+    const w = new Window({} as any);
+    homeLandsOn(w, "https://www.figma.com/login");
+    const tab = w.addTab("https://www.figma.com/design/a/x")!;
+    const load = spyOn(tab, "loadUrl");
+    w.onSessionStarted();
+    // Not in front: it reloads when next focused, not now.
+    expect(load).not.toHaveBeenCalled();
+    w.setTabFocus(tab.id);
+    expect(load.mock.calls.length).toBe(1);
+    expect(load.mock.calls[0][0]).toContain("/design/a/x");
+  });
+
+  test("an add-account sign-in leaves tabs that loaded with a session alone", () => {
+    const w = new Window({} as any);
+    signIn(w);
+    const tab = w.addTab("https://www.figma.com/design/a/x")!;
+    w.onSessionStarted();
+    expect(tab.pendingSessionReload).toBe(false);
   });
 });
