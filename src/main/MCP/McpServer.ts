@@ -52,6 +52,7 @@ import {
 } from "./utils/http";
 import { UPLOAD_MAX_BYTES, type UploadTicket } from "./utils/uploads";
 import { readFileKeyArg } from "./utils/fileKey";
+import { isAuthExempt, isAuthorized } from "./utils/auth";
 import { toolError } from "./utils/toolResponse";
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
@@ -70,6 +71,9 @@ export class McpServer {
   private _writeToolsEnabled = false;
   private _aiToolsEnabled = false;
   private _boundPort = MCP_PORT;
+  /** Bearer-token mode (issue #94). Off by default; see setAuth. */
+  private _authRequired = false;
+  private _authToken = "";
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
@@ -145,6 +149,21 @@ export class McpServer {
     this._aiToolsEnabled = enabled;
     this.log.info(`MCP Figma AI tools ${enabled ? "enabled" : "disabled"}`);
     this.notifyToolsChanged();
+  }
+
+  /**
+   * Require `Authorization: Bearer <token>` on every request, or stop
+   * requiring it. Takes effect on the next request, no rebind. Sessions opened
+   * before the change are dropped: they were let in under the old rule, and an
+   * open SSE stream would otherwise keep receiving notifications. An empty
+   * token with auth on refuses everyone. The token itself is never logged.
+   */
+  public setAuth(required: boolean, token: string): void {
+    if (this._authRequired === required && this._authToken === token) return;
+    this._authRequired = required;
+    this._authToken = token;
+    this.sessions.clear();
+    this.log.info(`MCP bearer-token auth ${required ? "required" : "off"}`);
   }
 
   /** The tools a client sees right now, by tier. */
@@ -291,6 +310,25 @@ export class McpServer {
     if (req.method === "OPTIONS") {
       res.writeHead(204, cors());
       res.end();
+      return;
+    }
+
+    // Bearer token, when the user turned it on. Checked before routing so an
+    // unauthenticated caller can't tell which endpoints exist.
+    if (
+      this._authRequired &&
+      !isAuthExempt(req.method, req.url) &&
+      !isAuthorized(req.headers.authorization, this._authToken)
+    ) {
+      // Never log the header: a near-miss token is still most of a secret.
+      this.log.warn(`Unauthorized MCP request: ${req.method} ${req.url?.split("?")[0]}`);
+      res.setHeader("WWW-Authenticate", 'Bearer realm="figma-linux-next"');
+      replyError(
+        res,
+        401,
+        -32001,
+        "Unauthorized: this server requires Authorization: Bearer <token>. Copy the token from figma-linux-next Settings → Integrations.",
+      );
       return;
     }
 

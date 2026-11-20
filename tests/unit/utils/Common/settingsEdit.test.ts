@@ -237,3 +237,27 @@ describe("trackpad speeds", () => {
     expect(effects.some((e) => e.type === "trackpad")).toBe(false);
   });
 });
+
+describe("MCP access token setting", () => {
+  it("announces a change of requireAuth so main can apply it live", () => {
+    const { next, effects } = planSettingsUpdate(
+      base(),
+      edit((s) => (s.mcp.requireAuth = true)),
+    );
+    expect(next.mcp.requireAuth).toBe(true);
+    expect(effects).toContainEqual({ type: "mcpAuth", required: true });
+    expect(effects.find((e) => e.type === "mcpServer")).toBeUndefined();
+  });
+
+  it("never lets the Settings page write the token", () => {
+    const incoming = edit((s) => (s.mcp.requireAuth = true)) as any;
+    incoming.mcp.authToken = "from-renderer";
+    const { next } = planSettingsUpdate(base(), incoming);
+    expect((next.mcp as any).authToken).toBeUndefined();
+  });
+
+  it("is off by default", () => {
+    expect(BASE_DEFAULT_SETTINGS.mcp.requireAuth).toBe(false);
+    expect(BASE_DEFAULT_SETTINGS.mcp.authToken).toBe("");
+  });
+});

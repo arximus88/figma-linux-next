@@ -20,6 +20,7 @@ import { MCP_PORT } from "./MCP/config";
 import { fileKeysOfUrl, urlMatchesFileKey } from "./MCP/utils/fileKey";
 import { BackgroundWaker } from "./MCP/utils/backgroundWaker";
 import { withFrames } from "./MCP/utils/framePump";
+import { generateAuthToken } from "./MCP/utils/auth";
 
 // Controllers
 import { ipcRegistry } from "./controllers/registry";
@@ -62,6 +63,7 @@ export default class App {
     registerUrlHandler();
 
     this.mcpServer = new McpServer(logger);
+    this.applyMcpAuth();
     this.figmaAgent = new FigmaAgentServer({
       isKnownUser: (id) => this.windowManager.getKnownUserIds().includes(id),
       openUrl: (url) => this.openUrlFromBrowser(url),
@@ -82,6 +84,8 @@ export default class App {
     // MCP runtime status for the settings UI (real server/CDP state)
     ipcRegistry.handle("getMcpStatus", () => this.getMcpStatus(), "App");
     ipcRegistry.handle("getMcpTools", () => mcpToolList(), "App");
+    ipcRegistry.handle("getMcpAuthToken", () => this.ensureMcpAuthToken(), "App");
+    ipcRegistry.handle("regenerateMcpAuthToken", () => this.regenerateMcpAuthToken(), "App");
     ipcRegistry.handle("getFigmaAgentStatus", () => this.figmaAgent.getStatus(), "App");
 
     // Seal the registry — no more IPC registrations after this point
@@ -346,6 +350,7 @@ export default class App {
       if (enabled) void this.mcpServer.restart(port);
       else this.mcpServer.stop();
     });
+    app.on("mcpAuthChanged", () => this.applyMcpAuth());
     app.on("figmaAgentChanged", (enabled: boolean) => {
       if (enabled) void this.figmaAgent.start();
       else void this.figmaAgent.stop();
@@ -362,6 +367,42 @@ export default class App {
     }
     this.windowManager.focusLastWindow();
     this.windowManager.openUrl(url);
+  }
+
+  /**
+   * The MCP bearer token, created on first use. Settings asks for it as soon
+   * as the switch flips, possibly before that save lands, so creating it here
+   * rather than in the save keeps the two from racing to make two tokens.
+   */
+  private async ensureMcpAuthToken(): Promise<string> {
+    if (!storage.settings.mcp.authToken) {
+      storage.settings.mcp.authToken = generateAuthToken();
+      await storage.save();
+    }
+    return storage.settings.mcp.authToken;
+  }
+
+  /** New token: every client configured with the old one gets 401 from the next request. */
+  private async regenerateMcpAuthToken(): Promise<string> {
+    storage.settings.mcp.authToken = generateAuthToken();
+    await storage.save();
+    this.applyMcpAuth();
+    return storage.settings.mcp.authToken;
+  }
+
+  /**
+   * Push the saved auth mode into the server; turning it on creates the token
+   * if missing. Synchronous on purpose: called from the constructor, it has to
+   * be in place before ready() starts the listener, and the save of a fresh
+   * token may finish later without leaving a window where the server is open.
+   */
+  private applyMcpAuth(): void {
+    const required = storage.settings.mcp.requireAuth === true;
+    if (required && !storage.settings.mcp.authToken) {
+      storage.settings.mcp.authToken = generateAuthToken();
+      void storage.save();
+    }
+    this.mcpServer.setAuth(required, required ? storage.settings.mcp.authToken : "");
   }
 
   /** Real runtime state of both MCP integrations, for the settings UI. */

@@ -64,6 +64,8 @@ export const BASE_DEFAULT_SETTINGS: Types.SettingsInterface = {
     enableAiTools: false,
     cdpEnabled: false,
     remoteDebugPort: 9222,
+    requireAuth: false,
+    authToken: "",
   },
   ui: {
     scalePanel: 1,
