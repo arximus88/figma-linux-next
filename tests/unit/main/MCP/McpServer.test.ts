@@ -493,7 +493,10 @@ describe("McpServer (Streamable HTTP transport)", () => {
       for (const name of ["get_metadata", "get_screenshot", "use_figma", "figma_text"]) {
         expect(byName.get(name).inputSchema.properties.fileKey).toBeDefined();
       }
-      expect(byName.get("get_code_connect_map").inputSchema.properties.fileKey).toBeUndefined();
+      // Code-connect mappings live in the server: fileKey is accepted, not routed.
+      expect(
+        byName.get("get_code_connect_map").inputSchema.properties.fileKey.description,
+      ).toContain("Accepted for compatibility");
       expect(byName.get("use_figma").inputSchema.properties.code.type).toBe("string");
     });
   });

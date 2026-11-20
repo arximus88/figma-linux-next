@@ -240,6 +240,12 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- Remote-MCP spellings live in one file, `tools/remoteCompat.ts`: `create_session` (returns a
+  UUID), `sessionId`/`skillNames`/`userIntent` dropped from every call, tool aliases
+  (`get_libraries`, `generate_image`, listed in their target's tier) and remote parameter names
+  (`mermaidSyntax`, `componentName`, `source`, `codeConnectLabel`). No schema sets
+  `additionalProperties: false` and nothing validates arguments, so unknown ones were never
+  rejected; a new remote name goes into that file's tables, not into a handler.
 - `get_design_context` has two forms. Default: markup with CSS. With `clientFrameworks` naming
   React / Next.js / Remix / Gatsby, or `format: "react"`: a React + Tailwind component like Figma's
   remote tool (asset URLs as constants, `data-node-id`, a screenshot appended unless

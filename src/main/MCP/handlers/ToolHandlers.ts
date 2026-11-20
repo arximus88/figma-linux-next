@@ -714,20 +714,30 @@ export class ToolHandlers {
 
   // ── Tool: get_code_connect_map ───────────────────────────────────────────
 
-  public toolGetCodeConnectMap() {
-    const map: Record<string, { codeConnectSrc: string; codeConnectName: string }> = {};
+  public toolGetCodeConnectMap(args: Record<string, unknown> = {}) {
+    const onlyNode = normalizeNodeId(args.nodeId);
+    const label = typeof args.label === "string" && args.label ? args.label.toLowerCase() : null;
+    const map: Record<string, { codeConnectSrc: string; codeConnectName: string; label?: string }> =
+      {};
     for (const [nodeId, entry] of this.ctx.codeConnectMap) {
+      if (onlyNode && nodeId !== onlyNode) continue;
+      if (label && entry.label && entry.label.toLowerCase() !== label) continue;
       map[nodeId] = {
         codeConnectSrc: entry.codeConnectSrc,
         codeConnectName: entry.codeConnectName,
+        ...(entry.label ? { label: entry.label } : {}),
       };
     }
+    const count = Object.keys(map).length;
 
     return toolResult(
       JSON.stringify(
         {
           mappings: map,
-          count: this.ctx.codeConnectMap.size,
+          count,
+          ...(onlyNode && count === 0
+            ? { hint: "No mapping added for this node; get_code_connect reads published ones." }
+            : {}),
         },
         null,
         2,
@@ -748,7 +758,7 @@ export class ToolHandlers {
 
     // Try to capture screenshots of top nodes
     const screenshots: Record<string, string> = {};
-    if (result.nodeIds?.length > 0) {
+    if (args.includeImagesOfNodes !== false && result.nodeIds?.length > 0) {
       for (const nid of result.nodeIds.slice(0, 5)) {
         try {
           const ssScript = SCREENSHOT_SCRIPT(nid, {
@@ -786,7 +796,7 @@ export class ToolHandlers {
   public async toolGenerateDiagram(args: Record<string, unknown>) {
     const mermaid = args.mermaid as string;
     if (!mermaid) {
-      return toolError("Missing required field: mermaid (Mermaid diagram syntax)");
+      return toolError("Missing required field: mermaid or mermaidSyntax (Mermaid diagram syntax)");
     }
 
     const { nodes, edges } = parseMermaid(mermaid);
@@ -826,12 +836,15 @@ export class ToolHandlers {
     const nodeId = normalizeNodeId(args.nodeId);
     const codeConnectSrc = args.codeConnectSrc as string;
     const codeConnectName = args.codeConnectName as string;
+    const label = typeof args.label === "string" && args.label ? args.label : undefined;
 
     if (!nodeId || !codeConnectSrc || !codeConnectName) {
-      return toolError("Missing required fields: nodeId, codeConnectSrc, codeConnectName");
+      return toolError(
+        "Missing required fields: nodeId, codeConnectSrc (or source), codeConnectName (or componentName)",
+      );
     }
 
-    this.ctx.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName });
+    this.ctx.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName, label });
     this.ctx.log.info(
       "Code Connect mapping added:",
       nodeId,
@@ -847,6 +860,7 @@ export class ToolHandlers {
           nodeId,
           codeConnectSrc,
           codeConnectName,
+          ...(label ? { label } : {}),
           totalMappings: this.ctx.codeConnectMap.size,
         },
         null,
@@ -1190,6 +1204,7 @@ export class ToolHandlers {
         model,
         seed: typeof args.seed === "number" ? Math.round(args.seed) : null,
         place: args.placeOnCanvas !== false,
+        nodeId: normalizeNodeId(args.nodeId),
         previewMax: 512,
       }),
       180_000,
@@ -1381,6 +1396,9 @@ export class ToolHandlers {
     return toolResult(
       safeStringify({
         uploads,
+        ...(args.batchCommit === true
+          ? { batchCommit: "not supported: each URL places its asset when the POST arrives" }
+          : {}),
         expiresInSeconds: UPLOAD_TTL_MS / 1000,
         howToUpload:
           "POST the raw bytes to each URL once, with the real Content-Type: " +
