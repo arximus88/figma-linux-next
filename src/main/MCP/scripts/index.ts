@@ -394,11 +394,17 @@ ${HELPERS_PREAMBLE}
 
 /**
  * Export a node as PNG. Sizing follows Figma's remote get_screenshot: the
- * longer edge is capped at `maxDimension` (default 1024), and a small node is
- * rendered at up to 2x rather than blown up. An explicit `scale` (this
- * server's older parameter) wins over the cap. `contentsOnly: false` (the
- * default, as remote) renders what the canvas shows, overlapping layers
- * included; true renders the node in isolation.
+ * longer edge is capped at `maxDimension`, and a small node is rendered at up
+ * to 2x rather than blown up. An explicit `scale` (this server's older
+ * parameter) replaces the 2x choice but not the cap: it used to bypass it, so
+ * a large frame at scale 4 had no bound at all (#93).
+ *
+ * The edge measured is the larger of the node's size and its render bounds
+ * (what exportAsync actually draws: effects, overflowing children). A page has
+ * neither, and used to export at 1x however big its frames were; it is
+ * measured by the union of its children's bounds instead. `contentsOnly:
+ * false` (the default, as remote) renders what the canvas shows, overlapping
+ * layers included; true renders the node in isolation.
  */
 export const SCREENSHOT_SCRIPT = (
   nodeId: string | null,
@@ -428,13 +434,32 @@ export const SCREENSHOT_SCRIPT = (
       return { error: "Node " + target.id + " (" + target.type + ") cannot be exported as an image" };
     }
 
-    const w = target.width || 0, h = target.height || 0;
-    const longer = Math.max(w, h);
+    const boxOf = (n) => n.absoluteRenderBounds || n.absoluteBoundingBox || null;
+    let w = target.width || 0, h = target.height || 0;
+    let drawnW = w, drawnH = h;
+    const own = target.type === 'PAGE' ? null : boxOf(target);
+    if (own) { drawnW = Math.max(w, own.width); drawnH = Math.max(h, own.height); }
+    if (!(w > 0 && h > 0) && Array.isArray(target.children)) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const child of target.children) {
+        const b = boxOf(child);
+        if (!b) continue;
+        minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.width); maxY = Math.max(maxY, b.y + b.height);
+      }
+      if (maxX > minX && maxY > minY) {
+        w = drawnW = maxX - minX;
+        h = drawnH = maxY - minY;
+      } else if (target.type === 'PAGE') {
+        return { error: "Page " + target.id + " has nothing on it to capture" };
+      }
+    }
+    const longer = Math.max(drawnW, drawnH);
     const explicitScale = ${opts.scale === null ? "null" : JSON.stringify(opts.scale)};
     const maxDimension = ${JSON.stringify(opts.maxDimension)};
-    const scale = explicitScale !== null
-      ? explicitScale
-      : (longer > 0 ? Math.min(2, maxDimension / longer) : 1);
+    const fit = longer > 0 ? maxDimension / longer : 1;
+    const wanted = explicitScale !== null ? explicitScale : Math.min(2, fit);
+    const scale = Math.min(wanted, fit);
 
     const bytes = await target.exportAsync({
       format: 'PNG',
@@ -452,6 +477,9 @@ export const SCREENSHOT_SCRIPT = (
       original_width: Math.round(w),
       original_height: Math.round(h),
       scale: Math.round(scale * 1000) / 1000,
+      ...(explicitScale !== null && scale < explicitScale
+        ? { requestedScale: explicitScale, scaleCappedBy: maxDimension }
+        : {}),
     };
   } catch (e) {
     return { error: e.message || String(e) };

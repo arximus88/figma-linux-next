@@ -54,7 +54,9 @@ function makeHandlers({ execResult, capturePage }: HarnessOptions) {
           webContents: {
             capturePage: async () => {
               calls.capturePage++;
-              return capturePage ? capturePage() : { toPNG: () => Buffer.from("png") };
+              const image = capturePage ? capturePage() : { toPNG: () => Buffer.from("png") };
+              // A 1x1 window: nothing for the maxDimension cap to shrink.
+              return { getSize: () => ({ width: 1, height: 1 }), ...image };
             },
           },
         }) as any,

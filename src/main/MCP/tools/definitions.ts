@@ -7,6 +7,13 @@
  */
 
 import type { ToolAnnotations, ToolDefinition, ToolName } from "../types";
+import {
+  INLINE_IMAGE_MAX_BASE64,
+  SCREENSHOT_DEFAULT_EDGE,
+  SCREENSHOT_MAX_EDGE,
+} from "../utils/screenshotLimits";
+
+const INLINE_LIMIT_MIB = INLINE_IMAGE_MAX_BASE64 / 1024 / 1024;
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
@@ -158,8 +165,11 @@ const BASE_TOOLS: ToolDefinition[] = [
     description:
       "Capture a PNG of a node (nodeId), else of the selection, else of the visible window. " +
       "The image comes back inline, or — with savePath — is written to disk and only its path " +
-      "is returned. Helps preserve layout fidelity in generated code. " +
-      "Supports Figma Design and FigJam files.",
+      `is returned. An image over ${INLINE_LIMIT_MIB} MiB of base64 is never sent inline ` +
+      "(MCP clients reject responses over 16 MiB): it is saved to the app's export directory " +
+      `and savedTo returned instead. The longer edge never exceeds ${SCREENSHOT_MAX_EDGE} px; ` +
+      "a page is sized by the frames on it. Helps preserve layout fidelity in generated code. " +
+      "Supports Figma Design, FigJam and Slides files.",
     inputSchema: {
       type: "object",
       properties: {
@@ -170,9 +180,10 @@ const BASE_TOOLS: ToolDefinition[] = [
         maxDimension: {
           type: "integer",
           minimum: 1,
-          maximum: 65536,
+          maximum: SCREENSHOT_MAX_EDGE,
           description:
-            "Cap on the longer edge of the PNG in pixels (default 1024; small nodes render at up to 2x). " +
+            `Cap on the longer edge of the PNG in pixels (default ${SCREENSHOT_DEFAULT_EDGE}, at most ` +
+            `${SCREENSHOT_MAX_EDGE}; small nodes render at up to 2x). Applies with scale too. ` +
             "Raise it to inspect detail, lower it for thumbnails. The response gives width/height and " +
             "original_width/original_height.",
         },
@@ -183,12 +194,19 @@ const BASE_TOOLS: ToolDefinition[] = [
         },
         scale: {
           type: "number",
-          description: "Fixed export scale (0.01–4). Overrides maxDimension; prefer maxDimension.",
+          description:
+            "Fixed export scale (0.01–4), still capped by maxDimension if given, else by " +
+            `${SCREENSHOT_MAX_EDGE} px (the response then gives requestedScale). Prefer maxDimension.`,
         },
         savePath: {
           type: "string",
           description:
-            "Write the PNG here instead of returning it inline (the response gives savedTo; open that file to see it). Absolute, or relative to the app's export directory (the response says which). If the write fails the image comes back inline.",
+            "Write the PNG here instead of returning it inline (the response gives savedTo; open that file to see it). Absolute, or relative to the app's export directory (the response says which). If the write fails the image comes back inline. Under Flatpak a path the host cannot see (such as /tmp) is rejected.",
+        },
+        enableBase64Response: {
+          type: "boolean",
+          description:
+            "Inline image (default true). false saves the PNG to the export directory and returns its path; true with savePath returns both.",
         },
       },
     },
@@ -847,7 +865,8 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
         placeOnCanvas: { type: "boolean", description: "Default true." },
         savePath: {
           type: "string",
-          description: "Where to write the PNG; relative paths resolve against the export folder.",
+          description:
+            "Where to write the PNG; relative paths resolve against the export folder. Under Flatpak a path the host cannot see (such as /tmp) is rejected before anything is generated.",
         },
       },
       required: ["prompt"],
