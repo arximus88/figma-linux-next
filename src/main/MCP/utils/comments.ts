@@ -18,7 +18,9 @@
  *   minus that node's bounds origin, and `in_frame` is "the anchor is not the
  *   page itself" (`inFrame: pageId !== nodeId` in the client). `x`/`y` are
  *   absolute canvas coordinates.
- * - a comment on an empty spot of the canvas has `client_meta = {x, y, page_id}`.
+ * - a comment on an empty spot of the canvas is sent with `client_meta = {x, y,
+ *   page_id}`; figma.com stores `{x, y}` and keeps the page in the comment's
+ *   own `page_id` (checked live 2026-11-20, as is everything here).
  * - `message_meta` is a list of runs: `{t: "text"}`, mentions carry `user_id`
  *   or `user_annotated: {id, handle}`.
  */
@@ -32,6 +34,9 @@ export interface RawComment {
   created_at?: string | null;
   resolved_at?: string | null;
   deleted_at?: string | null;
+  is_deleted?: boolean;
+  /** The thread's page; for a pin on the canvas figma.com keeps it only here. */
+  page_id?: string | null;
   message?: string | null;
   message_meta?: any[] | null;
   client_meta?: any;
@@ -148,7 +153,9 @@ function mentionsOf(meta: unknown): string[] {
  */
 export function normalizeComments(raw: unknown): CommentRecord[] {
   const list = (Array.isArray(raw) ? raw : []) as RawComment[];
-  const live = list.filter((c) => c && c.id !== undefined && c.id !== null && !c.deleted_at);
+  const live = list.filter(
+    (c) => c && c.id !== undefined && c.id !== null && !c.deleted_at && !c.is_deleted,
+  );
   const byId = new Map(live.map((c) => [String(c.id), c]));
   return live.map((c) => {
     const id = String(c.id);
@@ -176,7 +183,7 @@ export function normalizeComments(raw: unknown): CommentRecord[] {
       mentionedUserIds: mentionsOf(c.message_meta),
       nodeId: str(meta?.node_id ?? meta?.nodeId) ?? stablePath[0] ?? null,
       stablePath,
-      pageId: str(meta?.page_id ?? meta?.pageId),
+      pageId: str(meta?.page_id ?? meta?.pageId ?? root.page_id),
       x: num(meta?.x),
       y: num(meta?.y),
       unread,

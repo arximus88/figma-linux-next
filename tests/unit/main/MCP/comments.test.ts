@@ -83,6 +83,7 @@ const RAW: any[] = [
     deleted_at: "2026-11-05T11:00:00Z",
     message: "gone",
   },
+  { id: "15", parent_id: "10", user: { id: ME }, is_deleted: true, message: "gone too" },
   {
     id: "20",
     parent_id: null,
@@ -90,7 +91,9 @@ const RAW: any[] = [
     created_at: "2026-11-04T10:00:00Z",
     resolved_at: null,
     message_meta: [{ t: "Spacing? " }, { user_id: "222", t: "@Anna" }],
-    client_meta: { x: 550, y: 560, page_id: "5:0" },
+    // As figma.com stores a pin on the canvas: the page beside client_meta, not in it.
+    client_meta: { x: 550, y: 560 },
+    page_id: "5:0",
   },
 ];
 

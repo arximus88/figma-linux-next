@@ -16,7 +16,12 @@
  *            {file_key, uuid, message_meta, attachments: []}   (`writeAPI.reply`)
  * - resolve: PUT    /api/file/<key>/comments/<id>  {resolved_at: "true" | "false"}
  *            (the strings, not booleans; "false" reopens)
- * - delete:  DELETE /api/file/<key>/comments/<id>
+ * - delete:  DELETE /api/file/<key>/comments/<id>  (a root takes its replies with it;
+ *            the client labels it "Delete thread")
+ *
+ * All five were checked live on 2026-11-20 in a scratch file: each answered
+ * 200 and the list showed the change. The stored comment carries `page_id`
+ * beside `client_meta` and no read state.
  *
  * Headers: Figma's XHR client sends `Accept` and `Content-Type:
  * application/json`, `X-Csrf-Bypass: yes`, `X-Figma-User-ID: <user_data.id>`
