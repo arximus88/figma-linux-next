@@ -397,6 +397,19 @@ describe("savePath the host cannot see (Flatpak's private /tmp)", () => {
     expect(meta.savedTo).toBe(path.join(saveBaseDir, "a.png"));
   });
 
+  test("a ~/ path means the home directory, not a folder named ~ in the export dir", async () => {
+    const { handlers, calls } = makeHandlers({ execResult: ok, isHostVisible: visible });
+    const response: any = await handlers.toolGetScreenshot({
+      nodeId: "1:2",
+      savePath: "~/fln-tilde/x.png",
+    });
+    // Home is not shared in this sandbox, so the expanded path is rejected by name.
+    expect(response.isError).toBe(true);
+    expect(textOf(response)).toContain(path.join(os.homedir(), "fln-tilde", "x.png"));
+    expect(textOf(response)).not.toContain(`${path.sep}~${path.sep}`);
+    expect(calls.exec).toBe(0);
+  });
+
   test("figma_ai_generate_image rejects it before spending credits", async () => {
     const { handlers, calls } = makeHandlers({ execResult: {}, isHostVisible: visible });
 

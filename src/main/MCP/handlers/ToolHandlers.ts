@@ -10,6 +10,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { MCP_HOST } from "../config";
 import {
@@ -747,6 +748,11 @@ export class ToolHandlers {
    * `process.cwd()`.
    */
   private resolveSavePath(savePath: string): string {
+    // Agents write "~/Downloads/x.png"; no shell expands it here, and resolved
+    // as relative it became "<export dir>/~/Downloads/x.png".
+    if (savePath === "~" || savePath.startsWith("~/")) {
+      return path.join(os.homedir(), savePath.slice(1));
+    }
     if (path.isAbsolute(savePath)) return savePath;
     return path.resolve(this.ctx.getSaveBaseDir(), savePath);
   }
@@ -769,8 +775,8 @@ export class ToolHandlers {
     if (visible(absPath)) return null;
     return (
       `savePath ${absPath} is inside the Flatpak sandbox: a file written there is not ` +
-      "visible outside the app (the sandbox has its own /tmp and home). Use a path under " +
-      "~/Downloads or ~/Documents, or a relative path, which is saved under " +
+      "visible outside the app (the sandbox has its own /tmp and home). Use a path in your " +
+      "Downloads or Documents folder, or a relative path, which is saved under " +
       `${this.ctx.getSaveBaseDir()}.`
     );
   }
