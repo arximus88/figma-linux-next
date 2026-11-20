@@ -9,6 +9,7 @@ import {
   isExternallyOpenableUrl,
   getEditorTypeFromUrl,
   normalizeEditorType,
+  sessionStateFromUrl,
 } from "Utils/Common/url";
 import { HOMEPAGE } from "Const";
 
@@ -386,5 +387,28 @@ describe("Figma Motion export queue (issue #41)", () => {
     expect(isExportQueueUrl("https://www.figma.com/files/recent")).toBe(false);
     // A design file that merely mentions "export" in its slug is not the queue.
     expect(isExportQueueUrl("https://www.figma.com/design/KEY/export-icons")).toBe(false);
+  });
+});
+
+describe("sessionStateFromUrl", () => {
+  test("the login page means no session", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/login")).toBe("signedOut");
+    expect(sessionStateFromUrl("https://www.figma.com/login?redirect_uri=%2Ffiles")).toBe(
+      "signedOut",
+    );
+    expect(sessionStateFromUrl("https://www.figma.com/signup")).toBe("signedOut");
+  });
+
+  test("any other figma.com page means the server accepted the session", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/files/recents?fuid=1")).toBe("signedIn");
+    expect(sessionStateFromUrl("https://www.figma.com/files/team/1/x")).toBe("signedIn");
+  });
+
+  test("the redeem hop, error pages and other sites say nothing", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/app_auth/redeem?g_secret=x")).toBeUndefined();
+    expect(sessionStateFromUrl("chrome-error://chromewebdata/")).toBeUndefined();
+    expect(sessionStateFromUrl("https://example.com/login")).toBeUndefined();
+    expect(sessionStateFromUrl("https://www.figma.com.evil.test/files")).toBeUndefined();
+    expect(sessionStateFromUrl("https://www.figma.com/loginx")).toBe("signedIn");
   });
 });

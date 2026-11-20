@@ -84,6 +84,8 @@ declare namespace Types {
     isLibrary?: boolean;
     loading?: boolean;
     groupId?: string;
+    /** A lazily restored shell, not loaded yet (see TabFront.discarded). */
+    discarded?: boolean;
   }
 
   /** A tab group in the tab strip (Phase 1: metadata + membership only, no drag-and-drop). */
