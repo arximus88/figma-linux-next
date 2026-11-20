@@ -82,6 +82,12 @@ import { normalizeNodeId } from "../utils/nodeId";
 import { buildReactCode, VECTOR_TAGS } from "../utils/reactCode";
 import { safeStringify } from "../utils/serialize";
 import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
+import {
+  INLINE_IMAGE_MAX_BASE64,
+  mib,
+  SCREENSHOT_DEFAULT_EDGE,
+  screenshotEdgeCap,
+} from "../utils/screenshotLimits";
 
 /** Shared state the tool handlers operate on, injected by McpServer. */
 export interface ToolContext {
@@ -103,6 +109,12 @@ export interface ToolContext {
    * configured export directory.
    */
   getSaveBaseDir: () => string;
+  /**
+   * Whether a file written at this absolute path is visible to the host. Under
+   * Flatpak `/tmp` and most of `$HOME` are private to the sandbox (#92). Absent
+   * = not sandboxed, every path is.
+   */
+  isHostVisible?: (absPath: string) => boolean;
   /** How long a script in the page may take before the tool gives up. Tests shorten it. */
   scriptTimeoutMs?: number;
   /** upload_assets tickets, shared with the HTTP route that receives the bytes. */
@@ -564,12 +576,16 @@ export class ToolHandlers {
   public async toolGetScreenshot(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.01, args.scale)) : null;
-    const maxDimension =
-      typeof args.maxDimension === "number" && args.maxDimension > 0
-        ? Math.min(65536, Math.round(args.maxDimension))
-        : 1024;
+    // Caps the longer edge whether or not `scale` is given (#93).
+    const maxDimension = screenshotEdgeCap(args.maxDimension, scale);
     const contentsOnly = args.contentsOnly === true;
     const savePath = args.savePath ? String(args.savePath) : null;
+    // Figma's remote parameter. Inline is already the default here, so only an
+    // explicit false changes anything: the PNG is saved and its path returned.
+    const inline =
+      typeof args.enableBase64Response === "boolean" ? args.enableBase64Response : null;
+    const unseen = savePath ? this.savePathProblem(savePath) : null;
+    if (unseen) return toolError(unseen);
 
     // Try Plugin API exportAsync first
     const script = SCREENSHOT_SCRIPT(nodeId, { scale, maxDimension, contentsOnly });
@@ -595,6 +611,8 @@ export class ToolHandlers {
       this.ctx.log.warn("Falling back to capturePage for the visible window");
       return this.capturePageFallback(
         savePath,
+        inline,
+        maxDimension,
         result.noSelection
           ? "Nothing is selected, so this is a capture of the whole window, not a node export. Select a node or pass a nodeId to export it. `scale` was not applied."
           : `${result.error}. This is a capture of the whole window, not a node export. \`scale\` was not applied.`,
@@ -602,14 +620,24 @@ export class ToolHandlers {
     }
 
     if (result?.base64) {
-      const { width, height, original_width, original_height } = result;
-      return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath, {
-        width,
-        height,
-        original_width,
-        original_height,
-        scale: result.scale,
-      });
+      const { width, height, original_width, original_height, requestedScale, scaleCappedBy } =
+        result;
+      return this.buildScreenshotResponse(
+        result.base64,
+        result.nodeId,
+        result.nodeName,
+        savePath,
+        {
+          width,
+          height,
+          original_width,
+          original_height,
+          scale: result.scale,
+          requestedScale,
+          scaleCappedBy,
+        },
+        inline,
+      );
     }
 
     return toolError("Screenshot export returned no data");
@@ -621,6 +649,11 @@ export class ToolHandlers {
    * the same PNG inline as well made it pay for the image twice (the
    * 2026-11-06 benchmark runs did exactly that). Figma's remote server likewise
    * hands large screenshots over by URL instead of inline.
+   *
+   * Nothing over INLINE_IMAGE_MAX_BASE64 goes inline (#93): MCP clients reject
+   * responses over 16 MiB, and the agent got a transport error it could not
+   * act on. Such an image is written to the export directory instead and its
+   * path returned, the same as `enableBase64Response: false`.
    */
   private async buildScreenshotResponse(
     base64: string,
@@ -628,40 +661,66 @@ export class ToolHandlers {
     nodeName: string,
     savePath: string | null,
     extraMeta?: Record<string, unknown>,
+    inline: boolean | null = null,
   ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
     const content: ContentItem[] = [];
 
     const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
+    const tooLarge = base64.length > INLINE_IMAGE_MAX_BASE64;
 
     if (savePath) {
-      // Resolving can throw too (app.getPath), so it sits inside the try: a
-      // failure there is a saveError, not a failed tool call.
-      let absPath = savePath;
-      try {
-        absPath = this.resolveSavePath(savePath);
-        if (!path.isAbsolute(savePath)) {
-          // Say so explicitly: the caller's idea of "here" is not the app's.
-          meta.resolvedFrom = this.ctx.getSaveBaseDir();
-        }
-        // Async FS so a slow disk doesn't block the Electron main thread.
-        await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
-        await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
-        meta.savedTo = absPath;
-        this.ctx.log.info(`get_screenshot saved ${absPath}`);
-      } catch (e: any) {
-        meta.saveError = `${absPath}: ${e.message}`;
-        this.ctx.log.error(`get_screenshot could not write ${absPath}: ${e.message}`);
-      }
+      await this.writeScreenshot(base64, savePath, meta);
+    } else if (tooLarge || inline === false) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const slug = (nodeId || "window").replace(/[^A-Za-z0-9]+/g, "-");
+      await this.writeScreenshot(
+        base64,
+        path.join("mcp-screenshots", `${stamp}-${slug}.png`),
+        meta,
+      );
     }
 
-    if (meta.savedTo) {
-      meta.note = "Saved, not sent inline: open savedTo to look at it.";
-    } else {
-      content.push({ type: "image", data: base64, mimeType: "image/png" });
+    const sendInline = !meta.savedTo || inline === true;
+    if (sendInline && tooLarge) {
+      return toolError(
+        `The screenshot is ${mib(base64.length)} as base64, over the ${mib(INLINE_IMAGE_MAX_BASE64)} ` +
+          "that can be sent inline (MCP clients reject responses over 16 MiB)" +
+          (meta.saveError ? `, and it could not be saved either (${meta.saveError})` : "") +
+          `. Pass a smaller maxDimension (default ${SCREENSHOT_DEFAULT_EDGE}) or a savePath.`,
+      );
     }
+    if (meta.savedTo && !sendInline) {
+      meta.note = tooLarge
+        ? `Too large to send inline (${mib(base64.length)} as base64, limit ` +
+          `${mib(INLINE_IMAGE_MAX_BASE64)}), so it was saved instead: open savedTo to look at it.`
+        : "Saved, not sent inline: open savedTo to look at it.";
+    }
+    if (sendInline) content.push({ type: "image", data: base64, mimeType: "image/png" });
     content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
     return { content };
+  }
+
+  /** Write a screenshot to `savePath`; record savedTo (and resolvedFrom) or saveError in meta. */
+  private async writeScreenshot(base64: string, savePath: string, meta: Record<string, unknown>) {
+    // Resolving can throw too (app.getPath), so it sits inside the try: a
+    // failure there is a saveError, not a failed tool call.
+    let absPath = savePath;
+    try {
+      absPath = this.resolveSavePath(savePath);
+      if (!path.isAbsolute(savePath)) {
+        // Say so explicitly: the caller's idea of "here" is not the app's.
+        meta.resolvedFrom = this.ctx.getSaveBaseDir();
+      }
+      // Async FS so a slow disk doesn't block the Electron main thread.
+      await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
+      meta.savedTo = absPath;
+      this.ctx.log.info(`get_screenshot saved ${absPath}`);
+    } catch (e: any) {
+      meta.saveError = `${absPath}: ${e.message}`;
+      this.ctx.log.error(`get_screenshot could not write ${absPath}: ${e.message}`);
+    }
   }
 
   /**
@@ -675,11 +734,42 @@ export class ToolHandlers {
   }
 
   /**
+   * Why the caller would never see a file written at `savePath`, or null.
+   * Under Flatpak `/tmp/x.png` is written fine and reported as saved, but it
+   * lands in the sandbox's private `/tmp`, which the host cannot see (#92).
+   * Checked before any work is done: the AI tools spend credits first.
+   */
+  private savePathProblem(savePath: string): string | null {
+    const visible = this.ctx.isHostVisible;
+    if (!visible) return null;
+    let absPath: string;
+    try {
+      absPath = this.resolveSavePath(savePath);
+    } catch {
+      return null; // reported as a saveError where the write happens
+    }
+    if (visible(absPath)) return null;
+    return (
+      `savePath ${absPath} is inside the Flatpak sandbox: a file written there is not ` +
+      "visible outside the app (the sandbox has its own /tmp and home). Use a path under " +
+      "~/Downloads or ~/Documents, or a relative path, which is saved under " +
+      `${this.ctx.getSaveBaseDir()}.`
+    );
+  }
+
+  /**
    * Fallback: Electron's capturePage on the webContents — the whole visible
    * window, not a node. Only reached when no nodeId was asked for; the result
-   * is marked so a caller can tell it apart from a real node export.
+   * is marked so a caller can tell it apart from a real node export. The
+   * longer edge is capped at `maxDimension` like a node export: a window on a
+   * HiDPI screen is several thousand pixels wide.
    */
-  private async capturePageFallback(savePath: string | null, degraded: string) {
+  private async capturePageFallback(
+    savePath: string | null,
+    inline: boolean | null,
+    maxDimension: number,
+    degraded: string,
+  ) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
     // A tab that is not in front has nothing on screen to capture
@@ -692,14 +782,30 @@ export class ToolHandlers {
       );
     }
 
-    const image = await view.webContents.capturePage();
-    const buffer = image.toPNG();
+    let image = await view.webContents.capturePage();
+    const { width, height } = image.getSize();
+    const fit = maxDimension / Math.max(width, height, 1);
+    if (fit < 1) {
+      image = image.resize({
+        width: Math.max(1, Math.round(width * fit)),
+        height: Math.max(1, Math.round(height * fit)),
+        quality: "good",
+      });
+    }
+    const size = image.getSize();
     return this.buildScreenshotResponse(
-      buffer.toString("base64"),
+      image.toPNG().toString("base64"),
       "",
       "canvas (capturePage fallback)",
       savePath,
-      { degraded },
+      {
+        degraded,
+        width: size.width,
+        height: size.height,
+        original_width: width,
+        original_height: height,
+      },
+      inline,
     );
   }
 
@@ -1178,6 +1284,8 @@ export class ToolHandlers {
   public async toolFigmaAiGenerateImage(args: Record<string, unknown>) {
     const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
     if (!prompt) return toolError("prompt is required");
+    const unseen = this.aiSavePathProblem(args.savePath);
+    if (unseen) return toolError(unseen);
     const dim = (v: unknown) =>
       typeof v === "number" && v > 0 ? Math.min(4096, Math.max(64, Math.round(v))) : 1024;
     const model = typeof args.model === "string" && args.model ? args.model : DEFAULT_IMAGE_MODEL;
@@ -1205,6 +1313,8 @@ export class ToolHandlers {
     const ops = ["edit", "expand", "remove_background", "upscale", "vectorize"] as const;
     const operation = ops.find((o) => o === args.operation);
     if (!operation) return toolError(`operation must be one of ${ops.join(", ")}`);
+    const unseen = this.aiSavePathProblem(args.savePath);
+    if (unseen) return toolError(unseen);
     const e = (args.expand ?? {}) as Record<string, unknown>;
     const px = (v: unknown) => (typeof v === "number" && v > 0 ? Math.round(v) : 0);
     const editArgs: EditImageArgs = {
@@ -1224,6 +1334,13 @@ export class ToolHandlers {
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
     return this.aiImageResponse(out, args.savePath, `${operation}-${nodeId}`);
+  }
+
+  /** savePathProblem for the AI tools, whose savePath is optional and untyped. */
+  private aiSavePathProblem(savePathArg: unknown): string | null {
+    return typeof savePathArg === "string" && savePathArg
+      ? this.savePathProblem(savePathArg)
+      : null;
   }
 
   /** Save what Figma AI made to disk; answer with a small preview and the facts. */

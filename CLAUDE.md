@@ -287,6 +287,13 @@ new App(new WindowManager(), new Session(), new FontManager());
 - `search_design_system` covers UI kits (Simple Design System, iOS, Material) through the Assets
   panel's kit search (`/api/search/community_libraries/library_assets`); `figma.teamLibrary` and
   the team component search never return them. `includeLibraryKeys` takes a library name or key.
+- `get_screenshot` never answers over what MCP clients accept (16 MiB, #93): the longer edge is
+  capped at 8192 px with `scale` too, a page is sized by the union of its children's bounds, and
+  base64 over 12 MiB is written to `<export dir>/mcp-screenshots/` instead of inlined
+  (`utils/screenshotLimits.ts`). Under Flatpak a `savePath` the host cannot see (`/tmp`, most of
+  `$HOME`) is rejected before any work, and the relative-path base falls back to
+  `~/Downloads/Figma` when the export dir is not granted; grants come from `/.flatpak-info`
+  (`utils/hostPath.ts`).
 - Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`
 
 **FigmaAgent** (`src/main/FigmaAgent.ts`):

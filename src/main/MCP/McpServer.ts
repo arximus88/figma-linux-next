@@ -20,6 +20,7 @@
 
 import http from "node:http";
 import crypto from "node:crypto";
+import path from "node:path";
 import {
   defaultLogger,
   MCP_HOST,
@@ -53,6 +54,36 @@ import {
 import { UPLOAD_MAX_BYTES, type UploadTicket } from "./utils/uploads";
 import { readFileKeyArg } from "./utils/fileKey";
 import { toolError } from "./utils/toolResponse";
+import {
+  isHostVisible,
+  loadSandbox,
+  pickSaveBaseDir,
+  type WritableRoots,
+  writableRoots,
+} from "./utils/hostPath";
+
+/** An `xdg-*` grant's directory, as the sandboxed process sees it. */
+function xdgDirOf(name: string): string | null {
+  const electronName: Record<string, Parameters<typeof app.getPath>[0]> = {
+    desktop: "desktop",
+    documents: "documents",
+    downloads: "downloads",
+    music: "music",
+    pictures: "pictures",
+    videos: "videos",
+  };
+  try {
+    if (electronName[name]) return app.getPath(electronName[name]);
+  } catch {
+    return null;
+  }
+  const home = process.env.HOME ?? "";
+  if (name === "config") return process.env.HOST_XDG_CONFIG_HOME || path.join(home, ".config");
+  if (name === "cache") return process.env.HOST_XDG_CACHE_HOME || path.join(home, ".cache");
+  if (name === "data") return process.env.HOST_XDG_DATA_HOME || path.join(home, ".local", "share");
+  if (name === "runtime") return process.env.XDG_RUNTIME_DIR ?? null;
+  return null;
+}
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
@@ -105,9 +136,31 @@ export class McpServer {
       // exportDir, not lastExportDir: the last export folder moves every time
       // the user exports something, and the same relative path would land in
       // a different place from one call to the next.
-      getSaveBaseDir: () => storage.settings.app.exportDir || app.getPath("pictures"),
+      getSaveBaseDir: () =>
+        pickSaveBaseDir(
+          storage.settings.app.exportDir || app.getPath("pictures"),
+          path.join(app.getPath("downloads"), "Figma"),
+          this.hostVisible,
+        ),
+      isHostVisible: this.hostVisible,
     });
   }
+
+  /**
+   * Whether the host sees a file the app writes at a path. Always true outside
+   * Flatpak; inside, only granted directories (see utils/hostPath.ts). The
+   * grants cannot change while the app runs, so they are read once.
+   */
+  private hostVisible = (absPath: string): boolean => {
+    if (this._writableRoots === undefined) {
+      const sandbox = loadSandbox();
+      this._writableRoots = sandbox
+        ? writableRoots(sandbox, app.getPath("home"), (name) => xdgDirOf(name))
+        : null;
+    }
+    return this._writableRoots === null || isHostVisible(absPath, this._writableRoots);
+  };
+  private _writableRoots: WritableRoots | null | undefined;
 
   /**
    * Handlers bound to the tab that shows `fileKey` instead of the active tab.

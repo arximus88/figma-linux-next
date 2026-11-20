@@ -337,13 +337,27 @@ describe("get_screenshot sizing", () => {
     expect(out.width).toBe(200);
   });
 
-  it("lets an explicit scale win over the cap", async () => {
+  // An explicit scale replaces the 2x choice, not the cap: it used to bypass
+  // the cap too, and a large frame at scale 4 had no bound at all (#93). The
+  // handler passes the hard cap as maxDimension when only scale is given.
+  it("uses an explicit scale as given while it fits the cap", async () => {
     const { figma, seen } = exportWith(4000, 1000);
     await run(
-      SCREENSHOT_SCRIPT("1:2", { scale: 1, maxDimension: 1024, contentsOnly: false }),
+      SCREENSHOT_SCRIPT("1:2", { scale: 1, maxDimension: 8192, contentsOnly: false }),
       figma,
     );
     expect(seen[0].constraint.value).toBe(1);
+  });
+
+  it("caps an explicit scale at maxDimension", async () => {
+    const { figma, seen } = exportWith(4000, 1000);
+    const out = await run(
+      SCREENSHOT_SCRIPT("1:2", { scale: 4, maxDimension: 8192, contentsOnly: false }),
+      figma,
+    );
+    expect(seen[0].constraint.value).toBe(8192 / 4000);
+    expect(out.width).toBe(8192);
+    expect(out.requestedScale).toBe(4);
   });
 });
 
