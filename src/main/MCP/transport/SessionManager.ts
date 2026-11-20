@@ -75,12 +75,17 @@ export class SessionManager {
     }, SWEEP_INTERVAL_MS);
   }
 
-  /** Close every session's SSE stream, clear the map, and stop the reaper. */
-  shutdown(): void {
+  /** Close every session's SSE stream and forget them all; the reaper keeps running. */
+  clear(): void {
     for (const [id, session] of this.sessions) {
       this.endSse(session);
       this.sessions.delete(id);
     }
+  }
+
+  /** Close every session's SSE stream, clear the map, and stop the reaper. */
+  shutdown(): void {
+    this.clear();
     if (this.reaper) {
       clearInterval(this.reaper);
       this.reaper = null;

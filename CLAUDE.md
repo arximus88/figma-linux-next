@@ -240,6 +240,13 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- Optional bearer token (issue #94): `mcp.requireAuth` (default off) makes every request carry
+  `Authorization: Bearer <mcp.authToken>`, else 401 with a JSON-RPC error
+  (`utils/auth.ts`, pure and unit-tested). The token is main-owned: created on first use by the
+  `getMcpAuthToken` invoke or when auth turns on, replaced by `regenerateMcpAuthToken`, never in
+  `EDITABLE_MCP_KEYS`, never logged. `POST /upload/<token>`, `GET /assets/<uuid>` and `OPTIONS`
+  are exempt: the URL is the credential and curl/WebFetch don't carry the client's headers.
+  Changing the mode or the token drops open sessions.
 - `get_design_context` has two forms. Default: markup with CSS. With `clientFrameworks` naming
   React / Next.js / Remix / Gatsby, or `format: "react"`: a React + Tailwind component like Figma's
   remote tool (asset URLs as constants, `data-node-id`, a screenshot appended unless

@@ -17,7 +17,7 @@ import type http from "node:http";
 export function cors(): Record<string, string> {
   return {
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id",
+    "Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id, Authorization",
     "Access-Control-Expose-Headers": "Mcp-Session-Id",
   };
 }

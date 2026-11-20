@@ -273,6 +273,13 @@ declare namespace Types {
       enableAiTools: boolean;
       cdpEnabled: boolean;
       remoteDebugPort: number;
+      /** Require `Authorization: Bearer <authToken>` on MCP requests (issue #94). */
+      requireAuth: boolean;
+      /**
+       * Generated in main the first time auth is turned on; the Settings UI
+       * reads and regenerates it through its own invokes and never saves it.
+       */
+      authToken: string;
     };
     ui: {
       scalePanel: number;

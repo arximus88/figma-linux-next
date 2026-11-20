@@ -1,11 +1,15 @@
 <script lang="ts">
-  /** A copyable .mcp.json snippet block with its own Copy button + state. */
-  let { title, code }: { title: string; code: string } = $props();
+  /**
+   * A copyable .mcp.json snippet block with its own Copy button + state.
+   * `copyCode` is what Copy puts on the clipboard when it differs from what is
+   * shown, e.g. a snippet whose secret is masked on screen.
+   */
+  let { title, code, copyCode }: { title: string; code: string; copyCode?: string } = $props();
 
   let copied = $state(false);
 
   function copy() {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(copyCode ?? code).then(() => {
       copied = true;
       setTimeout(() => (copied = false), 2000);
     });

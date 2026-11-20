@@ -100,6 +100,9 @@ export default class SettingsController {
       case "mcpServer":
         app.emit("mcpServerConfigChanged", { enabled: effect.enabled, port: effect.port });
         break;
+      case "mcpAuth":
+        app.emit("mcpAuthChanged");
+        break;
       case "figmaAgent":
         app.emit("figmaAgentChanged", effect.enabled);
         break;

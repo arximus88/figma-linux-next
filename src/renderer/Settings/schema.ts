@@ -222,6 +222,14 @@ export const SETTINGS = {
       "Let AI assistants use Figma's own AI: prompt Figma's agent, generate and edit images, check credits. Spends your Figma AI credits.",
     keywords: "mcp ai figma agent assistant image generation credits orchestration",
   }),
+  mcpAuth: setting({
+    id: "mcp-auth",
+    section: "integrations",
+    title: "Require access token",
+    subtitle:
+      "Other programs on this computer can reach the server too. With this on, a client needs the token below.",
+    keywords: "mcp auth authentication token bearer authorization header security password",
+  }),
   mcpTools: setting({
     id: "mcp-tools",
     section: "integrations",
