@@ -7,6 +7,7 @@
  */
 
 import type { ToolAnnotations, ToolDefinition, ToolName } from "../types";
+import { COMMENT_WRITE_TOOLS, GET_COMMENTS_TOOL } from "./commentTools";
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
@@ -403,22 +404,7 @@ const BASE_TOOLS: ToolDefinition[] = [
       "plan key. Useful before create_new_file and to explain a view-only file.",
     inputSchema: { type: "object", properties: {} },
   },
-  {
-    name: "get_comments",
-    description:
-      "The comment threads on the file, read from figma.com with your session: each thread's id, " +
-      "the layer it is pinned to (id and name), author, date and text, with its replies. " +
-      "Resolved threads are left out unless includeResolved is true. Works in view-only files.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        includeResolved: {
-          type: "boolean",
-          description: "Also list resolved threads (default false).",
-        },
-      },
-    },
-  },
+  GET_COMMENTS_TOOL,
   {
     name: "get_versions",
     description:
@@ -663,6 +649,7 @@ const BASE_WRITE_TOOLS: ToolDefinition[] = [
       required: ["nodeId", "characters"],
     },
   },
+  ...COMMENT_WRITE_TOOLS,
 ];
 
 // ── fileKey on every tool ─────────────────────────────────────────────────────
@@ -711,6 +698,12 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   figma_tree: READ,
   whoami: READ,
   get_comments: READ,
+  // Comments are not layers: posting adds, resolving can be undone with
+  // resolved: false, deleting cannot.
+  post_comment: ADDS,
+  reply_comment: ADDS,
+  resolve_comment: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  delete_comment: CHANGES,
   get_versions: READ,
   list_libraries: READ,
   get_library_styles: READ,
