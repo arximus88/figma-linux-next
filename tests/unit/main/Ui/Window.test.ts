@@ -1140,6 +1140,18 @@ describe("Warm tab lifecycle", () => {
     expect(reapplySpy).toHaveBeenCalledWith("user-2", 77);
   });
 
+  test("a tab opened before any user is known carries no fuid=undefined", () => {
+    const tabManager: any = (w as any).tabManager;
+    const addSpy = spyOn(tabManager, "addTab");
+
+    w.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+    expect(addSpy.mock.calls[0][0]).toBe("https://www.figma.com/design/abc123/My-file");
+
+    w.setUserId("user-1");
+    w.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+    expect(addSpy.mock.calls[1][0]).toBe("https://www.figma.com/design/abc123/My-file?fuid=user-1");
+  });
+
   test("an empty user id never re-navigates project tabs", () => {
     w.setUserId("user-1");
 

@@ -1,5 +1,18 @@
 import { PROTOCOL, HOMEPAGE } from "Const";
 
+/**
+ * `url` with Figma's account selector (`fuid`) set to `userId`, or removed
+ * when there is no user yet (first start, signed out). A template like
+ * `?fuid=${id}` sent the literal "fuid=undefined" to figma.com.
+ */
+export const withFuid = (url: string, userId?: string | null): string => {
+  const parsed = parseURL(url);
+  if (!parsed) return url;
+  if (userId) parsed.searchParams.set("fuid", String(userId));
+  else parsed.searchParams.delete("fuid");
+  return parsed.toString();
+};
+
 // Modernized URL handling logic based on figma-linux-fork analysis
 
 export const parseURL = (url: string): URL | undefined => {

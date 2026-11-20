@@ -27,6 +27,7 @@ import {
   isExternallyOpenableUrl,
   parseURL,
   sessionStateFromUrl,
+  withFuid,
 } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
@@ -62,7 +63,7 @@ export default class MainTab {
 
   public setUserId(id: string) {
     if (this._userId !== id) {
-      const url = `${RECENT_FILES}/?fuid=${id}`;
+      const url = withFuid(`${RECENT_FILES}/`, id);
       this.loadUrl(url);
     }
 
@@ -86,7 +87,7 @@ export default class MainTab {
 
   private initTab() {
     this._userId = storage.settings.userId;
-    const url = `${RECENT_FILES}/?fuid=${this._userId}`;
+    const url = withFuid(`${RECENT_FILES}/`, this._userId);
 
     this.view = new WebContentsView(this.options);
     this.id = this.view.webContents.id;

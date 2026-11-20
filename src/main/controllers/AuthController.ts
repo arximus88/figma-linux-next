@@ -78,6 +78,10 @@ export default class AuthController {
       storage.settings.userId = data.userId;
     }
 
+    // Figma's /login page sends this too, with no user. Passing that on
+    // reloaded the home tab as `fuid=undefined` and dropped the warm tab.
+    if (!data.userId) return;
+
     const window = this.windowManager.getWindowByWebContentsId(event.sender.id);
 
     if (window) {

@@ -39,6 +39,7 @@ import {
   isExportQueueUrl,
   parseURL,
   getTabDedupKey,
+  withFuid,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
 import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
@@ -775,7 +776,7 @@ export default class Window {
     } else {
       // Fallback: warm tab not ready yet, create normally
       const tab = this.addTab(
-        `${NEW_PROJECT_TAB_URL}?fuid=${this._userId}`,
+        withFuid(NEW_PROJECT_TAB_URL, this._userId),
         NEW_FILE_TAB_TITLE,
         groupId,
       );
@@ -1056,9 +1057,7 @@ export default class Window {
       logger.warn(`addTab: invalid URL "${url}", skipping`);
       return null;
     }
-    parsedUrl.searchParams.set("fuid", this._userId);
-
-    const tab = this.tabManager.addTab(parsedUrl.toString(), title);
+    const tab = this.tabManager.addTab(withFuid(parsedUrl.toString(), this._userId), title);
     if (groupId) {
       if (!this.tabGroups.has(groupId) && this.recentlyPrunedGroups.has(groupId)) {
         const group = this.recentlyPrunedGroups.get(groupId)!;
@@ -1606,7 +1605,7 @@ export default class Window {
   public openCommunity(args: WebApi.OpenCommunity) {
     const alreadyOpen = this.tabManager.hasOpenedCommunityTab;
     const bounds = this.calcBoundsForTabView();
-    const url = `${HOMEPAGE}${args.path}?fuid=${args.userId}`;
+    const url = withFuid(`${HOMEPAGE}${args.path}`, args.userId);
 
     if (!alreadyOpen) {
       this.tabManager.addCommunityTab();

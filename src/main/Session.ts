@@ -46,11 +46,12 @@ export default class Session {
       })
       .then((cookies) => {
         this._hasFigmaSession = !!cookies.find((cookie) => {
-          return cookie.name === Const.FIGMA_SESSION_COOKIE_NAME;
+          return cookie.name === Const.FIGMA_AUTH_COOKIE_NAME;
         });
 
-        // Check if cookie exists (does not guarantee active session)
-        logger.info("[wm] check for figma_session cookie:", this._hasFigmaSession);
+        // On disk only: whether the server accepts it shows when the home tab
+        // lands on /files/recents or /login (MainTab.sessionState).
+        logger.info("[session] figma.com auth cookie on disk:", this._hasFigmaSession);
       })
       .catch((error: Error) =>
         logger.warn("[wm] failed to get cookies during handleAppReady:", Const.HOMEPAGE, error),

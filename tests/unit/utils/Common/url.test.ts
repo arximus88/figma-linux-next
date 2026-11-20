@@ -10,6 +10,7 @@ import {
   getEditorTypeFromUrl,
   normalizeEditorType,
   sessionStateFromUrl,
+  withFuid,
 } from "Utils/Common/url";
 import { HOMEPAGE } from "Const";
 
@@ -410,5 +411,32 @@ describe("sessionStateFromUrl", () => {
     expect(sessionStateFromUrl("https://example.com/login")).toBeUndefined();
     expect(sessionStateFromUrl("https://www.figma.com.evil.test/files")).toBeUndefined();
     expect(sessionStateFromUrl("https://www.figma.com/loginx")).toBe("signedIn");
+  });
+});
+
+describe("withFuid", () => {
+  test("sets the account selector when a user is known", () => {
+    expect(withFuid("https://www.figma.com/files/recents/", "42")).toBe(
+      "https://www.figma.com/files/recents/?fuid=42",
+    );
+  });
+
+  test("replaces a previous one", () => {
+    expect(withFuid("https://www.figma.com/design/k?fuid=1&x=y", "2")).toBe(
+      "https://www.figma.com/design/k?fuid=2&x=y",
+    );
+  });
+
+  test("never writes fuid=undefined; drops a stale one when there is no user", () => {
+    expect(withFuid("https://www.figma.com/files/recents/", undefined)).toBe(
+      "https://www.figma.com/files/recents/",
+    );
+    expect(withFuid("https://www.figma.com/design/k?fuid=undefined&x=y", null)).toBe(
+      "https://www.figma.com/design/k?x=y",
+    );
+  });
+
+  test("leaves an unparseable string alone", () => {
+    expect(withFuid("not a url", "1")).toBe("not a url");
   });
 });
