@@ -15,6 +15,7 @@ import {
 } from "../utils/screenshotLimits";
 
 const INLINE_LIMIT_MIB = INLINE_IMAGE_MAX_BASE64 / 1024 / 1024;
+import { CREATE_SESSION_TOOL, withRemoteCompat } from "./remoteCompat";
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 // Tool names follow public Figma MCP documentation for compatibility with Claude/Cursor.
@@ -238,10 +239,28 @@ const BASE_TOOLS: ToolDefinition[] = [
       "components in your codebase. Each entry contains codeConnectSrc (file path or URL) " +
       "and codeConnectName (component name). This mapping connects Figma design elements " +
       "directly to their React, Vue, SwiftUI, or other framework implementations, enabling " +
-      "seamless design-to-code workflows. Supports Figma Design files.",
+      "seamless design-to-code workflows. Lists the mappings added with add_code_connect_map " +
+      "(get_code_connect reads the ones a library published). Supports Figma Design files.",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        nodeId: {
+          type: "string",
+          description:
+            "Only the mapping of this node ('1:2' or '1-2'). Omit to list every mapping.",
+        },
+        codeConnectLabel: {
+          type: "string",
+          description:
+            "Only mappings with this framework label (e.g. React), as given to add_code_connect_map.",
+        },
+        fileKey: {
+          type: "string",
+          description:
+            "Accepted for compatibility with Figma's remote MCP: mappings live in this server for " +
+            "the session, keyed by node id.",
+        },
+      },
     },
   },
   {
@@ -268,8 +287,27 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "string",
           description: "Name of the component in your codebase (e.g., 'Button').",
         },
+        source: {
+          type: "string",
+          description: "Figma's remote name for codeConnectSrc; either one works.",
+        },
+        componentName: {
+          type: "string",
+          description: "Figma's remote name for codeConnectName; either one works.",
+        },
+        label: {
+          type: "string",
+          description:
+            "Framework of the mapping (React, Vue, SwiftUI…); get_code_connect_map filters by it.",
+        },
+        fileKey: {
+          type: "string",
+          description:
+            "Accepted for compatibility with Figma's remote MCP: mappings live in this server for " +
+            "the session, keyed by node id.",
+        },
       },
-      required: ["nodeId", "codeConnectSrc", "codeConnectName"],
+      required: ["nodeId"],
     },
   },
   {
@@ -312,6 +350,10 @@ const BASE_TOOLS: ToolDefinition[] = [
           type: "string",
           description: "Node ID in '1:2' format. Omit to use current selection or entire page.",
         },
+        includeImagesOfNodes: {
+          type: "boolean",
+          description: "Screenshots of the top-level nodes (default true); false saves tokens.",
+        },
       },
     },
   },
@@ -353,6 +395,12 @@ const BASE_TOOLS: ToolDefinition[] = [
         query: {
           type: "string",
           description: "Legacy: one text query over local variables, styles and components.",
+        },
+        disableCodeConnect: {
+          type: "boolean",
+          description:
+            "Figma's remote parameter, accepted for compatibility: results here never carry Code " +
+            "Connect data.",
         },
       },
     },
@@ -524,8 +572,17 @@ const BASE_WRITE_TOOLS: ToolDefinition[] = [
           description:
             "Mermaid diagram syntax (e.g., 'graph TD; A[Start]-->B{Decision}; B-->|Yes|C[End];').",
         },
+        mermaidSyntax: {
+          type: "string",
+          description: "Figma's remote name for mermaid; pass one of the two.",
+        },
+        name: {
+          type: "string",
+          description:
+            "Figma's remote parameter, accepted for compatibility: the diagram goes into the open " +
+            "FigJam file, which keeps its name.",
+        },
       },
-      required: ["mermaid"],
     },
   },
   {
@@ -642,6 +699,12 @@ const BASE_WRITE_TOOLS: ToolDefinition[] = [
         nodeId: { type: "string", description: "Deprecated: one target node; use nodeIds." },
         scaleMode: { type: "string", enum: ["FILL", "FIT", "TILE"], description: "Default FILL." },
         currentPageId: { type: "string", description: "Page to place new image frames on." },
+        batchCommit: {
+          type: "boolean",
+          description:
+            "Figma's remote parameter, accepted for compatibility: each upload URL places its " +
+            "asset when its bytes arrive, so there is no commitUrl to call.",
+        },
       },
     },
   },
@@ -744,7 +807,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
 
 function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
   return tools
-    .map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS[t.name] }))
+    .map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS[t.name as ToolName] }))
     .map((tool) =>
       NO_FILE_TOOLS.has(tool.name)
         ? tool
@@ -761,8 +824,10 @@ function withFileKey(tools: ToolDefinition[]): ToolDefinition[] {
     );
 }
 
-export const TOOLS: ToolDefinition[] = withFileKey(BASE_TOOLS);
-export const WRITE_TOOLS: ToolDefinition[] = withFileKey(BASE_WRITE_TOOLS);
+export const TOOLS: ToolDefinition[] = withRemoteCompat(withFileKey(BASE_TOOLS), [
+  CREATE_SESSION_TOOL,
+]);
+export const WRITE_TOOLS: ToolDefinition[] = withRemoteCompat(withFileKey(BASE_WRITE_TOOLS));
 
 /**
  * The third tier: Figma's own AI (its agent, image generation, credits). They
@@ -841,7 +906,8 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
     name: "figma_ai_generate_image",
     description:
       "Generate an image with Figma AI from a text prompt. Saves the PNG to disk (savedTo), " +
-      "places it on the canvas as a rectangle with an image fill unless placeOnCanvas is false, " +
+      "places it on the canvas as a rectangle with an image fill unless placeOnCanvas is false " +
+      "(with nodeId it replaces that layer's image fill instead, without resizing it), " +
       "and returns a small preview, the node id, and the credits before/after. width/height " +
       "set the aspect ratio; the output is about 1024 px on the short side. Models: " +
       "gemini-3.1-flash-lite-image (default, Figma's own default), gemini-3.1-flash-image, " +
@@ -856,6 +922,11 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
         model: { type: "string" },
         seed: { type: "number" },
         placeOnCanvas: { type: "boolean", description: "Default true." },
+        nodeId: {
+          type: "string",
+          description:
+            "Put the image into this layer's image fill instead (keeps its size and scale mode).",
+        },
         savePath: {
           type: "string",
           description:
@@ -905,7 +976,7 @@ const BASE_AI_TOOLS: ToolDefinition[] = [
     },
   },
 ];
-export const AI_TOOLS: ToolDefinition[] = withFileKey(BASE_AI_TOOLS);
+export const AI_TOOLS: ToolDefinition[] = withRemoteCompat(withFileKey(BASE_AI_TOOLS));
 
 /** Every tool by tier, name and description only: what the settings page lists. */
 export function mcpToolList(): Types.McpToolList {

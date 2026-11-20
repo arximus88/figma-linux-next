@@ -42,6 +42,7 @@ import type {
   ToolName,
 } from "./types";
 import { AI_TOOLS, TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { CREATE_SESSION, createSessionResult, resolveToolCall } from "./tools/remoteCompat";
 import { SessionManager } from "./transport/SessionManager";
 import {
   collectBody,
@@ -689,7 +690,7 @@ export class McpServer {
     get_screenshot: { run: (h, a) => h.toolGetScreenshot(a) },
     get_motion_context: { run: (h, a) => h.toolGetMotionContext(a) },
     get_variable_defs: { run: (h, a) => h.toolGetVariableDefs(a) },
-    get_code_connect_map: { run: (h) => h.toolGetCodeConnectMap() },
+    get_code_connect_map: { run: (h, a) => h.toolGetCodeConnectMap(a) },
     add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },
     create_design_system_rules: { run: (h, a) => h.toolCreateDesignSystemRules(a) },
     get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
@@ -721,7 +722,10 @@ export class McpServer {
     figma_ai_edit_image: { ai: true, run: (h, a) => h.toolFigmaAiEditImage(a) },
   };
 
-  private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  private async dispatchTool(rawName: string, rawArgs: Record<string, unknown>): Promise<unknown> {
+    // Figma remote-MCP names and session arguments (tools/remoteCompat.ts).
+    if (rawName === CREATE_SESSION) return createSessionResult();
+    const { name, args } = resolveToolCall(rawName, rawArgs);
     if (!this.viewProvider || !this.handlers) {
       return toolError("No Figma window open — open a file first");
     }
