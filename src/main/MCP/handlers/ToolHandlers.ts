@@ -43,7 +43,13 @@ import {
   UPLOAD_ASSET_SCRIPT,
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
-import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
+import {
+  COMMENT_ANCHOR_SCRIPT,
+  COMMENT_WRITE_SCRIPT,
+  COMMENTS_LIST_SCRIPT,
+  type CommentWrite,
+} from "../scripts/comments";
+import { VERSIONS_SCRIPT } from "../scripts/history";
 import { MOTION_CONTEXT_SCRIPT } from "../scripts/motion";
 import {
   CODE_CONNECT_SCRIPT,
@@ -67,6 +73,18 @@ import {
   FRAMES_PROBE_SCRIPT,
   PLUGIN_API_UNAVAILABLE_PREFIX,
 } from "../scripts/helpers";
+import {
+  buildClientMeta,
+  checkCommentTarget,
+  checkMessage,
+  filterComments,
+  formatComments,
+  messageMetaOf,
+  normalizeCommentNodeId,
+  normalizeComments,
+  parseCommentFilters,
+  readPoint,
+} from "../utils/comments";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -1384,10 +1402,152 @@ export class ToolHandlers {
   // ── Tool: get_comments / get_versions (read) ─────────────────────────────
 
   public async toolGetComments(args: Record<string, unknown>) {
-    const out = await this.exec(COMMENTS_SCRIPT(args.includeResolved === true));
+    const parsed = parseCommentFilters(args);
+    if ("error" in parsed) return toolError(parsed.error);
+    const { filters } = parsed;
+    const out = await this.exec(COMMENTS_LIST_SCRIPT(filters.nodeId));
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
-    return toolResult(String(out.text));
+    const all = normalizeComments(out.comments);
+    // Figma's client takes read state from LiveGraph (CommentReadStatus:
+    // allReadAt, readComments, unreadComments); the REST list has none and no
+    // REST endpoint answers it (bundle, 2026-11-20). A comment that does carry
+    // is_unread is honoured by the filter.
+    if (filters.unreadOnly && all.length && all.every((c) => c.unread === null))
+      return toolError(
+        "unreadOnly: figma.com's comment list carries no read state, so unread comments cannot " +
+          "be told apart here. Call again without unreadOnly.",
+      );
+    const result = filterComments(all, filters, { node: out.node ?? null });
+    let text = formatComments(result, filters, out.names ?? {}, all.length);
+    if (filters.nodeId && out.nodeError)
+      text += `\nNote: ${out.nodeError} Only threads pinned to it by id were matched.`;
+    return toolResult(text);
+  }
+
+  /** Every comment of the tab's file, normalized, and who is signed in. */
+  private async loadComments() {
+    const out = await this.exec(COMMENTS_LIST_SCRIPT(null));
+    if (!out) return { error: "The Figma tab returned nothing; it may still be loading." };
+    if (out.error) return { error: String(out.error) };
+    return { all: normalizeComments(out.comments), me: out.me ? String(out.me) : null };
+  }
+
+  private async writeComment(req: CommentWrite) {
+    const out = await this.exec(COMMENT_WRITE_SCRIPT(req));
+    if (!out) return { error: "The Figma tab returned nothing; it may still be loading." };
+    if (out.error) return { error: String(out.error) };
+    return { meta: out.meta ?? null };
+  }
+
+  public async toolPostComment(args: Record<string, unknown>) {
+    const msg = checkMessage(args.message);
+    if ("error" in msg) return toolError(msg.error);
+    const nodeId = normalizeCommentNodeId(args.nodeId);
+    const pageId = normalizeCommentNodeId(args.pageId);
+    const offset = readPoint(args.offset);
+    if (offset && "error" in offset) return toolError(`offset: ${offset.error}`);
+    const hasPoint = args.x !== undefined || args.y !== undefined;
+    let point: { x: number; y: number } | null = null;
+    if (hasPoint) {
+      const p = readPoint({ x: args.x, y: args.y });
+      if (!p || "error" in p) return toolError("x and y must both be numbers");
+      point = p;
+    }
+    if (!nodeId && !point) return toolError("Pass nodeId, or x and y, for where the thread goes.");
+    if (nodeId && point) return toolError("Pass nodeId (with offset) or x and y, not both.");
+
+    const anchor = await this.exec(COMMENT_ANCHOR_SCRIPT(nodeId, pageId));
+    if (!anchor) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (anchor.error) return toolError(anchor.error);
+    const clientMeta = anchor.node
+      ? buildClientMeta({ node: anchor.node, offset: offset as { x: number; y: number } | null })
+      : buildClientMeta({ point: point!, pageId: String(anchor.pageId) });
+
+    const out = await this.writeComment({
+      method: "POST",
+      suffix: "",
+      stamp: true,
+      body: {
+        message_meta: messageMetaOf(msg.message),
+        attachments: [],
+        client_meta: clientMeta,
+        page_id: clientMeta.page_id,
+      },
+    });
+    if ("error" in out) return toolError(out.error);
+    const id = out.meta?.id;
+    return toolResult(
+      safeStringify({
+        threadId: id !== undefined && id !== null ? String(id) : null,
+        pinnedTo: anchor.node
+          ? { nodeId: anchor.node.id, name: anchor.node.name, pageId: clientMeta.page_id }
+          : { x: clientMeta.x, y: clientMeta.y, pageId: clientMeta.page_id },
+      }),
+    );
+  }
+
+  public async toolReplyComment(args: Record<string, unknown>) {
+    const msg = checkMessage(args.message);
+    if ("error" in msg) return toolError(msg.error);
+    const threadId =
+      args.threadId === undefined || args.threadId === null ? "" : String(args.threadId);
+    if (!threadId) return toolError("threadId is required");
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, threadId, "reply", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    const out = await this.writeComment({
+      method: "POST",
+      suffix: `/${encodeURIComponent(threadId)}`,
+      stamp: true,
+      body: { message_meta: messageMetaOf(msg.message), attachments: [] },
+    });
+    if ("error" in out) return toolError(out.error);
+    const id = out.meta?.id;
+    return toolResult(
+      safeStringify({ threadId, replyId: id !== undefined && id !== null ? String(id) : null }),
+    );
+  }
+
+  public async toolResolveComment(args: Record<string, unknown>) {
+    const threadId =
+      args.threadId === undefined || args.threadId === null ? "" : String(args.threadId);
+    if (!threadId) return toolError("threadId is required");
+    const resolve = args.resolved !== false;
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, threadId, "resolve", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    if (Boolean(target.comment.resolvedAt) === resolve)
+      return toolResult(`Thread #${threadId} is already ${resolve ? "resolved" : "open"}.`);
+    const out = await this.writeComment({
+      method: "PUT",
+      suffix: `/${encodeURIComponent(threadId)}`,
+      body: { resolved_at: resolve ? "true" : "false" },
+    });
+    if ("error" in out) return toolError(out.error);
+    return toolResult(`Thread #${threadId} ${resolve ? "resolved" : "reopened"}.`);
+  }
+
+  public async toolDeleteComment(args: Record<string, unknown>) {
+    const commentId =
+      args.commentId === undefined || args.commentId === null ? "" : String(args.commentId);
+    if (!commentId) return toolError("commentId is required");
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, commentId, "delete", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    const out = await this.writeComment({
+      method: "DELETE",
+      suffix: `/${encodeURIComponent(commentId)}`,
+    });
+    if ("error" in out) return toolError(out.error);
+    return toolResult(
+      target.comment.isRoot
+        ? `Thread #${commentId} deleted, with its replies.`
+        : `Reply #${commentId} deleted from thread #${target.comment.threadId}.`,
+    );
   }
 
   public async toolGetVersions(args: Record<string, unknown>) {

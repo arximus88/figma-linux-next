@@ -231,7 +231,12 @@ new App(new WindowManager(), new Session(), new FontManager());
   marker, `scripts/useFigmaCode.ts`), every file tool takes `fileKey` (routes to that file's tab,
   `utils/fileKey.ts` + `WindowManager.findFileTab`), plus `whoami`, `download_assets`,
   `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file),
-  `get_comments` / `get_versions` (figma.com endpoints the page can read). `get_design_context`
+  `get_comments` / `get_versions` (figma.com endpoints the page can read), and the comment writes
+  `post_comment` / `reply_comment` / `resolve_comment` / `delete_comment` (own comments only),
+  on the web client's `/api/file/<key>/comments` endpoints (`scripts/comments.ts`, read from the
+  bundle and checked live 2026-11-20). figma.com's list takes no parameters, so `get_comments`'
+  remote-parity filters and cursor run in Node (`utils/comments.ts`); read state lives only in
+  LiveGraph, so `unreadOnly` answers an error. `get_design_context`
   answers in markup with CSS and variable/style/component legends (`scripts/designContext.ts`);
   component search uses Figma's internal asset search, found in the page's bundler by method
   name. Third tier behind `mcp.enableAiTools` (default off, spends AI credits): Figma's agent
