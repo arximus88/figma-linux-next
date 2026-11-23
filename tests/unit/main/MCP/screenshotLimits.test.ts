@@ -20,7 +20,11 @@ import os from "node:os";
 import path from "node:path";
 import { type ToolContext, ToolHandlers } from "Main/MCP/handlers/ToolHandlers";
 import { TOOLS } from "Main/MCP/tools/definitions";
-import { INLINE_IMAGE_MAX_BASE64, SCREENSHOT_MAX_EDGE } from "Main/MCP/utils/screenshotLimits";
+import {
+  INLINE_IMAGE_MAX_BASE64,
+  INLINE_MAX_EDGE,
+  SCREENSHOT_MAX_EDGE,
+} from "Main/MCP/utils/screenshotLimits";
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -138,7 +142,9 @@ describe("get_screenshot: the export size is bounded whatever is asked", () => {
     const big = node(frame("1:2", 0, 0, 20000, 10000), exports);
     const { handlers } = makeHandlers({ nodes: { "1:2": big } });
 
-    const meta = metaOf(await handlers.toolGetScreenshot({ nodeId: "1:2", maxDimension: 65536 }));
+    const meta = metaOf(
+      await handlers.toolGetScreenshot({ nodeId: "1:2", maxDimension: 65536, savePath: "a.png" }),
+    );
 
     expect(exports).toEqual([SCREENSHOT_MAX_EDGE / 20000]);
     expect(meta.width).toBe(SCREENSHOT_MAX_EDGE);
@@ -149,7 +155,9 @@ describe("get_screenshot: the export size is bounded whatever is asked", () => {
     const big = node(frame("1:2", 0, 0, 10000, 4000), exports);
     const { handlers } = makeHandlers({ nodes: { "1:2": big } });
 
-    const meta = metaOf(await handlers.toolGetScreenshot({ nodeId: "1:2", scale: 4 }));
+    const meta = metaOf(
+      await handlers.toolGetScreenshot({ nodeId: "1:2", scale: 4, savePath: "a.png" }),
+    );
 
     expect(exports[0]).toBeCloseTo(SCREENSHOT_MAX_EDGE / 10000, 6);
     expect(meta.width).toBe(SCREENSHOT_MAX_EDGE);
@@ -203,6 +211,88 @@ describe("get_screenshot: the export size is bounded whatever is asked", () => {
 
     await handlers.toolGetScreenshot({ nodeId: "1:2", maxDimension: 2000 });
     expect(exports).toEqual([0.5]);
+  });
+});
+
+describe("get_screenshot: an inline image stays within 2000 px (Claude's many-image limit)", () => {
+  test("maxDimension 4000 inline exports at 2000 and says how to get the full size", async () => {
+    const exports: number[] = [];
+    const n = node(frame("1:2", 0, 0, 4000, 1000), exports);
+    const { handlers } = makeHandlers({ nodes: { "1:2": n } });
+
+    const response = await handlers.toolGetScreenshot({ nodeId: "1:2", maxDimension: 4000 });
+
+    expect(kinds(response)).toEqual(["image", "text"]);
+    expect(exports).toEqual([INLINE_MAX_EDGE / 4000]);
+    const meta = metaOf(response);
+    expect(meta.width).toBe(INLINE_MAX_EDGE);
+    expect(meta.note).toContain("savePath");
+  });
+
+  test("scale 1 on a 4000 px frame inline is capped too", async () => {
+    const exports: number[] = [];
+    const n = node(frame("1:2", 0, 0, 4000, 1000), exports);
+    const { handlers } = makeHandlers({ nodes: { "1:2": n } });
+
+    const meta = metaOf(await handlers.toolGetScreenshot({ nodeId: "1:2", scale: 1 }));
+
+    expect(meta.width).toBe(INLINE_MAX_EDGE);
+    expect(meta.requestedScale).toBe(1);
+  });
+
+  test("the same request with savePath keeps the full 4000 px", async () => {
+    const exports: number[] = [];
+    const n = node(frame("1:2", 0, 0, 4000, 1000), exports);
+    const { handlers } = makeHandlers({ nodes: { "1:2": n } });
+
+    const response = await handlers.toolGetScreenshot({
+      nodeId: "1:2",
+      maxDimension: 4000,
+      savePath: "full.png",
+    });
+
+    expect(kinds(response)).toEqual(["text"]);
+    expect(exports).toEqual([1]);
+    expect(metaOf(response).width).toBe(4000);
+  });
+
+  test("savePath plus enableBase64Response true sends the image, so it is capped", async () => {
+    const exports: number[] = [];
+    const n = node(frame("1:2", 0, 0, 4000, 1000), exports);
+    const { handlers } = makeHandlers({ nodes: { "1:2": n } });
+
+    const response = await handlers.toolGetScreenshot({
+      nodeId: "1:2",
+      maxDimension: 4000,
+      savePath: "both.png",
+      enableBase64Response: true,
+    });
+
+    expect(kinds(response)).toEqual(["image", "text"]);
+    expect(metaOf(response).width).toBe(INLINE_MAX_EDGE);
+  });
+
+  test("a frame that fits gets no note", async () => {
+    const exports: number[] = [];
+    const n = node(frame("1:2", 0, 0, 800, 600), exports);
+    const { handlers } = makeHandlers({ nodes: { "1:2": n } });
+
+    const meta = metaOf(await handlers.toolGetScreenshot({ nodeId: "1:2", maxDimension: 4000 }));
+
+    // 2x of 800 is 1600: under the inline cap.
+    expect(exports).toEqual([2]);
+    expect(meta.note).toBeUndefined();
+  });
+
+  test("the capturePage fallback inline is capped at 2000 too", async () => {
+    const { handlers, calls } = makeHandlers({
+      execResult: { error: "No node selected", noSelection: true },
+      capture: { width: 4400, height: 2600 },
+    });
+
+    await handlers.toolGetScreenshot({ maxDimension: 8000 });
+
+    expect(calls.resizedTo).toEqual({ width: INLINE_MAX_EDGE, height: 1182 });
   });
 });
 
@@ -363,8 +453,9 @@ describe("get_screenshot: enableBase64Response (Figma's remote parameter)", () =
 describe("get_screenshot: the description tells agents the limits", () => {
   const tool = TOOLS.find((t) => t.name === "get_screenshot")!;
 
-  test("it states the inline limit and the Slides support", () => {
+  test("it states the inline limits and the Slides support", () => {
     expect(tool.description).toContain("12 MiB");
+    expect(tool.description).toContain(`${INLINE_MAX_EDGE} px when the image is sent inline`);
     expect(tool.description).toContain("Slides");
   });
 

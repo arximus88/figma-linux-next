@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`get_screenshot` never answers with more than an MCP client accepts** ([#93](https://github.com/arximus88/figma-linux-next/issues/93)).
+  A whole page, a large `maxDimension` or a `scale` could produce a response over 16 MiB, and the
+  call failed with nothing the agent could act on. The longer edge is now capped at 8192 px, a page
+  is sized by the frames on it, and an image too large to send is saved to the export directory
+  with its path returned. An image sent inline is also kept within 2000 px on a side, past which
+  Claude rejects images once a conversation holds many of them; pass `savePath` for the full size.
+  Thanks to [@viniciosrab](https://github.com/viniciosrab) and [@bickov](https://github.com/bickov)
+  for tracking down both limits.
+
+- **The tray icon is legible at small sizes.** The symbolic icon used outside Plasma was a thin
+  outline that went dim and blurry where the tray draws it at 12–16 px. It is now the filled Figma
+  glyph at full height. Thanks to [@viniciosrab](https://github.com/viniciosrab)
+  ([#95](https://github.com/arximus88/figma-linux-next/pull/95)).
+
 ## [0.25.0] - 2026-11-13
 
 The MCP server works behind your back: tools no longer pull a tab or the window to the front,

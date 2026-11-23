@@ -103,9 +103,11 @@ import { safeStringify } from "../utils/serialize";
 import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
 import {
   INLINE_IMAGE_MAX_BASE64,
+  INLINE_MAX_EDGE,
   mib,
   SCREENSHOT_DEFAULT_EDGE,
   screenshotEdgeCap,
+  screenshotGoesInline,
 } from "../utils/screenshotLimits";
 
 /** Shared state the tool handlers operate on, injected by McpServer. */
@@ -595,14 +597,21 @@ export class ToolHandlers {
   public async toolGetScreenshot(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.01, args.scale)) : null;
-    // Caps the longer edge whether or not `scale` is given (#93).
-    const maxDimension = screenshotEdgeCap(args.maxDimension, scale);
     const contentsOnly = args.contentsOnly === true;
     const savePath = args.savePath ? String(args.savePath) : null;
     // Figma's remote parameter. Inline is already the default here, so only an
     // explicit false changes anything: the PNG is saved and its path returned.
     const inline =
       typeof args.enableBase64Response === "boolean" ? args.enableBase64Response : null;
+    // Caps the longer edge whether or not `scale` is given, and at
+    // INLINE_MAX_EDGE when the image goes back in the response (#93).
+    const fullCap = screenshotEdgeCap(args.maxDimension, scale);
+    const maxDimension = screenshotEdgeCap(
+      args.maxDimension,
+      scale,
+      screenshotGoesInline(savePath, inline),
+    );
+    const inlineCapped = maxDimension < fullCap;
     const unseen = savePath ? this.savePathProblem(savePath) : null;
     if (unseen) return toolError(unseen);
 
@@ -654,6 +663,14 @@ export class ToolHandlers {
           scale: result.scale,
           requestedScale,
           scaleCappedBy,
+          ...(inlineCapped && Math.max(width ?? 0, height ?? 0) >= maxDimension
+            ? {
+                note:
+                  `Capped at ${INLINE_MAX_EDGE} px on the longer edge because it is sent inline ` +
+                  "(Claude rejects larger images in many-image conversations). " +
+                  "Pass a savePath for the full size.",
+              }
+            : {}),
         },
         inline,
       );

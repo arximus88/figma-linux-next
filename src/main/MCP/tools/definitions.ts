@@ -10,6 +10,7 @@ import type { ToolAnnotations, ToolDefinition, ToolName } from "../types";
 import { COMMENT_WRITE_TOOLS, GET_COMMENTS_TOOL } from "./commentTools";
 import {
   INLINE_IMAGE_MAX_BASE64,
+  INLINE_MAX_EDGE,
   SCREENSHOT_DEFAULT_EDGE,
   SCREENSHOT_MAX_EDGE,
 } from "../utils/screenshotLimits";
@@ -169,7 +170,8 @@ const BASE_TOOLS: ToolDefinition[] = [
       "The image comes back inline, or — with savePath — is written to disk and only its path " +
       `is returned. An image over ${INLINE_LIMIT_MIB} MiB of base64 is never sent inline ` +
       "(MCP clients reject responses over 16 MiB): it is saved to the app's export directory " +
-      `and savedTo returned instead. The longer edge never exceeds ${SCREENSHOT_MAX_EDGE} px; ` +
+      `and savedTo returned instead. The longer edge never exceeds ${SCREENSHOT_MAX_EDGE} px, ` +
+      `and ${INLINE_MAX_EDGE} px when the image is sent inline (pass savePath for more); ` +
       "a page is sized by the frames on it. Helps preserve layout fidelity in generated code. " +
       "Supports Figma Design, FigJam and Slides files.",
     inputSchema: {
@@ -185,7 +187,8 @@ const BASE_TOOLS: ToolDefinition[] = [
           maximum: SCREENSHOT_MAX_EDGE,
           description:
             `Cap on the longer edge of the PNG in pixels (default ${SCREENSHOT_DEFAULT_EDGE}, at most ` +
-            `${SCREENSHOT_MAX_EDGE}; small nodes render at up to 2x). Applies with scale too. ` +
+            `${SCREENSHOT_MAX_EDGE} with savePath, ${INLINE_MAX_EDGE} inline; small nodes render at up to ` +
+            "2x). Applies with scale too. " +
             "Raise it to inspect detail, lower it for thumbnails. The response gives width/height and " +
             "original_width/original_height.",
         },
