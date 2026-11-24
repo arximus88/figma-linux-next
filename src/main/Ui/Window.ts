@@ -42,6 +42,7 @@ import {
   withFuid,
   getNodeIdFromUrl,
   keepTabParams,
+  isFigmaWebUrl,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
 import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
@@ -658,6 +659,13 @@ export default class Window {
       const tab = this.addTab(httpUrl);
       if (tab) this.setTabFocus(tab.id);
     } else if (/https?:\/\//.test(url)) {
+      // Reached from the clipboard shortcut and the command line, with any text
+      // in it. A tab runs the desktop preload with contextIsolation off, so only
+      // figma.com may load in one. Anything else is dropped, not opened anywhere.
+      if (!isFigmaWebUrl(url)) {
+        logger.warn("[openUrl] not a figma.com URL, not opening it in a tab:", url);
+        return;
+      }
       const existing = this.findTabForUrl(url);
       if (existing) {
         this.focusTabAtLink(existing, url);

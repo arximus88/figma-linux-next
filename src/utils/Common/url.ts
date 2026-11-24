@@ -23,6 +23,21 @@ export const parseURL = (url: string): URL | undefined => {
   }
 };
 
+/** figma.com or one of its subdomains — anchored, so `figma.com.evil.net`
+ *  and `notfigma.com` are not. */
+export const isFigmaHost = (hostname: string): boolean => /(^|\.)figma\.com$/i.test(hostname);
+
+/** An http(s) URL on figma.com: the only web pages a tab may be opened at.
+ *  A tab runs the desktop preload with contextIsolation off. */
+export const isFigmaWebUrl = (url: string): boolean => {
+  const parsed = parseURL(url);
+  return (
+    !!parsed &&
+    (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+    isFigmaHost(parsed.hostname)
+  );
+};
+
 export const isFigmaRunUrl = (url: string): boolean => {
   const parsed = parseURL(url);
   if (!parsed) return false;
@@ -33,7 +48,7 @@ export const isFigmaRunUrl = (url: string): boolean => {
   }
 
   // Web URLs
-  if (/(w{0,3}\.)?figma\.com/.test(parsed.hostname)) {
+  if (isFigmaHost(parsed.hostname)) {
     const validPaths = [
       /^\/file\//, // Old file structure
       /^\/files\//, // File browser
@@ -61,11 +76,7 @@ export const isFigmaRunUrl = (url: string): boolean => {
 
 export const isCommunityUrl = (url: string): boolean => {
   const parsed = parseURL(url);
-  return (
-    parsed &&
-    /(w{0,3}\.)?figma\.com/.test(parsed.hostname) &&
-    /^\/community\//.test(parsed.pathname)
-  );
+  return parsed && isFigmaHost(parsed.hostname) && /^\/community\//.test(parsed.pathname);
 };
 
 export const isPrototypeUrl = (url: string): boolean => {
@@ -110,9 +121,7 @@ export const isValidFigjamLink = (url: string) =>
  *  They should stay in the MainTab, not be opened as a new design-file tab. */
 export const isFileBrowserUrl = (url: string): boolean => {
   const parsed = parseURL(url);
-  return (
-    !!parsed && /(w{0,3}\.)?figma\.com/.test(parsed.hostname) && /^\/files\//.test(parsed.pathname)
-  );
+  return !!parsed && isFigmaHost(parsed.hostname) && /^\/files\//.test(parsed.pathname);
 };
 
 /** Schemes the desktop browser can actually open. Everything else handed to
@@ -206,7 +215,7 @@ export const getTabDedupKey = (url: string): string | null => {
  */
 export const sessionStateFromUrl = (url: string): "signedIn" | "signedOut" | undefined => {
   const parsed = parseURL(url);
-  if (parsed?.protocol !== "https:" || !/(^|\.)figma\.com$/.test(parsed.hostname)) {
+  if (parsed?.protocol !== "https:" || !isFigmaHost(parsed.hostname)) {
     return undefined;
   }
   const path = parsed.pathname;

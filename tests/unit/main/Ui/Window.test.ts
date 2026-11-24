@@ -317,6 +317,37 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("openUrl loads only figma.com in a tab", () => {
+    // Ctrl+Alt+U opens whatever text is on the clipboard, and a tab runs the
+    // desktop preload with contextIsolation off.
+    test.each([
+      "https://figma.com.evil.net/design/abc/A",
+      "https://evil.net/design/abc/A",
+      "https://www.figma.com.evil.net/files/recents",
+    ])("%s opens nothing", (url) => {
+      (windowInstance as any).panelLoaded = true;
+      const tabManager: any = (windowInstance as any).tabManager;
+      const before = tabManager.getAll().size;
+      const mainLoad = spyOn(tabManager, "loadUrlInMainTab");
+
+      windowInstance.openUrl(url);
+
+      expect(tabManager.getAll().size).toBe(before);
+      expect(mainLoad).not.toHaveBeenCalled();
+    });
+
+    test("a figma.com file still opens", () => {
+      (windowInstance as any).panelLoaded = true;
+      const tabManager: any = (windowInstance as any).tabManager;
+      const before = tabManager.getAll().size;
+      spyOn(windowInstance, "setTabFocus").mockReturnValue(undefined);
+
+      windowInstance.openUrl("https://www.figma.com/design/abc/A");
+
+      expect(tabManager.getAll().size).toBe(before + 1);
+    });
+  });
+
   describe("A link to a frame in a file that is already open", () => {
     // Focusing the open tab used to be all a link did, so a node-id only took
     // effect while the file was closed.

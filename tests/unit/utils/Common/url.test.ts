@@ -6,6 +6,8 @@ import {
   getNodeIdFromUrl,
   keepTabParams,
   isFigmaRunUrl,
+  isFigmaHost,
+  isFigmaWebUrl,
   isFileBrowserUrl,
   isExportQueueUrl,
   isExternallyOpenableUrl,
@@ -479,5 +481,35 @@ describe("keepTabParams", () => {
 
   test("leaves the link alone when the page has neither", () => {
     expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A")).toBe(LINK);
+  });
+});
+
+describe("figma.com only: a look-alike host never passes", () => {
+  // A tab runs the desktop preload with contextIsolation off; the hostname
+  // test was unanchored, so these opened in a tab instead of the browser.
+  const lookAlikes = [
+    "https://figma.com.evil.net/design/abc/A",
+    "https://notfigma.com/design/abc/A",
+    "https://www.figma.com.evil.net/files/recents",
+  ];
+
+  test("isFigmaHost is anchored", () => {
+    expect(isFigmaHost("figma.com")).toBe(true);
+    expect(isFigmaHost("www.figma.com")).toBe(true);
+    expect(isFigmaHost("figma.com.evil.net")).toBe(false);
+    expect(isFigmaHost("notfigma.com")).toBe(false);
+  });
+
+  test.each(lookAlikes)("%s is not a Figma URL", (url) => {
+    expect(isFigmaWebUrl(url)).toBe(false);
+    expect(isFigmaRunUrl(url)).toBe(false);
+    expect(isFileBrowserUrl(url)).toBe(false);
+  });
+
+  test("real figma.com URLs still pass", () => {
+    expect(isFigmaWebUrl("https://www.figma.com/design/abc/A")).toBe(true);
+    expect(isFigmaRunUrl("https://www.figma.com/design/abc/A")).toBe(true);
+    expect(isFileBrowserUrl("https://www.figma.com/files/recents")).toBe(true);
+    expect(isFigmaWebUrl("javascript:alert(1)")).toBe(false);
   });
 });
