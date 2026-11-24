@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Open File URL from Clipboard is now `Ctrl+Alt+U`** ([#98](https://github.com/arximus88/figma-linux-next/issues/98)).
+  `Ctrl+Shift+O` is Figma's Show outlines, and the app's menu took the key first, so the editor
+  shortcut never fired. Thanks to [@dimitar-kunchev](https://github.com/dimitar-kunchev)
+  ([#99](https://github.com/arximus88/figma-linux-next/pull/99)).
+
 ### Fixed
+
+- **A link to a frame moves an open file to that frame** ([#96](https://github.com/arximus88/figma-linux-next/issues/96)).
+  A link (`figma://`, from the browser or from the clipboard) to a file that already had a tab only
+  switched to the tab and left the view where it was. The open editor now goes to the frame in
+  place, with no reload, and stays in Dev Mode and in the same account. Thanks to
+  [@dimitar-kunchev](https://github.com/dimitar-kunchev)
+  ([#97](https://github.com/arximus88/figma-linux-next/pull/97)).
+
+- **Only figma.com opens in an app tab.** Open File URL from Clipboard opened any web address in a
+  tab, and a look-alike host such as `figma.com.example.net` passed the check for links clicked
+  inside a file. App tabs run with access to the desktop bridge, so other sites now stay out.
 
 - **`get_screenshot` never answers with more than an MCP client accepts** ([#93](https://github.com/arximus88/figma-linux-next/issues/93)).
   A whole page, a large `maxDimension` or a `scale` could produce a response over 16 MiB, and the

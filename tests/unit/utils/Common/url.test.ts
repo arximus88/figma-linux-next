@@ -500,11 +500,13 @@ describe("figma.com only: a look-alike host never passes", () => {
     expect(isFigmaHost("notfigma.com")).toBe(false);
   });
 
-  test.each(lookAlikes)("%s is not a Figma URL", (url) => {
-    expect(isFigmaWebUrl(url)).toBe(false);
-    expect(isFigmaRunUrl(url)).toBe(false);
-    expect(isFileBrowserUrl(url)).toBe(false);
-  });
+  for (const url of lookAlikes) {
+    test(`${url} is not a Figma URL`, () => {
+      expect(isFigmaWebUrl(url)).toBe(false);
+      expect(isFigmaRunUrl(url)).toBe(false);
+      expect(isFileBrowserUrl(url)).toBe(false);
+    });
+  }
 
   test("real figma.com URLs still pass", () => {
     expect(isFigmaWebUrl("https://www.figma.com/design/abc/A")).toBe(true);

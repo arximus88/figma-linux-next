@@ -320,21 +320,23 @@ describe("Window Tab Routing", () => {
   describe("openUrl loads only figma.com in a tab", () => {
     // Ctrl+Alt+U opens whatever text is on the clipboard, and a tab runs the
     // desktop preload with contextIsolation off.
-    test.each([
+    for (const url of [
       "https://figma.com.evil.net/design/abc/A",
       "https://evil.net/design/abc/A",
       "https://www.figma.com.evil.net/files/recents",
-    ])("%s opens nothing", (url) => {
-      (windowInstance as any).panelLoaded = true;
-      const tabManager: any = (windowInstance as any).tabManager;
-      const before = tabManager.getAll().size;
-      const mainLoad = spyOn(tabManager, "loadUrlInMainTab");
+    ]) {
+      test(`${url} opens nothing`, () => {
+        (windowInstance as any).panelLoaded = true;
+        const tabManager: any = (windowInstance as any).tabManager;
+        const before = tabManager.getAll().size;
+        const mainLoad = spyOn(tabManager, "loadUrlInMainTab");
 
-      windowInstance.openUrl(url);
+        windowInstance.openUrl(url);
 
-      expect(tabManager.getAll().size).toBe(before);
-      expect(mainLoad).not.toHaveBeenCalled();
-    });
+        expect(tabManager.getAll().size).toBe(before);
+        expect(mainLoad).not.toHaveBeenCalled();
+      });
+    }
 
     test("a figma.com file still opens", () => {
       (windowInstance as any).panelLoaded = true;
