@@ -222,12 +222,24 @@ export const getNodeIdFromUrl = (url: string): string | null => {
   return nodeId ? nodeId.replace(/:/g, "-") : null;
 };
 
-/** `link` with the editor mode (`m`, e.g. `m=dev`) of the page at `current`
- *  when the link names none — Figma opens a link without `m` in Design mode. */
-export const keepEditorMode = (link: string, current: string): string => {
+/** Query parameters a tab keeps when a link to its file names none of its own:
+ *  the editor mode (`m=dev` — Figma opens a link without `m` in Design mode)
+ *  and the account (`fuid` — without it figma.com picks the default account,
+ *  so a second account's file answered "no access"). */
+const TAB_PARAMS = ["m", "fuid"] as const;
+
+/** `link` with the tab's own `m` and `fuid` (from `current`) where it names none. */
+export const keepTabParams = (link: string, current: string): string => {
   const target = parseURL(link);
-  const mode = parseURL(current)?.searchParams.get("m");
-  if (!target || !mode || target.searchParams.has("m")) return link;
-  target.searchParams.set("m", mode);
-  return target.toString();
+  const page = parseURL(current);
+  if (!target || !page) return link;
+  let changed = false;
+  for (const name of TAB_PARAMS) {
+    const value = page.searchParams.get(name);
+    if (value && !target.searchParams.has(name)) {
+      target.searchParams.set(name, value);
+      changed = true;
+    }
+  }
+  return changed ? target.toString() : link;
 };

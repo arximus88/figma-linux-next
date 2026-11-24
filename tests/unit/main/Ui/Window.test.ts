@@ -348,20 +348,18 @@ describe("Window Tab Routing", () => {
       (globalThis.setTimeout as any).mockRestore?.();
     });
 
+    const sends = (tab: any) => (tab.view.webContents.send as any).mock.calls;
+
     test("applies the link's query to the open editor, without a reload", () => {
       const tab = openFile();
 
       windowInstance.openUrl(LINK);
 
       expect(windowInstance.setTabFocus).toHaveBeenCalledWith(tab.id);
-      expect(tab.view.webContents.send).toHaveBeenCalledWith(
-        "handleUrlParams",
-        "?node-id=4-6&t=x",
-        "",
-      );
+      expect(sends(tab)).toEqual([["handleUrlParams", "?node-id=4-6&t=x", ""]]);
       tab.view.webContents.getURL = () => `${FILE}?node-id=4-6`;
       runTimer();
-      expect(tab.view.webContents.send).toHaveBeenCalledTimes(1);
+      expect(sends(tab)).toHaveLength(1);
       expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
     });
 
@@ -371,27 +369,44 @@ describe("Window Tab Routing", () => {
       windowInstance.openUrl(LINK);
       runTimer();
 
-      expect(tab.view.webContents.send).toHaveBeenLastCalledWith(
-        "handleUrl",
-        "/design/abc/A",
-        "?node-id=4-6&t=x",
-        "",
-      );
-      tab.view.webContents.getURL = () => `${FILE}?node-id=4-6`;
-      runTimer();
-      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+      expect(sends(tab).at(-1)).toEqual(["handleUrl", "/design/abc/A", "?node-id=4-6&t=x", ""]);
     });
 
-    test("reloads the tab at the link when nothing moved it", () => {
+    test("never reloads the file, even when neither message moved it", () => {
       const tab = openFile();
 
       windowInstance.openUrl("figma://design/abc/A?node-id=4:6");
       runTimer();
       runTimer();
 
-      expect(tab.view.webContents.loadURL).toHaveBeenCalledWith(
-        "https://www.figma.com/design/abc/A?node-id=4:6",
-      );
+      expect(timers).toHaveLength(0);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("a second link before the check does not send the tab back to the first", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      windowInstance.openUrl(`${FILE}?node-id=7-8`);
+      // The page went to 7-8, as the second link asked.
+      tab.view.webContents.getURL = () => `${FILE}?node-id=7-8`;
+      runTimer();
+      runTimer();
+
+      expect(sends(tab).map((c: any[]) => c[0])).toEqual(["handleUrlParams", "handleUrlParams"]);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("a layer selected right after the jump is left alone", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      // Figma went to 4-6, then the user clicked layer 9-9; the URL follows the selection.
+      tab.view.webContents.getURL = () => `${FILE}?node-id=9-9`;
+      runTimer();
+
+      expect(sends(tab)).toHaveLength(1);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
     });
 
     test("keeps Dev Mode when the link names no mode", () => {
@@ -399,11 +414,7 @@ describe("Window Tab Routing", () => {
 
       windowInstance.openUrl(LINK);
 
-      expect(tab.view.webContents.send).toHaveBeenCalledWith(
-        "handleUrlParams",
-        "?node-id=4-6&t=x&m=dev",
-        "",
-      );
+      expect(sends(tab)[0]).toEqual(["handleUrlParams", "?node-id=4-6&t=x&m=dev", ""]);
     });
 
     test("a link without a node-id is only focused", () => {
@@ -424,6 +435,15 @@ describe("Window Tab Routing", () => {
 
       expect(shell.url).toBe(`${LINK}&m=dev`);
       expect(windowInstance.setTabFocus).toHaveBeenCalledWith(shell.id);
+    });
+
+    test("a discarded tab is revived under its own account", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const shell = tabManager.addDiscardedShell({ url: `${FILE}?fuid=42`, title: "File A" });
+
+      windowInstance.openUrl(LINK);
+
+      expect(new URL(shell.url).searchParams.get("fuid")).toBe("42");
     });
   });
 

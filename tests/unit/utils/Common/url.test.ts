@@ -4,7 +4,7 @@ import {
   getFileKeyFromUrl,
   getTabDedupKey,
   getNodeIdFromUrl,
-  keepEditorMode,
+  keepTabParams,
   isFigmaRunUrl,
   isFileBrowserUrl,
   isExportQueueUrl,
@@ -459,19 +459,25 @@ describe("getNodeIdFromUrl", () => {
   });
 });
 
-describe("keepEditorMode", () => {
+describe("keepTabParams", () => {
   const LINK = "https://www.figma.com/design/abc/A?node-id=4-6";
 
   test("adds the current page's mode to a link that names none", () => {
-    expect(keepEditorMode(LINK, "https://www.figma.com/design/abc/A?m=dev")).toBe(`${LINK}&m=dev`);
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A?m=dev")).toBe(`${LINK}&m=dev`);
   });
 
-  test("leaves a link's own mode alone", () => {
-    const link = `${LINK}&m=auto`;
-    expect(keepEditorMode(link, "https://www.figma.com/design/abc/A?m=dev")).toBe(link);
+  test("adds the tab's account, so the file opens under the same user", () => {
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A?fuid=42&m=dev")).toBe(
+      `${LINK}&m=dev&fuid=42`,
+    );
   });
 
-  test("leaves the link alone when the page has no mode", () => {
-    expect(keepEditorMode(LINK, "https://www.figma.com/design/abc/A")).toBe(LINK);
+  test("leaves a link's own mode and account alone", () => {
+    const link = `${LINK}&m=auto&fuid=7`;
+    expect(keepTabParams(link, "https://www.figma.com/design/abc/A?m=dev&fuid=42")).toBe(link);
+  });
+
+  test("leaves the link alone when the page has neither", () => {
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A")).toBe(LINK);
   });
 });

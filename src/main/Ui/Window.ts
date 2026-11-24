@@ -41,7 +41,7 @@ import {
   getTabDedupKey,
   withFuid,
   getNodeIdFromUrl,
-  keepEditorMode,
+  keepTabParams,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
 import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
@@ -56,7 +56,7 @@ import { SettingsTab } from "./SettingsTab";
 const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
 /** Attach the export-queue tab regardless, so a failed load can't leave it hidden. */
 const EXPORT_QUEUE_ATTACH_TIMEOUT_MS = 8000;
-/** How long Figma gets to show a linked node after one in-place attempt, before the next is tried. */
+/** How long Figma gets to show a linked node before `handleUrl` is tried instead. */
 const NODE_NAVIGATION_STEP_MS = 1500;
 
 export default class Window {
@@ -71,6 +71,8 @@ export default class Window {
   private tabPreview: TabPreviewView | null = null;
   // "New Group with This Tab" popover; created on first use.
   private tabGroupPrompt: TabGroupPromptView | null = null;
+  // Latest node link per tab: a newer one cancels an older one's follow-up (focusTabAtLink).
+  private linkRuns = new WeakMap<Tab, number>();
   // Tab group metadata for this window, keyed by group id. Membership itself
   // lives on each live Tab (tab.groupId) — this map only holds label/color/
   // collapsed/order. Persisted as `tabGroups` in Types.WindowState.
@@ -679,46 +681,45 @@ export default class Window {
    *
    * Figma's page moves within the open file on its own desktop messages, which
    * keeps the editor loaded: `handleUrlParams` applies a link's query to the
-   * current view, `handleUrl` routes a whole path. Each gets
-   * NODE_NAVIGATION_STEP_MS to put the node in the page's URL; if neither does,
-   * the tab reloads at the link as the last resort. The editor mode the tab is
-   * in (`m=dev`) carries over when the link names none, so a link does not drop
-   * Dev Mode. A discarded tab is revived at the link.
+   * current view. If after NODE_NAVIGATION_STEP_MS the page's URL still shows
+   * the node it showed before, `handleUrl` routes the whole path once more.
+   *
+   * Never a reload: it costs a large file its load time and its undo history.
+   * The URL follows the selection, so a click on another layer, or a second
+   * link, used to read as "nothing moved" and reloaded the tab back to the
+   * first node. A newer link to the same tab cancels the older one's check.
+   *
+   * The tab's mode (`m=dev`) and account (`fuid`) carry over when the link
+   * names none. A discarded tab is revived at the link.
    */
   private focusTabAtLink(existing: Tab | DiscardedTab, url: string) {
     const nodeId = getNodeIdFromUrl(url);
-    if (nodeId && "discarded" in existing) existing.url = keepEditorMode(url, existing.url);
+    if (nodeId && "discarded" in existing) existing.url = keepTabParams(url, existing.url);
     this.setTabFocus(existing.id);
     if (!nodeId || !(existing instanceof Tab)) return;
 
     const wc = existing.view.webContents;
     if (wc.isDestroyed()) return;
-    const target = parseURL(keepEditorMode(url, wc.getURL()));
+    const target = parseURL(keepTabParams(url, wc.getURL()));
     if (!target) return;
 
-    const attempts: [string, () => void][] = [
-      ["handleUrlParams", () => wc.send("handleUrlParams", target.search, target.hash)],
-      ["handleUrl", () => wc.send("handleUrl", target.pathname, target.search, target.hash)],
-    ];
-    const attempt = (i: number) => {
-      if (wc.isDestroyed()) return;
-      if (i === attempts.length) {
-        logger.debug("[openUrl] no in-place move reached node, reloading tab at", target.href);
-        existing.loadUrl(target.href);
-        return;
+    const run = (this.linkRuns.get(existing) ?? 0) + 1;
+    this.linkRuns.set(existing, run);
+    const before = getNodeIdFromUrl(wc.getURL());
+
+    wc.send("handleUrlParams", target.search, target.hash);
+    setTimeout(() => {
+      if (wc.isDestroyed() || this.linkRuns.get(existing) !== run) return;
+      const now = getNodeIdFromUrl(wc.getURL());
+      if (now === nodeId) {
+        logger.debug("[openUrl] handleUrlParams moved open tab to node", nodeId);
+      } else if (now === before) {
+        logger.debug("[openUrl] handleUrlParams did not move the tab, trying handleUrl", nodeId);
+        wc.send("handleUrl", target.pathname, target.search, target.hash);
       }
-      const [name, send] = attempts[i];
-      send();
-      setTimeout(() => {
-        if (wc.isDestroyed()) return;
-        if (getNodeIdFromUrl(wc.getURL()) === nodeId) {
-          logger.debug(`[openUrl] ${name} moved open tab to node`, nodeId);
-        } else {
-          attempt(i + 1);
-        }
-      }, NODE_NAVIGATION_STEP_MS);
-    };
-    attempt(0);
+      // Anything else: the page moved somewhere on its own (the user selected
+      // another layer). Leave it there.
+    }, NODE_NAVIGATION_STEP_MS);
   }
 
   public focus() {
