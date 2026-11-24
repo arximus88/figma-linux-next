@@ -172,8 +172,15 @@ const initWebBindings = (): void => {
   E.ipcRenderer.on("handleAction", (_: IpcRendererEvent, action: string, source: string) => {
     webPort.postMessage({ name: "handleAction", args: { action, source } });
   });
-  E.ipcRenderer.on("handleUrl", (_: IpcRendererEvent, path: string, params: string) => {
-    webPort.postMessage({ name: "handleUrl", args: { path, params } });
+  E.ipcRenderer.on(
+    "handleUrl",
+    (_: IpcRendererEvent, path: string, params?: string, hash?: string) => {
+      webPort.postMessage({ name: "handleUrl", args: { path, params, hash } });
+    },
+  );
+  // Applies a link's query (`?node-id=…`) to the view the page already shows.
+  E.ipcRenderer.on("handleUrlParams", (_: IpcRendererEvent, params: string, hash?: string) => {
+    webPort.postMessage({ name: "handleUrlParams", args: { params, hash } });
   });
   E.ipcRenderer.on("handleSetFullScreen", (_event: IpcRendererEvent, fullscreen: boolean) => {
     webPort.postMessage({ name: "handleSetFullScreen", args: { fullscreen } });

@@ -40,6 +40,8 @@ import {
   parseURL,
   getTabDedupKey,
   withFuid,
+  getNodeIdFromUrl,
+  keepEditorMode,
 } from "Utils/Common";
 import { panelUrlDev, panelUrlProd, resolveFrameStyle, toggleDetachedDevTools } from "Utils/Main";
 import { computeTabPreviewBounds, displayUrl, type PreviewAnchor } from "Utils/Main/tabPreview";
@@ -54,6 +56,8 @@ import { SettingsTab } from "./SettingsTab";
 const EXPORT_QUEUE_ATTACH_DELAY_MS = 400;
 /** Attach the export-queue tab regardless, so a failed load can't leave it hidden. */
 const EXPORT_QUEUE_ATTACH_TIMEOUT_MS = 8000;
+/** How long Figma gets to show a linked node after one in-place attempt, before the next is tried. */
+const NODE_NAVIGATION_STEP_MS = 1500;
 
 export default class Window {
   private window: BrowserWindow;
@@ -646,7 +650,7 @@ export default class Window {
       const httpUrl = url.replace(/figma:\//, HOMEPAGE);
       const existing = this.findTabForUrl(httpUrl);
       if (existing) {
-        this.setTabFocus(existing.id);
+        this.focusTabAtLink(existing, httpUrl);
         return;
       }
       const tab = this.addTab(httpUrl);
@@ -654,7 +658,7 @@ export default class Window {
     } else if (/https?:\/\//.test(url)) {
       const existing = this.findTabForUrl(url);
       if (existing) {
-        this.setTabFocus(existing.id);
+        this.focusTabAtLink(existing, url);
         return;
       }
       const tab = this.addTab(url);
@@ -667,6 +671,56 @@ export default class Window {
       }
     }
   }
+
+  /**
+   * A link to a file that is already open focuses its tab — and must also take
+   * the tab to the frame the link names. Focusing alone left the file where it
+   * was, so a link only worked while its file was closed.
+   *
+   * Figma's page moves within the open file on its own desktop messages, which
+   * keeps the editor loaded: `handleUrlParams` applies a link's query to the
+   * current view, `handleUrl` routes a whole path. Each gets
+   * NODE_NAVIGATION_STEP_MS to put the node in the page's URL; if neither does,
+   * the tab reloads at the link as the last resort. The editor mode the tab is
+   * in (`m=dev`) carries over when the link names none, so a link does not drop
+   * Dev Mode. A discarded tab is revived at the link.
+   */
+  private focusTabAtLink(existing: Tab | DiscardedTab, url: string) {
+    const nodeId = getNodeIdFromUrl(url);
+    if (nodeId && "discarded" in existing) existing.url = keepEditorMode(url, existing.url);
+    this.setTabFocus(existing.id);
+    if (!nodeId || !(existing instanceof Tab)) return;
+
+    const wc = existing.view.webContents;
+    if (wc.isDestroyed()) return;
+    const target = parseURL(keepEditorMode(url, wc.getURL()));
+    if (!target) return;
+
+    const attempts: [string, () => void][] = [
+      ["handleUrlParams", () => wc.send("handleUrlParams", target.search, target.hash)],
+      ["handleUrl", () => wc.send("handleUrl", target.pathname, target.search, target.hash)],
+    ];
+    const attempt = (i: number) => {
+      if (wc.isDestroyed()) return;
+      if (i === attempts.length) {
+        logger.debug("[openUrl] no in-place move reached node, reloading tab at", target.href);
+        existing.loadUrl(target.href);
+        return;
+      }
+      const [name, send] = attempts[i];
+      send();
+      setTimeout(() => {
+        if (wc.isDestroyed()) return;
+        if (getNodeIdFromUrl(wc.getURL()) === nodeId) {
+          logger.debug(`[openUrl] ${name} moved open tab to node`, nodeId);
+        } else {
+          attempt(i + 1);
+        }
+      }, NODE_NAVIGATION_STEP_MS);
+    };
+    attempt(0);
+  }
+
   public focus() {
     // Reached from the tray as well, where the window may be minimised or
     // hidden — focus() alone does not un-minimise on any platform.

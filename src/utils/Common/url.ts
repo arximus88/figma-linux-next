@@ -214,3 +214,20 @@ export const sessionStateFromUrl = (url: string): "signedIn" | "signedOut" | und
   if (/^\/app_auth\//.test(path)) return undefined;
   return "signedIn";
 };
+
+/** The `node-id` a link points at, in Figma's URL form (`1-23`). Links carry
+ *  either `1-23` or the API form `1:23`; both map to the same node. */
+export const getNodeIdFromUrl = (url: string): string | null => {
+  const nodeId = parseURL(url)?.searchParams.get("node-id");
+  return nodeId ? nodeId.replace(/:/g, "-") : null;
+};
+
+/** `link` with the editor mode (`m`, e.g. `m=dev`) of the page at `current`
+ *  when the link names none — Figma opens a link without `m` in Design mode. */
+export const keepEditorMode = (link: string, current: string): string => {
+  const target = parseURL(link);
+  const mode = parseURL(current)?.searchParams.get("m");
+  if (!target || !mode || target.searchParams.has("m")) return link;
+  target.searchParams.set("m", mode);
+  return target.toString();
+};
