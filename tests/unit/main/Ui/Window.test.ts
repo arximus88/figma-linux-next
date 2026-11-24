@@ -308,6 +308,116 @@ describe("Window Tab Routing", () => {
     });
   });
 
+  describe("A link to a frame in a file that is already open", () => {
+    // Focusing the open tab used to be all a link did, so a node-id only took
+    // effect while the file was closed.
+    const FILE = "https://www.figma.com/design/abc/A";
+    const LINK = `${FILE}?node-id=4-6&t=x`;
+    let timers: (() => void)[];
+    const runTimer = () => timers.shift()?.();
+
+    const openFile = (at = `${FILE}?node-id=1-2`) => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab(FILE, "File A");
+      tab.view.webContents.getURL = () => at;
+      tab.view.webContents.send = mock();
+      tab.view.webContents.loadURL = mock();
+      return tab;
+    };
+
+    beforeEach(() => {
+      (windowInstance as any).panelLoaded = true;
+      spyOn(windowInstance, "setTabFocus").mockReturnValue(undefined);
+      timers = [];
+      spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+        timers.push(fn);
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout);
+    });
+
+    afterEach(() => {
+      (globalThis.setTimeout as any).mockRestore?.();
+    });
+
+    test("applies the link's query to the open editor, without a reload", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(tab.id);
+      expect(tab.view.webContents.send).toHaveBeenCalledWith(
+        "handleUrlParams",
+        "?node-id=4-6&t=x",
+        "",
+      );
+      tab.view.webContents.getURL = () => `${FILE}?node-id=4-6`;
+      runTimer();
+      expect(tab.view.webContents.send).toHaveBeenCalledTimes(1);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("routes the whole path when the query alone did not move it", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      runTimer();
+
+      expect(tab.view.webContents.send).toHaveBeenLastCalledWith(
+        "handleUrl",
+        "/design/abc/A",
+        "?node-id=4-6&t=x",
+        "",
+      );
+      tab.view.webContents.getURL = () => `${FILE}?node-id=4-6`;
+      runTimer();
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("reloads the tab at the link when nothing moved it", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl("figma://design/abc/A?node-id=4:6");
+      runTimer();
+      runTimer();
+
+      expect(tab.view.webContents.loadURL).toHaveBeenCalledWith(
+        "https://www.figma.com/design/abc/A?node-id=4:6",
+      );
+    });
+
+    test("keeps Dev Mode when the link names no mode", () => {
+      const tab = openFile(`${FILE}?node-id=1-2&m=dev`);
+
+      windowInstance.openUrl(LINK);
+
+      expect(tab.view.webContents.send).toHaveBeenCalledWith(
+        "handleUrlParams",
+        "?node-id=4-6&t=x&m=dev",
+        "",
+      );
+    });
+
+    test("a link without a node-id is only focused", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(FILE);
+
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(tab.id);
+      expect(tab.view.webContents.send).not.toHaveBeenCalled();
+      expect(timers).toHaveLength(0);
+    });
+
+    test("a discarded tab is revived at the link, in its mode", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const shell = tabManager.addDiscardedShell({ url: `${FILE}?m=dev`, title: "File A" });
+
+      windowInstance.openUrl(LINK);
+
+      expect(shell.url).toBe(`${LINK}&m=dev`);
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(shell.id);
+    });
+  });
+
   describe("Saved session keeps the page and viewport Figma moved to (#72)", () => {
     test("getState saves the URL the page shows now, not the one it was opened with", () => {
       const tabManager: any = (windowInstance as any).tabManager;

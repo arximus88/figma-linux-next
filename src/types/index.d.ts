@@ -462,7 +462,8 @@ declare namespace Electron {
     send(channel: "closeAllTab"): void;
     send(channel: "setTitle", data: { id: number; title: string }): void;
     send(channel: "didTabAdd", data: Types.Tab): this;
-    send(channel: "handleUrl", url: string): this;
+    send(channel: "handleUrl", path: string, params?: string, hash?: string): this;
+    send(channel: "handleUrlParams", params: string, hash?: string): this;
     send(channel: "focusTab", tabId: Types.TabIdType): this;
     send(channel: "newFileBtnVisible", visible: boolean): this;
     send(channel: "tabWasClosed", tabId: number): this;

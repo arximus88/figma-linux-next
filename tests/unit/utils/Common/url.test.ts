@@ -3,6 +3,8 @@ import {
   normalizeUrl,
   getFileKeyFromUrl,
   getTabDedupKey,
+  getNodeIdFromUrl,
+  keepEditorMode,
   isFigmaRunUrl,
   isFileBrowserUrl,
   isExportQueueUrl,
@@ -386,5 +388,38 @@ describe("Figma Motion export queue (issue #41)", () => {
     expect(isExportQueueUrl("https://www.figma.com/files/recent")).toBe(false);
     // A design file that merely mentions "export" in its slug is not the queue.
     expect(isExportQueueUrl("https://www.figma.com/design/KEY/export-icons")).toBe(false);
+  });
+});
+
+describe("getNodeIdFromUrl", () => {
+  test("reads node-id in Figma's URL form", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4-6&t=x")).toBe("4-6");
+  });
+
+  test("maps the API form 1:23 to the URL form", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4%3A6")).toBe("4-6");
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4:6")).toBe("4-6");
+  });
+
+  test("returns null without a node-id", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A")).toBeNull();
+    expect(getNodeIdFromUrl("not a url")).toBeNull();
+  });
+});
+
+describe("keepEditorMode", () => {
+  const LINK = "https://www.figma.com/design/abc/A?node-id=4-6";
+
+  test("adds the current page's mode to a link that names none", () => {
+    expect(keepEditorMode(LINK, "https://www.figma.com/design/abc/A?m=dev")).toBe(`${LINK}&m=dev`);
+  });
+
+  test("leaves a link's own mode alone", () => {
+    const link = `${LINK}&m=auto`;
+    expect(keepEditorMode(link, "https://www.figma.com/design/abc/A?m=dev")).toBe(link);
+  });
+
+  test("leaves the link alone when the page has no mode", () => {
+    expect(keepEditorMode(LINK, "https://www.figma.com/design/abc/A")).toBe(LINK);
   });
 });
