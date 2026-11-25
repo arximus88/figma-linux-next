@@ -26,6 +26,8 @@ declare module "bun:test" {
     toThrow(): void;
     toHaveBeenCalled(): void;
     toHaveBeenCalledWith(...args: any[]): void;
+    toHaveBeenCalledTimes(times: number): void;
+    toHaveBeenLastCalledWith(...args: any[]): void;
     toBeInstanceOf(constructor: any): void;
     toBeGreaterThan(expected: number): void;
     toBeLessThan(expected: number): void;
