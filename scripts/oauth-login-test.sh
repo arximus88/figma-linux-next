@@ -8,7 +8,7 @@
 #   scripts/oauth-login-test.sh --dist     # node_modules Electron + dist/main/main.js
 #   scripts/oauth-login-test.sh --keep     # leave the profile on disk afterwards
 #
-# Log in, wait for the file browser, quit with Ctrl+Q. Everything it changed is
+# Log in, wait for the file browser, quit with Ctrl+Alt+Q. Everything it changed is
 # put back on exit; the profile (it holds your session cookie) is deleted.
 set -euo pipefail
 
@@ -94,7 +94,7 @@ trap 'exit 130' INT TERM
 echo "Binary:  ${CMD[*]}"
 echo "Profile: $PROFILE"
 echo "figma:// links open in this instance until it quits."
-echo "Log in, wait for the file browser, then quit with Ctrl+Q."
+echo "Log in, wait for the file browser, then quit with Ctrl+Alt+Q."
 env -u ELECTRON_RUN_AS_NODE XDG_CONFIG_HOME="$PROFILE" "${CMD[@]}" >/dev/null 2>&1 &
 APP_PID=$!
 wait "$APP_PID" || true

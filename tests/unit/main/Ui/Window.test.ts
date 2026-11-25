@@ -110,6 +110,15 @@ import TabGroupPromptView from "Main/Ui/TabGroupPromptView";
 import Window from "Main/Ui/Window";
 import { NEW_FILE_TAB_TITLE } from "Const";
 
+/** The home tab landed on `url` — how figma.com tells the app whether it has a session. */
+function homeLandsOn(w: Window, url: string) {
+  (w as any).tabManager.mainTab.updateSessionState(url, true);
+}
+/** figma.com accepted the session (a normal signed-in start). */
+function signIn(w: Window) {
+  homeLandsOn(w, "https://www.figma.com/files/recents");
+}
+
 describe("Window Tab Routing", () => {
   let windowInstance: Window;
   let mockEvent: IpcMainEvent;
@@ -305,6 +314,169 @@ describe("Window Tab Routing", () => {
       windowInstance.setTabFocus(42);
 
       expect(applySpy).toHaveBeenCalledWith(42);
+    });
+  });
+
+  describe("openUrl loads only figma.com in a tab", () => {
+    // Ctrl+Alt+U opens whatever text is on the clipboard, and a tab runs the
+    // desktop preload with contextIsolation off.
+    for (const url of [
+      "https://figma.com.evil.net/design/abc/A",
+      "https://evil.net/design/abc/A",
+      "https://www.figma.com.evil.net/files/recents",
+    ]) {
+      test(`${url} opens nothing`, () => {
+        (windowInstance as any).panelLoaded = true;
+        const tabManager: any = (windowInstance as any).tabManager;
+        const before = tabManager.getAll().size;
+        const mainLoad = spyOn(tabManager, "loadUrlInMainTab");
+
+        windowInstance.openUrl(url);
+
+        expect(tabManager.getAll().size).toBe(before);
+        expect(mainLoad).not.toHaveBeenCalled();
+      });
+    }
+
+    test("a figma.com file still opens", () => {
+      (windowInstance as any).panelLoaded = true;
+      const tabManager: any = (windowInstance as any).tabManager;
+      const before = tabManager.getAll().size;
+      spyOn(windowInstance, "setTabFocus").mockReturnValue(undefined);
+
+      windowInstance.openUrl("https://www.figma.com/design/abc/A");
+
+      expect(tabManager.getAll().size).toBe(before + 1);
+    });
+  });
+
+  describe("A link to a frame in a file that is already open", () => {
+    // Focusing the open tab used to be all a link did, so a node-id only took
+    // effect while the file was closed.
+    const FILE = "https://www.figma.com/design/abc/A";
+    const LINK = `${FILE}?node-id=4-6&t=x`;
+    let timers: (() => void)[];
+    const runTimer = () => timers.shift()?.();
+
+    const openFile = (at = `${FILE}?node-id=1-2`) => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const tab = tabManager.addTab(FILE, "File A");
+      tab.view.webContents.getURL = () => at;
+      tab.view.webContents.send = mock();
+      tab.view.webContents.loadURL = mock();
+      return tab;
+    };
+
+    beforeEach(() => {
+      (windowInstance as any).panelLoaded = true;
+      spyOn(windowInstance, "setTabFocus").mockReturnValue(undefined);
+      timers = [];
+      spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+        timers.push(fn);
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout);
+    });
+
+    afterEach(() => {
+      (globalThis.setTimeout as any).mockRestore?.();
+    });
+
+    const sends = (tab: any) => (tab.view.webContents.send as any).mock.calls;
+
+    test("applies the link's query to the open editor, without a reload", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(tab.id);
+      expect(sends(tab)).toEqual([["handleUrlParams", "?node-id=4-6&t=x", ""]]);
+      tab.view.webContents.getURL = () => `${FILE}?node-id=4-6`;
+      runTimer();
+      expect(sends(tab)).toHaveLength(1);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("routes the whole path when the query alone did not move it", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      runTimer();
+
+      expect(sends(tab).at(-1)).toEqual(["handleUrl", "/design/abc/A", "?node-id=4-6&t=x", ""]);
+    });
+
+    test("never reloads the file, even when neither message moved it", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl("figma://design/abc/A?node-id=4:6");
+      runTimer();
+      runTimer();
+
+      expect(timers).toHaveLength(0);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("a second link before the check does not send the tab back to the first", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      windowInstance.openUrl(`${FILE}?node-id=7-8`);
+      // The page went to 7-8, as the second link asked.
+      tab.view.webContents.getURL = () => `${FILE}?node-id=7-8`;
+      runTimer();
+      runTimer();
+
+      expect(sends(tab).map((c: any[]) => c[0])).toEqual(["handleUrlParams", "handleUrlParams"]);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("a layer selected right after the jump is left alone", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(LINK);
+      // Figma went to 4-6, then the user clicked layer 9-9; the URL follows the selection.
+      tab.view.webContents.getURL = () => `${FILE}?node-id=9-9`;
+      runTimer();
+
+      expect(sends(tab)).toHaveLength(1);
+      expect(tab.view.webContents.loadURL).not.toHaveBeenCalled();
+    });
+
+    test("keeps Dev Mode when the link names no mode", () => {
+      const tab = openFile(`${FILE}?node-id=1-2&m=dev`);
+
+      windowInstance.openUrl(LINK);
+
+      expect(sends(tab)[0]).toEqual(["handleUrlParams", "?node-id=4-6&t=x&m=dev", ""]);
+    });
+
+    test("a link without a node-id is only focused", () => {
+      const tab = openFile();
+
+      windowInstance.openUrl(FILE);
+
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(tab.id);
+      expect(tab.view.webContents.send).not.toHaveBeenCalled();
+      expect(timers).toHaveLength(0);
+    });
+
+    test("a discarded tab is revived at the link, in its mode", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const shell = tabManager.addDiscardedShell({ url: `${FILE}?m=dev`, title: "File A" });
+
+      windowInstance.openUrl(LINK);
+
+      expect(shell.url).toBe(`${LINK}&m=dev`);
+      expect(windowInstance.setTabFocus).toHaveBeenCalledWith(shell.id);
+    });
+
+    test("a discarded tab is revived under its own account", () => {
+      const tabManager: any = (windowInstance as any).tabManager;
+      const shell = tabManager.addDiscardedShell({ url: `${FILE}?fuid=42`, title: "File A" });
+
+      windowInstance.openUrl(LINK);
+
+      expect(new URL(shell.url).searchParams.get("fuid")).toBe("42");
     });
   });
 
@@ -657,6 +829,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab").mockReturnValue({ id: 1 } as any);
 
+        signIn(restored);
+
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A", groupId: "g1" },
         ]);
@@ -707,6 +881,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab");
         const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        signIn(restored);
 
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A" },
@@ -775,6 +951,8 @@ describe("Window Tab Routing", () => {
         }) as typeof setTimeout);
         const addTabSpy = spyOn(restored, "addTab");
         const setTabFocusSpy = spyOn(restored, "setTabFocus").mockReturnValue(undefined as any);
+
+        signIn(restored);
 
         restored.restoreTabs([
           { title: "File A", url: "https://www.figma.com/design/abc/A" },
@@ -1125,6 +1303,18 @@ describe("Warm tab lifecycle", () => {
     expect(reapplySpy).toHaveBeenCalledWith("user-2", 77);
   });
 
+  test("a tab opened before any user is known carries no fuid=undefined", () => {
+    const tabManager: any = (w as any).tabManager;
+    const addSpy = spyOn(tabManager, "addTab");
+
+    w.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+    expect(addSpy.mock.calls[0][0]).toBe("https://www.figma.com/design/abc123/My-file");
+
+    w.setUserId("user-1");
+    w.addTab("https://www.figma.com/design/abc123/My-file", "My file");
+    expect(addSpy.mock.calls[1][0]).toBe("https://www.figma.com/design/abc123/My-file?fuid=user-1");
+  });
+
   test("an empty user id never re-navigates project tabs", () => {
     w.setUserId("user-1");
 
@@ -1175,6 +1365,7 @@ describe("lazy restore boundaries and duplicate tabs", () => {
       return 0;
     }) as any);
     try {
+      signIn(w);
       w.restoreTabs(tabs);
       while (scheduled.length) scheduled.shift()!();
     } finally {
@@ -1313,5 +1504,87 @@ describe("lazy restore boundaries and duplicate tabs", () => {
     expect(
       [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title),
     ).toEqual(["b"]);
+  });
+});
+
+describe("restore before figma.com accepts the session", () => {
+  let previous: any;
+  let scheduled: (() => void)[];
+  let timer: { mockRestore(): void };
+  beforeEach(() => {
+    previous = { ...storage.settings.app };
+    storage.settings.app.lazyRestoreTabs = false;
+    scheduled = [];
+    timer = spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      scheduled.push(fn);
+      return 0;
+    }) as any);
+  });
+  afterEach(() => {
+    timer.mockRestore();
+    Object.assign(storage.settings.app, previous);
+  });
+  const run = () => {
+    while (scheduled.length) scheduled.shift()!();
+  };
+  const saved = ["a", "b", "c"].map((key) => ({
+    title: key,
+    url: `https://www.figma.com/design/${key}`,
+  }));
+  const live = (w: Window) =>
+    [...w.tabs.values()].filter((tab) => tab instanceof Tab).map((tab) => tab.title);
+
+  test("signed out: every saved tab waits unloaded, sign-in loads them and Home stays in front", () => {
+    const w = new Window({ lastActiveTabPath: "/design/b" } as any);
+    homeLandsOn(w, "https://www.figma.com/login");
+    w.restoreTabs(saved);
+    run();
+    expect([...w.tabs.values()].map((tab) => tab.title)).toEqual(["a", "b", "c"]);
+    expect(live(w)).toEqual([]);
+
+    homeLandsOn(w, "https://www.figma.com/files/recents?fuid=1");
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.getLatestFocusedTabId()).toBe((w as any).tabManager.mainTab.id);
+  });
+
+  test("no answer yet: tabs wait, a signed-in answer loads them and brings back the last one", () => {
+    const w = new Window({ lastActiveTabPath: "/design/b" } as any);
+    w.restoreTabs(saved);
+    scheduled.shift()!(); // the 100 ms restore delay only
+    expect(live(w)).toEqual([]);
+    signIn(w);
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("b");
+  });
+
+  test("no answer at all: the timeout restores as before", () => {
+    const w = new Window({ lastActiveTabPath: "/design/c" } as any);
+    w.restoreTabs(saved);
+    run();
+    expect(live(w)).toEqual(["a", "b", "c"]);
+    expect(w.tabs.get(w.getLatestFocusedTabId())?.title).toBe("c");
+  });
+
+  test("a file tab opened while signed out is loaded again once the session starts", () => {
+    const w = new Window({} as any);
+    homeLandsOn(w, "https://www.figma.com/login");
+    const tab = w.addTab("https://www.figma.com/design/a/x")!;
+    const load = spyOn(tab, "loadUrl");
+    w.onSessionStarted();
+    // Not in front: it reloads when next focused, not now.
+    expect(load).not.toHaveBeenCalled();
+    w.setTabFocus(tab.id);
+    expect(load.mock.calls.length).toBe(1);
+    expect(load.mock.calls[0][0]).toContain("/design/a/x");
+  });
+
+  test("an add-account sign-in leaves tabs that loaded with a session alone", () => {
+    const w = new Window({} as any);
+    signIn(w);
+    const tab = w.addTab("https://www.figma.com/design/a/x")!;
+    w.onSessionStarted();
+    expect(tab.pendingSessionReload).toBe(false);
   });
 });

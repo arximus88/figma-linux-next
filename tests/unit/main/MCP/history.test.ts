@@ -1,12 +1,11 @@
 /**
- * get_comments and get_versions read figma.com from the page. The scripts run
- * here against a fake fetch answering like /api/file/<key>/comments and
- * /api/versions/<key>.
+ * get_versions reads figma.com from the page. The script runs here against a
+ * fake fetch answering like /api/versions/<key>. Comments: comments.test.ts.
  */
 
 import { describe, expect, it } from "bun:test";
 
-import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "Main/MCP/scripts/history";
+import { VERSIONS_SCRIPT } from "Main/MCP/scripts/history";
 
 function page(routes: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   const asked: string[] = [];
@@ -31,63 +30,6 @@ function page(routes: Record<string, unknown>, extra: Record<string, unknown> = 
     new Function("window", "fetch", "location", `return (${script});`)(window, fetch, location);
   return { run, asked };
 }
-
-const COMMENTS: { meta: any[] } = {
-  meta: [
-    {
-      id: "10",
-      parent_id: null,
-      user: { handle: "Anna" },
-      created_at: "2026-11-01T09:30:00Z",
-      resolved_at: null,
-      message: "Make the  title\nbigger",
-      client_meta: { node_id: "1:2", node_offset: { x: 1, y: 2 } },
-    },
-    {
-      id: "11",
-      parent_id: "10",
-      user: { handle: "Bob" },
-      created_at: "2026-11-02T10:00:00Z",
-      message_meta: [{ t: "Done, " }, { user_annotated: { handle: "Anna" } }],
-    },
-    {
-      id: "12",
-      parent_id: null,
-      user: { handle: "Bob" },
-      created_at: "2026-10-01T10:00:00Z",
-      resolved_at: "2026-10-02T10:00:00Z",
-      message: "Old",
-      client_meta: { x: 10, y: 20 },
-    },
-  ],
-};
-
-describe("get_comments", () => {
-  it("lists open threads with the layer they are on and their replies", async () => {
-    const { run, asked } = page({ "/api/file/FILEKEY/comments": COMMENTS });
-    const { text } = await run(COMMENTS_SCRIPT(false));
-    expect(asked).toEqual(["/api/file/FILEKEY/comments"]);
-    expect(text).toBe(
-      "1 comment thread(s); 1 resolved not shown (includeResolved: true):\n" +
-        '#10 on 1:2 "Card" · Anna · 2026-11-01 09:30: Make the title bigger\n' +
-        "  ↳ Bob · 2026-11-02 10:00: Done, @Anna",
-    );
-  });
-
-  it("shows resolved threads when asked", async () => {
-    const { run } = page({ "/api/file/FILEKEY/comments": COMMENTS });
-    const { text } = await run(COMMENTS_SCRIPT(true));
-    expect(text).toContain("#12 · Bob · 2026-10-01 10:00 · resolved: Old");
-  });
-
-  it("says so when there are none, and reports figma.com errors", async () => {
-    expect(
-      (await page({ "/api/file/FILEKEY/comments": { meta: [] } }).run(COMMENTS_SCRIPT(false))).text,
-    ).toBe("No comments on this file.");
-    const { error } = await page({}).run(COMMENTS_SCRIPT(false));
-    expect(error).toBe("figma.com answered 404 for /api/file/FILEKEY/comments");
-  });
-});
 
 describe("get_versions", () => {
   const VERSIONS = {

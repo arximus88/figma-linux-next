@@ -10,6 +10,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { MCP_HOST } from "../config";
 import {
@@ -43,7 +44,13 @@ import {
   UPLOAD_ASSET_SCRIPT,
   WHOAMI_SCRIPT,
 } from "../scripts/assets";
-import { COMMENTS_SCRIPT, VERSIONS_SCRIPT } from "../scripts/history";
+import {
+  COMMENT_ANCHOR_SCRIPT,
+  COMMENT_WRITE_SCRIPT,
+  COMMENTS_LIST_SCRIPT,
+  type CommentWrite,
+} from "../scripts/comments";
+import { VERSIONS_SCRIPT } from "../scripts/history";
 import { MOTION_CONTEXT_SCRIPT } from "../scripts/motion";
 import {
   CODE_CONNECT_SCRIPT,
@@ -67,6 +74,18 @@ import {
   FRAMES_PROBE_SCRIPT,
   PLUGIN_API_UNAVAILABLE_PREFIX,
 } from "../scripts/helpers";
+import {
+  buildClientMeta,
+  checkCommentTarget,
+  checkMessage,
+  filterComments,
+  formatComments,
+  messageMetaOf,
+  normalizeCommentNodeId,
+  normalizeComments,
+  parseCommentFilters,
+  readPoint,
+} from "../utils/comments";
 import { fileKeysOfUrl } from "../utils/fileKey";
 import {
   classifyUpload,
@@ -82,6 +101,14 @@ import { normalizeNodeId } from "../utils/nodeId";
 import { buildReactCode, VECTOR_TAGS } from "../utils/reactCode";
 import { safeStringify } from "../utils/serialize";
 import { appendLogs, toolError, toolResult } from "../utils/toolResponse";
+import {
+  INLINE_IMAGE_MAX_BASE64,
+  INLINE_MAX_EDGE,
+  mib,
+  SCREENSHOT_DEFAULT_EDGE,
+  screenshotEdgeCap,
+  screenshotGoesInline,
+} from "../utils/screenshotLimits";
 
 /** Shared state the tool handlers operate on, injected by McpServer. */
 export interface ToolContext {
@@ -103,6 +130,12 @@ export interface ToolContext {
    * configured export directory.
    */
   getSaveBaseDir: () => string;
+  /**
+   * Whether a file written at this absolute path is visible to the host. Under
+   * Flatpak `/tmp` and most of `$HOME` are private to the sandbox (#92). Absent
+   * = not sandboxed, every path is.
+   */
+  isHostVisible?: (absPath: string) => boolean;
   /** How long a script in the page may take before the tool gives up. Tests shorten it. */
   scriptTimeoutMs?: number;
   /** upload_assets tickets, shared with the HTTP route that receives the bytes. */
@@ -564,12 +597,23 @@ export class ToolHandlers {
   public async toolGetScreenshot(args: Record<string, unknown>) {
     const nodeId = normalizeNodeId(args.nodeId);
     const scale = typeof args.scale === "number" ? Math.min(4, Math.max(0.01, args.scale)) : null;
-    const maxDimension =
-      typeof args.maxDimension === "number" && args.maxDimension > 0
-        ? Math.min(65536, Math.round(args.maxDimension))
-        : 1024;
     const contentsOnly = args.contentsOnly === true;
     const savePath = args.savePath ? String(args.savePath) : null;
+    // Figma's remote parameter. Inline is already the default here, so only an
+    // explicit false changes anything: the PNG is saved and its path returned.
+    const inline =
+      typeof args.enableBase64Response === "boolean" ? args.enableBase64Response : null;
+    // Caps the longer edge whether or not `scale` is given, and at
+    // INLINE_MAX_EDGE when the image goes back in the response (#93).
+    const fullCap = screenshotEdgeCap(args.maxDimension, scale);
+    const maxDimension = screenshotEdgeCap(
+      args.maxDimension,
+      scale,
+      screenshotGoesInline(savePath, inline),
+    );
+    const inlineCapped = maxDimension < fullCap;
+    const unseen = savePath ? this.savePathProblem(savePath) : null;
+    if (unseen) return toolError(unseen);
 
     // Try Plugin API exportAsync first
     const script = SCREENSHOT_SCRIPT(nodeId, { scale, maxDimension, contentsOnly });
@@ -595,6 +639,8 @@ export class ToolHandlers {
       this.ctx.log.warn("Falling back to capturePage for the visible window");
       return this.capturePageFallback(
         savePath,
+        inline,
+        maxDimension,
         result.noSelection
           ? "Nothing is selected, so this is a capture of the whole window, not a node export. Select a node or pass a nodeId to export it. `scale` was not applied."
           : `${result.error}. This is a capture of the whole window, not a node export. \`scale\` was not applied.`,
@@ -602,14 +648,32 @@ export class ToolHandlers {
     }
 
     if (result?.base64) {
-      const { width, height, original_width, original_height } = result;
-      return this.buildScreenshotResponse(result.base64, result.nodeId, result.nodeName, savePath, {
-        width,
-        height,
-        original_width,
-        original_height,
-        scale: result.scale,
-      });
+      const { width, height, original_width, original_height, requestedScale, scaleCappedBy } =
+        result;
+      return this.buildScreenshotResponse(
+        result.base64,
+        result.nodeId,
+        result.nodeName,
+        savePath,
+        {
+          width,
+          height,
+          original_width,
+          original_height,
+          scale: result.scale,
+          requestedScale,
+          scaleCappedBy,
+          ...(inlineCapped && Math.max(width ?? 0, height ?? 0) >= maxDimension
+            ? {
+                note:
+                  `Capped at ${INLINE_MAX_EDGE} px on the longer edge because it is sent inline ` +
+                  "(Claude rejects larger images in many-image conversations). " +
+                  "Pass a savePath for the full size.",
+              }
+            : {}),
+        },
+        inline,
+      );
     }
 
     return toolError("Screenshot export returned no data");
@@ -621,6 +685,11 @@ export class ToolHandlers {
    * the same PNG inline as well made it pay for the image twice (the
    * 2026-11-06 benchmark runs did exactly that). Figma's remote server likewise
    * hands large screenshots over by URL instead of inline.
+   *
+   * Nothing over INLINE_IMAGE_MAX_BASE64 goes inline (#93): MCP clients reject
+   * responses over 16 MiB, and the agent got a transport error it could not
+   * act on. Such an image is written to the export directory instead and its
+   * path returned, the same as `enableBase64Response: false`.
    */
   private async buildScreenshotResponse(
     base64: string,
@@ -628,40 +697,66 @@ export class ToolHandlers {
     nodeName: string,
     savePath: string | null,
     extraMeta?: Record<string, unknown>,
+    inline: boolean | null = null,
   ) {
     type ContentItem = { type: string; data?: string; mimeType?: string; text?: string };
     const content: ContentItem[] = [];
 
     const meta: Record<string, unknown> = { nodeId, nodeName, ...extraMeta };
+    const tooLarge = base64.length > INLINE_IMAGE_MAX_BASE64;
 
     if (savePath) {
-      // Resolving can throw too (app.getPath), so it sits inside the try: a
-      // failure there is a saveError, not a failed tool call.
-      let absPath = savePath;
-      try {
-        absPath = this.resolveSavePath(savePath);
-        if (!path.isAbsolute(savePath)) {
-          // Say so explicitly: the caller's idea of "here" is not the app's.
-          meta.resolvedFrom = this.ctx.getSaveBaseDir();
-        }
-        // Async FS so a slow disk doesn't block the Electron main thread.
-        await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
-        await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
-        meta.savedTo = absPath;
-        this.ctx.log.info(`get_screenshot saved ${absPath}`);
-      } catch (e: any) {
-        meta.saveError = `${absPath}: ${e.message}`;
-        this.ctx.log.error(`get_screenshot could not write ${absPath}: ${e.message}`);
-      }
+      await this.writeScreenshot(base64, savePath, meta);
+    } else if (tooLarge || inline === false) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const slug = (nodeId || "window").replace(/[^A-Za-z0-9]+/g, "-");
+      await this.writeScreenshot(
+        base64,
+        path.join("mcp-screenshots", `${stamp}-${slug}.png`),
+        meta,
+      );
     }
 
-    if (meta.savedTo) {
-      meta.note = "Saved, not sent inline: open savedTo to look at it.";
-    } else {
-      content.push({ type: "image", data: base64, mimeType: "image/png" });
+    const sendInline = !meta.savedTo || inline === true;
+    if (sendInline && tooLarge) {
+      return toolError(
+        `The screenshot is ${mib(base64.length)} as base64, over the ${mib(INLINE_IMAGE_MAX_BASE64)} ` +
+          "that can be sent inline (MCP clients reject responses over 16 MiB)" +
+          (meta.saveError ? `, and it could not be saved either (${meta.saveError})` : "") +
+          `. Pass a smaller maxDimension (default ${SCREENSHOT_DEFAULT_EDGE}) or a savePath.`,
+      );
     }
+    if (meta.savedTo && !sendInline) {
+      meta.note = tooLarge
+        ? `Too large to send inline (${mib(base64.length)} as base64, limit ` +
+          `${mib(INLINE_IMAGE_MAX_BASE64)}), so it was saved instead: open savedTo to look at it.`
+        : "Saved, not sent inline: open savedTo to look at it.";
+    }
+    if (sendInline) content.push({ type: "image", data: base64, mimeType: "image/png" });
     content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
     return { content };
+  }
+
+  /** Write a screenshot to `savePath`; record savedTo (and resolvedFrom) or saveError in meta. */
+  private async writeScreenshot(base64: string, savePath: string, meta: Record<string, unknown>) {
+    // Resolving can throw too (app.getPath), so it sits inside the try: a
+    // failure there is a saveError, not a failed tool call.
+    let absPath = savePath;
+    try {
+      absPath = this.resolveSavePath(savePath);
+      if (!path.isAbsolute(savePath)) {
+        // Say so explicitly: the caller's idea of "here" is not the app's.
+        meta.resolvedFrom = this.ctx.getSaveBaseDir();
+      }
+      // Async FS so a slow disk doesn't block the Electron main thread.
+      await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.promises.writeFile(absPath, Buffer.from(base64, "base64"));
+      meta.savedTo = absPath;
+      this.ctx.log.info(`get_screenshot saved ${absPath}`);
+    } catch (e: any) {
+      meta.saveError = `${absPath}: ${e.message}`;
+      this.ctx.log.error(`get_screenshot could not write ${absPath}: ${e.message}`);
+    }
   }
 
   /**
@@ -670,16 +765,52 @@ export class ToolHandlers {
    * `process.cwd()`.
    */
   private resolveSavePath(savePath: string): string {
+    // Agents write "~/Downloads/x.png"; no shell expands it here, and resolved
+    // as relative it became "<export dir>/~/Downloads/x.png".
+    if (savePath === "~" || savePath.startsWith("~/")) {
+      return path.join(os.homedir(), savePath.slice(1));
+    }
     if (path.isAbsolute(savePath)) return savePath;
     return path.resolve(this.ctx.getSaveBaseDir(), savePath);
   }
 
   /**
+   * Why the caller would never see a file written at `savePath`, or null.
+   * Under Flatpak `/tmp/x.png` is written fine and reported as saved, but it
+   * lands in the sandbox's private `/tmp`, which the host cannot see (#92).
+   * Checked before any work is done: the AI tools spend credits first.
+   */
+  private savePathProblem(savePath: string): string | null {
+    const visible = this.ctx.isHostVisible;
+    if (!visible) return null;
+    let absPath: string;
+    try {
+      absPath = this.resolveSavePath(savePath);
+    } catch {
+      return null; // reported as a saveError where the write happens
+    }
+    if (visible(absPath)) return null;
+    return (
+      `savePath ${absPath} is inside the Flatpak sandbox: a file written there is not ` +
+      "visible outside the app (the sandbox has its own /tmp and home). Use a path in your " +
+      "Downloads or Documents folder, or a relative path, which is saved under " +
+      `${this.ctx.getSaveBaseDir()}.`
+    );
+  }
+
+  /**
    * Fallback: Electron's capturePage on the webContents — the whole visible
    * window, not a node. Only reached when no nodeId was asked for; the result
-   * is marked so a caller can tell it apart from a real node export.
+   * is marked so a caller can tell it apart from a real node export. The
+   * longer edge is capped at `maxDimension` like a node export: a window on a
+   * HiDPI screen is several thousand pixels wide.
    */
-  private async capturePageFallback(savePath: string | null, degraded: string) {
+  private async capturePageFallback(
+    savePath: string | null,
+    inline: boolean | null,
+    maxDimension: number,
+    degraded: string,
+  ) {
     const view = this.ctx.viewProvider.getActiveTabView();
     if (!view) return toolError("No active Figma view");
     // A tab that is not in front has nothing on screen to capture
@@ -692,14 +823,30 @@ export class ToolHandlers {
       );
     }
 
-    const image = await view.webContents.capturePage();
-    const buffer = image.toPNG();
+    let image = await view.webContents.capturePage();
+    const { width, height } = image.getSize();
+    const fit = maxDimension / Math.max(width, height, 1);
+    if (fit < 1) {
+      image = image.resize({
+        width: Math.max(1, Math.round(width * fit)),
+        height: Math.max(1, Math.round(height * fit)),
+        quality: "good",
+      });
+    }
+    const size = image.getSize();
     return this.buildScreenshotResponse(
-      buffer.toString("base64"),
+      image.toPNG().toString("base64"),
       "",
       "canvas (capturePage fallback)",
       savePath,
-      { degraded },
+      {
+        degraded,
+        width: size.width,
+        height: size.height,
+        original_width: width,
+        original_height: height,
+      },
+      inline,
     );
   }
 
@@ -714,20 +861,30 @@ export class ToolHandlers {
 
   // ── Tool: get_code_connect_map ───────────────────────────────────────────
 
-  public toolGetCodeConnectMap() {
-    const map: Record<string, { codeConnectSrc: string; codeConnectName: string }> = {};
+  public toolGetCodeConnectMap(args: Record<string, unknown> = {}) {
+    const onlyNode = normalizeNodeId(args.nodeId);
+    const label = typeof args.label === "string" && args.label ? args.label.toLowerCase() : null;
+    const map: Record<string, { codeConnectSrc: string; codeConnectName: string; label?: string }> =
+      {};
     for (const [nodeId, entry] of this.ctx.codeConnectMap) {
+      if (onlyNode && nodeId !== onlyNode) continue;
+      if (label && entry.label && entry.label.toLowerCase() !== label) continue;
       map[nodeId] = {
         codeConnectSrc: entry.codeConnectSrc,
         codeConnectName: entry.codeConnectName,
+        ...(entry.label ? { label: entry.label } : {}),
       };
     }
+    const count = Object.keys(map).length;
 
     return toolResult(
       JSON.stringify(
         {
           mappings: map,
-          count: this.ctx.codeConnectMap.size,
+          count,
+          ...(onlyNode && count === 0
+            ? { hint: "No mapping added for this node; get_code_connect reads published ones." }
+            : {}),
         },
         null,
         2,
@@ -748,7 +905,7 @@ export class ToolHandlers {
 
     // Try to capture screenshots of top nodes
     const screenshots: Record<string, string> = {};
-    if (result.nodeIds?.length > 0) {
+    if (args.includeImagesOfNodes !== false && result.nodeIds?.length > 0) {
       for (const nid of result.nodeIds.slice(0, 5)) {
         try {
           const ssScript = SCREENSHOT_SCRIPT(nid, {
@@ -786,7 +943,7 @@ export class ToolHandlers {
   public async toolGenerateDiagram(args: Record<string, unknown>) {
     const mermaid = args.mermaid as string;
     if (!mermaid) {
-      return toolError("Missing required field: mermaid (Mermaid diagram syntax)");
+      return toolError("Missing required field: mermaid or mermaidSyntax (Mermaid diagram syntax)");
     }
 
     const { nodes, edges } = parseMermaid(mermaid);
@@ -826,12 +983,15 @@ export class ToolHandlers {
     const nodeId = normalizeNodeId(args.nodeId);
     const codeConnectSrc = args.codeConnectSrc as string;
     const codeConnectName = args.codeConnectName as string;
+    const label = typeof args.label === "string" && args.label ? args.label : undefined;
 
     if (!nodeId || !codeConnectSrc || !codeConnectName) {
-      return toolError("Missing required fields: nodeId, codeConnectSrc, codeConnectName");
+      return toolError(
+        "Missing required fields: nodeId, codeConnectSrc (or source), codeConnectName (or componentName)",
+      );
     }
 
-    this.ctx.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName });
+    this.ctx.codeConnectMap.set(nodeId, { nodeId, codeConnectSrc, codeConnectName, label });
     this.ctx.log.info(
       "Code Connect mapping added:",
       nodeId,
@@ -847,6 +1007,7 @@ export class ToolHandlers {
           nodeId,
           codeConnectSrc,
           codeConnectName,
+          ...(label ? { label } : {}),
           totalMappings: this.ctx.codeConnectMap.size,
         },
         null,
@@ -1178,6 +1339,8 @@ export class ToolHandlers {
   public async toolFigmaAiGenerateImage(args: Record<string, unknown>) {
     const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
     if (!prompt) return toolError("prompt is required");
+    const unseen = this.aiSavePathProblem(args.savePath);
+    if (unseen) return toolError(unseen);
     const dim = (v: unknown) =>
       typeof v === "number" && v > 0 ? Math.min(4096, Math.max(64, Math.round(v))) : 1024;
     const model = typeof args.model === "string" && args.model ? args.model : DEFAULT_IMAGE_MODEL;
@@ -1190,6 +1353,7 @@ export class ToolHandlers {
         model,
         seed: typeof args.seed === "number" ? Math.round(args.seed) : null,
         place: args.placeOnCanvas !== false,
+        nodeId: normalizeNodeId(args.nodeId),
         previewMax: 512,
       }),
       180_000,
@@ -1205,6 +1369,8 @@ export class ToolHandlers {
     const ops = ["edit", "expand", "remove_background", "upscale", "vectorize"] as const;
     const operation = ops.find((o) => o === args.operation);
     if (!operation) return toolError(`operation must be one of ${ops.join(", ")}`);
+    const unseen = this.aiSavePathProblem(args.savePath);
+    if (unseen) return toolError(unseen);
     const e = (args.expand ?? {}) as Record<string, unknown>;
     const px = (v: unknown) => (typeof v === "number" && v > 0 ? Math.round(v) : 0);
     const editArgs: EditImageArgs = {
@@ -1224,6 +1390,13 @@ export class ToolHandlers {
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
     return this.aiImageResponse(out, args.savePath, `${operation}-${nodeId}`);
+  }
+
+  /** savePathProblem for the AI tools, whose savePath is optional and untyped. */
+  private aiSavePathProblem(savePathArg: unknown): string | null {
+    return typeof savePathArg === "string" && savePathArg
+      ? this.savePathProblem(savePathArg)
+      : null;
   }
 
   /** Save what Figma AI made to disk; answer with a small preview and the facts. */
@@ -1267,10 +1440,152 @@ export class ToolHandlers {
   // ── Tool: get_comments / get_versions (read) ─────────────────────────────
 
   public async toolGetComments(args: Record<string, unknown>) {
-    const out = await this.exec(COMMENTS_SCRIPT(args.includeResolved === true));
+    const parsed = parseCommentFilters(args);
+    if ("error" in parsed) return toolError(parsed.error);
+    const { filters } = parsed;
+    const out = await this.exec(COMMENTS_LIST_SCRIPT(filters.nodeId));
     if (!out) return toolError("The Figma tab returned nothing; it may still be loading.");
     if (out.error) return toolError(out.error);
-    return toolResult(String(out.text));
+    const all = normalizeComments(out.comments);
+    // Figma's client takes read state from LiveGraph (CommentReadStatus:
+    // allReadAt, readComments, unreadComments); the REST list has none and no
+    // REST endpoint answers it (bundle, 2026-11-20). A comment that does carry
+    // is_unread is honoured by the filter.
+    if (filters.unreadOnly && all.length && all.every((c) => c.unread === null))
+      return toolError(
+        "unreadOnly: figma.com's comment list carries no read state, so unread comments cannot " +
+          "be told apart here. Call again without unreadOnly.",
+      );
+    const result = filterComments(all, filters, { node: out.node ?? null });
+    let text = formatComments(result, filters, out.names ?? {}, all.length);
+    if (filters.nodeId && out.nodeError)
+      text += `\nNote: ${out.nodeError} Only threads pinned to it by id were matched.`;
+    return toolResult(text);
+  }
+
+  /** Every comment of the tab's file, normalized, and who is signed in. */
+  private async loadComments() {
+    const out = await this.exec(COMMENTS_LIST_SCRIPT(null));
+    if (!out) return { error: "The Figma tab returned nothing; it may still be loading." };
+    if (out.error) return { error: String(out.error) };
+    return { all: normalizeComments(out.comments), me: out.me ? String(out.me) : null };
+  }
+
+  private async writeComment(req: CommentWrite) {
+    const out = await this.exec(COMMENT_WRITE_SCRIPT(req));
+    if (!out) return { error: "The Figma tab returned nothing; it may still be loading." };
+    if (out.error) return { error: String(out.error) };
+    return { meta: out.meta ?? null };
+  }
+
+  public async toolPostComment(args: Record<string, unknown>) {
+    const msg = checkMessage(args.message);
+    if ("error" in msg) return toolError(msg.error);
+    const nodeId = normalizeCommentNodeId(args.nodeId);
+    const pageId = normalizeCommentNodeId(args.pageId);
+    const offset = readPoint(args.offset);
+    if (offset && "error" in offset) return toolError(`offset: ${offset.error}`);
+    const hasPoint = args.x !== undefined || args.y !== undefined;
+    let point: { x: number; y: number } | null = null;
+    if (hasPoint) {
+      const p = readPoint({ x: args.x, y: args.y });
+      if (!p || "error" in p) return toolError("x and y must both be numbers");
+      point = p;
+    }
+    if (!nodeId && !point) return toolError("Pass nodeId, or x and y, for where the thread goes.");
+    if (nodeId && point) return toolError("Pass nodeId (with offset) or x and y, not both.");
+
+    const anchor = await this.exec(COMMENT_ANCHOR_SCRIPT(nodeId, pageId));
+    if (!anchor) return toolError("The Figma tab returned nothing; it may still be loading.");
+    if (anchor.error) return toolError(anchor.error);
+    const clientMeta = anchor.node
+      ? buildClientMeta({ node: anchor.node, offset: offset as { x: number; y: number } | null })
+      : buildClientMeta({ point: point!, pageId: String(anchor.pageId) });
+
+    const out = await this.writeComment({
+      method: "POST",
+      suffix: "",
+      stamp: true,
+      body: {
+        message_meta: messageMetaOf(msg.message),
+        attachments: [],
+        client_meta: clientMeta,
+        page_id: clientMeta.page_id,
+      },
+    });
+    if ("error" in out) return toolError(out.error);
+    const id = out.meta?.id;
+    return toolResult(
+      safeStringify({
+        threadId: id !== undefined && id !== null ? String(id) : null,
+        pinnedTo: anchor.node
+          ? { nodeId: anchor.node.id, name: anchor.node.name, pageId: clientMeta.page_id }
+          : { x: clientMeta.x, y: clientMeta.y, pageId: clientMeta.page_id },
+      }),
+    );
+  }
+
+  public async toolReplyComment(args: Record<string, unknown>) {
+    const msg = checkMessage(args.message);
+    if ("error" in msg) return toolError(msg.error);
+    const threadId =
+      args.threadId === undefined || args.threadId === null ? "" : String(args.threadId);
+    if (!threadId) return toolError("threadId is required");
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, threadId, "reply", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    const out = await this.writeComment({
+      method: "POST",
+      suffix: `/${encodeURIComponent(threadId)}`,
+      stamp: true,
+      body: { message_meta: messageMetaOf(msg.message), attachments: [] },
+    });
+    if ("error" in out) return toolError(out.error);
+    const id = out.meta?.id;
+    return toolResult(
+      safeStringify({ threadId, replyId: id !== undefined && id !== null ? String(id) : null }),
+    );
+  }
+
+  public async toolResolveComment(args: Record<string, unknown>) {
+    const threadId =
+      args.threadId === undefined || args.threadId === null ? "" : String(args.threadId);
+    if (!threadId) return toolError("threadId is required");
+    const resolve = args.resolved !== false;
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, threadId, "resolve", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    if (Boolean(target.comment.resolvedAt) === resolve)
+      return toolResult(`Thread #${threadId} is already ${resolve ? "resolved" : "open"}.`);
+    const out = await this.writeComment({
+      method: "PUT",
+      suffix: `/${encodeURIComponent(threadId)}`,
+      body: { resolved_at: resolve ? "true" : "false" },
+    });
+    if ("error" in out) return toolError(out.error);
+    return toolResult(`Thread #${threadId} ${resolve ? "resolved" : "reopened"}.`);
+  }
+
+  public async toolDeleteComment(args: Record<string, unknown>) {
+    const commentId =
+      args.commentId === undefined || args.commentId === null ? "" : String(args.commentId);
+    if (!commentId) return toolError("commentId is required");
+    const loaded = await this.loadComments();
+    if ("error" in loaded) return toolError(loaded.error);
+    const target = checkCommentTarget(loaded.all, commentId, "delete", loaded.me);
+    if ("error" in target) return toolError(target.error);
+    const out = await this.writeComment({
+      method: "DELETE",
+      suffix: `/${encodeURIComponent(commentId)}`,
+    });
+    if ("error" in out) return toolError(out.error);
+    return toolResult(
+      target.comment.isRoot
+        ? `Thread #${commentId} deleted, with its replies.`
+        : `Reply #${commentId} deleted from thread #${target.comment.threadId}.`,
+    );
   }
 
   public async toolGetVersions(args: Record<string, unknown>) {
@@ -1381,6 +1696,9 @@ export class ToolHandlers {
     return toolResult(
       safeStringify({
         uploads,
+        ...(args.batchCommit === true
+          ? { batchCommit: "not supported: each URL places its asset when the POST arrives" }
+          : {}),
         expiresInSeconds: UPLOAD_TTL_MS / 1000,
         howToUpload:
           "POST the raw bytes to each URL once, with the real Content-Type: " +

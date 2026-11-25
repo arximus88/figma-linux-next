@@ -231,7 +231,12 @@ new App(new WindowManager(), new Session(), new FontManager());
   marker, `scripts/useFigmaCode.ts`), every file tool takes `fileKey` (routes to that file's tab,
   `utils/fileKey.ts` + `WindowManager.findFileTab`), plus `whoami`, `download_assets`,
   `upload_assets` (single-use `POST /upload/<token>`), `create_new_file` (a real file),
-  `get_comments` / `get_versions` (figma.com endpoints the page can read). `get_design_context`
+  `get_comments` / `get_versions` (figma.com endpoints the page can read), and the comment writes
+  `post_comment` / `reply_comment` / `resolve_comment` / `delete_comment` (own comments only),
+  on the web client's `/api/file/<key>/comments` endpoints (`scripts/comments.ts`, read from the
+  bundle and checked live 2026-11-20). figma.com's list takes no parameters, so `get_comments`'
+  remote-parity filters and cursor run in Node (`utils/comments.ts`); read state lives only in
+  LiveGraph, so `unreadOnly` answers an error. `get_design_context`
   answers in markup with CSS and variable/style/component legends (`scripts/designContext.ts`);
   component search uses Figma's internal asset search, found in the page's bundler by method
   name. Third tier behind `mcp.enableAiTools` (default off, spends AI credits): Figma's agent
@@ -240,6 +245,19 @@ new App(new WindowManager(), new Session(), new FontManager());
   description via the `getMcpTools` invoke. The page's
   `figma` is not a plugin sandbox: no `documentchange`, read-only `root.name`, unloaded pages look
   empty — see the `figma-mcp-driving` skill. Requests with a non-loopback `Origin` get 403.
+- Optional bearer token (issue #94): `mcp.requireAuth` (default off) makes every request carry
+  `Authorization: Bearer <mcp.authToken>`, else 401 with a JSON-RPC error
+  (`utils/auth.ts`, pure and unit-tested). The token is main-owned: created on first use by the
+  `getMcpAuthToken` invoke or when auth turns on, replaced by `regenerateMcpAuthToken`, never in
+  `EDITABLE_MCP_KEYS`, never logged. `POST /upload/<token>`, `GET /assets/<uuid>` and `OPTIONS`
+  are exempt: the URL is the credential and curl/WebFetch don't carry the client's headers.
+  Changing the mode or the token drops open sessions.
+- Remote-MCP spellings live in one file, `tools/remoteCompat.ts`: `create_session` (returns a
+  UUID), `sessionId`/`skillNames`/`userIntent` dropped from every call, tool aliases
+  (`get_libraries`, `generate_image`, listed in their target's tier) and remote parameter names
+  (`mermaidSyntax`, `componentName`, `source`, `codeConnectLabel`). No schema sets
+  `additionalProperties: false` and nothing validates arguments, so unknown ones were never
+  rejected; a new remote name goes into that file's tables, not into a handler.
 - `get_design_context` has two forms. Default: markup with CSS. With `clientFrameworks` naming
   React / Next.js / Remix / Gatsby, or `format: "react"`: a React + Tailwind component like Figma's
   remote tool (asset URLs as constants, `data-node-id`, a screenshot appended unless
@@ -287,6 +305,13 @@ new App(new WindowManager(), new Session(), new FontManager());
 - `search_design_system` covers UI kits (Simple Design System, iOS, Material) through the Assets
   panel's kit search (`/api/search/community_libraries/library_assets`); `figma.teamLibrary` and
   the team component search never return them. `includeLibraryKeys` takes a library name or key.
+- `get_screenshot` never answers over what MCP clients accept (16 MiB, #93): the longer edge is
+  capped at 8192 px with `scale` too, a page is sized by the union of its children's bounds, and
+  base64 over 12 MiB is written to `<export dir>/mcp-screenshots/` instead of inlined
+  (`utils/screenshotLimits.ts`). Under Flatpak a `savePath` the host cannot see (`/tmp`, most of
+  `$HOME`) is rejected before any work, and the relative-path base falls back to
+  `~/Downloads/Figma` when the export dir is not granted; grants come from `/.flatpak-info`
+  (`utils/hostPath.ts`).
 - Live check: `bun scripts/mcp-smoke.ts <port> --file <scratch fileKey>`
 
 **FigmaAgent** (`src/main/FigmaAgent.ts`):
@@ -480,7 +505,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "45.3.1"` (Chromium 156.0.8078.96, Node 24), bumped 2026-11-13 from 45.1.0 (45.3.0 rolled Chromium .48 → .96, 45.3.1 dropped trust in eMudhra's revoked intermediates). Last verified: 45.3.1 (2026-11-13, clean profile, packaged build via `scripts/oauth-login-test.sh`), `__Host-figma.authn` lands. Before that: 45.1.0 (2026-10-30). 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own.
+`package.json` lists an exact version, currently `"electron": "45.5.0"` (Chromium 156.0.8078.109, Node 24.22.3), bumped 2026-11-25 from 45.3.1 (45.3.2 fixed cookies set shortly before quit not reaching disk). Last verified: 45.5.0 (2026-11-25, clean profile, packaged build via `scripts/oauth-login-test.sh`), `__Host-figma.authn` lands. Before that: 45.3.1 (2026-11-13), 45.1.0 (2026-10-30). 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own. Quit is `Ctrl+Alt+Q`, not `Ctrl+Q`.
 
 45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 

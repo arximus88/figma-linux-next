@@ -45,6 +45,7 @@ export const EDITABLE_MCP_KEYS = [
   "enableAiTools",
   "cdpEnabled",
   "remoteDebugPort",
+  "requireAuth",
 ] as const;
 
 type App = Types.SettingsInterface["app"];
@@ -127,6 +128,7 @@ export type SettingsEffect =
   | { type: "mcpWriteTools"; enabled: boolean }
   | { type: "mcpAiTools"; enabled: boolean }
   | { type: "mcpServer"; enabled: boolean; port: number }
+  | { type: "mcpAuth"; required: boolean }
   | { type: "figmaAgent"; enabled: boolean }
   | { type: "trackpad"; pan: number; zoom: number; momentum: boolean; glide: number }
   | { type: "frameStyle" }
@@ -195,6 +197,10 @@ export function planSettingsUpdate(
       enabled: b.mcp.serverEnabled !== false,
       port: b.mcp.serverPort,
     });
+  }
+  next.mcp.requireAuth = !!next.mcp.requireAuth;
+  if (!!a.mcp.requireAuth !== b.mcp.requireAuth) {
+    effects.push({ type: "mcpAuth", required: b.mcp.requireAuth });
   }
   if (a.app.figmaAgentEnabled !== b.app.figmaAgentEnabled) {
     effects.push({ type: "figmaAgent", enabled: !!b.app.figmaAgentEnabled });

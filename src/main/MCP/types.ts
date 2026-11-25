@@ -58,6 +58,10 @@ export type ToolName =
   | "download_assets"
   | "upload_assets"
   | "get_comments"
+  | "post_comment"
+  | "reply_comment"
+  | "resolve_comment"
+  | "delete_comment"
   | "get_versions"
   | "list_libraries"
   | "get_library_styles"
@@ -83,8 +87,14 @@ export interface ToolAnnotations {
   openWorldHint?: boolean;
 }
 
+/**
+ * Names advertised only for Figma remote-MCP compatibility: aliases that run a
+ * ToolName, and create_session (tools/remoteCompat.ts). Not in DISPATCH.
+ */
+export type CompatToolName = "create_session" | "get_libraries" | "generate_image";
+
 export interface ToolDefinition {
-  name: ToolName;
+  name: ToolName | CompatToolName;
   description: string;
   inputSchema: Record<string, unknown>;
   annotations?: ToolAnnotations;
@@ -99,6 +109,8 @@ export interface CodeConnectEntry {
   nodeId: string;
   codeConnectSrc: string;
   codeConnectName: string;
+  /** Framework label (React, Vue, SwiftUI…), Figma's remote `label`. */
+  label?: string;
 }
 
 /** Minimal interface for querying the Figma BrowserView.

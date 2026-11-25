@@ -255,13 +255,17 @@ Spends the user's Figma AI credits; never call the paid tools to "check they wor
 `get_design_context` (`format` / `clientFrameworks`), `get_motion_context` (`recursive`),
 `figma_find` (locate nodes by name/type/text), `figma_tree` (compact indented
 outline), `get_variable_defs`, `search_design_system` (`queries: [{entity, query}]`),
-`get_screenshot` (`nodeId`, `maxDimension`, `scale`, `contentsOnly`, `savePath`), `download_assets`, `get_comments`,
+`get_screenshot` (`nodeId`, `maxDimension`, `scale`, `contentsOnly`, `savePath`), `download_assets`, `get_comments`
+(`nodeId`, `threadId`, `pageId`, `userId`, `mentionedUserId`, `resolved`, `rootOnly`, `limit`,
+`cursor`),
 `get_versions`, `list_libraries`, `get_library_styles`, `get_library_updates`,
 `get_code_connect`, `get_code_connect_map` /
 `add_code_connect_map`, `create_design_system_rules`, `get_figjam`.
 **Figma MCP — write (gated):** `use_figma` (`code`; legacy `action`+`params` still works),
 `figma_text` (safe text edit w/ font autoload), `create_new_file` (a real file), `upload_assets`,
-`generate_diagram` (FigJam).
+`generate_diagram` (FigJam), `post_comment` (`nodeId` + `offset`, or `x`/`y` + `pageId`),
+`reply_comment`, `resolve_comment` (`resolved: false` reopens), `delete_comment` (your own only).
+Comment writes land on figma.com at once and Ctrl+Z does not undo them; test them in a scratch file.
 All file tools take an optional `fileKey` (not `get_code_connect_map` / `add_code_connect_map`,
 which never touch a file).
 

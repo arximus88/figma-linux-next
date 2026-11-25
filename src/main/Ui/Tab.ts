@@ -74,6 +74,8 @@ export default class Tab {
    * tab at once.
    */
   public pendingUserId?: string;
+  /** Set by TabManager.reloadForNewSession: reload on next focus, the page loaded signed out. */
+  public pendingSessionReload = false;
 
   private _editorType: Types.EditorType | undefined;
   private _isLibrary = false;

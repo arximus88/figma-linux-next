@@ -84,6 +84,8 @@ declare namespace Types {
     isLibrary?: boolean;
     loading?: boolean;
     groupId?: string;
+    /** A lazily restored shell, not loaded yet (see TabFront.discarded). */
+    discarded?: boolean;
   }
 
   /** A tab group in the tab strip (Phase 1: metadata + membership only, no drag-and-drop). */
@@ -273,6 +275,13 @@ declare namespace Types {
       enableAiTools: boolean;
       cdpEnabled: boolean;
       remoteDebugPort: number;
+      /** Require `Authorization: Bearer <authToken>` on MCP requests (issue #94). */
+      requireAuth: boolean;
+      /**
+       * Generated in main the first time auth is turned on; the Settings UI
+       * reads and regenerates it through its own invokes and never saves it.
+       */
+      authToken: string;
     };
     ui: {
       scalePanel: number;

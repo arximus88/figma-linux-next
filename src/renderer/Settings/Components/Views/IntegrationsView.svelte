@@ -76,9 +76,55 @@
     return { kind: "pending", text: `Starting on :${s.port}…` };
   });
 
-  let figmaSnippet = $derived(
-    `{\n  "mcpServers": {\n    "figma-linux-next": {\n      "type": "http",\n      "url": "http://127.0.0.1:${$settings.mcp.serverPort}/mcp"\n    }\n  }\n}`,
-  );
+  // ── Access token (issue #94) ─────────────────────────────────────────────
+  // Main owns the token: it is created there the first time it is asked for
+  // and never travels back in a settings save. Shown masked; Copy and the
+  // snippets' Copy buttons put the real value on the clipboard.
+  let authOn = $derived($settings.mcp.requireAuth === true);
+  let token = $state("");
+  let tokenShown = $state(false);
+  let tokenCopied = $state(false);
+  let regenerating = $state(false);
+  $effect(() => {
+    if (!authOn || token) return;
+    window.figmaApi
+      .invoke("getMcpAuthToken")
+      .then((t: string) => {
+        token = t;
+      })
+      .catch(() => {});
+  });
+  function copyToken() {
+    navigator.clipboard.writeText(token).then(() => {
+      tokenCopied = true;
+      setTimeout(() => (tokenCopied = false), 2000);
+    });
+  }
+  async function regenerateToken() {
+    regenerating = true;
+    try {
+      token = await window.figmaApi.invoke("regenerateMcpAuthToken");
+    } finally {
+      regenerating = false;
+    }
+  }
+
+  let mcpUrl = $derived(`http://127.0.0.1:${$settings.mcp.serverPort}/mcp`);
+  function figmaJson(secret: string): string {
+    const headers = authOn
+      ? `,\n      "headers": {\n        "Authorization": "Bearer ${secret}"\n      }`
+      : "";
+    return `{\n  "mcpServers": {\n    "figma-linux-next": {\n      "type": "http",\n      "url": "${mcpUrl}"${headers}\n    }\n  }\n}`;
+  }
+  function claudeCommand(secret: string): string {
+    const header = authOn ? ` \\\n  --header "Authorization: Bearer ${secret}"` : "";
+    return `claude mcp add --transport http figma-linux-next ${mcpUrl}${header}`;
+  }
+  let shownSecret = $derived(tokenShown ? token : "•".repeat(12));
+  let figmaSnippet = $derived(figmaJson(shownSecret));
+  let figmaSnippetCopy = $derived(figmaJson(token));
+  let claudeSnippet = $derived(claudeCommand(shownSecret));
+  let claudeSnippetCopy = $derived(claudeCommand(token));
   let chromeSnippet = $derived(
     `{\n  "mcpServers": {\n    "chrome-figma": {\n      "type": "stdio",\n      "command": "npx",\n      "args": ["chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:${$settings.mcp.remoteDebugPort}"]\n    }\n  }\n}`,
   );
@@ -119,6 +165,28 @@
         disabled={$settings.mcp.serverEnabled === false}
       />
     </SettingRow>
+    <SettingRow setting={SETTINGS.mcpAuth}>
+      <Toggle
+        bind:checked={$settings.mcp.requireAuth}
+        disabled={$settings.mcp.serverEnabled === false}
+      />
+    </SettingRow>
+    {#if authOn}
+      <div class="token-row">
+        <code class="s-mono token-value" aria-label="Access token">{token ? shownSecret : "…"}</code>
+        <button class="s-btn" onclick={() => (tokenShown = !tokenShown)} disabled={!token}>
+          {tokenShown ? "Hide" : "Show"}
+        </button>
+        <button class="s-btn" onclick={copyToken} disabled={!token}>
+          {tokenCopied ? "Copied!" : "Copy"}
+        </button>
+        <button class="s-btn" onclick={regenerateToken} disabled={regenerating}>Regenerate</button>
+      </div>
+      <p class="s-hint token-hint">
+        Clients send it as <code class="s-mono">Authorization: Bearer &lt;token&gt;</code>.
+        Regenerating cuts off every client that has the old one.
+      </p>
+    {/if}
     <SettingRow setting={SETTINGS.mcpPort}>
       <input
         class="s-input port"
@@ -138,7 +206,12 @@
         comments, versions, Code Connect, design-system rules, Mermaid to FigJam. Editing tools add
         create, edit and delete. Figma AI tools drive Figma's own AI and spend your credits.
       </p>
-      <McpSnippet title=".mcp.json — figma-linux-next" code={figmaSnippet} />
+      <McpSnippet
+        title=".mcp.json — figma-linux-next"
+        code={figmaSnippet}
+        copyCode={figmaSnippetCopy}
+      />
+      <McpSnippet title="Claude Code" code={claudeSnippet} copyCode={claudeSnippetCopy} />
     </details>
     <details class="service-details" id={`setting-${SETTINGS.mcpTools.id}`}>
       <summary><SettingsIcon name="chevron" size={14} />{SETTINGS.mcpTools.title}</summary>
@@ -260,6 +333,25 @@
   }
   .service-details {
     padding: 10px 16px 14px;
+  }
+  .token-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px 0;
+  }
+  .token-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    user-select: all;
+  }
+  .token-hint {
+    padding: 6px 16px 12px;
+    margin: 0;
+    border-bottom: 1px solid var(--borders);
   }
   .service-details summary {
     display: inline-flex;

@@ -194,9 +194,10 @@ export default class WindowManager {
     }
   }
 
-  public reloadAllWindows() {
+  /** A sign-in finished: see Window.onSessionStarted. */
+  public sessionStartedOnAllWindows() {
     for (const [_, window] of this.windows) {
-      window.reload();
+      window.onSessionStarted();
     }
   }
 

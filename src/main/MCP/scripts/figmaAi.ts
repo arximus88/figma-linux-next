@@ -161,6 +161,8 @@ export interface GenerateImageArgs {
   model: string;
   seed: number | null;
   place: boolean;
+  /** Replace this layer's image fill instead of placing a new rectangle. */
+  nodeId?: string | null;
   previewMax: number;
 }
 
@@ -170,6 +172,13 @@ export const FIGMA_AI_GENERATE_IMAGE_SCRIPT = (args: GenerateImageArgs) => `
     const args = ${JSON.stringify(args)};
     ${AI_PREAMBLE}
     if (!window.figma) return { error: "The Figma Plugin API is not available in this tab; open a design file you can edit." };
+    // Checked before generating, so a wrong id costs no credits.
+    let target = null;
+    if (args.nodeId) {
+      target = await window.figma.getNodeByIdAsync(args.nodeId);
+      if (!target) return { error: "Node not found: " + args.nodeId };
+      if (!('fills' in target) || target.fills === window.figma.mixed) return { error: "Node " + args.nodeId + " (" + target.type + ") has no fills to put an image into." };
+    }
     const found = findAi();
     const before = await balance();
     if (before && before.available <= 0 && !before.bypass_metering) return { error: "No Figma AI credits left (resets " + before.resets_at + ")." };
@@ -188,7 +197,8 @@ export const FIGMA_AI_GENERATE_IMAGE_SCRIPT = (args: GenerateImageArgs) => `
     if (!b64) return { error: "Figma AI returned no image." };
     const bytes = b64ToBytes(b64);
     let placed = null;
-    if (args.place) placed = await place(bytes, 'AI image: ' + args.prompt.slice(0, 60), null, false);
+    if (target) placed = await place(bytes, '', target, true);
+    else if (args.place) placed = await place(bytes, 'AI image: ' + args.prompt.slice(0, 60), null, false);
     const after = await balance();
     return {
       base64: bytesToB64(bytes),

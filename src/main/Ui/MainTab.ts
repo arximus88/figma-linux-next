@@ -26,12 +26,23 @@ import {
   isFigmaDesignLink,
   isExternallyOpenableUrl,
   parseURL,
+  sessionStateFromUrl,
+  withFuid,
 } from "Utils/Common";
 import { storage } from "Main/Storage";
 import { logger } from "Main/Logger";
 
+export type FigmaSessionState = "unknown" | "signedIn" | "signedOut";
+
 export default class MainTab {
   private _userId: string;
+  /**
+   * Whether figma.com accepted this app's session, read from where the server
+   * sent this tab (see sessionStateFromUrl). "unknown" until the first answer.
+   */
+  public sessionState: FigmaSessionState = "unknown";
+  /** Called on every change of sessionState (Window wires it). */
+  public onSessionStateChange?: (state: FigmaSessionState, previous: FigmaSessionState) => void;
   private options: WebContentsViewConstructorOptions = {
     webPreferences: {
       nodeIntegration: false,
@@ -52,7 +63,7 @@ export default class MainTab {
 
   public setUserId(id: string) {
     if (this._userId !== id) {
-      const url = `${RECENT_FILES}/?fuid=${id}`;
+      const url = withFuid(`${RECENT_FILES}/`, id);
       this.loadUrl(url);
     }
 
@@ -76,7 +87,7 @@ export default class MainTab {
 
   private initTab() {
     this._userId = storage.settings.userId;
-    const url = `${RECENT_FILES}/?fuid=${this._userId}`;
+    const url = withFuid(`${RECENT_FILES}/`, this._userId);
 
     this.view = new WebContentsView(this.options);
     this.id = this.view.webContents.id;
@@ -203,5 +214,25 @@ export default class MainTab {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.view.webContents as any).on("dom-ready", this.onDomReady.bind(this));
     this.view.webContents.on("did-create-window", this.onNewWindow.bind(this));
+    // The login page counts as soon as the tab gets there; a signed-in page
+    // only once it has loaded, so a page that sends the visitor on to /login
+    // from a script is not mistaken for a session.
+    this.view.webContents.on("did-navigate", (_event, url) => this.updateSessionState(url, false));
+    this.view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+      if (isMainFrame) this.updateSessionState(url, false);
+    });
+    this.view.webContents.on("did-finish-load", () => {
+      this.updateSessionState(this.view.webContents.getURL(), true);
+    });
+  }
+
+  private updateSessionState(url: string, loaded: boolean) {
+    const next = sessionStateFromUrl(url);
+    if (!next || next === this.sessionState) return;
+    if (next === "signedIn" && !loaded) return;
+    const previous = this.sessionState;
+    this.sessionState = next;
+    logger.info(`[MainTab] figma session: ${previous} -> ${next}`);
+    this.onSessionStateChange?.(next, previous);
   }
 }

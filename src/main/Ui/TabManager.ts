@@ -1,7 +1,7 @@
 import type { Rectangle } from "electron";
 
 import { NEW_FILE_TAB_TITLE, RECENT_FILES } from "Const";
-import { parseURL } from "Utils/Common";
+import { parseURL, sessionStateFromUrl } from "Utils/Common";
 import CommunityTab from "./CommunityTab";
 import MainTab from "./MainTab";
 import Tab, { allocateLogicalTabId } from "./Tab";
@@ -99,20 +99,55 @@ export default class TabManager {
   /** Apply a deferred account switch (see reapplyUserId) right before a tab is focused. */
   public applyPendingUserId(tabId: number) {
     const tab = this.tabs.get(tabId);
-    if (!tab || !(tab instanceof Tab) || tab.pendingUserId === undefined) return;
+    if (!tab || !(tab instanceof Tab)) return;
 
-    this.refreshTabUserId(tab, tab.pendingUserId);
+    if (tab.pendingUserId !== undefined) {
+      this.refreshTabUserId(tab, tab.pendingUserId);
+    } else if (tab.pendingSessionReload) {
+      this.reloadUnderSession(tab);
+    }
+  }
+
+  /**
+   * A session started (sign-in finished) after these tabs had loaded without
+   * one, so each shows whatever figma.com serves a signed-out visitor. Load
+   * them again — the one on screen now, the others when they are next
+   * focused (applyPendingUserId), so a sign-in does not boot every canvas at
+   * once. Discarded tabs need nothing: they load fresh when revived.
+   * `all` = every live tab loaded signed out; otherwise only tabs that are
+   * on a login page themselves.
+   */
+  public reloadForNewSession(all: boolean) {
+    this.tabs.forEach((tab) => {
+      if (!(tab instanceof Tab) || tab.view.webContents.isDestroyed()) return;
+      if (!all && sessionStateFromUrl(tab.getUrl()) !== "signedOut") return;
+      if (tab.id === this.lastFocusedTab) this.reloadUnderSession(tab);
+      else tab.pendingSessionReload = true;
+    });
+  }
+
+  private reloadUnderSession(tab: Tab) {
+    tab.pendingSessionReload = false;
+    if (tab.view.webContents.isDestroyed()) return;
+    // sessionUrl, not getUrl(): a signed-out file tab may sit on the login
+    // page or an error page by now; sessionUrl falls back to the file.
+    this.navigateShown(tab, tab.sessionUrl);
   }
 
   private refreshTabUserId(tab: Tab, userId: string) {
     tab.pendingUserId = undefined;
+    tab.pendingSessionReload = false;
     if (tab.view.webContents.isDestroyed()) return;
 
     const parsedUrl = parseURL(tab.getUrl());
     if (!parsedUrl) return;
 
     parsedUrl.searchParams.set("fuid", userId);
-    tab.loadUrl(parsedUrl.toString());
+    this.navigateShown(tab, parsedUrl.toString());
+  }
+
+  private navigateShown(tab: Tab, url: string) {
+    tab.loadUrl(url);
 
     // Same family of issue as the "reattached view stays blank" gotcha
     // (Window.swapTo): a loadURL() on an already-visible WebContentsView can

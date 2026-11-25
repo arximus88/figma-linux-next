@@ -421,6 +421,87 @@ describe("figma_ai_generate_image", () => {
   });
 });
 
+describe("figma_ai_generate_image with nodeId (remote generate_image)", () => {
+  function page(target: any) {
+    const generated: any[] = [];
+    const window: any = {
+      store: { getState: () => ({ openFile: { plan: { id: "team::1" } } }) },
+      figma: {
+        mixed: Symbol("mixed"),
+        currentPage: { children: [] },
+        getNodeByIdAsync: async (id: string) => (id === "1:2" ? target : null),
+        createImage: () => ({
+          hash: "h2",
+          getSizeAsync: async () => ({ width: 1024, height: 1024 }),
+        }),
+        createRectangle: () => {
+          throw new Error("must not place a new rectangle");
+        },
+      },
+      rspackChunk_figma_web_bundler: bundler({
+        "1": {
+          source: '"/api/cortex/design/editor_ai/images/generate"',
+          exports: {
+            Ay: {
+              design: {
+                generateImages: async (args: any) => {
+                  generated.push(args);
+                  return { images: [btoa("png")] };
+                },
+              },
+            },
+          },
+        },
+        "2": {
+          source: 'ownerType:"file" trackingSessionId:',
+          exports: {
+            ctx: Object.assign(() => ({ ownerType: "file" }), {
+              toString: () => 'function(){return{ownerType:"file"}}',
+            }),
+          },
+        },
+      }),
+    };
+    const fetch = async () => ({ ok: false });
+    const go = (nodeId: string) =>
+      new Function(
+        "window",
+        "fetch",
+        "crypto",
+        "atob",
+        "btoa",
+        `return (${FIGMA_AI_GENERATE_IMAGE_SCRIPT({ prompt: "leaf", negativePrompt: null, width: 1024, height: 1024, model: "m", seed: 1, place: true, nodeId, previewMax: 0 })});`,
+      )(window, fetch, { randomUUID: () => "u" }, atob, btoa);
+    return { go, generated };
+  }
+
+  it("replaces the node's image fill, keeping its size and scale mode", async () => {
+    const target: any = {
+      id: "1:2",
+      type: "RECTANGLE",
+      width: 320,
+      height: 200,
+      fills: [{ type: "SOLID" }, { type: "IMAGE", imageHash: "old", scaleMode: "FIT" }],
+    };
+    const { go } = page(target);
+    const out = await go("1:2");
+    expect(out.placed).toEqual({ nodeId: "1:2", imageHash: "h2", width: 1024, height: 1024 });
+    expect(target.fills).toEqual([
+      { type: "SOLID" },
+      { type: "IMAGE", imageHash: "h2", scaleMode: "FIT" },
+    ]);
+    expect([target.width, target.height]).toEqual([320, 200]);
+  });
+
+  it("fails before generating (no credits spent) when the node is missing or has no fills", async () => {
+    const missing = page({});
+    expect((await missing.go("9:9")).error).toContain("Node not found");
+    const group = page({ id: "1:2", type: "GROUP" });
+    expect((await group.go("1:2")).error).toContain("has no fills");
+    expect([...missing.generated, ...group.generated]).toHaveLength(0);
+  });
+});
+
 describe("list_libraries", () => {
   it("lists libraries by name, enabled ones first, without their long keys", async () => {
     const view = (name: string) => ({ _name: name });

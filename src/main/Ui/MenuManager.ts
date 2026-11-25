@@ -23,7 +23,11 @@ export default class MenuManager {
       this.item("New Window", "newWindow", "Ctrl+N"),
       this.item("New Tab", "newFile", "Ctrl+T"),
       this.item("Open File Browser", "openFileBrowser", "Ctrl+O"),
-      this.item("Open File URL from Clipboard", "openFileUrlClipboard", "Ctrl+Shift+O"),
+      // Not Ctrl+Shift+O (Figma: Show outlines) or Ctrl+Alt+O (Figma: Outline
+      // stroke) — a menu accelerator takes the key before the editor sees it.
+      // No Alt+Shift either: that combo switches keyboard layout on many
+      // Linux setups (grp:alt_shift_toggle), so Ctrl+Alt+Shift+… never arrives.
+      this.item("Open File URL from Clipboard", "openFileUrlClipboard", "Ctrl+Alt+U"),
       { type: "separator" },
       this.item("Close Window", "closeCurrentWindow", "Ctrl+Shift+W"),
       this.item("Close Tab", "closeCurrentTab", "Ctrl+W", state?.actionCheckedState["close-tab"]),

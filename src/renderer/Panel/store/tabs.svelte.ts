@@ -22,6 +22,7 @@ function addTab(data: Types.AddTabProps) {
     isInVoiceCall: false,
     loading: data.loading ?? true,
     groupId: data.groupId,
+    discarded: data.discarded,
   };
 
   const combined = [...tabList, newTab].sort((a, b) => (a.order > b.order ? 1 : -1));

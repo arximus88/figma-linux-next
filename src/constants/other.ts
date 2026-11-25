@@ -14,7 +14,8 @@ export const PROTOCOL = "figma";
 export const MANIFEST_FILE_NAME = "manifest.json";
 export const CHROME_GPU = "chrome://gpu";
 
-export const FIGMA_SESSION_COOKIE_NAME = "figma.session";
+/** figma.com's sign-in cookie. Being on disk does not mean the server still accepts it. */
+export const FIGMA_AUTH_COOKIE_NAME = "__Host-figma.authn";
 
 export const NEW_FILE_TAB_TITLE = "New file";
 

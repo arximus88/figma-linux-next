@@ -493,7 +493,10 @@ describe("McpServer (Streamable HTTP transport)", () => {
       for (const name of ["get_metadata", "get_screenshot", "use_figma", "figma_text"]) {
         expect(byName.get(name).inputSchema.properties.fileKey).toBeDefined();
       }
-      expect(byName.get("get_code_connect_map").inputSchema.properties.fileKey).toBeUndefined();
+      // Code-connect mappings live in the server: fileKey is accepted, not routed.
+      expect(
+        byName.get("get_code_connect_map").inputSchema.properties.fileKey.description,
+      ).toContain("Accepted for compatibility");
       expect(byName.get("use_figma").inputSchema.properties.code.type).toBe("string");
     });
   });
@@ -624,6 +627,118 @@ describe("McpServer (Streamable HTTP transport)", () => {
       });
       expect(provider.calls[0].fileKey).toBe("NewKey1234567890abcdef");
       expect(provider.calls[0].script).toContain('"Agent draft"');
+    });
+  });
+
+  describe("bearer-token auth (issue #94)", () => {
+    const TOKEN = "test-token-123";
+    const init = (headers: Record<string, string> = {}) =>
+      fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: { protocolVersion: "2025-03-26", capabilities: {} },
+        }),
+      });
+
+    it("answers without a token while auth is off", async () => {
+      expect((await init()).status).toBe(200);
+    });
+
+    it("refuses a missing or wrong token with 401 and a JSON-RPC error", async () => {
+      server.setAuth(true, TOKEN);
+      for (const headers of [{}, { Authorization: "Bearer nope" }, { Authorization: TOKEN }]) {
+        const res = await init(headers);
+        expect(res.status).toBe(401);
+        expect(res.headers.get("www-authenticate")).toContain("Bearer");
+        const body = await res.json();
+        expect(body.jsonrpc).toBe("2.0");
+        expect(body.error.code).toBe(-32001);
+        expect(JSON.stringify(body)).not.toContain(TOKEN);
+      }
+      expect(provider.calls).toHaveLength(0);
+    });
+
+    it("serves a client that sends the token on every request", async () => {
+      server.setAuth(true, TOKEN);
+      const auth = { Authorization: `Bearer ${TOKEN}` };
+      const res = await init(auth);
+      expect(res.status).toBe(200);
+      const sessionId = res.headers.get("mcp-session-id")!;
+      const list = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Mcp-Session-Id": sessionId, ...auth },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+      });
+      expect(list.status).toBe(200);
+      // The session id alone is not a credential.
+      const bare = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/list" }, sessionId);
+      expect(bare.status).toBe(401);
+    });
+
+    it("guards the legacy SSE transport too", async () => {
+      server.setAuth(true, TOKEN);
+      const origin = new URL(base).origin;
+      expect((await fetch(`${origin}/sse`)).status).toBe(401);
+      expect((await fetch(`${origin}/messages?sessionId=x`, { method: "POST" })).status).toBe(401);
+    });
+
+    it("keeps upload URLs working without the header: the URL is the credential", async () => {
+      server.setWriteToolsEnabled(true);
+      server.setAuth(true, TOKEN);
+      const auth = { Authorization: `Bearer ${TOKEN}` };
+      const sessionId = (await init(auth)).headers.get("mcp-session-id")!;
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Mcp-Session-Id": sessionId, ...auth },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          method: "tools/call",
+          params: { name: "upload_assets", arguments: {} },
+        }),
+      });
+      const { uploads } = JSON.parse((await res.json()).result.content[0].text);
+      provider.nextResult = { nodeId: "1:2", imageHash: "h" };
+      const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+      const post = await fetch(uploads[0].url, { method: "POST", body: PNG });
+      expect(post.status).toBe(200);
+    });
+
+    it("drops sessions opened before the token changed", async () => {
+      server.setAuth(true, TOKEN);
+      const sessionId = (await init({ Authorization: `Bearer ${TOKEN}` })).headers.get(
+        "mcp-session-id",
+      )!;
+      server.setAuth(true, "rotated");
+      const res = await fetch(base, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Mcp-Session-Id": sessionId,
+          Authorization: "Bearer rotated",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/list" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("fails closed when auth is on but no token exists", async () => {
+      server.setAuth(true, "");
+      expect((await init({ Authorization: "Bearer " })).status).toBe(401);
+    });
+
+    it("lets browsers send the header cross-origin", async () => {
+      server.setAuth(true, TOKEN);
+      const res = await fetch(base, {
+        method: "OPTIONS",
+        headers: { Origin: "http://localhost:6274" },
+      });
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-headers")).toContain("Authorization");
     });
   });
 

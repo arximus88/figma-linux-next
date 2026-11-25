@@ -20,6 +20,7 @@
 
 import http from "node:http";
 import crypto from "node:crypto";
+import path from "node:path";
 import {
   defaultLogger,
   MCP_HOST,
@@ -41,6 +42,7 @@ import type {
   ToolName,
 } from "./types";
 import { AI_TOOLS, TOOLS, WRITE_TOOLS } from "./tools/definitions";
+import { CREATE_SESSION, createSessionResult, resolveToolCall } from "./tools/remoteCompat";
 import { SessionManager } from "./transport/SessionManager";
 import {
   collectBody,
@@ -52,7 +54,38 @@ import {
 } from "./utils/http";
 import { UPLOAD_MAX_BYTES, type UploadTicket } from "./utils/uploads";
 import { readFileKeyArg } from "./utils/fileKey";
+import { isAuthExempt, isAuthorized } from "./utils/auth";
 import { toolError } from "./utils/toolResponse";
+import {
+  isHostVisible,
+  loadSandbox,
+  pickSaveBaseDir,
+  type WritableRoots,
+  writableRoots,
+} from "./utils/hostPath";
+
+/** An `xdg-*` grant's directory, as the sandboxed process sees it. */
+function xdgDirOf(name: string): string | null {
+  const electronName: Record<string, Parameters<typeof app.getPath>[0]> = {
+    desktop: "desktop",
+    documents: "documents",
+    downloads: "downloads",
+    music: "music",
+    pictures: "pictures",
+    videos: "videos",
+  };
+  try {
+    if (electronName[name]) return app.getPath(electronName[name]);
+  } catch {
+    return null;
+  }
+  const home = process.env.HOME ?? "";
+  if (name === "config") return process.env.HOST_XDG_CONFIG_HOME || path.join(home, ".config");
+  if (name === "cache") return process.env.HOST_XDG_CACHE_HOME || path.join(home, ".cache");
+  if (name === "data") return process.env.HOST_XDG_DATA_HOME || path.join(home, ".local", "share");
+  if (name === "runtime") return process.env.XDG_RUNTIME_DIR ?? null;
+  return null;
+}
 
 // ── McpServer Class ────────────────────────────────────────────────────────────
 
@@ -70,6 +103,9 @@ export class McpServer {
   private _writeToolsEnabled = false;
   private _aiToolsEnabled = false;
   private _boundPort = MCP_PORT;
+  /** Bearer-token mode (issue #94). Off by default; see setAuth. */
+  private _authRequired = false;
+  private _authToken = "";
 
   constructor(log?: Logger) {
     this.log = log ?? defaultLogger;
@@ -105,9 +141,31 @@ export class McpServer {
       // exportDir, not lastExportDir: the last export folder moves every time
       // the user exports something, and the same relative path would land in
       // a different place from one call to the next.
-      getSaveBaseDir: () => storage.settings.app.exportDir || app.getPath("pictures"),
+      getSaveBaseDir: () =>
+        pickSaveBaseDir(
+          storage.settings.app.exportDir || app.getPath("pictures"),
+          path.join(app.getPath("downloads"), "Figma"),
+          this.hostVisible,
+        ),
+      isHostVisible: this.hostVisible,
     });
   }
+
+  /**
+   * Whether the host sees a file the app writes at a path. Always true outside
+   * Flatpak; inside, only granted directories (see utils/hostPath.ts). The
+   * grants cannot change while the app runs, so they are read once.
+   */
+  private hostVisible = (absPath: string): boolean => {
+    if (this._writableRoots === undefined) {
+      const sandbox = loadSandbox();
+      this._writableRoots = sandbox
+        ? writableRoots(sandbox, app.getPath("home"), (name) => xdgDirOf(name))
+        : null;
+    }
+    return this._writableRoots === null || isHostVisible(absPath, this._writableRoots);
+  };
+  private _writableRoots: WritableRoots | null | undefined;
 
   /**
    * Handlers bound to the tab that shows `fileKey` instead of the active tab.
@@ -145,6 +203,21 @@ export class McpServer {
     this._aiToolsEnabled = enabled;
     this.log.info(`MCP Figma AI tools ${enabled ? "enabled" : "disabled"}`);
     this.notifyToolsChanged();
+  }
+
+  /**
+   * Require `Authorization: Bearer <token>` on every request, or stop
+   * requiring it. Takes effect on the next request, no rebind. Sessions opened
+   * before the change are dropped: they were let in under the old rule, and an
+   * open SSE stream would otherwise keep receiving notifications. An empty
+   * token with auth on refuses everyone. The token itself is never logged.
+   */
+  public setAuth(required: boolean, token: string): void {
+    if (this._authRequired === required && this._authToken === token) return;
+    this._authRequired = required;
+    this._authToken = token;
+    this.sessions.clear();
+    this.log.info(`MCP bearer-token auth ${required ? "required" : "off"}`);
   }
 
   /** The tools a client sees right now, by tier. */
@@ -291,6 +364,25 @@ export class McpServer {
     if (req.method === "OPTIONS") {
       res.writeHead(204, cors());
       res.end();
+      return;
+    }
+
+    // Bearer token, when the user turned it on. Checked before routing so an
+    // unauthenticated caller can't tell which endpoints exist.
+    if (
+      this._authRequired &&
+      !isAuthExempt(req.method, req.url) &&
+      !isAuthorized(req.headers.authorization, this._authToken)
+    ) {
+      // Never log the header: a near-miss token is still most of a secret.
+      this.log.warn(`Unauthorized MCP request: ${req.method} ${req.url?.split("?")[0]}`);
+      res.setHeader("WWW-Authenticate", 'Bearer realm="figma-linux-next"');
+      replyError(
+        res,
+        401,
+        -32001,
+        "Unauthorized: this server requires Authorization: Bearer <token>. Copy the token from figma-linux-next Settings → Integrations.",
+      );
       return;
     }
 
@@ -598,7 +690,7 @@ export class McpServer {
     get_screenshot: { run: (h, a) => h.toolGetScreenshot(a) },
     get_motion_context: { run: (h, a) => h.toolGetMotionContext(a) },
     get_variable_defs: { run: (h, a) => h.toolGetVariableDefs(a) },
-    get_code_connect_map: { run: (h) => h.toolGetCodeConnectMap() },
+    get_code_connect_map: { run: (h, a) => h.toolGetCodeConnectMap(a) },
     add_code_connect_map: { run: (h, a) => h.toolAddCodeConnectMap(a) },
     create_design_system_rules: { run: (h, a) => h.toolCreateDesignSystemRules(a) },
     get_figjam: { run: (h, a) => h.toolGetFigjam(a) },
@@ -613,6 +705,10 @@ export class McpServer {
     download_assets: { run: (h, a) => h.toolDownloadAssets(a) },
     upload_assets: { write: true, run: (h, a) => h.toolUploadAssets(a) },
     get_comments: { run: (h, a) => h.toolGetComments(a) },
+    post_comment: { write: true, run: (h, a) => h.toolPostComment(a) },
+    reply_comment: { write: true, run: (h, a) => h.toolReplyComment(a) },
+    resolve_comment: { write: true, run: (h, a) => h.toolResolveComment(a) },
+    delete_comment: { write: true, run: (h, a) => h.toolDeleteComment(a) },
     get_versions: { run: (h, a) => h.toolGetVersions(a) },
     list_libraries: { run: (h) => h.toolListLibraries() },
     get_library_styles: { run: (h, a) => h.toolGetLibraryStyles(a) },
@@ -626,7 +722,10 @@ export class McpServer {
     figma_ai_edit_image: { ai: true, run: (h, a) => h.toolFigmaAiEditImage(a) },
   };
 
-  private async dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  private async dispatchTool(rawName: string, rawArgs: Record<string, unknown>): Promise<unknown> {
+    // Figma remote-MCP names and session arguments (tools/remoteCompat.ts).
+    if (rawName === CREATE_SESSION) return createSessionResult();
+    const { name, args } = resolveToolCall(rawName, rawArgs);
     if (!this.viewProvider || !this.handlers) {
       return toolError("No Figma window open — open a file first");
     }

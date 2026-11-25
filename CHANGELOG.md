@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 2026-11-25
+
+The MCP server can require a token, and it now writes comments and answers to the names Figma's
+remote server uses. A link to a frame takes an open file to that frame. Signing in keeps your
+file tabs. Electron 45.5.0.
+
+### Added
+
+- **Access token for the MCP server** ([#94](https://github.com/arximus88/figma-linux-next/issues/94)).
+  Off by default. Turn on Settings → Integrations → Require access token, and every request must
+  carry `Authorization: Bearer <token>`. The token can be shown, copied and regenerated there, and
+  the page gives `.mcp.json` and `claude mcp add` snippets that already carry it. Thanks to
+  [@fdw](https://github.com/fdw) for the request.
+
+- **Comment tools** ([#92](https://github.com/arximus88/figma-linux-next/issues/92)).
+  `post_comment`, `reply_comment`, `resolve_comment` and `delete_comment` (your own comments only)
+  write to the file's real comments, behind the editing-tools switch. `get_comments` takes the
+  remote server's filters: node, thread, page, author, mentions, resolved, root only, a limit and
+  a cursor.
+
+- **Figma's remote MCP names work as they are** ([#92](https://github.com/arximus88/figma-linux-next/issues/92)).
+  `create_session`, `sessionId`, `get_libraries`, `generate_image` and the remote parameter names
+  are accepted, so prompts and skills written for Figma's server need no changes.
+  `generate_image` with a `nodeId` replaces that layer's image fill. Thanks to
+  [@viniciosrab](https://github.com/viniciosrab) for the list of gaps.
+
+### Changed
+
+- **Open File URL from Clipboard is now `Ctrl+Alt+U`** ([#98](https://github.com/arximus88/figma-linux-next/issues/98)).
+  `Ctrl+Shift+O` is Figma's Show outlines, and the app's menu took the key first, so the editor
+  shortcut never fired. Thanks to [@dimitar-kunchev](https://github.com/dimitar-kunchev)
+  ([#99](https://github.com/arximus88/figma-linux-next/pull/99)).
+
+### Fixed
+
+- **A link to a frame moves an open file to that frame** ([#96](https://github.com/arximus88/figma-linux-next/issues/96)).
+  A link (`figma://`, from the browser or from the clipboard) to a file that already had a tab only
+  switched to the tab and left the view where it was. The open editor now goes to the frame in
+  place, with no reload, and stays in Dev Mode and in the same account. Thanks to
+  [@dimitar-kunchev](https://github.com/dimitar-kunchev)
+  ([#97](https://github.com/arximus88/figma-linux-next/pull/97)).
+
+- **Signing in keeps your file tabs.** After a sign-in the tab strip came back with Home only,
+  while the file tabs lived on unseen, still showing the signed-out page. They now stay in the
+  strip and load again. Starting without a session no longer loads saved tabs into blank pages:
+  they wait until you are signed in.
+
+- **Only figma.com opens in an app tab.** Open File URL from Clipboard opened any web address in a
+  tab, and a look-alike host such as `figma.com.example.net` passed the check for links clicked
+  inside a file. App tabs run with access to the desktop bridge, so other sites now stay out.
+
+- **`get_screenshot` never answers with more than an MCP client accepts** ([#93](https://github.com/arximus88/figma-linux-next/issues/93)).
+  A whole page, a large `maxDimension` or a `scale` could produce a response over 16 MiB, and the
+  call failed with nothing the agent could act on. The longer edge is now capped at 8192 px, a page
+  is sized by the frames on it, and an image too large to send is saved to the export directory
+  with its path returned. An image sent inline is also kept within 2000 px on a side, past which
+  Claude rejects images once a conversation holds many of them; pass `savePath` for the full size.
+  Thanks to [@viniciosrab](https://github.com/viniciosrab) and [@bickov](https://github.com/bickov)
+  for tracking down both limits.
+
+- **The tray icon is legible at small sizes.** The symbolic icon used outside Plasma was a thin
+  outline that went dim and blurry where the tray draws it at 12–16 px. It is now the filled Figma
+  glyph at full height. Thanks to [@viniciosrab](https://github.com/viniciosrab)
+  ([#95](https://github.com/arximus88/figma-linux-next/pull/95)).
+
+- **Smaller MCP fixes.** A `savePath` starting with `~/` means your home folder, not a folder named
+  `~` in the export directory. Point comments now match `get_comments`' page and node filters.
+  Figma URLs no longer carry `fuid=undefined` on a first start.
+
 ## [0.25.0] - 2026-11-13
 
 The MCP server works behind your back: tools no longer pull a tab or the window to the front,

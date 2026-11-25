@@ -3,12 +3,18 @@ import {
   normalizeUrl,
   getFileKeyFromUrl,
   getTabDedupKey,
+  getNodeIdFromUrl,
+  keepTabParams,
   isFigmaRunUrl,
+  isFigmaHost,
+  isFigmaWebUrl,
   isFileBrowserUrl,
   isExportQueueUrl,
   isExternallyOpenableUrl,
   getEditorTypeFromUrl,
   normalizeEditorType,
+  sessionStateFromUrl,
+  withFuid,
 } from "Utils/Common/url";
 import { HOMEPAGE } from "Const";
 
@@ -386,5 +392,126 @@ describe("Figma Motion export queue (issue #41)", () => {
     expect(isExportQueueUrl("https://www.figma.com/files/recent")).toBe(false);
     // A design file that merely mentions "export" in its slug is not the queue.
     expect(isExportQueueUrl("https://www.figma.com/design/KEY/export-icons")).toBe(false);
+  });
+});
+
+describe("sessionStateFromUrl", () => {
+  test("the login page means no session", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/login")).toBe("signedOut");
+    expect(sessionStateFromUrl("https://www.figma.com/login?redirect_uri=%2Ffiles")).toBe(
+      "signedOut",
+    );
+    expect(sessionStateFromUrl("https://www.figma.com/signup")).toBe("signedOut");
+  });
+
+  test("any other figma.com page means the server accepted the session", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/files/recents?fuid=1")).toBe("signedIn");
+    expect(sessionStateFromUrl("https://www.figma.com/files/team/1/x")).toBe("signedIn");
+  });
+
+  test("the redeem hop, error pages and other sites say nothing", () => {
+    expect(sessionStateFromUrl("https://www.figma.com/app_auth/redeem?g_secret=x")).toBeUndefined();
+    expect(sessionStateFromUrl("chrome-error://chromewebdata/")).toBeUndefined();
+    expect(sessionStateFromUrl("https://example.com/login")).toBeUndefined();
+    expect(sessionStateFromUrl("https://www.figma.com.evil.test/files")).toBeUndefined();
+    expect(sessionStateFromUrl("https://www.figma.com/loginx")).toBe("signedIn");
+  });
+});
+
+describe("withFuid", () => {
+  test("sets the account selector when a user is known", () => {
+    expect(withFuid("https://www.figma.com/files/recents/", "42")).toBe(
+      "https://www.figma.com/files/recents/?fuid=42",
+    );
+  });
+
+  test("replaces a previous one", () => {
+    expect(withFuid("https://www.figma.com/design/k?fuid=1&x=y", "2")).toBe(
+      "https://www.figma.com/design/k?fuid=2&x=y",
+    );
+  });
+
+  test("never writes fuid=undefined; drops a stale one when there is no user", () => {
+    expect(withFuid("https://www.figma.com/files/recents/", undefined)).toBe(
+      "https://www.figma.com/files/recents/",
+    );
+    expect(withFuid("https://www.figma.com/design/k?fuid=undefined&x=y", null)).toBe(
+      "https://www.figma.com/design/k?x=y",
+    );
+  });
+
+  test("leaves an unparseable string alone", () => {
+    expect(withFuid("not a url", "1")).toBe("not a url");
+  });
+});
+
+describe("getNodeIdFromUrl", () => {
+  test("reads node-id in Figma's URL form", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4-6&t=x")).toBe("4-6");
+  });
+
+  test("maps the API form 1:23 to the URL form", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4%3A6")).toBe("4-6");
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A?node-id=4:6")).toBe("4-6");
+  });
+
+  test("returns null without a node-id", () => {
+    expect(getNodeIdFromUrl("https://www.figma.com/design/abc/A")).toBeNull();
+    expect(getNodeIdFromUrl("not a url")).toBeNull();
+  });
+});
+
+describe("keepTabParams", () => {
+  const LINK = "https://www.figma.com/design/abc/A?node-id=4-6";
+
+  test("adds the current page's mode to a link that names none", () => {
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A?m=dev")).toBe(`${LINK}&m=dev`);
+  });
+
+  test("adds the tab's account, so the file opens under the same user", () => {
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A?fuid=42&m=dev")).toBe(
+      `${LINK}&m=dev&fuid=42`,
+    );
+  });
+
+  test("leaves a link's own mode and account alone", () => {
+    const link = `${LINK}&m=auto&fuid=7`;
+    expect(keepTabParams(link, "https://www.figma.com/design/abc/A?m=dev&fuid=42")).toBe(link);
+  });
+
+  test("leaves the link alone when the page has neither", () => {
+    expect(keepTabParams(LINK, "https://www.figma.com/design/abc/A")).toBe(LINK);
+  });
+});
+
+describe("figma.com only: a look-alike host never passes", () => {
+  // A tab runs the desktop preload with contextIsolation off; the hostname
+  // test was unanchored, so these opened in a tab instead of the browser.
+  const lookAlikes = [
+    "https://figma.com.evil.net/design/abc/A",
+    "https://notfigma.com/design/abc/A",
+    "https://www.figma.com.evil.net/files/recents",
+  ];
+
+  test("isFigmaHost is anchored", () => {
+    expect(isFigmaHost("figma.com")).toBe(true);
+    expect(isFigmaHost("www.figma.com")).toBe(true);
+    expect(isFigmaHost("figma.com.evil.net")).toBe(false);
+    expect(isFigmaHost("notfigma.com")).toBe(false);
+  });
+
+  for (const url of lookAlikes) {
+    test(`${url} is not a Figma URL`, () => {
+      expect(isFigmaWebUrl(url)).toBe(false);
+      expect(isFigmaRunUrl(url)).toBe(false);
+      expect(isFileBrowserUrl(url)).toBe(false);
+    });
+  }
+
+  test("real figma.com URLs still pass", () => {
+    expect(isFigmaWebUrl("https://www.figma.com/design/abc/A")).toBe(true);
+    expect(isFigmaRunUrl("https://www.figma.com/design/abc/A")).toBe(true);
+    expect(isFileBrowserUrl("https://www.figma.com/files/recents")).toBe(true);
+    expect(isFigmaWebUrl("javascript:alert(1)")).toBe(false);
   });
 });

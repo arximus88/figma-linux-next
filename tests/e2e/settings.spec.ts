@@ -1,3 +1,4 @@
+import net from "node:net";
 import { expect, type Page, test } from "@playwright/test";
 import { SECTIONS, SETTINGS } from "../../src/renderer/Settings/schema";
 import { findPanelPage, openSettings, openTab, shownView, stripTabs } from "./helpers/app";
@@ -302,6 +303,63 @@ test.describe("Settings page", () => {
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Integrations");
     await expect(page.locator("#setting-cdp-port")).toBeInViewport();
+
+    await closeApp(handle);
+  });
+});
+
+/** A port nothing listens on, so the app's MCP server never meets the user's. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const addr = srv.address();
+      srv.close(() => resolve(typeof addr === "object" && addr ? addr.port : 0));
+    });
+  });
+}
+
+test.describe("MCP access token (issue #94)", () => {
+  test("the switch locks the server, the shown token opens it, Regenerate retires it", async () => {
+    const port = await freePort();
+    const handle = await launchApp({ settings: { mcp: { serverPort: port } } });
+    const page = await openSettings(handle);
+    await openSection(page, "Integrations");
+
+    const initialize = (token?: string) =>
+      fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+      }).then((r) => r.status);
+
+    await expect.poll(() => initialize().catch(() => 0)).toBe(200);
+
+    await page.getByRole("switch", { name: "Require access token" }).click();
+    await expect.poll(() => saved(handle, (s) => s.mcp.requireAuth)).toBe(true);
+    await expect.poll(() => initialize()).toBe(401);
+
+    // Masked until asked; the value on screen is the one main checks.
+    const value = page.getByLabel("Access token", { exact: true });
+    await expect(value).toHaveText(/^•+$/);
+    await page.getByRole("button", { name: "Show", exact: true }).click();
+    await expect(value).toHaveText(/^[A-Za-z0-9_-]{43}$/);
+    const token = (await value.textContent())!;
+    expect(await initialize(token)).toBe(200);
+
+    await page.getByRole("button", { name: "Regenerate", exact: true }).click();
+    await expect(value).not.toHaveText(token);
+    const fresh = (await value.textContent())!;
+    expect(await initialize(token)).toBe(401);
+    expect(await initialize(fresh)).toBe(200);
+
+    // Off again: back to how it worked before, no header needed.
+    await page.getByRole("switch", { name: "Require access token" }).click();
+    await expect.poll(() => initialize()).toBe(200);
 
     await closeApp(handle);
   });
