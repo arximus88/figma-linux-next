@@ -505,7 +505,7 @@ native Wayland, no flags, "WebGPU interop: Hardware accelerated". Intel is not d
 ## Important Gotchas
 
 ### Electron version is exact (no caret) — every bump needs a manual OAuth test
-`package.json` lists an exact version, currently `"electron": "45.3.1"` (Chromium 156.0.8078.96, Node 24), bumped 2026-11-13 from 45.1.0 (45.3.0 rolled Chromium .48 → .96, 45.3.1 dropped trust in eMudhra's revoked intermediates). Last verified: 45.3.1 (2026-11-13, clean profile, packaged build via `scripts/oauth-login-test.sh`), `__Host-figma.authn` lands. Before that: 45.1.0 (2026-10-30). 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own.
+`package.json` lists an exact version, currently `"electron": "45.5.0"` (Chromium 156.0.8078.109, Node 24.22.3), bumped 2026-11-25 from 45.3.1 (45.3.2 fixed cookies set shortly before quit not reaching disk). Last verified: 45.5.0 (2026-11-25, clean profile, packaged build via `scripts/oauth-login-test.sh`), `__Host-figma.authn` lands. Before that: 45.3.1 (2026-11-13), 45.1.0 (2026-10-30). 45.1.0 came from 44.5.1 on 2026-10-29 (via 44.10.0). 44.10.0 was never shipped or login-tested on its own. Quit is `Ctrl+Alt+Q`, not `Ctrl+Q`.
 
 45 strips `Buffer`, `setImmediate` and the `events`/`timers`/`url` modules from sandboxed preloads. Ours (`bridge.js`, `loadContent.js`, `loadMainContent.js`) only `require("electron")`; keep it that way or add a polyfill.
 
