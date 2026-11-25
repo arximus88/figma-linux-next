@@ -13,14 +13,14 @@
     "electron"
   ],
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.2",
     "@tsconfig/svelte": "^5.0.9",
-    "svelte": "^5.57.1",
+    "svelte": "~5.58.1",
     "svelte-preprocess": "^6.0.5",
     "typescript": "^6.0.3",
     "vite": "^8.3.8",
     "vite-plugin-electron": "^1.2.0",
-    "electron": "45.3.1"
+    "electron": "45.5.0"
   },
   "overrides": {
     "hosted-git-info": "^7"
