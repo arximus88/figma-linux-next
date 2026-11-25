@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.26.0] - 2026-11-25
+
+The MCP server can require a token, and it now writes comments and answers to the names Figma's
+remote server uses. A link to a frame takes an open file to that frame. Signing in keeps your
+file tabs. Electron 45.5.0.
+
+### Added
+
+- **Access token for the MCP server** ([#94](https://github.com/arximus88/figma-linux-next/issues/94)).
+  Off by default. Turn on Settings → Integrations → Require access token, and every request must
+  carry `Authorization: Bearer <token>`. The token can be shown, copied and regenerated there, and
+  the page gives `.mcp.json` and `claude mcp add` snippets that already carry it. Thanks to
+  [@fdw](https://github.com/fdw) for the request.
+
+- **Comment tools** ([#92](https://github.com/arximus88/figma-linux-next/issues/92)).
+  `post_comment`, `reply_comment`, `resolve_comment` and `delete_comment` (your own comments only)
+  write to the file's real comments, behind the editing-tools switch. `get_comments` takes the
+  remote server's filters: node, thread, page, author, mentions, resolved, root only, a limit and
+  a cursor.
+
+- **Figma's remote MCP names work as they are** ([#92](https://github.com/arximus88/figma-linux-next/issues/92)).
+  `create_session`, `sessionId`, `get_libraries`, `generate_image` and the remote parameter names
+  are accepted, so prompts and skills written for Figma's server need no changes.
+  `generate_image` with a `nodeId` replaces that layer's image fill. Thanks to
+  [@viniciosrab](https://github.com/viniciosrab) for the list of gaps.
 
 ### Changed
 
@@ -22,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   place, with no reload, and stays in Dev Mode and in the same account. Thanks to
   [@dimitar-kunchev](https://github.com/dimitar-kunchev)
   ([#97](https://github.com/arximus88/figma-linux-next/pull/97)).
+
+- **Signing in keeps your file tabs.** After a sign-in the tab strip came back with Home only,
+  while the file tabs lived on unseen, still showing the signed-out page. They now stay in the
+  strip and load again. Starting without a session no longer loads saved tabs into blank pages:
+  they wait until you are signed in.
 
 - **Only figma.com opens in an app tab.** Open File URL from Clipboard opened any web address in a
   tab, and a look-alike host such as `figma.com.example.net` passed the check for links clicked
@@ -40,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outline that went dim and blurry where the tray draws it at 12–16 px. It is now the filled Figma
   glyph at full height. Thanks to [@viniciosrab](https://github.com/viniciosrab)
   ([#95](https://github.com/arximus88/figma-linux-next/pull/95)).
+
+- **Smaller MCP fixes.** A `savePath` starting with `~/` means your home folder, not a folder named
+  `~` in the export directory. Point comments now match `get_comments`' page and node filters.
+  Figma URLs no longer carry `fuid=undefined` on a first start.
 
 ## [0.25.0] - 2026-11-13
 
