@@ -29,31 +29,54 @@ function discardedIds(panel: Page): Promise<number[]> {
   );
 }
 
-/** What Figma's page sends from the home tab once the browser sign-in is redeemed. */
-async function signIn(handle: AppHandle) {
-  await handle.setSignedOut(false);
-  await handle.app.evaluate(({ ipcMain, webContents }) => {
-    const home = webContents
+/** Pages sitting on figma.com/login. */
+function loginPageIds(handle: AppHandle): Promise<number[]> {
+  return handle.app.evaluate(({ webContents }) =>
+    webContents
       .getAllWebContents()
-      .find((wc) => new URL(wc.getURL() || "about:blank").pathname === "/login");
-    if (!home) throw new Error("no page on /login");
+      .filter((wc) => new URL(wc.getURL() || "about:blank").pathname === "/login")
+      .map((wc) => wc.id),
+  );
+}
+
+/**
+ * The home tab's page. Read before any file tab exists: once they are on
+ * /login too, "the page on /login" no longer names one page.
+ */
+async function homePageId(handle: AppHandle): Promise<number> {
+  await expectShown(handle, "figma.com/login");
+  const ids = await loginPageIds(handle);
+  if (ids.length !== 1) throw new Error(`expected only the home tab on /login, got ${ids.length}`);
+  return ids[0];
+}
+
+/** What Figma's page sends from the home tab once the browser sign-in is redeemed. */
+async function signIn(handle: AppHandle, homeId: number) {
+  await handle.setSignedOut(false);
+  await handle.app.evaluate(({ ipcMain, webContents }, id) => {
+    const home = webContents.fromId(id);
+    if (!home) throw new Error(`home page ${id} is gone`);
     ipcMain.emit("finishAppAuth", { sender: home }, { redirectURL: "/files/recents" });
-  });
+  }, homeId);
 }
 
 test("signing in keeps open file tabs in the strip and loads them under the session", async () => {
   const handle = await launchApp({ signedOut: true });
   try {
-    await expectShown(handle, "figma.com/login");
+    const homeId = await homePageId(handle);
     await openTab(handle.app, urls[0]);
     await openTab(handle.app, urls[1]);
     const panel = await findPanelPage(handle.app);
     await expect.poll(async () => (await stripTabs(panel)).length).toBe(2);
     const before = (await stripTabs(panel)).map((t) => t.id);
     // Signed out, a file tab ends on the login page like everything else.
-    await expect.poll(() => liveFileUrls(handle)).toEqual([]);
+    // Wait for both to get there: "no tab on a file" also holds before they
+    // have loaded anything, and a signed-out load still in flight when the
+    // session starts would race the reload this test is about.
+    await expect.poll(async () => (await loginPageIds(handle)).length).toBe(3);
+    expect(await liveFileUrls(handle)).toEqual([]);
 
-    await signIn(handle);
+    await signIn(handle, homeId);
     await expectShown(handle, "figma.com/files/recents");
 
     // The panel used to be reloaded here and came back with an empty strip.
@@ -98,7 +121,7 @@ test("a signed-out start keeps saved tabs unloaded until sign-in, then loads the
     const panel = await findPanelPage(handle.app);
     await expect.poll(async () => (await stripTabs(panel)).length).toBe(3);
     const ids = (await stripTabs(panel)).map((t) => t.id);
-    await expectShown(handle, "figma.com/login");
+    const homeId = await homePageId(handle);
     // Give a non-lazy restore (300 ms apart) time to have created views.
     await panel.waitForTimeout(1500);
     expect(await discardedIds(panel)).toEqual(ids);
@@ -112,7 +135,7 @@ test("a signed-out start keeps saved tabs unloaded until sign-in, then loads the
     expect(await liveFileUrls(handle)).toEqual([]);
     expect(await shownView(handle.app)).toContain("figma.com/login");
 
-    await signIn(handle);
+    await signIn(handle, homeId);
     await expect.poll(() => liveFileUrls(handle), { timeout: 5000 }).toHaveLength(3);
     await expect.poll(() => discardedIds(panel)).toEqual([]);
     expect((await stripTabs(panel)).map((t) => t.id)).toEqual(ids);
